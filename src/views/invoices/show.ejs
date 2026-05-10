@@ -1,0 +1,150 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<%
+function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
+const balance = (Number(invoice.total) || 0) - (Number(invoice.amount_paid) || 0);
+%>
+
+<div class="max-w-5xl mx-auto px-4 py-6">
+  <div class="mb-4">
+    <a href="/invoices" class="text-sm text-recon-fog hover:text-recon-red">&larr; Invoices</a>
+  </div>
+
+  <div class="flex items-baseline justify-between mb-6 flex-wrap gap-2">
+    <div>
+      <div class="flex items-center gap-3">
+        <h1 class="page-h1"><%= invoice.invoice_number %></h1>
+        <span class="badge badge-<%= displayStatus %>"><%= displayStatus %></span>
+      </div>
+      <p class="page-sub">
+        Job: <a href="/jobs/<%= invoice.job_id %>" class="hover:text-recon-red"><%= invoice.job_title %></a>
+        &middot; Customer: <a href="/customers/<%= invoice.customer_id %>" class="hover:text-recon-red"><%= invoice.customer_name %></a>
+        <% if (invoice.wo_number) { %>
+          &middot; From: <a href="/work-orders/<%= invoice.work_order_id %>" class="hover:text-recon-red"><%= invoice.wo_number %></a>
+        <% } %>
+      </p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <a href="/invoices/<%= invoice.id %>/pdf" class="btn btn-secondary" target="_blank" rel="noopener">View PDF</a>
+      <a href="/invoices/<%= invoice.id %>/pdf?download=1" class="btn btn-ghost">Download</a>
+
+      <% if (invoice.status === 'draft') { %>
+        <a href="/invoices/<%= invoice.id %>/edit" class="btn btn-secondary">Edit</a>
+        <form action="/invoices/<%= invoice.id %>/send" method="post" class="m-0 inline">
+          <button class="btn btn-primary">Send</button>
+        </form>
+      <% } else if (invoice.status === 'sent' || invoice.status === 'overdue') { %>
+        <button type="button" onclick="document.getElementById('mark-paid-form').classList.toggle('hidden')" class="btn btn-primary">Mark paid</button>
+      <% } %>
+
+      <% if (invoice.status !== 'paid' && invoice.status !== 'void') { %>
+        <form action="/invoices/<%= invoice.id %>/void" method="post" class="m-0 inline"
+              onsubmit="return confirm('Void this invoice?');">
+          <button class="btn btn-ghost">Void</button>
+        </form>
+      <% } %>
+    </div>
+  </div>
+
+  <% if ((invoice.status === 'sent' || invoice.status === 'overdue')) { %>
+    <div id="mark-paid-form" class="card p-5 mb-6 hidden bg-green-50 border-green-200">
+      <form action="/invoices/<%= invoice.id %>/mark-paid" method="post" class="flex items-end gap-3">
+        <div class="flex-1">
+          <label class="label" for="amount">Amount paid</label>
+          <input type="number" step="0.01" min="0.01" name="amount" id="amount"
+                 value="<%= balance.toFixed(2) %>" required class="input">
+          <p class="text-xs text-recon-fog mt-1">Defaults to remaining balance ($<%= fmt(balance) %>). Lower amounts record a partial payment.</p>
+        </div>
+        <button type="submit" class="btn btn-primary">Record payment</button>
+      </form>
+    </div>
+  <% } %>
+
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div class="card p-4">
+      <div class="text-xs uppercase tracking-wide text-recon-fog">Subtotal</div>
+      <div class="text-xl font-semibold mt-1">$<%= fmt(invoice.subtotal) %></div>
+    </div>
+    <div class="card p-4">
+      <div class="text-xs uppercase tracking-wide text-recon-fog">Tax (<%= fmt(invoice.tax_rate) %>%)</div>
+      <div class="text-xl font-semibold mt-1">$<%= fmt(invoice.tax_amount) %></div>
+    </div>
+    <div class="card p-4 bg-recon-charcoal text-white">
+      <div class="text-xs uppercase tracking-wide text-recon-fog">Total</div>
+      <div class="text-2xl font-bold mt-1">$<%= fmt(invoice.total) %></div>
+    </div>
+    <div class="card p-4 <%= balance > 0 ? 'border-red-200' : 'bg-green-50 border-green-200' %>">
+      <div class="text-xs uppercase tracking-wide text-recon-fog">Balance due</div>
+      <div class="text-2xl font-bold mt-1 <%= balance > 0 ? 'text-recon-red' : 'text-green-700' %>">$<%= fmt(balance) %></div>
+    </div>
+  </div>
+
+  <div class="card overflow-hidden mb-6">
+    <div class="px-5 py-3 border-b border-recon-mist">
+      <h3 class="font-semibold">Line items</h3>
+    </div>
+    <% if (invoice.lines.length === 0) { %>
+      <div class="p-6 text-center text-recon-fog text-sm">No line items.</div>
+    <% } else { %>
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th class="text-right">Qty</th>
+            <th>Unit</th>
+            <th class="text-right">Unit $</th>
+            <th class="text-right">Line $</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% invoice.lines.forEach(function(li){ %>
+            <tr>
+              <td><%= li.description %></td>
+              <td class="text-right"><%= li.quantity %></td>
+              <td><%= li.unit %></td>
+              <td class="text-right">$<%= fmt(li.unit_price) %></td>
+              <td class="text-right font-medium">$<%= fmt(li.line_total) %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+    <div class="card p-5">
+      <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-2">Dates</h3>
+      <dl class="space-y-1 text-sm">
+        <div><dt class="text-recon-fog text-xs inline">Issued:</dt> <dd class="inline"><%= (invoice.created_at || '—').slice(0,10) %></dd></div>
+        <% if (invoice.due_date) { %>
+          <div><dt class="text-recon-fog text-xs inline">Due:</dt> <dd class="inline"><%= String(invoice.due_date).slice(0,10) %></dd></div>
+        <% } %>
+        <% if (invoice.sent_at) { %>
+          <div><dt class="text-recon-fog text-xs inline">Sent:</dt> <dd class="inline"><%= invoice.sent_at %></dd></div>
+        <% } %>
+        <% if (invoice.paid_at) { %>
+          <div><dt class="text-recon-fog text-xs inline">Paid:</dt> <dd class="inline"><%= invoice.paid_at %></dd></div>
+        <% } %>
+      </dl>
+    </div>
+    <% if (invoice.notes) { %>
+      <div class="card p-5">
+        <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-2">Notes</h3>
+        <p class="text-sm whitespace-pre-line"><%= invoice.notes %></p>
+      </div>
+    <% } %>
+  </div>
+
+  <% if (invoice.status === 'draft' || invoice.status === 'void') { %>
+    <div class="card p-5 border-red-200">
+      <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
+      <p class="text-sm text-recon-fog mb-3">Drafts and voided invoices can be deleted permanently.</p>
+      <form action="/invoices/<%= invoice.id %>/delete" method="post"
+            onsubmit="return confirm('Delete <%= invoice.invoice_number %>?');" class="m-0">
+        <button type="submit" class="btn btn-danger">Delete</button>
+      </form>
+    </div>
+  <% } %>
+</div>
+
+<%- include('../layouts/footer') %>

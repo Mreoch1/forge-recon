@@ -23,6 +23,7 @@ const db = require('../db/db');
 const { setFlash } = require('../middleware/auth');
 const calc = require('../services/calculations');
 const pdf = require('../services/pdf');
+const numbering = require('../services/numbering');
 
 const router = express.Router();
 
@@ -276,6 +277,73 @@ function statusTransition(req, res, fromStatus, toStatus, timestampField) {
 router.post('/:id/start',    (req, res) => statusTransition(req, res, 'scheduled', 'in_progress', null));
 router.post('/:id/complete', (req, res) => statusTransition(req, res, 'in_progress', 'complete', 'completed_date'));
 router.post('/:id/cancel',   (req, res) => statusTransition(req, res, ['scheduled','in_progress'], 'cancelled', null));
+
+// Generate invoice from this WO. Allowed only when:
+//   - WO status === 'complete'
+//   - No existing invoice references this WO (1:1 in v0)
+// Pulls tax_rate from the originating estimate (or company default), copies
+// line items into invoice_line_items, computes totals, sets due_date = +30d.
+router.post('/:id/generate-invoice', (req, res) => {
+  const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
+  if (!wo) {
+    return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
+  }
+  if (wo.status !== 'complete') {
+    setFlash(req, 'error', `${wo.wo_number} must be complete before generating an invoice. Current status: ${wo.status}.`);
+    return res.redirect(`/work-orders/${wo.id}`);
+  }
+  const existingInv = db.get('SELECT id FROM invoices WHERE work_order_id = ?', [wo.id]);
+  if (existingInv) {
+    setFlash(req, 'error', `${wo.wo_number} already has an invoice.`);
+    return res.redirect(`/invoices/${existingInv.id}`);
+  }
+
+  const lines = db.all(
+    `SELECT * FROM work_order_line_items WHERE work_order_id = ? ORDER BY sort_order ASC, id ASC`,
+    [wo.id]
+  );
+
+  // Tax rate: prefer originating estimate's rate, fall back to company default
+  let taxRate = 0;
+  if (wo.estimate_id) {
+    const est = db.get('SELECT tax_rate FROM estimates WHERE id = ?', [wo.estimate_id]);
+    if (est) taxRate = Number(est.tax_rate) || 0;
+  }
+  if (!taxRate) {
+    const settings = db.get('SELECT default_tax_rate FROM company_settings WHERE id = 1');
+    if (settings) taxRate = Number(settings.default_tax_rate) || 0;
+  }
+
+  const totals = calc.totals(lines, taxRate);
+  const invoiceNumber = numbering.nextInvoiceNumber();
+
+  // due_date = today + 30 days, ISO YYYY-MM-DD
+  const due = new Date();
+  due.setDate(due.getDate() + 30);
+  const dueDate = due.toISOString().slice(0, 10);
+
+  const newInvId = db.transaction(() => {
+    const r = db.run(
+      `INSERT INTO invoices
+       (job_id, work_order_id, invoice_number, status, subtotal, tax_rate, tax_amount, total, due_date, notes)
+       VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?)`,
+      [wo.job_id, wo.id, invoiceNumber, totals.subtotal, taxRate, totals.taxAmount, totals.total, dueDate, wo.notes]
+    );
+    const invId = r.lastInsertRowid;
+    lines.forEach((li, idx) => {
+      db.run(
+        `INSERT INTO invoice_line_items
+         (invoice_id, description, quantity, unit, unit_price, line_total, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [invId, li.description, li.quantity, li.unit, li.unit_price, li.line_total, idx]
+      );
+    });
+    return invId;
+  });
+
+  setFlash(req, 'success', `${wo.wo_number} → ${invoiceNumber} generated.`);
+  res.redirect(`/invoices/${newInvId}`);
+});
 
 // --- PDF ---
 

@@ -1,0 +1,77 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<%
+function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
+function isOverdue(inv) {
+  if (inv.status !== 'sent') return false;
+  if (!inv.due_date) return false;
+  return new Date(String(inv.due_date).slice(0,10)) < new Date();
+}
+%>
+
+<div class="max-w-7xl mx-auto px-4 py-6">
+  <div class="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+    <div>
+      <h1 class="page-h1">Invoices</h1>
+      <p class="page-sub"><%= total %> total<% if (q) { %> &middot; "<%= q %>"<% } %><% if (status) { %> &middot; <%= status %><% } %></p>
+    </div>
+  </div>
+
+  <form method="get" action="/invoices" class="flex flex-wrap items-center gap-2 mb-4">
+    <input type="text" name="q" value="<%= q %>" placeholder="Search number, job, customer..." class="input max-w-md">
+    <select name="status" class="input max-w-[12rem]">
+      <option value="">All statuses</option>
+      <% statuses.forEach(function(s){ %>
+        <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s %></option>
+      <% }); %>
+    </select>
+    <button type="submit" class="btn btn-secondary">Filter</button>
+    <% if (q || status) { %><a href="/invoices" class="btn btn-ghost">Clear</a><% } %>
+  </form>
+
+  <div class="card overflow-hidden">
+    <% if (invoices.length === 0) { %>
+      <div class="p-8 text-center text-recon-fog">
+        <% if (q || status) { %>
+          No invoices match. <a href="/invoices" class="text-recon-red underline">Clear</a>
+        <% } else { %>
+          No invoices yet. They get generated from completed <a href="/work-orders" class="text-recon-red underline">work orders</a>.
+        <% } %>
+      </div>
+    <% } else { %>
+      <table class="data">
+        <thead>
+          <tr><th>Number</th><th>Job</th><th>Customer</th><th>Status</th><th class="text-right">Total</th><th class="text-right">Paid</th><th class="text-right">Balance</th><th>Due</th></tr>
+        </thead>
+        <tbody>
+          <% invoices.forEach(function(i){ %>
+            <% const balance = (Number(i.total)||0) - (Number(i.amount_paid)||0); %>
+            <% const showStatus = isOverdue(i) ? 'overdue' : i.status; %>
+            <tr>
+              <td class="font-medium"><a href="/invoices/<%= i.id %>" class="hover:text-recon-red"><%= i.invoice_number %></a></td>
+              <td><a href="/jobs/<%= i.job_id %>" class="hover:text-recon-red"><%= i.job_title %></a></td>
+              <td><a href="/customers/<%= i.customer_id %>" class="hover:text-recon-red"><%= i.customer_name %></a></td>
+              <td><span class="badge badge-<%= showStatus %>"><%= showStatus %></span></td>
+              <td class="text-right">$<%= fmt(i.total) %></td>
+              <td class="text-right">$<%= fmt(i.amount_paid) %></td>
+              <td class="text-right font-medium <%= balance > 0 ? 'text-recon-red' : 'text-recon-fog' %>">$<%= fmt(balance) %></td>
+              <td><%= (i.due_date || '—').slice(0,10) %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+
+  <% if (totalPages > 1) { %>
+    <div class="flex items-center justify-center gap-2 mt-4">
+      <% for (let p = 1; p <= totalPages; p++) { %>
+        <% const qs = ['page='+p]; if (q) qs.push('q='+encodeURIComponent(q)); if (status) qs.push('status='+encodeURIComponent(status)); %>
+        <% if (p === page) { %><span class="btn btn-primary"><%= p %></span>
+        <% } else { %><a href="/invoices?<%= qs.join('&') %>" class="btn btn-ghost"><%= p %></a><% } %>
+      <% } %>
+    </div>
+  <% } %>
+</div>
+
+<%- include('../layouts/footer') %>

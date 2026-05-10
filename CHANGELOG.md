@@ -110,6 +110,24 @@ Append-only log of every change. Newest at the bottom. Format:
 - Updated src/views/estimates/show.ejs — added "Convert to Work Order" button when estimate.status='accepted'
 - Updated src/server.js — mount /work-orders under requireAuth
 
+## [2026-05-10T08:18:00Z] — hermes — phase 4 complete
+- 22 steps green: convert flow with status guards, multiple conversions, line item copy, full WO lifecycle, PDF with DONE column, cancel + delete, FK guard against invoices.
+
+## [2026-05-10T08:30:00Z] — claude — phase 5 (files, full bundle)
+- Wrote src/services/email.js — nodemailer wrapper, EMAIL_MODE=file (default) writes RFC822 .eml to mail-outbox/, EMAIL_MODE=smtp wires real SMTP via env vars
+- Wrote src/routes/invoices.js — full CRUD + status actions:
+  - GET / list, GET /:id show (with overdue display computation), GET /:id/edit + POST /:id update (draft only)
+  - POST /:id/send: generates PDF buffer, calls email.sendEmail, updates status='sent', sent_at=now
+  - POST /:id/mark-paid: with amount input — partial payments stay 'sent', full payment flips to 'paid' + paid_at
+  - POST /:id/void: any non-paid -> void
+  - GET /:id/pdf, POST /:id/delete (only draft/void)
+- Updated src/services/pdf.js — added generateInvoicePDF (mirror chrome + 4-cell meta strip status/issued/due/amount-paid + balance-due red callout when outstanding) AND renderToBuffer helper for email attachment
+- Updated src/routes/work-orders.js — added POST /:id/generate-invoice. WO must be complete + no existing invoice. Pulls tax_rate from originating estimate or company default, copies line items, due_date = today+30d. Generates next invoice number. 1:1 WO->invoice in v0.
+- Wrote src/views/invoices/index.ejs — list with overdue computed display, balance column highlights red when outstanding
+- Wrote src/views/invoices/edit.ejs — line items + tax + due date editor (draft only)
+- Wrote src/views/invoices/show.ejs — header w/ WO backlink, 4 KPI cards (subtotal/tax/total/balance — balance card flips green when paid), inline mark-paid form (toggle visible, defaults amount to balance), status-aware action buttons (Send / Mark paid / Void / Delete-when-draft-or-void)
+- Updated src/server.js — mounted /invoices under requireAuth
+
 ## [2026-05-10T07:12:00Z] — hermes — phase 1
 - Ran npm run init-db → DB initialized at data/app.db (118KB)
 - Ran npm run seed → admin user seeded (idempotent on re-run), company_settings seeded
@@ -160,4 +178,12 @@ Append-only log of every change. Newest at the bottom. Format:
 - WO PDF: inline, download, logo, meta strip (status/scheduled/assigned/completed), DONE column with X marks, Total value
 - Status machine: scheduled→in_progress→complete (cancelled from scheduled/in_progress). Edit blocked after complete.
 - FK guard: delete blocked when invoices reference the WO
+- All 22 test steps pass end-to-end
+
+## [2026-05-10T08:18:00Z] — hermes — phase 5
+- Invoices CRUD: generate from completed WO, edit (draft-only), send (with email + PDF), mark-paid (partial + full), void, delete (draft/void only)
+- Email via nodemailer file mode: .eml files written to mail-outbox/ (From, To, Subject, PDF attachment verified)
+- Partial payment: status stays 'sent', amount_paid recorded, balance still red
+- Overdue auto-display on show page + list when sent + past due_date
+- Invoice PDF: inline/download, meta strip, line items, totals, amount-due callout
 - All 22 test steps pass end-to-end

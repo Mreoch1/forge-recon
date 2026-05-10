@@ -29,6 +29,7 @@ const customersRoutes = require('./routes/customers');
 const jobsRoutes = require('./routes/jobs');
 const estimatesRoutes = require('./routes/estimates');
 const workOrdersRoutes = require('./routes/work-orders');
+const invoicesRoutes = require('./routes/invoices');
 
 const PORT = parseInt(process.env.PORT, 10) || 3001;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
@@ -91,6 +92,7 @@ async function main() {
   app.use('/jobs', requireAuth, jobsRoutes);
   app.use('/estimates', requireAuth, estimatesRoutes);
   app.use('/work-orders', requireAuth, workOrdersRoutes);
+  app.use('/invoices', requireAuth, invoicesRoutes);
 
   // Dashboard (gated)
   app.get('/', requireAuth, (req, res) => {

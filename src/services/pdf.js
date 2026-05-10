@@ -416,9 +416,114 @@ function generateWorkOrderPDF(wo, company, stream) {
   doc.end();
 }
 
+// --- public: invoice ---
+
+function drawInvoiceMeta(doc, invoice) {
+  const left = doc.page.margins.left;
+  const right = doc.page.width - doc.page.margins.right;
+  const tableWidth = right - left;
+  const cellW = tableWidth / 4;
+  let y = doc.y;
+
+  doc.fillColor(COLOR.cloud).rect(left, y, tableWidth, 36).fill();
+  function cell(idx, label, value) {
+    const x = left + cellW * idx;
+    doc.fillColor(COLOR.fog).fontSize(7).font('Helvetica-Bold').text(label.toUpperCase(), x + 8, y + 5, { width: cellW - 16 });
+    doc.fillColor(COLOR.charcoal).fontSize(11).font('Helvetica-Bold').text(value || '—', x + 8, y + 17, { width: cellW - 16 });
+  }
+  cell(0, 'Status', (invoice.status || '').replace('_',' '));
+  cell(1, 'Issued', invoice.created_at ? String(invoice.created_at).slice(0,10) : '—');
+  cell(2, 'Due', invoice.due_date ? String(invoice.due_date).slice(0,10) : '—');
+  cell(3, 'Amount paid', fmtMoney(invoice.amount_paid));
+
+  doc.y = y + 36 + 12;
+}
+
+function generateInvoicePDF(invoice, company, stream) {
+  const doc = new PDFDocument({ size: 'LETTER', margin: 50, info: {
+    Title: invoice.invoice_number,
+    Subject: `Invoice for ${invoice.customer_name || ''}`,
+    Author: company.company_name || 'Recon Construction',
+  }});
+  doc.pipe(stream);
+
+  drawHeader(doc, company);
+  drawTitle(doc, 'Invoice', invoice.invoice_number, invoice.status);
+
+  drawAddressBlocks(doc, [
+    invoice.customer_name,
+    invoice.customer_address || '',
+    [invoice.customer_city, invoice.customer_state, invoice.customer_zip].filter(Boolean).join(', '),
+    invoice.customer_email,
+    invoice.customer_phone,
+  ], [
+    invoice.job_title,
+    invoice.job_address || '',
+    [invoice.job_city, invoice.job_state, invoice.job_zip].filter(Boolean).join(', '),
+  ]);
+
+  drawInvoiceMeta(doc, invoice);
+  drawLineItemsTable(doc, (invoice.lines || []).map(li => ({
+    trade: '—',
+    description: li.description,
+    quantity: li.quantity,
+    unit: li.unit,
+    unit_price: li.unit_price,
+    line_total: li.line_total,
+  })));
+
+  drawTotals(doc, {
+    subtotal: invoice.subtotal,
+    tax_rate: invoice.tax_rate,
+    tax_amount: invoice.tax_amount,
+    total: invoice.total,
+  });
+
+  // Balance due (total - paid) prominently on its own line if anything outstanding
+  const balanceDue = (Number(invoice.total) || 0) - (Number(invoice.amount_paid) || 0);
+  if (balanceDue > 0) {
+    const right = doc.page.width - doc.page.margins.right;
+    const colW = 200;
+    const x = right - colW;
+    doc.fontSize(10).fillColor(COLOR.ash).font('Helvetica');
+    doc.text('Amount due', x, doc.y, { width: colW * 0.6, align: 'right' });
+    doc.fillColor(COLOR.red).font('Helvetica-Bold').fontSize(13)
+       .text(fmtMoney(balanceDue), x + colW * 0.6, doc.y - 12, { width: colW * 0.4, align: 'right' });
+    doc.moveDown(1.5);
+  }
+
+  if (invoice.notes) drawNotes(doc, invoice.notes);
+
+  const footerLines = [];
+  if (invoice.created_at) footerLines.push(`Issued: ${String(invoice.created_at).slice(0,10)}`);
+  if (invoice.due_date)  footerLines.push(`Due: ${String(invoice.due_date).slice(0,10)}`);
+  if (invoice.sent_at)   footerLines.push(`Sent: ${String(invoice.sent_at).slice(0,10)}`);
+  if (invoice.paid_at)   footerLines.push(`Paid: ${String(invoice.paid_at).slice(0,10)}`);
+  drawFooterMeta(doc, footerLines);
+
+  doc.end();
+}
+
+// Convenience: render any of the PDFs to a Buffer (for email attachment).
+function renderToBuffer(generatorFn, ...args) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    const { Writable } = require('stream');
+    const sink = new Writable({
+      write(chunk, _enc, cb) { chunks.push(chunk); cb(); },
+    });
+    sink.on('finish', () => resolve(Buffer.concat(chunks)));
+    sink.on('error', reject);
+    try {
+      generatorFn(...args, sink);
+    } catch (e) { reject(e); }
+  });
+}
+
 module.exports = {
   generateEstimatePDF,
   generateWorkOrderPDF,
-  // Future: generateInvoicePDF
+  generateInvoicePDF,
+  renderToBuffer,
   _internal: { drawHeader, drawTitle, drawAddressBlocks, drawLineItemsTable, drawTotals, drawNotes, drawFooterMeta, fmt, fmtMoney, COLOR },
 };
