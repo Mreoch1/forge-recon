@@ -1,29 +1,40 @@
 /**
- * Auth middleware: requireAuth, requireAdmin, loadCurrentUser.
+ * Auth middleware: requireAuth, requireManager, requireAdmin, loadCurrentUser, setFlash.
  *
- * Sessions store userId + role. loadCurrentUser populates res.locals.currentUser
- * from the DB on every request so views always have a fresh user object.
+ * Roles:
+ *   admin   — full access
+ *   manager — same as admin for v0.5 (can create/edit/send everything)
+ *   worker  — limited: WO list (own + assigned), edit WO, notes/photos. NEVER prices.
  *
- * Flash messages: stored in req.session.flash, consumed once per request.
+ * Money-blind workers: routes that expose pricing or estimates/invoices use
+ * requireManager. The dashboard, customer/job CRUD, estimate/invoice CRUD,
+ * admin pages all sit behind requireManager. Workers only see /work-orders
+ * and a worker-specific dashboard (Round 4 work).
  */
 
 const db = require('../db/db');
 
 function requireAuth(req, res, next) {
-  if (!req.session || !req.session.userId) {
-    return res.redirect('/login');
+  if (!req.session || !req.session.userId) return res.redirect('/login');
+  next();
+}
+
+function requireManager(req, res, next) {
+  if (!req.session || !req.session.userId) return res.redirect('/login');
+  if (!['admin', 'manager'].includes(req.session.role)) {
+    return res.status(403).render('error', {
+      title: 'Forbidden', code: 403,
+      message: 'Manager or admin access required.'
+    });
   }
   next();
 }
 
 function requireAdmin(req, res, next) {
-  if (!req.session || !req.session.userId) {
-    return res.redirect('/login');
-  }
+  if (!req.session || !req.session.userId) return res.redirect('/login');
   if (req.session.role !== 'admin') {
     return res.status(403).render('error', {
-      title: 'Forbidden',
-      code: 403,
+      title: 'Forbidden', code: 403,
       message: 'Admin access required.'
     });
   }
@@ -42,8 +53,10 @@ function loadCurrentUser(req, res, next) {
     );
     if (user) {
       res.locals.currentUser = user;
+      // Convenience helpers for views
+      res.locals.canSeePrices = ['admin', 'manager'].includes(user.role);
+      res.locals.isWorker = user.role === 'worker';
     } else {
-      // User got deactivated mid-session — kill the session.
       if (req.session) req.session.destroy(() => {});
     }
   }
@@ -56,4 +69,4 @@ function setFlash(req, kind, message) {
   req.session.flash[kind] = message;
 }
 
-module.exports = { requireAuth, requireAdmin, loadCurrentUser, setFlash };
+module.exports = { requireAuth, requireManager, requireAdmin, loadCurrentUser, setFlash };

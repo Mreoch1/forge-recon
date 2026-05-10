@@ -222,6 +222,10 @@ router.post('/settings', (req, res) => {
   const default_tax_rate = parseFloat(req.body.default_tax_rate);
   const taxRateNum = isFinite(default_tax_rate) && default_tax_rate >= 0 ? default_tax_rate : 0;
 
+  const validTerms = ['Due on receipt', 'Net 15', 'Net 30', 'Net 45', 'Net 60', 'Custom'];
+  const default_payment_terms = validTerms.includes(req.body.default_payment_terms)
+    ? req.body.default_payment_terms : 'Net 30';
+
   const data = {
     company_name,
     address: emptyToNull(req.body.address),
@@ -232,9 +236,7 @@ router.post('/settings', (req, res) => {
     email: emptyToNull(req.body.email),
     ein: emptyToNull(req.body.ein),
     default_tax_rate: taxRateNum,
-    invoice_prefix: emptyToNull(req.body.invoice_prefix) || 'INV',
-    estimate_prefix: emptyToNull(req.body.estimate_prefix) || 'EST',
-    wo_prefix: emptyToNull(req.body.wo_prefix) || 'WO',
+    default_payment_terms,
   };
 
   if (Object.keys(errors).length) {
@@ -248,12 +250,12 @@ router.post('/settings', (req, res) => {
   db.run(
     `UPDATE company_settings SET
        company_name=?, address=?, city=?, state=?, zip=?, phone=?, email=?, ein=?,
-       default_tax_rate=?, invoice_prefix=?, estimate_prefix=?, wo_prefix=?
+       default_tax_rate=?, default_payment_terms=?
      WHERE id=1`,
     [
       data.company_name, data.address, data.city, data.state, data.zip,
       data.phone, data.email, data.ein,
-      data.default_tax_rate, data.invoice_prefix, data.estimate_prefix, data.wo_prefix,
+      data.default_tax_rate, data.default_payment_terms,
     ]
   );
   setFlash(req, 'success', 'Company settings saved.');

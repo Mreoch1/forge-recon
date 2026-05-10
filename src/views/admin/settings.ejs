@@ -59,33 +59,27 @@
 
       <section>
         <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Defaults &amp; numbering</h3>
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div class="md:col-span-1">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
             <label class="label" for="default_tax_rate">Default tax rate (%)</label>
             <input type="number" step="0.001" min="0" name="default_tax_rate" id="default_tax_rate"
                    value="<%= settings.default_tax_rate || 0 %>" class="input">
           </div>
           <div>
-            <label class="label" for="estimate_prefix">Estimate prefix</label>
-            <input type="text" name="estimate_prefix" id="estimate_prefix"
-                   value="<%= settings.estimate_prefix || 'EST' %>" class="input" maxlength="6">
-          </div>
-          <div>
-            <label class="label" for="wo_prefix">WO prefix</label>
-            <input type="text" name="wo_prefix" id="wo_prefix"
-                   value="<%= settings.wo_prefix || 'WO' %>" class="input" maxlength="6">
-          </div>
-          <div>
-            <label class="label" for="invoice_prefix">Invoice prefix</label>
-            <input type="text" name="invoice_prefix" id="invoice_prefix"
-                   value="<%= settings.invoice_prefix || 'INV' %>" class="input" maxlength="6">
+            <label class="label" for="default_payment_terms">Default payment terms</label>
+            <select name="default_payment_terms" id="default_payment_terms" class="input">
+              <option value="Due on receipt" <%= settings.default_payment_terms === 'Due on receipt' ? 'selected' : '' %>>Due on receipt</option>
+              <option value="Net 15" <%= settings.default_payment_terms === 'Net 15' ? 'selected' : '' %>>Net 15</option>
+              <option value="Net 30" <%= settings.default_payment_terms === 'Net 30' ? 'selected' : '' %>>Net 30</option>
+              <option value="Net 45" <%= settings.default_payment_terms === 'Net 45' ? 'selected' : '' %>>Net 45</option>
+              <option value="Net 60" <%= settings.default_payment_terms === 'Net 60' ? 'selected' : '' %>>Net 60</option>
+              <option value="Custom" <%= settings.default_payment_terms === 'Custom' ? 'selected' : '' %>>Custom</option>
+            </select>
           </div>
         </div>
         <p class="text-xs text-recon-fog mt-2">
-          Counters are at: estimate <%= settings.next_estimate_number || 1 %>,
-          WO <%= settings.next_wo_number || 1 %>,
-          invoice <%= settings.next_invoice_number || 1 %>.
-          Editing counters directly is not exposed in v0 — they only advance via creation.
+          Next WO main number: <%= settings.next_wo_main_number || 1 %>
+          (advances automatically when a new root WO is created)
         </p>
       </section>
 

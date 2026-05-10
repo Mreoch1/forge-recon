@@ -14,7 +14,6 @@ const db = require('./db');
 async function main() {
   await db.init();
 
-  // Admin user
   const existingAdmin = db.get('SELECT id FROM users WHERE email = ?', ['admin@recon.local']);
   if (!existingAdmin) {
     const hash = await bcrypt.hash('changeme123', 10);
@@ -27,7 +26,6 @@ async function main() {
     console.log('Admin user already exists — skipping.');
   }
 
-  // Company settings singleton
   const existingCo = db.get('SELECT id FROM company_settings WHERE id = 1');
   if (!existingCo) {
     db.run(

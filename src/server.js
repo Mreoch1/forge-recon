@@ -23,7 +23,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 
 const db = require('./db/db');
-const { loadCurrentUser, requireAuth, requireAdmin } = require('./middleware/auth');
+const { loadCurrentUser, requireAuth, requireManager, requireAdmin } = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
 const customersRoutes = require('./routes/customers');
 const jobsRoutes = require('./routes/jobs');
@@ -32,6 +32,7 @@ const workOrdersRoutes = require('./routes/work-orders');
 const invoicesRoutes = require('./routes/invoices');
 const adminRoutes = require('./routes/admin');
 const dashboardRoutes = require('./routes/dashboard');
+const accountingRoutes = require('./routes/accounting');
 
 const PORT = parseInt(process.env.PORT, 10) || 3001;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
@@ -89,13 +90,16 @@ async function main() {
   // Auth routes (public)
   app.use('/', authRoutes);
 
-  // Feature routes (all gated)
-  app.use('/customers', requireAuth, customersRoutes);
-  app.use('/jobs', requireAuth, jobsRoutes);
-  app.use('/estimates', requireAuth, estimatesRoutes);
-  app.use('/work-orders', requireAuth, workOrdersRoutes);
-  app.use('/invoices', requireAuth, invoicesRoutes);
+  // Feature routes
+  // Pricing/financial routes are manager+admin only (workers can't see prices)
+  app.use('/customers', requireAuth, requireManager, customersRoutes);
+  app.use('/jobs', requireAuth, requireManager, jobsRoutes);
+  app.use('/estimates', requireAuth, requireManager, estimatesRoutes);
+  app.use('/invoices', requireAuth, requireManager, invoicesRoutes);
   app.use('/admin', requireAuth, requireAdmin, adminRoutes);
+  // Work orders are worker-accessible (Round 4 will scope to assigned WOs only)
+  app.use('/work-orders', requireAuth, workOrdersRoutes);
+  app.use('/accounting', requireAuth, requireManager, accountingRoutes);
 
   // Dashboard (gated)
   app.use('/', requireAuth, dashboardRoutes);

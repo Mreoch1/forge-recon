@@ -1,5 +1,8 @@
 <%
-// Shared form partial for new + edit. Expects: job, customers, statuses, errors, formAction, submitLabel.
+// Shared form for new + edit jobs (v0.5).
+// Adds: scheduled_date, scheduled_time, assigned_to_user_id.
+// Auto-fill site address from selected customer is handled by the route on GET ?customer_id=N
+// and by inline JS below when the user changes the customer dropdown.
 %>
 <form action="<%= formAction %>" method="post" class="space-y-4">
   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -13,13 +16,20 @@
 
     <div>
       <label class="label" for="customer_id">Customer <span class="text-recon-red">*</span></label>
-      <select name="customer_id" id="customer_id" required class="input <%= errors.customer_id ? 'border-red-500' : '' %>">
+      <select name="customer_id" id="customer_id" required class="input <%= errors.customer_id ? 'border-red-500' : '' %>"
+              data-autofill-address>
         <option value="">— select —</option>
         <% customers.forEach(function(c){ %>
-          <option value="<%= c.id %>" <%= (job.customer_id == c.id) ? 'selected' : '' %>><%= c.name %></option>
+          <option value="<%= c.id %>"
+                  data-address="<%= c.address || '' %>"
+                  data-city="<%= c.city || '' %>"
+                  data-state="<%= c.state || '' %>"
+                  data-zip="<%= c.zip || '' %>"
+                  <%= (job.customer_id == c.id) ? 'selected' : '' %>><%= c.name %></option>
         <% }); %>
       </select>
       <% if (errors.customer_id) { %><p class="text-sm text-red-600 mt-1"><%= errors.customer_id %></p><% } %>
+      <p class="text-xs text-recon-fog mt-1">Site address auto-fills from customer (overrideable below).</p>
     </div>
 
     <div>
@@ -33,23 +43,49 @@
 
     <div class="md:col-span-2">
       <label class="label" for="address">Job site address</label>
-      <input type="text" name="address" id="address" value="<%= job.address || '' %>" class="input">
+      <input type="text" name="address" id="address" value="<%= job.address || '' %>" class="input" data-site-address>
     </div>
 
     <div>
       <label class="label" for="city">City</label>
-      <input type="text" name="city" id="city" value="<%= job.city || '' %>" class="input">
+      <input type="text" name="city" id="city" value="<%= job.city || '' %>" class="input" data-site-city>
     </div>
 
     <div class="grid grid-cols-2 gap-4">
       <div>
         <label class="label" for="state">State</label>
-        <input type="text" name="state" id="state" value="<%= job.state || '' %>" class="input" maxlength="2">
+        <input type="text" name="state" id="state" value="<%= job.state || '' %>" class="input" maxlength="2" data-site-state>
       </div>
       <div>
         <label class="label" for="zip">ZIP</label>
-        <input type="text" name="zip" id="zip" value="<%= job.zip || '' %>" class="input" maxlength="10">
+        <input type="text" name="zip" id="zip" value="<%= job.zip || '' %>" class="input" maxlength="10" data-site-zip>
       </div>
+    </div>
+
+    <div>
+      <label class="label" for="scheduled_date">Scheduled date</label>
+      <input type="date" name="scheduled_date" id="scheduled_date"
+             value="<%= job.scheduled_date ? String(job.scheduled_date).slice(0,10) : '' %>"
+             class="input <%= errors.scheduled_date ? 'border-red-500' : '' %>">
+      <% if (errors.scheduled_date) { %><p class="text-sm text-red-600 mt-1"><%= errors.scheduled_date %></p><% } %>
+    </div>
+
+    <div>
+      <label class="label" for="scheduled_time">Scheduled time</label>
+      <input type="time" name="scheduled_time" id="scheduled_time"
+             value="<%= job.scheduled_time || '' %>"
+             class="input <%= errors.scheduled_time ? 'border-red-500' : '' %>">
+      <% if (errors.scheduled_time) { %><p class="text-sm text-red-600 mt-1"><%= errors.scheduled_time %></p><% } %>
+    </div>
+
+    <div class="md:col-span-2">
+      <label class="label" for="assigned_to_user_id">Assigned to</label>
+      <select name="assigned_to_user_id" id="assigned_to_user_id" class="input">
+        <option value="">— unassigned —</option>
+        <% users.forEach(function(u){ %>
+          <option value="<%= u.id %>" <%= (job.assigned_to_user_id == u.id) ? 'selected' : '' %>><%= u.name %></option>
+        <% }); %>
+      </select>
     </div>
 
     <div class="md:col-span-2">
@@ -64,3 +100,32 @@
     <a href="<%= job.id ? '/jobs/' + job.id : '/jobs' %>" class="btn btn-ghost">Cancel</a>
   </div>
 </form>
+
+<script>
+(function() {
+  // Auto-fill site address fields when customer dropdown changes,
+  // but only if site fields are empty (don't clobber user edits).
+  const customerSel = document.querySelector('[data-autofill-address]');
+  if (!customerSel) return;
+  const fields = {
+    address: document.querySelector('[data-site-address]'),
+    city: document.querySelector('[data-site-city]'),
+    state: document.querySelector('[data-site-state]'),
+    zip: document.querySelector('[data-site-zip]'),
+  };
+  customerSel.addEventListener('change', function() {
+    const opt = customerSel.options[customerSel.selectedIndex];
+    if (!opt || !opt.value) return;
+    Object.keys(fields).forEach(key => {
+      const el = fields[key];
+      if (!el) return;
+      const val = opt.dataset[key] || '';
+      // Only fill if empty — don't overwrite user changes
+      if (!el.value || el.dataset.autofilled === '1') {
+        el.value = val;
+        el.dataset.autofilled = '1';
+      }
+    });
+  });
+})();
+</script>

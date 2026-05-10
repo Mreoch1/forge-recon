@@ -53,30 +53,34 @@ router.get('/', (req, res) => {
     "WHERE status='sent' AND due_date IS NOT NULL AND date(due_date) < date('now')"
   ) || {}).n) || 0;
 
-  // Unified recent activity (latest 10 across estimates/WOs/invoices)
+  // Unified recent activity (latest 10 across estimates/WOs/invoices).
+  // v0.5: estimate -> work_orders -> jobs (no direct estimates.job_id).
+  // Display number for all three is the WO display_number prefixed.
   const activity = db.all(`
     SELECT * FROM (
-      SELECT 'estimate'  AS type, e.id AS id, e.estimate_number AS number,
-             e.status AS status, e.created_at AS created_at, e.total AS total,
+      SELECT 'work_order' AS type, w.id AS id, ('WO-' || w.display_number) AS number,
+             w.status AS status, w.created_at AS created_at, NULL AS total,
              j.id AS job_id, j.title AS job_title,
              c.id AS customer_id, c.name AS customer_name
-      FROM estimates e
-      JOIN jobs j      ON j.id = e.job_id
-      JOIN customers c ON c.id = j.customer_id
-      UNION ALL
-      SELECT 'work_order' AS type, w.id, w.wo_number,
-             w.status, w.created_at, NULL AS total,
-             j.id, j.title, c.id, c.name
       FROM work_orders w
       JOIN jobs j      ON j.id = w.job_id
       JOIN customers c ON c.id = j.customer_id
       UNION ALL
-      SELECT 'invoice' AS type, i.id, i.invoice_number,
+      SELECT 'estimate' AS type, e.id, ('EST-' || w.display_number),
+             e.status, e.created_at, e.total,
+             j.id, j.title, c.id, c.name
+      FROM estimates e
+      JOIN work_orders w ON w.id = e.work_order_id
+      JOIN jobs j        ON j.id = w.job_id
+      JOIN customers c   ON c.id = j.customer_id
+      UNION ALL
+      SELECT 'invoice' AS type, i.id, ('INV-' || w.display_number),
              i.status, i.created_at, i.total,
              j.id, j.title, c.id, c.name
       FROM invoices i
-      JOIN jobs j      ON j.id = i.job_id
-      JOIN customers c ON c.id = j.customer_id
+      JOIN work_orders w ON w.id = i.work_order_id
+      JOIN jobs j        ON j.id = w.job_id
+      JOIN customers c   ON c.id = j.customer_id
     )
     ORDER BY created_at DESC
     LIMIT 10

@@ -3,8 +3,11 @@
 <%
 function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
 const subtotal = (wo.lines || []).reduce(function(s, li){ return s + (Number(li.line_total) || 0); }, 0);
+const costTotal = (wo.lines || []).reduce(function(s, li){ return s + (Number(li.cost) || 0) * (Number(li.quantity) || 0); }, 0);
 const completedCount = (wo.lines || []).filter(function(li){ return li.completed; }).length;
 const totalCount = (wo.lines || []).length;
+const margin = subtotal - costTotal;
+const showPrices = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
 %>
 
 <div class="max-w-5xl mx-auto px-4 py-6">
@@ -15,14 +18,14 @@ const totalCount = (wo.lines || []).length;
   <div class="flex items-baseline justify-between mb-6 flex-wrap gap-2">
     <div>
       <div class="flex items-center gap-3">
-        <h1 class="page-h1"><%= wo.wo_number %></h1>
+        <h1 class="page-h1">WO-<%= wo.display_number %></h1>
         <span class="badge badge-<%= wo.status %>"><%= wo.status.replace('_',' ') %></span>
       </div>
       <p class="page-sub">
         Job: <a href="/jobs/<%= wo.job_id %>" class="hover:text-recon-red"><%= wo.job_title %></a>
         &middot; Customer: <a href="/customers/<%= wo.customer_id %>" class="hover:text-recon-red"><%= wo.customer_name %></a>
-        <% if (wo.estimate_number) { %>
-          &middot; From: <a href="/estimates/<%= wo.estimate_id %>" class="hover:text-recon-red"><%= wo.estimate_number %></a>
+        <% if (wo.parent_wo_id) { %>
+          &middot; Sub-WO of <a href="/work-orders/<%= wo.parent_wo_id %>" class="hover:text-recon-red">WO-<%= wo.parent_display_number %></a>
         <% } %>
       </p>
     </div>
@@ -44,78 +47,119 @@ const totalCount = (wo.lines || []).length;
         </form>
       <% } %>
 
+      <% if (showPrices && wo.status !== 'cancelled') { %>
+        <% if (!estimate) { %>
+          <form action="/work-orders/<%= wo.id %>/create-estimate" method="post" class="m-0 inline">
+            <button class="btn btn-primary">Create estimate</button>
+          </form>
+        <% } %>
+        <% if (!wo.parent_wo_id) { %>
+          <a href="/work-orders/<%= wo.id %>/sub/new" class="btn btn-secondary">+ Sub-WO</a>
+        <% } %>
+      <% } %>
+
       <% if (wo.status !== 'complete' && wo.status !== 'cancelled') { %>
         <form action="/work-orders/<%= wo.id %>/cancel" method="post" class="m-0 inline"
               onsubmit="return confirm('Cancel this work order?');">
           <button class="btn btn-ghost">Cancel WO</button>
         </form>
       <% } %>
-
-      <% if (wo.status === 'complete' && !invoice) { %>
-        <form action="/work-orders/<%= wo.id %>/generate-invoice" method="post" class="m-0 inline">
-          <button class="btn btn-primary">Generate invoice</button>
-        </form>
-      <% } %>
     </div>
   </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
     <div class="card p-4">
       <div class="text-xs uppercase tracking-wide text-recon-fog">Scheduled</div>
-      <div class="text-lg font-semibold mt-1"><%= wo.scheduled_date ? String(wo.scheduled_date).slice(0,10) : '—' %></div>
+      <div class="text-lg font-semibold mt-1">
+        <%= wo.scheduled_date ? String(wo.scheduled_date).slice(0,10) : '—' %>
+        <% if (wo.scheduled_time) { %><span class="text-sm font-normal text-recon-fog"><%= wo.scheduled_time %></span><% } %>
+      </div>
     </div>
     <div class="card p-4">
-      <div class="text-xs uppercase tracking-wide text-recon-fog">Assigned to</div>
-      <div class="text-lg font-semibold mt-1"><%= wo.assigned_to || '—' %></div>
+      <div class="text-xs uppercase tracking-wide text-recon-fog">Assigned</div>
+      <div class="text-lg font-semibold mt-1"><%= wo.assigned_user_name || wo.assigned_to || '—' %></div>
     </div>
     <div class="card p-4">
       <div class="text-xs uppercase tracking-wide text-recon-fog">Progress</div>
       <div class="text-lg font-semibold mt-1"><%= completedCount %> / <%= totalCount %> done</div>
     </div>
-    <div class="card p-4">
-      <div class="text-xs uppercase tracking-wide text-recon-fog">Total value</div>
-      <div class="text-lg font-semibold mt-1 text-recon-red">$<%= fmt(subtotal) %></div>
-    </div>
+    <% if (showPrices) { %>
+      <div class="card p-4">
+        <div class="text-xs uppercase tracking-wide text-recon-fog">Total value</div>
+        <div class="text-lg font-semibold mt-1 text-recon-red">$<%= fmt(subtotal) %></div>
+        <div class="text-xs text-recon-fog mt-1">Cost: $<%= fmt(costTotal) %> &middot; Margin: $<%= fmt(margin) %></div>
+      </div>
+    <% } %>
   </div>
 
-  <% if (invoice) { %>
-    <div class="card p-4 mb-6 bg-green-50 border-green-200">
-      <p class="text-sm">
-        Invoice generated: <a href="/invoices/<%= invoice.id %>" class="font-medium text-recon-red hover:underline"><%= invoice.invoice_number %></a>
-        <span class="badge badge-<%= invoice.status %>"><%= invoice.status %></span>
-      </p>
+  <% if (estimate || invoice) { %>
+    <div class="card p-4 mb-6 bg-recon-cloud">
+      <div class="flex flex-wrap items-center gap-4 text-sm">
+        <% if (estimate) { %>
+          <span>Estimate: <a href="/estimates/<%= estimate.id %>" class="font-medium text-recon-red hover:underline">EST-<%= wo.display_number %></a> <span class="badge badge-<%= estimate.status %>"><%= estimate.status %></span></span>
+        <% } %>
+        <% if (invoice) { %>
+          <span>Invoice: <a href="/invoices/<%= invoice.id %>" class="font-medium text-recon-red hover:underline">INV-<%= wo.display_number %></a> <span class="badge badge-<%= invoice.status %>"><%= invoice.status %></span></span>
+        <% } %>
+      </div>
+    </div>
+  <% } %>
+
+  <% if (subs && subs.length) { %>
+    <div class="card overflow-hidden mb-6">
+      <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
+        <h3 class="font-semibold">Sub-work orders (<%= subs.length %>)</h3>
+        <a href="/work-orders/<%= wo.id %>/sub/new" class="text-sm text-recon-red hover:underline">+ Add sub-WO</a>
+      </div>
+      <table class="data">
+        <thead><tr><th>Number</th><th>Status</th><th>Scheduled</th><th>Completed</th></tr></thead>
+        <tbody>
+          <% subs.forEach(function(s){ %>
+            <tr>
+              <td class="font-medium"><a href="/work-orders/<%= s.id %>" class="hover:text-recon-red">WO-<%= s.display_number %></a></td>
+              <td><span class="badge badge-<%= s.status %>"><%= s.status.replace('_',' ') %></span></td>
+              <td><%= s.scheduled_date ? String(s.scheduled_date).slice(0,10) : '—' %></td>
+              <td><%= s.completed_date ? String(s.completed_date).slice(0,10) : '—' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
     </div>
   <% } %>
 
   <div class="card overflow-hidden mb-6">
-    <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
-      <h3 class="font-semibold">Line items</h3>
+    <div class="px-5 py-3 border-b border-recon-mist">
+      <h3 class="font-semibold">Items</h3>
     </div>
     <% if (wo.lines.length === 0) { %>
-      <div class="p-6 text-center text-recon-fog text-sm">No line items.</div>
+      <div class="p-6 text-center text-recon-fog text-sm">No items.</div>
     <% } else { %>
       <table class="data">
         <thead>
           <tr>
             <th>Done</th>
-            <th>Trade</th>
             <th>Description</th>
             <th class="text-right">Qty</th>
             <th>Unit</th>
-            <th class="text-right">Unit $</th>
-            <th class="text-right">Line $</th>
+            <% if (showPrices) { %>
+              <th class="text-right">Unit $</th>
+              <th class="text-right text-recon-fog">Cost</th>
+              <th class="text-right">Line $</th>
+            <% } %>
           </tr>
         </thead>
         <tbody>
           <% wo.lines.forEach(function(li){ %>
             <tr>
               <td><%= li.completed ? '✅' : '⬜' %></td>
-              <td><span class="badge badge-draft"><%= li.trade %></span></td>
               <td><%= li.description %></td>
               <td class="text-right"><%= li.quantity %></td>
               <td><%= li.unit %></td>
-              <td class="text-right">$<%= fmt(li.unit_price) %></td>
-              <td class="text-right font-medium">$<%= fmt(li.line_total) %></td>
+              <% if (showPrices) { %>
+                <td class="text-right">$<%= fmt(li.unit_price) %></td>
+                <td class="text-right text-recon-fog">$<%= fmt(li.cost) %></td>
+                <td class="text-right font-medium">$<%= fmt(li.line_total) %></td>
+              <% } %>
             </tr>
           <% }); %>
         </tbody>
@@ -130,12 +174,12 @@ const totalCount = (wo.lines || []).length;
     </div>
   <% } %>
 
-  <% if (wo.status === 'scheduled' || wo.status === 'cancelled') { %>
+  <% if (showPrices && (wo.status === 'scheduled' || wo.status === 'cancelled')) { %>
     <div class="card p-5 border-red-200">
       <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
-      <p class="text-sm text-recon-fog mb-3">Deletion is permanent. Allowed only if no invoice references this work order.</p>
+      <p class="text-sm text-recon-fog mb-3">Allowed only when no estimate or sub-WOs reference this work order.</p>
       <form action="/work-orders/<%= wo.id %>/delete" method="post"
-            onsubmit="return confirm('Delete <%= wo.wo_number %>?');" class="m-0">
+            onsubmit="return confirm('Delete WO-<%= wo.display_number %>?');" class="m-0">
         <button type="submit" class="btn btn-danger">Delete</button>
       </form>
     </div>

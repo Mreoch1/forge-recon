@@ -1,21 +1,24 @@
 /**
- * Work Orders CRUD + status transitions.
+ * Work Orders CRUD (v0.5).
  *
- * WOs are created via "Convert estimate to WO" action on an accepted
- * estimate (POST /estimates/:id/convert-to-wo). There is intentionally
- * no "create WO from scratch" route in v0 — WOs always trace back to an
- * estimate. (Standalone WO creation is in TODO_FOR_MICHAEL for v1.)
+ * WO is the ROOT document: customer -> job -> WO -> estimate -> invoice.
  *
- * Routes (mounted at /work-orders, all gated by requireAuth):
- *   GET   /                 list with filters
- *   GET   /:id              show
- *   GET   /:id/edit         edit (allowed for scheduled or in_progress)
- *   POST  /:id              update
- *   POST  /:id/start        scheduled -> in_progress
- *   POST  /:id/complete     in_progress -> complete (stamps completed_date)
- *   POST  /:id/cancel       any non-complete -> cancelled
- *   GET   /:id/pdf          PDF (inline preview by default, ?download=1 forces save)
- *   POST  /:id/delete       delete (FK guard against invoices)
+ *   GET  /                       list
+ *   GET  /new?job_id=N           new root WO form
+ *   POST /                       create (with optional editable display number)
+ *   GET  /:id                    show (sub-WOs, line items, related estimate/invoice)
+ *   POST /:id/sub                create sub-WO under this WO
+ *   GET  /:id/edit               edit (allowed when scheduled or in_progress)
+ *   POST /:id                    update
+ *   POST /:id/start              scheduled -> in_progress
+ *   POST /:id/complete           in_progress -> complete (stamps completed_date)
+ *   POST /:id/cancel             scheduled|in_progress -> cancelled
+ *   GET  /:id/pdf                PDF (inline or ?download=1)
+ *   POST /:id/delete             delete (FK guard against estimates)
+ *
+ * Display number is editable on creation. If user supplies a custom
+ * display_number in "0001-0000" format we use it; otherwise we auto-
+ * generate via numbering.nextRootWoNumber() (or nextSubWoNumber for subs).
  */
 
 const express = require('express');
@@ -29,13 +32,7 @@ const router = express.Router();
 
 const PAGE_SIZE = 25;
 const VALID_STATUSES = ['scheduled', 'in_progress', 'complete', 'cancelled'];
-const VALID_TRADES = [
-  'general','electrical','plumbing','hvac','framing',
-  'drywall','paint','flooring','cabinetry','roofing','other'
-];
 const VALID_UNITS = ['ea', 'hr', 'sqft', 'lf', 'ton', 'lot'];
-
-// --- helpers ---
 
 function emptyToNull(v) {
   if (typeof v !== 'string') return null;
@@ -47,54 +44,67 @@ function asArray(input) {
   if (!input) return [];
   if (Array.isArray(input)) return input;
   if (typeof input !== 'object') return [];
-  return Object.keys(input)
-    .sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
-    .map(k => input[k]);
+  return Object.keys(input).sort((a, b) => parseInt(a, 10) - parseInt(b, 10)).map(k => input[k]);
 }
 
 function validateLineItem(li) {
-  const errors = {};
   const description = emptyToNull(li.description);
-  if (!description) errors.description = 'Required.';
-  const trade = emptyToNull(li.trade) || 'general';
-  if (!VALID_TRADES.includes(trade)) errors.trade = 'Invalid trade.';
   const unit = emptyToNull(li.unit) || 'ea';
-  if (!VALID_UNITS.includes(unit)) errors.unit = 'Invalid unit.';
   const quantity = parseFloat(li.quantity);
-  if (!isFinite(quantity) || quantity < 0) errors.quantity = 'Must be ≥ 0.';
   const unitPrice = parseFloat(li.unit_price);
-  if (!isFinite(unitPrice) || unitPrice < 0) errors.unit_price = 'Must be ≥ 0.';
-  const completed = li.completed === '1' || li.completed === 'on' || li.completed === true ? 1 : 0;
-
-  return { errors, data: { description, trade, unit, quantity, unit_price: unitPrice, completed } };
+  const cost = parseFloat(li.cost);
+  const completed = (li.completed === '1' || li.completed === 'on' || li.completed === true) ? 1 : 0;
+  return {
+    data: {
+      description,
+      quantity: isFinite(quantity) && quantity >= 0 ? quantity : 0,
+      unit: VALID_UNITS.includes(unit) ? unit : 'ea',
+      unit_price: isFinite(unitPrice) && unitPrice >= 0 ? unitPrice : 0,
+      cost: isFinite(cost) && cost >= 0 ? cost : 0,
+      completed,
+    }
+  };
 }
 
 function validateWorkOrder(body) {
   const errors = {};
-
   const scheduledDate = emptyToNull(body.scheduled_date);
-  if (scheduledDate && !/^\d{4}-\d{2}-\d{2}$/.test(scheduledDate)) {
-    errors.scheduled_date = 'Use YYYY-MM-DD.';
+  if (scheduledDate && !/^\d{4}-\d{2}-\d{2}$/.test(scheduledDate)) errors.scheduled_date = 'Use YYYY-MM-DD.';
+  const scheduledTime = emptyToNull(body.scheduled_time);
+  if (scheduledTime && !/^\d{2}:\d{2}$/.test(scheduledTime)) errors.scheduled_time = 'Use HH:MM.';
+  const assignedUserId = body.assigned_to_user_id ? parseInt(body.assigned_to_user_id, 10) : null;
+  const assignedToText = emptyToNull(body.assigned_to);
+
+  // Optional editable display number override
+  let mainOverride = null, subOverride = null;
+  const numOverride = emptyToNull(body.display_number);
+  if (numOverride) {
+    const parsed = numbering.parseDisplay(numOverride);
+    if (!parsed) errors.display_number = 'Use format 0001-0000';
+    else {
+      mainOverride = parsed.main;
+      subOverride = parsed.sub;
+    }
   }
-  const assignedTo = emptyToNull(body.assigned_to);
-  const notes = emptyToNull(body.notes);
 
   const rawItems = asArray(body.lines);
   const items = [];
   rawItems.forEach((li) => {
-    const isBlank =
-      !emptyToNull(li.description) &&
-      (!li.quantity || parseFloat(li.quantity) === 0) &&
-      (!li.unit_price || parseFloat(li.unit_price) === 0);
-    if (isBlank) return;
-    const v = validateLineItem(li);
-    items.push(v.data);
+    if (!emptyToNull(li.description)) return;
+    items.push(validateLineItem(li).data);
   });
-  if (items.length === 0) errors.lines = 'At least one line item is required.';
 
   return {
     errors,
-    data: { scheduled_date: scheduledDate, assigned_to: assignedTo, notes, lines: items }
+    data: {
+      scheduled_date: scheduledDate,
+      scheduled_time: scheduledTime,
+      assigned_to_user_id: assignedUserId,
+      assigned_to: assignedToText,
+      notes: emptyToNull(body.notes),
+      display_number_override: numOverride ? { main: mainOverride, sub: subOverride } : null,
+      lines: items,
+    }
   };
 }
 
@@ -109,16 +119,19 @@ function loadWorkOrder(id) {
             c.id      AS customer_id,
             c.name    AS customer_name,
             c.email   AS customer_email,
+            c.billing_email AS customer_billing_email,
             c.phone   AS customer_phone,
             c.address AS customer_address,
             c.city    AS customer_city,
             c.state   AS customer_state,
             c.zip     AS customer_zip,
-            e.estimate_number AS estimate_number
+            u.name    AS assigned_user_name,
+            parent.display_number AS parent_display_number
      FROM work_orders w
      JOIN jobs j      ON j.id = w.job_id
      JOIN customers c ON c.id = j.customer_id
-     LEFT JOIN estimates e ON e.id = w.estimate_id
+     LEFT JOIN users u ON u.id = w.assigned_to_user_id
+     LEFT JOIN work_orders parent ON parent.id = w.parent_wo_id
      WHERE w.id = ?`,
     [id]
   );
@@ -130,8 +143,6 @@ function loadWorkOrder(id) {
   return wo;
 }
 
-// --- routes ---
-
 router.get('/', (req, res) => {
   const q = (req.query.q || '').trim();
   const status = (req.query.status || '').trim();
@@ -141,7 +152,7 @@ router.get('/', (req, res) => {
   const conds = [];
   const params = [];
   if (q) {
-    conds.push('(w.wo_number LIKE ? OR j.title LIKE ? OR c.name LIKE ?)');
+    conds.push('(w.display_number LIKE ? OR j.title LIKE ? OR c.name LIKE ?)');
     const like = `%${q}%`;
     params.push(like, like, like);
   }
@@ -152,125 +163,326 @@ router.get('/', (req, res) => {
   const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
 
   const total = (db.get(
-    `SELECT COUNT(*) AS n
-     FROM work_orders w
+    `SELECT COUNT(*) AS n FROM work_orders w
      JOIN jobs j ON j.id = w.job_id
-     JOIN customers c ON c.id = j.customer_id ${where}`, params
+     JOIN customers c ON c.id = j.customer_id ${where}`,
+    params
   ) || {}).n || 0;
 
   const workOrders = db.all(
-    `SELECT w.id, w.wo_number, w.status, w.scheduled_date, w.completed_date, w.assigned_to, w.created_at,
+    `SELECT w.id, w.display_number, w.wo_number_main, w.wo_number_sub, w.parent_wo_id,
+            w.status, w.scheduled_date, w.completed_date, w.created_at,
             j.id AS job_id, j.title AS job_title,
-            c.id AS customer_id, c.name AS customer_name
+            c.id AS customer_id, c.name AS customer_name,
+            u.name AS assigned_name
      FROM work_orders w
      JOIN jobs j ON j.id = w.job_id
      JOIN customers c ON c.id = j.customer_id
+     LEFT JOIN users u ON u.id = w.assigned_to_user_id
      ${where}
-     ORDER BY w.created_at DESC
+     ORDER BY w.wo_number_main DESC, w.wo_number_sub ASC
      LIMIT ? OFFSET ?`,
     [...params, PAGE_SIZE, offset]
   );
 
   res.render('work-orders/index', {
-    title: 'Work Orders',
-    activeNav: 'work-orders',
+    title: 'Work Orders', activeNav: 'work-orders',
     workOrders, q, status, page,
     totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
     total, statuses: VALID_STATUSES
   });
 });
 
+router.get('/new', (req, res) => {
+  const jobId = parseInt(req.query.job_id, 10);
+  if (!jobId) {
+    setFlash(req, 'error', 'Pick a job first to create a work order from.');
+    return res.redirect('/jobs');
+  }
+  const job = db.get(
+    `SELECT j.*, c.id AS customer_id, c.name AS customer_name
+     FROM jobs j JOIN customers c ON c.id = j.customer_id WHERE j.id = ?`,
+    [jobId]
+  );
+  if (!job) {
+    setFlash(req, 'error', 'Job not found.');
+    return res.redirect('/jobs');
+  }
+
+  // Suggest the next root WO number (purely for display in the form)
+  const settings = db.get('SELECT next_wo_main_number FROM company_settings WHERE id = 1');
+  const suggestedDisplay = numbering.formatDisplay(settings ? settings.next_wo_main_number : 1, 0);
+
+  const wo = {
+    id: null, job_id: jobId, parent_wo_id: null,
+    display_number: '', // user can override; blank means auto
+    suggested_display_number: suggestedDisplay,
+    status: 'scheduled',
+    scheduled_date: '', scheduled_time: '',
+    assigned_to_user_id: null, assigned_to: '',
+    notes: '', lines: [],
+  };
+  const users = db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
+  res.render('work-orders/new', {
+    title: 'New work order', activeNav: 'work-orders',
+    wo, job, users, errors: {}, units: VALID_UNITS, isSubWO: false
+  });
+});
+
+router.post('/', (req, res) => {
+  const jobId = parseInt(req.body.job_id, 10);
+  const job = jobId ? db.get(
+    `SELECT j.*, c.id AS customer_id, c.name AS customer_name
+     FROM jobs j JOIN customers c ON c.id = j.customer_id WHERE j.id = ?`,
+    [jobId]
+  ) : null;
+
+  const users = db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
+  const { errors, data } = validateWorkOrder(req.body);
+  if (!job) errors.job_id = 'Job is required.';
+
+  if (Object.keys(errors).length) {
+    return res.status(400).render('work-orders/new', {
+      title: 'New work order', activeNav: 'work-orders',
+      wo: { id: null, job_id: jobId, parent_wo_id: null, ...data,
+            display_number: req.body.display_number || '' },
+      job: job || { id: jobId }, users, errors,
+      units: VALID_UNITS, isSubWO: false
+    });
+  }
+
+  // Resolve numbering
+  let main, sub, display;
+  if (data.display_number_override) {
+    ({ main, sub } = data.display_number_override);
+    display = numbering.formatDisplay(main, sub);
+    // Reject if already taken
+    const dup = db.get('SELECT id FROM work_orders WHERE display_number = ?', [display]);
+    if (dup) {
+      errors.display_number = `WO ${display} already exists.`;
+      return res.status(400).render('work-orders/new', {
+        title: 'New work order', activeNav: 'work-orders',
+        wo: { id: null, job_id: jobId, parent_wo_id: null, ...data,
+              display_number: req.body.display_number || '' },
+        job, users, errors, units: VALID_UNITS, isSubWO: false
+      });
+    }
+  } else {
+    const next = numbering.nextRootWoNumber();
+    main = next.main; sub = next.sub; display = next.display;
+  }
+
+  const newId = db.transaction(() => {
+    const r = db.run(
+      `INSERT INTO work_orders
+       (job_id, parent_wo_id, wo_number_main, wo_number_sub, display_number, status,
+        scheduled_date, scheduled_time, assigned_to_user_id, assigned_to, notes)
+       VALUES (?, NULL, ?, ?, ?, 'scheduled', ?, ?, ?, ?, ?)`,
+      [job.id, main, sub, display, data.scheduled_date, data.scheduled_time,
+       data.assigned_to_user_id, data.assigned_to, data.notes]
+    );
+    const woId = r.lastInsertRowid;
+    data.lines.forEach((li, idx) => {
+      const lt = calc.lineTotal(li);
+      db.run(
+        `INSERT INTO work_order_line_items
+         (work_order_id, description, quantity, unit, unit_price, cost, line_total, completed, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [woId, li.description, li.quantity, li.unit, li.unit_price, li.cost, lt, li.completed, idx]
+      );
+    });
+    return woId;
+  });
+
+  setFlash(req, 'success', `Work order WO-${display} created.`);
+  res.redirect(`/work-orders/${newId}`);
+});
+
+// Sub-WO creation (POST /:id/sub) — opens a new form scoped to this parent
+router.get('/:id/sub/new', (req, res) => {
+  const parent = loadWorkOrder(req.params.id);
+  if (!parent) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Parent WO not found.' });
+  const job = db.get('SELECT id, title FROM jobs WHERE id = ?', [parent.job_id]);
+
+  const next = numbering.nextSubWoNumber(parent.id);
+  const wo = {
+    id: null, job_id: parent.job_id, parent_wo_id: parent.id,
+    display_number: '', suggested_display_number: next.display,
+    status: 'scheduled',
+    scheduled_date: '', scheduled_time: '',
+    assigned_to_user_id: null, assigned_to: '', notes: '', lines: []
+  };
+  const users = db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
+  res.render('work-orders/new', {
+    title: `Sub-WO under ${parent.display_number}`, activeNav: 'work-orders',
+    wo, job, users, errors: {}, units: VALID_UNITS, isSubWO: true, parent
+  });
+});
+
+router.post('/:id/sub', (req, res) => {
+  const parent = db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
+  if (!parent) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Parent WO not found.' });
+
+  const { errors, data } = validateWorkOrder(req.body);
+  let main, sub, display;
+  if (data.display_number_override) {
+    ({ main, sub } = data.display_number_override);
+    if (main !== parent.wo_number_main) {
+      errors.display_number = `Sub-WO must use main ${numbering.pad(parent.wo_number_main, 4)} (parent's).`;
+    } else {
+      display = numbering.formatDisplay(main, sub);
+      const dup = db.get('SELECT id FROM work_orders WHERE display_number = ?', [display]);
+      if (dup) errors.display_number = `WO ${display} already exists.`;
+    }
+  } else {
+    const next = numbering.nextSubWoNumber(parent.id);
+    main = next.main; sub = next.sub; display = next.display;
+  }
+
+  if (Object.keys(errors).length) {
+    const job = db.get('SELECT id, title FROM jobs WHERE id = ?', [parent.job_id]);
+    const users = db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
+    return res.status(400).render('work-orders/new', {
+      title: `Sub-WO under ${parent.display_number}`, activeNav: 'work-orders',
+      wo: { id: null, job_id: parent.job_id, parent_wo_id: parent.id, ...data,
+            display_number: req.body.display_number || '' },
+      job, users, errors, units: VALID_UNITS, isSubWO: true, parent
+    });
+  }
+
+  const newId = db.transaction(() => {
+    const r = db.run(
+      `INSERT INTO work_orders
+       (job_id, parent_wo_id, wo_number_main, wo_number_sub, display_number, status,
+        scheduled_date, scheduled_time, assigned_to_user_id, assigned_to, notes)
+       VALUES (?, ?, ?, ?, ?, 'scheduled', ?, ?, ?, ?, ?)`,
+      [parent.job_id, parent.id, main, sub, display, data.scheduled_date, data.scheduled_time,
+       data.assigned_to_user_id, data.assigned_to, data.notes]
+    );
+    const woId = r.lastInsertRowid;
+    data.lines.forEach((li, idx) => {
+      const lt = calc.lineTotal(li);
+      db.run(
+        `INSERT INTO work_order_line_items
+         (work_order_id, description, quantity, unit, unit_price, cost, line_total, completed, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [woId, li.description, li.quantity, li.unit, li.unit_price, li.cost, lt, li.completed, idx]
+      );
+    });
+    return woId;
+  });
+
+  setFlash(req, 'success', `Sub-WO WO-${display} created.`);
+  res.redirect(`/work-orders/${newId}`);
+});
+
 router.get('/:id', (req, res) => {
   const wo = loadWorkOrder(req.params.id);
-  if (!wo) {
-    return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
-  }
-  // Pull related invoice if any
-  const invoice = db.get('SELECT id, invoice_number, status FROM invoices WHERE work_order_id = ?', [wo.id]);
+  if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
+
+  const subs = db.all(
+    `SELECT id, display_number, wo_number_sub, status, scheduled_date, completed_date, created_at
+     FROM work_orders WHERE parent_wo_id = ? ORDER BY wo_number_sub ASC`,
+    [wo.id]
+  );
+  const estimate = db.get('SELECT id, status FROM estimates WHERE work_order_id = ?', [wo.id]);
+  const invoice = estimate ? db.get('SELECT id, status FROM invoices WHERE estimate_id = ?', [estimate.id]) : null;
+
   res.render('work-orders/show', {
-    title: wo.wo_number,
-    activeNav: 'work-orders',
-    wo, invoice
+    title: `WO-${wo.display_number}`, activeNav: 'work-orders',
+    wo, subs, estimate, invoice
   });
 });
 
 router.get('/:id/edit', (req, res) => {
   const wo = loadWorkOrder(req.params.id);
-  if (!wo) {
-    return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
-  }
-  if (wo.status === 'complete' || wo.status === 'cancelled') {
-    setFlash(req, 'error', `${wo.wo_number} is "${wo.status}" and cannot be edited.`);
+  if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
+  if (['complete', 'cancelled'].includes(wo.status)) {
+    setFlash(req, 'error', `WO-${wo.display_number} is "${wo.status}" and cannot be edited.`);
     return res.redirect(`/work-orders/${wo.id}`);
   }
+  const users = db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
   res.render('work-orders/edit', {
-    title: `Edit ${wo.wo_number}`,
-    activeNav: 'work-orders',
-    wo, errors: {},
-    trades: VALID_TRADES, units: VALID_UNITS
+    title: `Edit WO-${wo.display_number}`, activeNav: 'work-orders',
+    wo, users, errors: {}, units: VALID_UNITS
   });
 });
 
 router.post('/:id', (req, res) => {
   const existing = loadWorkOrder(req.params.id);
-  if (!existing) {
-    return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
-  }
-  if (existing.status === 'complete' || existing.status === 'cancelled') {
-    setFlash(req, 'error', `${existing.wo_number} is "${existing.status}" and cannot be edited.`);
+  if (!existing) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
+  if (['complete', 'cancelled'].includes(existing.status)) {
+    setFlash(req, 'error', `WO-${existing.display_number} is "${existing.status}" and cannot be edited.`);
     return res.redirect(`/work-orders/${existing.id}`);
   }
 
   const { errors, data } = validateWorkOrder(req.body);
+  // For edit, allow display number override if it's unique and matches parent constraint
+  let newDisplay = existing.display_number;
+  let newMain = existing.wo_number_main, newSub = existing.wo_number_sub;
+  if (data.display_number_override) {
+    const { main, sub } = data.display_number_override;
+    if (existing.parent_wo_id && main !== existing.wo_number_main) {
+      errors.display_number = 'Sub-WO main must match parent.';
+    } else {
+      const candidate = numbering.formatDisplay(main, sub);
+      if (candidate !== existing.display_number) {
+        const dup = db.get('SELECT id FROM work_orders WHERE display_number = ? AND id != ?', [candidate, existing.id]);
+        if (dup) errors.display_number = `WO ${candidate} already exists.`;
+        else { newDisplay = candidate; newMain = main; newSub = sub; }
+      }
+    }
+  }
+
   if (Object.keys(errors).length) {
+    const users = db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
     return res.status(400).render('work-orders/edit', {
-      title: `Edit ${existing.wo_number}`,
-      activeNav: 'work-orders',
-      wo: { ...existing, ...data },
-      errors, trades: VALID_TRADES, units: VALID_UNITS
+      title: `Edit WO-${existing.display_number}`, activeNav: 'work-orders',
+      wo: { ...existing, ...data, display_number: req.body.display_number || existing.display_number },
+      users, errors, units: VALID_UNITS
     });
   }
 
   db.transaction(() => {
     db.run(
-      `UPDATE work_orders
-       SET scheduled_date=?, assigned_to=?, notes=?, updated_at=datetime('now')
+      `UPDATE work_orders SET
+         wo_number_main=?, wo_number_sub=?, display_number=?,
+         scheduled_date=?, scheduled_time=?, assigned_to_user_id=?, assigned_to=?, notes=?,
+         updated_at=datetime('now')
        WHERE id=?`,
-      [data.scheduled_date, data.assigned_to, data.notes, existing.id]
+      [newMain, newSub, newDisplay,
+       data.scheduled_date, data.scheduled_time, data.assigned_to_user_id, data.assigned_to, data.notes,
+       existing.id]
     );
     db.run('DELETE FROM work_order_line_items WHERE work_order_id = ?', [existing.id]);
     data.lines.forEach((li, idx) => {
       const lt = calc.lineTotal(li);
       db.run(
         `INSERT INTO work_order_line_items
-         (work_order_id, trade, description, quantity, unit, unit_price, line_total, completed, sort_order)
+         (work_order_id, description, quantity, unit, unit_price, cost, line_total, completed, sort_order)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [existing.id, li.trade, li.description, li.quantity, li.unit, li.unit_price, lt, li.completed, idx]
+        [existing.id, li.description, li.quantity, li.unit, li.unit_price, li.cost, lt, li.completed, idx]
       );
     });
   });
 
-  setFlash(req, 'success', `${existing.wo_number} updated.`);
+  setFlash(req, 'success', `WO-${newDisplay} updated.`);
   res.redirect(`/work-orders/${existing.id}`);
 });
 
-// --- status transitions ---
-
 function statusTransition(req, res, fromStatus, toStatus, timestampField) {
   const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
-  if (!wo) {
-    return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
-  }
+  if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
   const allowedFrom = Array.isArray(fromStatus) ? fromStatus : [fromStatus];
   if (!allowedFrom.includes(wo.status)) {
-    setFlash(req, 'error', `Cannot move ${wo.wo_number} from "${wo.status}" to "${toStatus}".`);
+    setFlash(req, 'error', `Cannot move WO-${wo.display_number} from "${wo.status}" to "${toStatus}".`);
     return res.redirect(`/work-orders/${wo.id}`);
   }
   const sets = ['status = ?', `updated_at = datetime('now')`];
   const params = [toStatus];
   if (timestampField) sets.push(`${timestampField} = datetime('now')`);
   db.run(`UPDATE work_orders SET ${sets.join(', ')} WHERE id = ?`, [...params, wo.id]);
-  setFlash(req, 'success', `${wo.wo_number} marked ${toStatus.replace('_',' ')}.`);
+  setFlash(req, 'success', `WO-${wo.display_number} marked ${toStatus.replace('_',' ')}.`);
   res.redirect(`/work-orders/${wo.id}`);
 }
 
@@ -278,114 +490,82 @@ router.post('/:id/start',    (req, res) => statusTransition(req, res, 'scheduled
 router.post('/:id/complete', (req, res) => statusTransition(req, res, 'in_progress', 'complete', 'completed_date'));
 router.post('/:id/cancel',   (req, res) => statusTransition(req, res, ['scheduled','in_progress'], 'cancelled', null));
 
-// Generate invoice from this WO. Allowed only when:
-//   - WO status === 'complete'
-//   - No existing invoice references this WO (1:1 in v0)
-// Pulls tax_rate from the originating estimate (or company default), copies
-// line items into invoice_line_items, computes totals, sets due_date = +30d.
-router.post('/:id/generate-invoice', (req, res) => {
-  const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
-  if (!wo) {
-    return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
+router.get('/:id/pdf', (req, res) => {
+  const wo = loadWorkOrder(req.params.id);
+  if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
+  const company = db.get('SELECT * FROM company_settings WHERE id = 1') || {};
+  const filename = `WO-${wo.display_number}.pdf`;
+  const disposition = req.query.download ? 'attachment' : 'inline';
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `${disposition}; filename="${filename}"`);
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    pdf.generateWorkOrderPDF({ ...wo, wo_number: `WO-${wo.display_number}` }, company, res);
+  } catch (err) {
+    console.error('WO PDF failed:', err);
+    if (!res.headersSent) res.status(500).render('error', { title: 'PDF error', code: 500, message: err.message });
+    else res.end();
   }
-  if (wo.status !== 'complete') {
-    setFlash(req, 'error', `${wo.wo_number} must be complete before generating an invoice. Current status: ${wo.status}.`);
+});
+
+router.post('/:id/delete', (req, res) => {
+  const wo = db.get('SELECT id, display_number FROM work_orders WHERE id = ?', [req.params.id]);
+  if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
+  const subCount = (db.get('SELECT COUNT(*) AS n FROM work_orders WHERE parent_wo_id = ?', [wo.id]) || {}).n || 0;
+  if (subCount) {
+    setFlash(req, 'error', `Cannot delete WO-${wo.display_number} — ${subCount} sub-WO(s) attached.`);
     return res.redirect(`/work-orders/${wo.id}`);
   }
-  const existingInv = db.get('SELECT id FROM invoices WHERE work_order_id = ?', [wo.id]);
-  if (existingInv) {
-    setFlash(req, 'error', `${wo.wo_number} already has an invoice.`);
-    return res.redirect(`/invoices/${existingInv.id}`);
+  const estCount = (db.get('SELECT COUNT(*) AS n FROM estimates WHERE work_order_id = ?', [wo.id]) || {}).n || 0;
+  if (estCount) {
+    setFlash(req, 'error', `Cannot delete WO-${wo.display_number} — an estimate references it.`);
+    return res.redirect(`/work-orders/${wo.id}`);
+  }
+  db.run('DELETE FROM work_order_line_items WHERE work_order_id = ?', [wo.id]);
+  db.run('DELETE FROM work_orders WHERE id = ?', [wo.id]);
+  setFlash(req, 'success', `WO-${wo.display_number} deleted.`);
+  res.redirect('/work-orders');
+});
+
+// Create estimate from this WO (1:1)
+router.post('/:id/create-estimate', (req, res) => {
+  const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
+  if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
+  const existing = db.get('SELECT id FROM estimates WHERE work_order_id = ?', [wo.id]);
+  if (existing) {
+    setFlash(req, 'info', `Estimate already exists for WO-${wo.display_number}.`);
+    return res.redirect(`/estimates/${existing.id}`);
   }
 
   const lines = db.all(
     `SELECT * FROM work_order_line_items WHERE work_order_id = ? ORDER BY sort_order ASC, id ASC`,
     [wo.id]
   );
-
-  // Tax rate: prefer originating estimate's rate, fall back to company default
-  let taxRate = 0;
-  if (wo.estimate_id) {
-    const est = db.get('SELECT tax_rate FROM estimates WHERE id = ?', [wo.estimate_id]);
-    if (est) taxRate = Number(est.tax_rate) || 0;
-  }
-  if (!taxRate) {
-    const settings = db.get('SELECT default_tax_rate FROM company_settings WHERE id = 1');
-    if (settings) taxRate = Number(settings.default_tax_rate) || 0;
-  }
-
+  const settings = db.get('SELECT default_tax_rate FROM company_settings WHERE id = 1') || { default_tax_rate: 0 };
+  const taxRate = Number(settings.default_tax_rate) || 0;
   const totals = calc.totals(lines, taxRate);
-  const invoiceNumber = numbering.nextInvoiceNumber();
+  const costTotal = lines.reduce((s, li) => s + (Number(li.cost) || 0) * (Number(li.quantity) || 0), 0);
 
-  // due_date = today + 30 days, ISO YYYY-MM-DD
-  const due = new Date();
-  due.setDate(due.getDate() + 30);
-  const dueDate = due.toISOString().slice(0, 10);
-
-  const newInvId = db.transaction(() => {
+  const newId = db.transaction(() => {
     const r = db.run(
-      `INSERT INTO invoices
-       (job_id, work_order_id, invoice_number, status, subtotal, tax_rate, tax_amount, total, due_date, notes)
-       VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?)`,
-      [wo.job_id, wo.id, invoiceNumber, totals.subtotal, taxRate, totals.taxAmount, totals.total, dueDate, wo.notes]
+      `INSERT INTO estimates (work_order_id, status, subtotal, tax_rate, tax_amount, total, cost_total)
+       VALUES (?, 'draft', ?, ?, ?, ?, ?)`,
+      [wo.id, totals.subtotal, taxRate, totals.taxAmount, totals.total, costTotal]
     );
-    const invId = r.lastInsertRowid;
+    const eid = r.lastInsertRowid;
     lines.forEach((li, idx) => {
+      const lt = calc.lineTotal(li);
       db.run(
-        `INSERT INTO invoice_line_items
-         (invoice_id, description, quantity, unit, unit_price, line_total, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [invId, li.description, li.quantity, li.unit, li.unit_price, li.line_total, idx]
+        `INSERT INTO estimate_line_items (estimate_id, description, quantity, unit, unit_price, cost, line_total, selected, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+        [eid, li.description, li.quantity, li.unit, li.unit_price, li.cost, lt, idx]
       );
     });
-    return invId;
+    return eid;
   });
 
-  setFlash(req, 'success', `${wo.wo_number} → ${invoiceNumber} generated.`);
-  res.redirect(`/invoices/${newInvId}`);
-});
-
-// --- PDF ---
-
-router.get('/:id/pdf', (req, res) => {
-  const wo = loadWorkOrder(req.params.id);
-  if (!wo) {
-    return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
-  }
-  const company = db.get('SELECT * FROM company_settings WHERE id = 1') || {};
-  const filename = `${wo.wo_number}.pdf`;
-  const disposition = req.query.download ? 'attachment' : 'inline';
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `${disposition}; filename="${filename}"`);
-  res.setHeader('Cache-Control', 'no-store');
-  try {
-    pdf.generateWorkOrderPDF(wo, company, res);
-  } catch (err) {
-    console.error('WO PDF generation failed:', err);
-    if (!res.headersSent) {
-      res.status(500).render('error', { title: 'PDF error', code: 500, message: 'PDF generation failed.' });
-    } else {
-      res.end();
-    }
-  }
-});
-
-// --- delete ---
-
-router.post('/:id/delete', (req, res) => {
-  const wo = db.get('SELECT id, wo_number FROM work_orders WHERE id = ?', [req.params.id]);
-  if (!wo) {
-    return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
-  }
-  const invCount = (db.get('SELECT COUNT(*) AS n FROM invoices WHERE work_order_id = ?', [wo.id]) || {}).n || 0;
-  if (invCount > 0) {
-    setFlash(req, 'error', `Cannot delete ${wo.wo_number} — ${invCount} invoice(s) reference it.`);
-    return res.redirect(`/work-orders/${wo.id}`);
-  }
-  db.run('DELETE FROM work_order_line_items WHERE work_order_id = ?', [wo.id]);
-  db.run('DELETE FROM work_orders WHERE id = ?', [wo.id]);
-  setFlash(req, 'success', `${wo.wo_number} deleted.`);
-  res.redirect('/work-orders');
+  setFlash(req, 'success', `Estimate EST-${wo.display_number} created from WO-${wo.display_number}.`);
+  res.redirect(`/estimates/${newId}`);
 });
 
 module.exports = router;

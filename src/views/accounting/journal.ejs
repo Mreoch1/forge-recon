@@ -1,0 +1,39 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<div class="max-w-7xl mx-auto px-4 py-6">
+  <div class="mb-4">
+    <a href="/accounting" class="text-sm text-recon-fog hover:text-recon-red">&larr; Accounting</a>
+  </div>
+  <h1 class="page-h1 mb-6">Journal entries</h1>
+
+  <% if (!entries || entries.length === 0) { %>
+    <div class="card p-8 text-center">
+      <p class="text-recon-fog">No journal entries yet. They will be created automatically when invoices are sent and marked paid once auto-posting is wired.</p>
+    </div>
+  <% } else { %>
+    <div class="card overflow-hidden">
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Description</th>
+            <th>Source</th>
+            <th>By</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% entries.forEach(function(e) { %>
+            <tr>
+              <td><%= e.entry_date %></td>
+              <td><%= e.description %></td>
+              <td><%= e.source_type ? e.source_type + ' #' + e.source_id : '-' %></td>
+              <td><%= e.created_by_name || '-' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<%- include('../layouts/footer') %>

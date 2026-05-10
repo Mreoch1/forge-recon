@@ -156,6 +156,24 @@ Append-only log of every change. Newest at the bottom. Format:
 - Wrote HANDOFF.md — Michael's morning briefing: how to run, mandatory first-3-minutes rotations, end-to-end test workflow, troubleshooting, one-paragraph overnight summary.
 - Updated PROJECT_PLAN.md — added "v0 Hand-off summary" section at top with phase-by-phase recap.
 
+## [2026-05-10T08:35:00Z] — hermes — phase 7 complete — v0 SHIPPED
+- npm test: 14/14 green (11 calculation + 3 numbering)
+- Full money-loop E2E smoke: 12 steps all 2xx/3xx; total carried through from estimate $23,112.50 → invoice → mark paid
+- Activity feed surfaces all 3 entity types
+- 58 tracked files
+- Hermes sign-off: "v0 is shippable. Ready for Michael's morning review."
+
+## [2026-05-10 ~mid-day] — claude — v0.5 IN PROGRESS (schema + routes done, views pending)
+- Bug fix: estimate/WO/invoice forms accepting blank line items now drop description-less rows silently instead of failing validation. Fix applied to all 3 line-item routes.
+- Schema rewrite: WO is root document. customer→job→WO→estimate→invoice. Sub-WOs via parent_wo_id self-FK. Unified parentMain-sub numbering "0001-0000" carries through all four types.
+- Added: billing_email on customers, cost column on every line-item table (internal), payment_terms on invoices (Due on receipt / Net 15/30/45/60 / Custom), scheduled_date/scheduled_time/assigned_to_user_id on jobs and WOs, items_library/wo_notes/wo_photos placeholder tables, admin/manager/worker role triple.
+- Numbering: single counter (next_wo_main_number) replaces three. Editable on creation forms.
+- Routes rewritten: customers, jobs (auto-fill site from customer), work-orders (root + sub-WO + create-estimate action), estimates (created from WO, selected line checkbox, generate-invoice action), invoices (created from estimate, billing_email recipient, payment_terms presets).
+- Auth middleware: requireManager added between requireAuth and requireAdmin. Pricing-routes now require admin or manager; workers can only hit /work-orders.
+- server.js: route mount permissions updated.
+- **VIEWS NOT YET REWRITTEN.** App will crash on most pages until views catch up to new schema. TODO_FOR_MICHAEL has the full list.
+- DO NOT run `npm run init-db` against v0 data — schema is incompatible.
+
 ## [2026-05-10T07:12:00Z] — hermes — phase 1
 - Ran npm run init-db → DB initialized at data/app.db (118KB)
 - Ran npm run seed → admin user seeded (idempotent on re-run), company_settings seeded
@@ -232,3 +250,11 @@ Append-only log of every change. Newest at the bottom. Format:
 - PROJECT_PLAN.md updated with v0 handoff summary
 - Tracked files: 58
 - **v0 complete**
+
+## [2026-05-10T09:00:00Z] — hermes — v0.5 + accounting skeleton
+- Fixed admin/settings.ejs: removed prefix fields, added default_payment_terms dropdown, single WO main number counter
+- Updated admin.js POST /settings handler for new company_settings columns
+- QB-lite accounting skeleton: schema-accounting.sql, init-accounting.js (seeds 24 starter accounts), routes + 6 view stubs
+- Added /accounting route under requireManager + nav link in header
+- Added npm run init-accounting script
+- Updated TODO_FOR_MICHAEL.md with next-session accounting work items

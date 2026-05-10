@@ -9,6 +9,7 @@
     "dev": "nodemon src/server.js",
     "init-db": "node src/db/init.js",
     "seed": "node src/db/seed.js",
+    "init-accounting": "node src/db/init-accounting.js",
     "test": "node --test test/"
   },
   "engines": {

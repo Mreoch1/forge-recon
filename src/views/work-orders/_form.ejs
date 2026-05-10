@@ -1,31 +1,63 @@
 <%
-// Estimate form (v0.5). Expects: estimate, errors, units, formAction, submitLabel.
-// `selected` checkbox per line: only selected lines transfer to invoice.
-// Cost column is internal — never on customer PDFs.
-const linesToRender = (estimate.lines && estimate.lines.length) ? estimate.lines : [{
-  description: '', quantity: 1, unit: 'ea', unit_price: 0, cost: 0, line_total: 0, selected: 1
+// Shared WO form. Expects: wo, job, users, errors, units, formAction, submitLabel,
+// isSubWO (boolean), parent (when isSubWO).
+// Cost column is internal (visible to admin/manager); workers shouldn't reach this form.
+const linesToRender = (wo.lines && wo.lines.length) ? wo.lines : [{
+  description: '', quantity: 1, unit: 'ea', unit_price: 0, cost: 0, line_total: 0, completed: 0
 }];
 function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
 %>
 <form action="<%= formAction %>" method="post" class="space-y-6">
+  <% if (typeof job !== 'undefined' && job && job.id) { %>
+    <input type="hidden" name="job_id" value="<%= job.id %>">
+  <% } %>
+
+  <% if (typeof job !== 'undefined' && job && job.id) { %>
+    <div class="card p-5">
+      <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-2">Job</h3>
+      <p class="font-medium"><%= job.title %></p>
+      <% if (typeof isSubWO !== 'undefined' && isSubWO && parent) { %>
+        <p class="text-sm text-recon-fog">Sub-WO of <a href="/work-orders/<%= parent.id %>" class="hover:text-recon-red">WO-<%= parent.display_number %></a></p>
+      <% } %>
+    </div>
+  <% } %>
+
   <div class="card p-5">
     <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Header</h3>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div>
-        <label class="label" for="valid_until">Valid until</label>
-        <input type="date" name="valid_until" id="valid_until"
-               value="<%= estimate.valid_until ? String(estimate.valid_until).slice(0,10) : '' %>"
-               class="input <%= errors.valid_until ? 'border-red-500' : '' %>">
-        <% if (errors.valid_until) { %><p class="text-sm text-red-600 mt-1"><%= errors.valid_until %></p><% } %>
+        <label class="label" for="display_number">WO Number</label>
+        <input type="text" name="display_number" id="display_number"
+               value="<%= wo.display_number || '' %>"
+               placeholder="<%= wo.suggested_display_number || '0001-0000' %>"
+               class="input <%= errors.display_number ? 'border-red-500' : '' %>"
+               pattern="\d{1,6}-\d{1,6}">
+        <p class="text-xs text-recon-fog mt-1">Format: 0001-0000. Leave blank to auto-generate (<%= wo.suggested_display_number || '0001-0000' %>).</p>
+        <% if (errors.display_number) { %><p class="text-sm text-red-600 mt-1"><%= errors.display_number %></p><% } %>
       </div>
       <div>
-        <label class="label" for="tax_rate">Tax rate (%)</label>
-        <input type="number" step="0.001" min="0" name="tax_rate" id="tax_rate"
-               value="<%= estimate.tax_rate || 0 %>" class="input" data-totals="tax_rate">
+        <label class="label" for="scheduled_date">Scheduled date</label>
+        <input type="date" name="scheduled_date" id="scheduled_date"
+               value="<%= wo.scheduled_date ? String(wo.scheduled_date).slice(0,10) : '' %>" class="input">
       </div>
       <div>
-        <label class="label">Number</label>
-        <p class="input bg-recon-cloud text-recon-fog"><%= estimate.display_number || '—' %></p>
+        <label class="label" for="scheduled_time">Scheduled time</label>
+        <input type="time" name="scheduled_time" id="scheduled_time"
+               value="<%= wo.scheduled_time || '' %>" class="input">
+      </div>
+      <div class="md:col-span-2">
+        <label class="label" for="assigned_to_user_id">Assigned employee</label>
+        <select name="assigned_to_user_id" id="assigned_to_user_id" class="input">
+          <option value="">— unassigned —</option>
+          <% users.forEach(function(u){ %>
+            <option value="<%= u.id %>" <%= (wo.assigned_to_user_id == u.id) ? 'selected' : '' %>><%= u.name %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div>
+        <label class="label" for="assigned_to">Or external assignee</label>
+        <input type="text" name="assigned_to" id="assigned_to" value="<%= wo.assigned_to || '' %>"
+               class="input" placeholder="Sub-contractor, etc.">
       </div>
     </div>
   </div>
@@ -35,15 +67,11 @@ function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed
       <h3 class="font-semibold">Items</h3>
       <button type="button" data-add-line class="btn btn-secondary text-sm">+ Add item</button>
     </div>
-    <% if (errors.lines) { %>
-      <div class="px-5 py-2 text-sm text-red-600 bg-red-50 border-b border-red-200"><%= errors.lines %></div>
-    <% } %>
-    <p class="px-5 py-2 text-xs text-recon-fog bg-recon-cloud">Uncheck a line's "Selected" box to keep it on the estimate but exclude it from the invoice.</p>
     <div class="overflow-x-auto">
       <table class="data" data-line-items>
         <thead>
           <tr>
-            <th>Selected</th>
+            <th>Done</th>
             <th>Description</th>
             <th class="text-right">Qty</th>
             <th>Unit</th>
@@ -57,8 +85,8 @@ function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed
           <% linesToRender.forEach(function(li, idx){ %>
             <tr class="line-row">
               <td class="text-center">
-                <input type="hidden" name="lines[<%= idx %>][selected]" value="0">
-                <input type="checkbox" name="lines[<%= idx %>][selected]" value="1" <%= li.selected ? 'checked' : '' %>>
+                <input type="hidden" name="lines[<%= idx %>][completed]" value="0">
+                <input type="checkbox" name="lines[<%= idx %>][completed]" value="1" <%= li.completed ? 'checked' : '' %>>
               </td>
               <td>
                 <input type="text" name="lines[<%= idx %>][description]" data-field="description"
@@ -93,10 +121,12 @@ function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed
 
           <tr class="line-row hidden" data-template>
             <td class="text-center">
-              <input type="hidden" name="lines[__IDX__][selected]" value="0">
-              <input type="checkbox" name="lines[__IDX__][selected]" value="1" checked>
+              <input type="hidden" name="lines[__IDX__][completed]" value="0">
+              <input type="checkbox" name="lines[__IDX__][completed]" value="1">
             </td>
-            <td><input type="text" name="lines[__IDX__][description]" data-field="description" class="input"></td>
+            <td>
+              <input type="text" name="lines[__IDX__][description]" data-field="description" class="input">
+            </td>
             <td class="text-right">
               <input type="number" step="0.01" min="0" name="lines[__IDX__][quantity]" data-field="quantity" value="1" class="input text-right" style="width: 5rem;">
             </td>
@@ -123,29 +153,20 @@ function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed
             <td class="text-right font-semibold">$<span data-totals="subtotal">0.00</span></td>
             <td></td>
           </tr>
-          <tr>
-            <td colspan="6" class="text-right text-sm font-medium">Tax</td>
-            <td class="text-right font-semibold">$<span data-totals="tax_amount">0.00</span></td>
-            <td></td>
-          </tr>
-          <tr>
-            <td colspan="6" class="text-right text-sm font-medium uppercase">Total</td>
-            <td class="text-right text-lg font-bold text-recon-red">$<span data-totals="total">0.00</span></td>
-            <td></td>
-          </tr>
         </tfoot>
       </table>
     </div>
   </div>
 
   <div class="card p-5">
-    <label class="label" for="notes">Notes (visible on customer PDF)</label>
-    <textarea name="notes" id="notes" rows="3" class="input"><%= estimate.notes || '' %></textarea>
+    <label class="label" for="notes">Notes</label>
+    <textarea name="notes" id="notes" rows="3" class="input"
+              placeholder="Crew instructions, materials, scope details..."><%= wo.notes || '' %></textarea>
   </div>
 
   <div class="flex items-center gap-2 pt-2">
     <button type="submit" class="btn btn-primary"><%= submitLabel %></button>
-    <a href="/estimates/<%= estimate.id %>" class="btn btn-ghost">Cancel</a>
+    <a href="<%= wo.id ? '/work-orders/' + wo.id : (job && job.id ? '/jobs/' + job.id : '/work-orders') %>" class="btn btn-ghost">Cancel</a>
   </div>
 </form>
 

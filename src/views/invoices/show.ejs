@@ -3,6 +3,8 @@
 <%
 function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
 const balance = (Number(invoice.total) || 0) - (Number(invoice.amount_paid) || 0);
+const showCosts = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
+const margin = (Number(invoice.total) || 0) - (Number(invoice.cost_total) || 0);
 %>
 
 <div class="max-w-5xl mx-auto px-4 py-6">
@@ -13,15 +15,14 @@ const balance = (Number(invoice.total) || 0) - (Number(invoice.amount_paid) || 0
   <div class="flex items-baseline justify-between mb-6 flex-wrap gap-2">
     <div>
       <div class="flex items-center gap-3">
-        <h1 class="page-h1"><%= invoice.invoice_number %></h1>
+        <h1 class="page-h1"><%= invoice.display_number %></h1>
         <span class="badge badge-<%= displayStatus %>"><%= displayStatus %></span>
       </div>
       <p class="page-sub">
-        Job: <a href="/jobs/<%= invoice.job_id %>" class="hover:text-recon-red"><%= invoice.job_title %></a>
+        WO: <a href="/work-orders/<%= invoice.wo_id %>" class="hover:text-recon-red">WO-<%= invoice.wo_display_number %></a>
+        &middot; Estimate: <a href="/estimates/<%= invoice.estimate_id %>" class="hover:text-recon-red">EST-<%= invoice.wo_display_number %></a>
+        &middot; Job: <a href="/jobs/<%= invoice.job_id %>" class="hover:text-recon-red"><%= invoice.job_title %></a>
         &middot; Customer: <a href="/customers/<%= invoice.customer_id %>" class="hover:text-recon-red"><%= invoice.customer_name %></a>
-        <% if (invoice.wo_number) { %>
-          &middot; From: <a href="/work-orders/<%= invoice.work_order_id %>" class="hover:text-recon-red"><%= invoice.wo_number %></a>
-        <% } %>
       </p>
     </div>
     <div class="flex flex-wrap gap-2">
@@ -46,21 +47,21 @@ const balance = (Number(invoice.total) || 0) - (Number(invoice.amount_paid) || 0
     </div>
   </div>
 
-  <% if ((invoice.status === 'sent' || invoice.status === 'overdue')) { %>
+  <% if (invoice.status === 'sent' || invoice.status === 'overdue') { %>
     <div id="mark-paid-form" class="card p-5 mb-6 hidden bg-green-50 border-green-200">
       <form action="/invoices/<%= invoice.id %>/mark-paid" method="post" class="flex items-end gap-3">
         <div class="flex-1">
           <label class="label" for="amount">Amount paid</label>
           <input type="number" step="0.01" min="0.01" name="amount" id="amount"
                  value="<%= balance.toFixed(2) %>" required class="input">
-          <p class="text-xs text-recon-fog mt-1">Defaults to remaining balance ($<%= fmt(balance) %>). Lower amounts record a partial payment.</p>
+          <p class="text-xs text-recon-fog mt-1">Defaults to remaining balance ($<%= fmt(balance) %>). Lower amount records partial payment.</p>
         </div>
         <button type="submit" class="btn btn-primary">Record payment</button>
       </form>
     </div>
   <% } %>
 
-  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
     <div class="card p-4">
       <div class="text-xs uppercase tracking-wide text-recon-fog">Subtotal</div>
       <div class="text-xl font-semibold mt-1">$<%= fmt(invoice.subtotal) %></div>
@@ -79,12 +80,24 @@ const balance = (Number(invoice.total) || 0) - (Number(invoice.amount_paid) || 0
     </div>
   </div>
 
+  <% if (showCosts) { %>
+    <div class="card p-4 mb-6 bg-recon-cloud">
+      <div class="flex flex-wrap items-center gap-6 text-sm">
+        <span><span class="text-recon-fog">Cost total:</span> <strong>$<%= fmt(invoice.cost_total) %></strong></span>
+        <span><span class="text-recon-fog">Margin:</span> <strong class="<%= margin >= 0 ? 'text-green-700' : 'text-recon-red' %>">$<%= fmt(margin) %></strong></span>
+        <span><span class="text-recon-fog">Terms:</span> <strong><%= invoice.payment_terms %></strong></span>
+        <span><span class="text-recon-fog">Recipient:</span> <strong><%= invoice.customer_billing_email || invoice.customer_email || '—' %></strong></span>
+      </div>
+      <p class="text-xs text-recon-fog mt-1">Cost + margin are internal — not on customer PDFs.</p>
+    </div>
+  <% } %>
+
   <div class="card overflow-hidden mb-6">
     <div class="px-5 py-3 border-b border-recon-mist">
-      <h3 class="font-semibold">Line items</h3>
+      <h3 class="font-semibold">Items</h3>
     </div>
     <% if (invoice.lines.length === 0) { %>
-      <div class="p-6 text-center text-recon-fog text-sm">No line items.</div>
+      <div class="p-6 text-center text-recon-fog text-sm">No items.</div>
     <% } else { %>
       <table class="data">
         <thead>
@@ -93,6 +106,7 @@ const balance = (Number(invoice.total) || 0) - (Number(invoice.amount_paid) || 0
             <th class="text-right">Qty</th>
             <th>Unit</th>
             <th class="text-right">Unit $</th>
+            <% if (showCosts) { %><th class="text-right text-recon-fog">Cost</th><% } %>
             <th class="text-right">Line $</th>
           </tr>
         </thead>
@@ -103,6 +117,7 @@ const balance = (Number(invoice.total) || 0) - (Number(invoice.amount_paid) || 0
               <td class="text-right"><%= li.quantity %></td>
               <td><%= li.unit %></td>
               <td class="text-right">$<%= fmt(li.unit_price) %></td>
+              <% if (showCosts) { %><td class="text-right text-recon-fog">$<%= fmt(li.cost) %></td><% } %>
               <td class="text-right font-medium">$<%= fmt(li.line_total) %></td>
             </tr>
           <% }); %>
@@ -113,9 +128,10 @@ const balance = (Number(invoice.total) || 0) - (Number(invoice.amount_paid) || 0
 
   <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
     <div class="card p-5">
-      <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-2">Dates</h3>
+      <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-2">Dates &amp; terms</h3>
       <dl class="space-y-1 text-sm">
         <div><dt class="text-recon-fog text-xs inline">Issued:</dt> <dd class="inline"><%= (invoice.created_at || '—').slice(0,10) %></dd></div>
+        <div><dt class="text-recon-fog text-xs inline">Terms:</dt> <dd class="inline"><%= invoice.payment_terms %></dd></div>
         <% if (invoice.due_date) { %>
           <div><dt class="text-recon-fog text-xs inline">Due:</dt> <dd class="inline"><%= String(invoice.due_date).slice(0,10) %></dd></div>
         <% } %>
@@ -138,9 +154,8 @@ const balance = (Number(invoice.total) || 0) - (Number(invoice.amount_paid) || 0
   <% if (invoice.status === 'draft' || invoice.status === 'void') { %>
     <div class="card p-5 border-red-200">
       <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
-      <p class="text-sm text-recon-fog mb-3">Drafts and voided invoices can be deleted permanently.</p>
       <form action="/invoices/<%= invoice.id %>/delete" method="post"
-            onsubmit="return confirm('Delete <%= invoice.invoice_number %>?');" class="m-0">
+            onsubmit="return confirm('Delete <%= invoice.display_number %>?');" class="m-0">
         <button type="submit" class="btn btn-danger">Delete</button>
       </form>
     </div>

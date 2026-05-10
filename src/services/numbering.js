@@ -1,50 +1,75 @@
 /**
- * Atomic numbering service for estimates / WOs / invoices.
+ * v0.5 numbering service.
  *
- * Each entity has its own counter in company_settings (next_estimate_number,
- * next_wo_number, next_invoice_number). nextNumber(field) reads + increments
- * inside a transaction so two concurrent creates can't collide.
+ * One counter (company_settings.next_wo_main_number) drives everything.
+ *   * New root WO from a job: main = next_wo_main_number; sub = 0; counter +=1.
+ *   * New sub-WO of an existing WO: main = parent's main; sub = max(siblings.sub) + 1.
+ *   * Estimate from a WO inherits the WO's display number.
+ *   * Invoice from an estimate inherits its display number too.
  *
- * Format: PREFIX-YYYY-NNNN with 4-digit zero-padded sequence.
- *   Estimate -> EST-2026-0001
- *   WO       -> WO-2026-0001
- *   Invoice  -> INV-2026-0001
+ * Display: zero-padded "0001-0000". Prefix is added at render time:
+ *   WO-0001-0000, EST-0001-0000, INV-0001-0000.
  *
- * Counters do NOT auto-reset on year change in v0 — they're monotonic
- * forever per type. Year resets are listed in TODO_FOR_MICHAEL.md.
+ * Public API:
+ *   nextRootWoNumber()           -> { main, sub: 0, display }
+ *   nextSubWoNumber(parentWoId)  -> { main, sub, display } (computed inside transaction)
+ *   formatDisplay(main, sub)     -> "0001-0000"
+ *   estimateDisplay(wo)          -> "EST-0001-0000"
+ *   invoiceDisplay(wo)           -> "INV-0001-0000"
+ *   woDisplay(main, sub)         -> "WO-0001-0000"
+ *
+ * Editable numbers: routes can override `display_number` on creation and
+ * still write the (main, sub) pair derived from the override. The
+ * counter is bumped only when the auto path is used.
  */
 
 const db = require('../db/db');
 
-const VALID_FIELDS = new Set([
-  'next_estimate_number',
-  'next_wo_number',
-  'next_invoice_number',
-]);
+function pad(n, width) {
+  return String(n).padStart(width, '0');
+}
 
-function nextNumber(field) {
-  if (!VALID_FIELDS.has(field)) {
-    throw new Error(`Invalid numbering field: ${field}`);
-  }
+function formatDisplay(main, sub) {
+  return `${pad(main, 4)}-${pad(sub, 4)}`;
+}
+
+function woDisplay(main, sub)       { return `WO-${formatDisplay(main, sub)}`; }
+function estimateDisplay(main, sub) { return `EST-${formatDisplay(main, sub)}`; }
+function invoiceDisplay(main, sub)  { return `INV-${formatDisplay(main, sub)}`; }
+
+function nextRootWoNumber() {
   return db.transaction(() => {
-    const row = db.get('SELECT * FROM company_settings WHERE id = 1');
+    const row = db.get('SELECT next_wo_main_number FROM company_settings WHERE id = 1');
     if (!row) throw new Error('company_settings not initialized — run npm run seed');
-    const n = row[field];
-    db.run(`UPDATE company_settings SET ${field} = ? WHERE id = 1`, [n + 1]);
-    return n;
+    const main = row.next_wo_main_number;
+    db.run('UPDATE company_settings SET next_wo_main_number = ? WHERE id = 1', [main + 1]);
+    return { main, sub: 0, display: formatDisplay(main, 0) };
   });
 }
 
-function format(prefix, n) {
-  const year = new Date().getFullYear();
-  return `${prefix}-${year}-${String(n).padStart(4, '0')}`;
+function nextSubWoNumber(parentWoId) {
+  const parent = db.get('SELECT id, wo_number_main FROM work_orders WHERE id = ?', [parentWoId]);
+  if (!parent) throw new Error('Parent WO not found: ' + parentWoId);
+  const main = parent.wo_number_main;
+  // Highest existing sub (siblings under same parent's main)
+  const row = db.get(
+    `SELECT COALESCE(MAX(wo_number_sub), 0) AS max_sub
+     FROM work_orders WHERE wo_number_main = ?`,
+    [main]
+  );
+  const sub = (row.max_sub || 0) + 1;
+  return { main, sub, display: formatDisplay(main, sub) };
+}
+
+/** Parse a "0001-0000" string into { main, sub } or null on bad format. */
+function parseDisplay(s) {
+  if (!s || typeof s !== 'string') return null;
+  const m = s.match(/^(\d{1,6})-(\d{1,6})$/);
+  if (!m) return null;
+  return { main: parseInt(m[1], 10), sub: parseInt(m[2], 10) };
 }
 
 module.exports = {
-  nextEstimateNumber: () => format('EST', nextNumber('next_estimate_number')),
-  nextWONumber:       () => format('WO',  nextNumber('next_wo_number')),
-  nextInvoiceNumber:  () => format('INV', nextNumber('next_invoice_number')),
-  // exposed for tests
-  _nextNumber: nextNumber,
-  _format: format,
+  pad, formatDisplay, woDisplay, estimateDisplay, invoiceDisplay,
+  nextRootWoNumber, nextSubWoNumber, parseDisplay,
 };

@@ -1,155 +1,17 @@
 <%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
 
-<%
-const linesToRender = (wo.lines && wo.lines.length) ? wo.lines : [{
-  description: '', trade: 'general', quantity: 1, unit: 'ea', unit_price: 0, line_total: 0, completed: 0
-}];
-function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
-%>
-
 <div class="max-w-5xl mx-auto px-4 py-6">
   <div class="mb-4">
-    <a href="/work-orders/<%= wo.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; <%= wo.wo_number %></a>
+    <a href="/work-orders/<%= wo.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; WO-<%= wo.display_number %></a>
   </div>
-  <h1 class="page-h1 mb-6">Edit <%= wo.wo_number %></h1>
+  <h1 class="page-h1 mb-6">Edit WO-<%= wo.display_number %></h1>
 
-  <form action="/work-orders/<%= wo.id %>" method="post" class="space-y-6">
-    <div class="card p-5">
-      <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Schedule</h3>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <label class="label" for="scheduled_date">Scheduled date</label>
-          <input type="date" name="scheduled_date" id="scheduled_date"
-                 value="<%= wo.scheduled_date ? String(wo.scheduled_date).slice(0,10) : '' %>"
-                 class="input <%= errors.scheduled_date ? 'border-red-500' : '' %>">
-          <% if (errors.scheduled_date) { %><p class="text-sm text-red-600 mt-1"><%= errors.scheduled_date %></p><% } %>
-        </div>
-        <div class="md:col-span-2">
-          <label class="label" for="assigned_to">Assigned to</label>
-          <input type="text" name="assigned_to" id="assigned_to" value="<%= wo.assigned_to || '' %>"
-                 placeholder="Crew lead name or sub-contractor" class="input">
-        </div>
-      </div>
-    </div>
-
-    <div class="card overflow-hidden">
-      <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
-        <h3 class="font-semibold">Line items</h3>
-        <button type="button" data-add-line class="btn btn-secondary text-sm">+ Add line</button>
-      </div>
-      <% if (errors.lines) { %>
-        <div class="px-5 py-2 text-sm text-red-600 bg-red-50 border-b border-red-200"><%= errors.lines %></div>
-      <% } %>
-      <div class="overflow-x-auto">
-        <table class="data" data-line-items>
-          <thead>
-            <tr>
-              <th>Done</th>
-              <th>Trade</th>
-              <th>Description</th>
-              <th class="text-right">Qty</th>
-              <th>Unit</th>
-              <th class="text-right">Unit $</th>
-              <th class="text-right">Line $</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <% linesToRender.forEach(function(li, idx){ %>
-              <tr class="line-row">
-                <td class="text-center">
-                  <input type="hidden" name="lines[<%= idx %>][completed]" value="0">
-                  <input type="checkbox" name="lines[<%= idx %>][completed]" value="1" <%= li.completed ? 'checked' : '' %>>
-                </td>
-                <td>
-                  <select name="lines[<%= idx %>][trade]" data-field="trade" class="input">
-                    <% trades.forEach(function(t){ %>
-                      <option value="<%= t %>" <%= li.trade === t ? 'selected' : '' %>><%= t %></option>
-                    <% }); %>
-                  </select>
-                </td>
-                <td>
-                  <input type="text" name="lines[<%= idx %>][description]" data-field="description"
-                         value="<%= li.description || '' %>" required class="input">
-                </td>
-                <td class="text-right">
-                  <input type="number" step="0.01" min="0" name="lines[<%= idx %>][quantity]" data-field="quantity"
-                         value="<%= li.quantity %>" required class="input text-right" style="width: 6rem;">
-                </td>
-                <td>
-                  <select name="lines[<%= idx %>][unit]" data-field="unit" class="input">
-                    <% units.forEach(function(u){ %>
-                      <option value="<%= u %>" <%= li.unit === u ? 'selected' : '' %>><%= u %></option>
-                    <% }); %>
-                  </select>
-                </td>
-                <td class="text-right">
-                  <input type="number" step="0.01" min="0" name="lines[<%= idx %>][unit_price]" data-field="unit_price"
-                         value="<%= li.unit_price %>" required class="input text-right" style="width: 8rem;">
-                </td>
-                <td class="text-right font-medium" data-field="line_total"><%= moneyFmt(li.line_total) %></td>
-                <td>
-                  <button type="button" data-remove-line class="text-recon-fog hover:text-recon-red text-sm">remove</button>
-                </td>
-              </tr>
-            <% }); %>
-
-            <tr class="line-row hidden" data-template>
-              <td class="text-center">
-                <input type="hidden" name="lines[__IDX__][completed]" value="0">
-                <input type="checkbox" name="lines[__IDX__][completed]" value="1">
-              </td>
-              <td>
-                <select name="lines[__IDX__][trade]" data-field="trade" class="input">
-                  <% trades.forEach(function(t){ %>
-                    <option value="<%= t %>" <%= t === 'general' ? 'selected' : '' %>><%= t %></option>
-                  <% }); %>
-                </select>
-              </td>
-              <td>
-                <input type="text" name="lines[__IDX__][description]" data-field="description" class="input">
-              </td>
-              <td class="text-right">
-                <input type="number" step="0.01" min="0" name="lines[__IDX__][quantity]" data-field="quantity" value="1" class="input text-right" style="width: 6rem;">
-              </td>
-              <td>
-                <select name="lines[__IDX__][unit]" data-field="unit" class="input">
-                  <% units.forEach(function(u){ %>
-                    <option value="<%= u %>" <%= u === 'ea' ? 'selected' : '' %>><%= u %></option>
-                  <% }); %>
-                </select>
-              </td>
-              <td class="text-right">
-                <input type="number" step="0.01" min="0" name="lines[__IDX__][unit_price]" data-field="unit_price" value="0" class="input text-right" style="width: 8rem;">
-              </td>
-              <td class="text-right font-medium" data-field="line_total">0.00</td>
-              <td><button type="button" data-remove-line class="text-recon-fog hover:text-recon-red text-sm">remove</button></td>
-            </tr>
-          </tbody>
-          <tfoot class="bg-recon-cloud">
-            <tr>
-              <td colspan="6" class="text-right text-sm font-medium">Subtotal</td>
-              <td class="text-right font-semibold">$<span data-totals="subtotal">0.00</span></td>
-              <td></td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-    </div>
-
-    <div class="card p-5">
-      <label class="label" for="notes">Notes</label>
-      <textarea name="notes" id="notes" rows="3" class="input"
-                placeholder="Crew instructions, materials notes, special considerations..."><%= wo.notes || '' %></textarea>
-    </div>
-
-    <div class="flex items-center gap-2 pt-2">
-      <button type="submit" class="btn btn-primary">Save changes</button>
-      <a href="/work-orders/<%= wo.id %>" class="btn btn-ghost">Cancel</a>
-    </div>
-  </form>
+  <%- include('_form', {
+    wo: wo, job: { id: wo.job_id, title: wo.job_title }, users: users,
+    errors: errors, units: units,
+    formAction: '/work-orders/' + wo.id, submitLabel: 'Save changes',
+    isSubWO: !!wo.parent_wo_id, parent: wo.parent_wo_id ? { id: wo.parent_wo_id, display_number: wo.parent_display_number } : null
+  }) %>
 </div>
-
-<script src="/js/line-items.js"></script>
 
 <%- include('../layouts/footer') %>

@@ -2,21 +2,29 @@
 
 <%
 const linesToRender = (invoice.lines && invoice.lines.length) ? invoice.lines : [{
-  description: '', quantity: 1, unit: 'ea', unit_price: 0, line_total: 0
+  description: '', quantity: 1, unit: 'ea', unit_price: 0, cost: 0, line_total: 0
 }];
 function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
 %>
 
 <div class="max-w-5xl mx-auto px-4 py-6">
   <div class="mb-4">
-    <a href="/invoices/<%= invoice.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; <%= invoice.invoice_number %></a>
+    <a href="/invoices/<%= invoice.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; <%= invoice.display_number %></a>
   </div>
-  <h1 class="page-h1 mb-6">Edit <%= invoice.invoice_number %></h1>
+  <h1 class="page-h1 mb-6">Edit <%= invoice.display_number %></h1>
 
   <form action="/invoices/<%= invoice.id %>" method="post" class="space-y-6">
     <div class="card p-5">
       <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Header</h3>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label class="label" for="payment_terms">Payment terms</label>
+          <select name="payment_terms" id="payment_terms" class="input">
+            <% paymentTermsPresets.forEach(function(p){ %>
+              <option value="<%= p %>" <%= invoice.payment_terms === p ? 'selected' : '' %>><%= p %></option>
+            <% }); %>
+          </select>
+        </div>
         <div>
           <label class="label" for="due_date">Due date</label>
           <input type="date" name="due_date" id="due_date"
@@ -29,17 +37,13 @@ function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed
           <input type="number" step="0.001" min="0" name="tax_rate" id="tax_rate"
                  value="<%= invoice.tax_rate || 0 %>" class="input" data-totals="tax_rate">
         </div>
-        <div>
-          <label class="label">Number</label>
-          <p class="input bg-recon-cloud text-recon-fog"><%= invoice.invoice_number %></p>
-        </div>
       </div>
     </div>
 
     <div class="card overflow-hidden">
       <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
-        <h3 class="font-semibold">Line items</h3>
-        <button type="button" data-add-line class="btn btn-secondary text-sm">+ Add line</button>
+        <h3 class="font-semibold">Items</h3>
+        <button type="button" data-add-line class="btn btn-secondary text-sm">+ Add item</button>
       </div>
       <% if (errors.lines) { %>
         <div class="px-5 py-2 text-sm text-red-600 bg-red-50 border-b border-red-200"><%= errors.lines %></div>
@@ -52,6 +56,7 @@ function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed
               <th class="text-right">Qty</th>
               <th>Unit</th>
               <th class="text-right">Unit $</th>
+              <th class="text-right text-recon-fog" title="Internal cost">Cost</th>
               <th class="text-right">Line $</th>
               <th></th>
             </tr>
@@ -59,13 +64,10 @@ function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed
           <tbody>
             <% linesToRender.forEach(function(li, idx){ %>
               <tr class="line-row">
-                <td>
-                  <input type="text" name="lines[<%= idx %>][description]" data-field="description"
-                         value="<%= li.description || '' %>" required class="input">
-                </td>
+                <td><input type="text" name="lines[<%= idx %>][description]" data-field="description" value="<%= li.description || '' %>" class="input"></td>
                 <td class="text-right">
                   <input type="number" step="0.01" min="0" name="lines[<%= idx %>][quantity]" data-field="quantity"
-                         value="<%= li.quantity %>" required class="input text-right" style="width: 6rem;">
+                         value="<%= li.quantity %>" class="input text-right" style="width: 5rem;">
                 </td>
                 <td>
                   <select name="lines[<%= idx %>][unit]" data-field="unit" class="input">
@@ -76,21 +78,21 @@ function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed
                 </td>
                 <td class="text-right">
                   <input type="number" step="0.01" min="0" name="lines[<%= idx %>][unit_price]" data-field="unit_price"
-                         value="<%= li.unit_price %>" required class="input text-right" style="width: 8rem;">
+                         value="<%= li.unit_price %>" class="input text-right" style="width: 7rem;">
+                </td>
+                <td class="text-right">
+                  <input type="number" step="0.01" min="0" name="lines[<%= idx %>][cost]" data-field="cost"
+                         value="<%= li.cost %>" class="input text-right text-recon-fog" style="width: 7rem;">
                 </td>
                 <td class="text-right font-medium" data-field="line_total"><%= moneyFmt(li.line_total) %></td>
-                <td>
-                  <button type="button" data-remove-line class="text-recon-fog hover:text-recon-red text-sm">remove</button>
-                </td>
+                <td><button type="button" data-remove-line class="text-recon-fog hover:text-recon-red text-sm">remove</button></td>
               </tr>
             <% }); %>
 
             <tr class="line-row hidden" data-template>
-              <td>
-                <input type="text" name="lines[__IDX__][description]" data-field="description" class="input">
-              </td>
+              <td><input type="text" name="lines[__IDX__][description]" data-field="description" class="input"></td>
               <td class="text-right">
-                <input type="number" step="0.01" min="0" name="lines[__IDX__][quantity]" data-field="quantity" value="1" class="input text-right" style="width: 6rem;">
+                <input type="number" step="0.01" min="0" name="lines[__IDX__][quantity]" data-field="quantity" value="1" class="input text-right" style="width: 5rem;">
               </td>
               <td>
                 <select name="lines[__IDX__][unit]" data-field="unit" class="input">
@@ -100,7 +102,10 @@ function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed
                 </select>
               </td>
               <td class="text-right">
-                <input type="number" step="0.01" min="0" name="lines[__IDX__][unit_price]" data-field="unit_price" value="0" class="input text-right" style="width: 8rem;">
+                <input type="number" step="0.01" min="0" name="lines[__IDX__][unit_price]" data-field="unit_price" value="0" class="input text-right" style="width: 7rem;">
+              </td>
+              <td class="text-right">
+                <input type="number" step="0.01" min="0" name="lines[__IDX__][cost]" data-field="cost" value="0" class="input text-right text-recon-fog" style="width: 7rem;">
               </td>
               <td class="text-right font-medium" data-field="line_total">0.00</td>
               <td><button type="button" data-remove-line class="text-recon-fog hover:text-recon-red text-sm">remove</button></td>
@@ -108,17 +113,17 @@ function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed
           </tbody>
           <tfoot class="bg-recon-cloud">
             <tr>
-              <td colspan="4" class="text-right text-sm font-medium">Subtotal</td>
+              <td colspan="5" class="text-right text-sm font-medium">Subtotal</td>
               <td class="text-right font-semibold">$<span data-totals="subtotal">0.00</span></td>
               <td></td>
             </tr>
             <tr>
-              <td colspan="4" class="text-right text-sm font-medium">Tax</td>
+              <td colspan="5" class="text-right text-sm font-medium">Tax</td>
               <td class="text-right font-semibold">$<span data-totals="tax_amount">0.00</span></td>
               <td></td>
             </tr>
             <tr>
-              <td colspan="4" class="text-right text-sm font-medium uppercase">Total</td>
+              <td colspan="5" class="text-right text-sm font-medium uppercase">Total</td>
               <td class="text-right text-lg font-bold text-recon-red">$<span data-totals="total">0.00</span></td>
               <td></td>
             </tr>
@@ -130,7 +135,7 @@ function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed
     <div class="card p-5">
       <label class="label" for="notes">Notes</label>
       <textarea name="notes" id="notes" rows="3" class="input"
-                placeholder="Payment terms, thank-you message, anything visible to customer."><%= invoice.notes || '' %></textarea>
+                placeholder="Payment instructions, thank-you, anything visible to customer."><%= invoice.notes || '' %></textarea>
     </div>
 
     <div class="flex items-center gap-2 pt-2">

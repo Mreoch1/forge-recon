@@ -11,10 +11,18 @@
     </div>
 
     <div>
-      <label class="label" for="email">Email</label>
+      <label class="label" for="email">Primary email <span class="text-recon-fog text-xs font-normal">(estimates)</span></label>
       <input type="email" name="email" id="email" value="<%= customer.email || '' %>"
              class="input <%= errors.email ? 'border-red-500' : '' %>">
       <% if (errors.email) { %><p class="text-sm text-red-600 mt-1"><%= errors.email %></p><% } %>
+    </div>
+
+    <div>
+      <label class="label" for="billing_email">Billing email <span class="text-recon-fog text-xs font-normal">(invoices)</span></label>
+      <input type="email" name="billing_email" id="billing_email" value="<%= customer.billing_email || '' %>"
+             class="input <%= errors.billing_email ? 'border-red-500' : '' %>"
+             placeholder="Falls back to primary if blank">
+      <% if (errors.billing_email) { %><p class="text-sm text-red-600 mt-1"><%= errors.billing_email %></p><% } %>
     </div>
 
     <div>

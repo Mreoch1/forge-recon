@@ -1,0 +1,39 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<div class="max-w-7xl mx-auto px-4 py-6">
+  <div class="mb-4">
+    <a href="/accounting" class="text-sm text-recon-fog hover:text-recon-red">&larr; Accounting</a>
+  </div>
+  <h1 class="page-h1 mb-6">Chart of accounts</h1>
+
+  <% if (!accounts || accounts.length === 0) { %>
+    <div class="card p-8 text-center">
+      <p class="text-recon-fog">No accounts found. Run <code>node src/db/init-accounting.js</code> to seed the starter chart.</p>
+    </div>
+  <% } else { %>
+    <div class="card overflow-hidden">
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% accounts.forEach(function(acc) { %>
+            <tr>
+              <td class="font-mono text-sm"><%= acc.code %></td>
+              <td><%= acc.name %></td>
+              <td><span class="badge badge-<%= acc.type %>"><%= acc.type %></span></td>
+              <td><%= acc.active ? 'Active' : 'Inactive' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<%- include('../layouts/footer') %>

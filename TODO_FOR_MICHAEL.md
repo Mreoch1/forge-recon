@@ -1,5 +1,24 @@
 # TODO for Michael
 
+## v0.5 IN-PROGRESS — APP IS NOT RUNNABLE RIGHT NOW
+
+Schema + routes have been rewritten for v0.5 (WO-as-root, sub-WOs, unified `0001-0000` numbering, billing_email, cost columns, payment_terms, scheduled date/time, manager+worker roles). Views haven't been rewritten yet.
+
+**Do NOT run `npm run init-db` until views are finished.** It would wipe v0 data and the new schema doesn't match the old templates — every page would crash.
+
+To continue: ask Claude to "finish v0.5 views" in the next session. Files needing rewrite:
+- `src/views/work-orders/_form.ejs`, `new.ejs`, `edit.ejs`, `show.ejs`
+- `src/views/estimates/_form.ejs`, `edit.ejs`, `show.ejs` (and remove `new.ejs` — estimates are now created via POST /work-orders/:id/create-estimate)
+- `src/views/invoices/edit.ejs`, `show.ejs` (payment_terms select, cost column)
+- `src/views/jobs/show.ejs` (show WOs and trace through to estimates/invoices)
+- `src/routes/dashboard.js` + `src/views/dashboard/index.ejs` (activity feed UNION query references dead columns)
+- `src/views/customers/show.ejs` (already mostly fine, just verify billing_email displayed)
+- `src/views/admin/settings.ejs` (add `default_payment_terms`, drop separate prefix fields since unified numbering)
+
+Once views are done, run: `rm data/app.db && npm run init-db && npm run seed && npm start`.
+
+
+
 Things waiting on you in the morning. Each entry: what + why. Pick them off in any order.
 
 ## Critical (do before letting anyone else log in)
@@ -30,3 +49,11 @@ Things waiting on you in the morning. Each entry: what + why. Pick them off in a
 - [ ] **Mobile responsive polish** — works on phone, but I've optimized for desktop.
 - [ ] **Reports** — A/R aging, jobs by status, revenue by trade, etc.
 - [ ] **Audit log** — who edited what, when.
+
+## v0.5 → Next session (accounting auto-posting)
+
+- [ ] **Wire automatic JE creation.** `src/routes/accounting.js` and `src/db/init-accounting.js` exist as a skeleton. Next step: create journal entries automatically when invoices are sent (Dr A/R, Cr Revenue) and marked paid (Dr Cash, Cr A/R). Estimated effort: 1-2 hours.
+- [ ] **Build chart of accounts CRUD.** Currently read-only via init-accounting.js seed. Add UI to add/edit/deactivate accounts.
+- [ ] **Live reports.** Replace stub pages (trial-balance, profit-loss, balance-sheet) with real accounting queries computing running balances.
+- [ ] **Manual journal entry form.** Allow creating manual JEs with debit/credit line validation (must balance).
+- [ ] **Account reconciliation.** Upload bank statement, match against journal entries, flag unmatched.

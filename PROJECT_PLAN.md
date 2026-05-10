@@ -113,9 +113,9 @@ Admin: GET /admin/users, GET/POST /admin/users/new, GET/POST /admin/users/:id/ed
 
 ## Current state
 
-- Phase: 7 (final) — Claude written tests + README + HANDOFF, Hermes verifying.
-- Phase 6 complete: 22 steps green (dashboard + admin).
-- All previous phases: COMPLETE. v0 ships when Phase 7 is verified.
+- v0 SHIPPED 2026-05-10T08:35:00Z (frozen at last working state).
+- v0.5 IN PROGRESS — schema + routes rewritten; views pending. App is not runnable in current state. See TODO_FOR_MICHAEL "v0.5 IN-PROGRESS" section.
+- Next session: finish v0.5 views.
 - Phase 0/1/2/3/4 complete. Sample PDFs in bridge folder.
 - Invoice generation: 1:1 WO→invoice in v0. Tax rate inherited from originating estimate or company default. Due date = +30d. WO must be 'complete' and have no existing invoice.
 - Invoice status flow: draft → sent (with email-to-file dropping a .eml in mail-outbox/) → paid (full) | overdue (computed display when sent + past due) → void.

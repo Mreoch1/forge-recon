@@ -1,43 +1,36 @@
 /**
- * Estimates CRUD + status transitions.
+ * Estimates CRUD (v0.5).
  *
- * Routes (all gated by requireAuth in server.js, mounted at /estimates):
- *   GET   /                 list with filters
- *   GET   /new?job_id=N     new form (job_id required)
- *   POST  /                 create
- *   GET   /:id              show (with line items + status actions)
- *   GET   /:id/edit         edit form
- *   POST  /:id              update
- *   POST  /:id/send         status -> sent, sent_at = now (only from draft)
- *   POST  /:id/accept       status -> accepted, accepted_at = now (only from sent)
- *   POST  /:id/reject       status -> rejected (only from sent)
- *   POST  /:id/delete       delete (FK guard against work_orders)
+ * Created via POST /work-orders/:id/create-estimate (1:1 with WO).
+ * Display number = WO's display number, prefixed EST-.
  *
- * PDF route lives separately in Phase 3B.
+ *   GET   /                    list
+ *   GET   /:id                 show
+ *   GET   /:id/edit            edit (draft only)
+ *   POST  /:id                 update
+ *   POST  /:id/send            draft -> sent (PDF emailed to customer.email)
+ *   POST  /:id/accept          sent -> accepted
+ *   POST  /:id/reject          sent -> rejected
+ *   POST  /:id/generate-invoice  accepted -> creates invoice with selected lines
+ *   GET   /:id/pdf             PDF
+ *   POST  /:id/delete          delete (only when no invoice references it)
  *
- * Line items arrive as req.body.lines = { '0': {...}, '1': {...}, ... }
- * (Express parses array-style indices into an object). We Object.values()
- * to get them in submission order.
+ * Line item `selected` flag: customer can accept only some lines. Only
+ * selected lines copy to the invoice on generate-invoice.
  */
 
 const express = require('express');
 const db = require('../db/db');
 const { setFlash } = require('../middleware/auth');
-const numbering = require('../services/numbering');
 const calc = require('../services/calculations');
 const pdf = require('../services/pdf');
+const email = require('../services/email');
 
 const router = express.Router();
 
 const PAGE_SIZE = 25;
 const VALID_STATUSES = ['draft', 'sent', 'accepted', 'rejected', 'expired'];
-const VALID_TRADES = [
-  'general','electrical','plumbing','hvac','framing',
-  'drywall','paint','flooring','cabinetry','roofing','other'
-];
 const VALID_UNITS = ['ea', 'hr', 'sqft', 'lf', 'ton', 'lot'];
-
-// --- helpers ---
 
 function emptyToNull(v) {
   if (typeof v !== 'string') return null;
@@ -45,124 +38,65 @@ function emptyToNull(v) {
   return t === '' ? null : t;
 }
 
-function asLineItemsArray(input) {
-  // Express body-parser turns lines[0][...] into either an array or an
-  // object with numeric keys depending on indices. Normalize to array.
+function asArray(input) {
   if (!input) return [];
   if (Array.isArray(input)) return input;
   if (typeof input !== 'object') return [];
-  return Object.keys(input)
-    .sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
-    .map(k => input[k]);
+  return Object.keys(input).sort((a, b) => parseInt(a, 10) - parseInt(b, 10)).map(k => input[k]);
 }
 
 function validateLineItem(li) {
-  const errors = {};
   const description = emptyToNull(li.description);
-  if (!description) errors.description = 'Required.';
-
-  const trade = emptyToNull(li.trade) || 'general';
-  if (!VALID_TRADES.includes(trade)) errors.trade = 'Invalid trade.';
-
   const unit = emptyToNull(li.unit) || 'ea';
-  if (!VALID_UNITS.includes(unit)) errors.unit = 'Invalid unit.';
-
   const quantity = parseFloat(li.quantity);
-  if (!isFinite(quantity) || quantity < 0) errors.quantity = 'Must be ≥ 0.';
-
   const unitPrice = parseFloat(li.unit_price);
-  if (!isFinite(unitPrice) || unitPrice < 0) errors.unit_price = 'Must be ≥ 0.';
-
+  const cost = parseFloat(li.cost);
+  const selected = (li.selected === '1' || li.selected === 'on' || li.selected === true) ? 1 : 0;
   return {
-    errors,
-    data: { description, trade, unit, quantity, unit_price: unitPrice }
+    data: {
+      description,
+      quantity: isFinite(quantity) && quantity >= 0 ? quantity : 0,
+      unit: VALID_UNITS.includes(unit) ? unit : 'ea',
+      unit_price: isFinite(unitPrice) && unitPrice >= 0 ? unitPrice : 0,
+      cost: isFinite(cost) && cost >= 0 ? cost : 0,
+      selected,
+    }
   };
 }
 
 function validateEstimate(body) {
   const errors = {};
-
-  const jobId = parseInt(body.job_id, 10);
-  if (!jobId) errors.job_id = 'Job is required.';
-  else {
-    const job = db.get('SELECT id FROM jobs WHERE id = ?', [jobId]);
-    if (!job) errors.job_id = 'Job not found.';
-  }
-
-  const status = emptyToNull(body.status) || 'draft';
-  if (!VALID_STATUSES.includes(status)) errors.status = 'Invalid status.';
-
   const validUntil = emptyToNull(body.valid_until);
-  if (validUntil && !/^\d{4}-\d{2}-\d{2}$/.test(validUntil)) {
-    errors.valid_until = 'Use YYYY-MM-DD format.';
-  }
-
+  if (validUntil && !/^\d{4}-\d{2}-\d{2}$/.test(validUntil)) errors.valid_until = 'Use YYYY-MM-DD.';
   const taxRate = parseFloat(body.tax_rate);
   const taxRateNum = isFinite(taxRate) && taxRate >= 0 ? taxRate : 0;
-
   const notes = emptyToNull(body.notes);
 
-  const rawItems = asLineItemsArray(body.lines);
+  const rawItems = asArray(body.lines);
   const items = [];
-  const itemErrors = [];
-  rawItems.forEach((li, idx) => {
-    // Skip fully-blank rows (user may have added & emptied a row)
-    const isBlank =
-      !emptyToNull(li.description) &&
-      (!li.quantity || parseFloat(li.quantity) === 0) &&
-      (!li.unit_price || parseFloat(li.unit_price) === 0);
-    if (isBlank) return;
-    const v = validateLineItem(li);
-    if (Object.keys(v.errors).length) {
-      itemErrors[idx] = v.errors;
-    }
-    items.push(v.data);
+  rawItems.forEach((li) => {
+    if (!emptyToNull(li.description)) return;
+    items.push(validateLineItem(li).data);
   });
   if (items.length === 0) errors.lines = 'At least one line item is required.';
-  if (itemErrors.length) errors.itemErrors = itemErrors;
 
-  return {
-    errors,
-    data: {
-      job_id: jobId, status, valid_until: validUntil, notes,
-      tax_rate: taxRateNum,
-      lines: items,
-    }
-  };
-}
-
-function loadDefaults(jobId) {
-  const settings = db.get('SELECT default_tax_rate FROM company_settings WHERE id = 1') || { default_tax_rate: 0 };
-  return {
-    id: null, job_id: jobId || null, estimate_number: null,
-    status: 'draft',
-    subtotal: 0, tax_rate: settings.default_tax_rate || 0,
-    tax_amount: 0, total: 0,
-    valid_until: '', notes: '',
-    lines: []
-  };
+  return { errors, data: { valid_until: validUntil, tax_rate: taxRateNum, notes, lines: items } };
 }
 
 function loadEstimate(id) {
-  // Pulls customer + job fields needed by the PDF generator alongside the
-  // standard estimate row. Aliased prefixes keep the namespace clean.
   const est = db.get(
     `SELECT e.*,
-            j.title   AS job_title,
-            j.address AS job_address,
-            j.city    AS job_city,
-            j.state   AS job_state,
-            j.zip     AS job_zip,
-            c.id      AS customer_id,
-            c.name    AS customer_name,
-            c.email   AS customer_email,
-            c.phone   AS customer_phone,
-            c.address AS customer_address,
-            c.city    AS customer_city,
-            c.state   AS customer_state,
-            c.zip     AS customer_zip
+            w.id AS wo_id, w.display_number AS wo_display_number,
+            w.wo_number_main, w.wo_number_sub,
+            j.id AS job_id, j.title AS job_title,
+            j.address AS job_address, j.city AS job_city, j.state AS job_state, j.zip AS job_zip,
+            c.id AS customer_id, c.name AS customer_name,
+            c.email AS customer_email, c.billing_email AS customer_billing_email,
+            c.phone AS customer_phone,
+            c.address AS customer_address, c.city AS customer_city, c.state AS customer_state, c.zip AS customer_zip
      FROM estimates e
-     JOIN jobs j ON j.id = e.job_id
+     JOIN work_orders w ON w.id = e.work_order_id
+     JOIN jobs j ON j.id = w.job_id
      JOIN customers c ON c.id = j.customer_id
      WHERE e.id = ?`,
     [id]
@@ -172,10 +106,9 @@ function loadEstimate(id) {
     `SELECT * FROM estimate_line_items WHERE estimate_id = ? ORDER BY sort_order ASC, id ASC`,
     [id]
   );
+  est.display_number = `EST-${est.wo_display_number}`;
   return est;
 }
-
-// --- routes ---
 
 router.get('/', (req, res) => {
   const q = (req.query.q || '').trim();
@@ -186,7 +119,7 @@ router.get('/', (req, res) => {
   const conds = [];
   const params = [];
   if (q) {
-    conds.push('(e.estimate_number LIKE ? OR j.title LIKE ? OR c.name LIKE ?)');
+    conds.push('(w.display_number LIKE ? OR j.title LIKE ? OR c.name LIKE ?)');
     const like = `%${q}%`;
     params.push(like, like, like);
   }
@@ -198,16 +131,20 @@ router.get('/', (req, res) => {
 
   const total = (db.get(
     `SELECT COUNT(*) AS n FROM estimates e
-     JOIN jobs j ON j.id = e.job_id
-     JOIN customers c ON c.id = j.customer_id ${where}`, params
+     JOIN work_orders w ON w.id = e.work_order_id
+     JOIN jobs j ON j.id = w.job_id
+     JOIN customers c ON c.id = j.customer_id ${where}`,
+    params
   ) || {}).n || 0;
 
   const estimates = db.all(
-    `SELECT e.id, e.estimate_number, e.status, e.total, e.valid_until, e.created_at,
+    `SELECT e.id, e.status, e.total, e.valid_until, e.created_at,
+            w.display_number AS wo_display_number, w.id AS wo_id,
             j.id AS job_id, j.title AS job_title,
             c.id AS customer_id, c.name AS customer_name
      FROM estimates e
-     JOIN jobs j ON j.id = e.job_id
+     JOIN work_orders w ON w.id = e.work_order_id
+     JOIN jobs j ON j.id = w.job_id
      JOIN customers c ON c.id = j.customer_id
      ${where}
      ORDER BY e.created_at DESC
@@ -216,283 +153,203 @@ router.get('/', (req, res) => {
   );
 
   res.render('estimates/index', {
-    title: 'Estimates',
-    activeNav: 'estimates',
+    title: 'Estimates', activeNav: 'estimates',
     estimates, q, status, page,
     totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
     total, statuses: VALID_STATUSES
   });
 });
 
-router.get('/new', (req, res) => {
-  const jobId = parseInt(req.query.job_id, 10);
-  if (!jobId) {
-    setFlash(req, 'error', 'Pick a job first to create an estimate from.');
-    return res.redirect('/jobs');
-  }
-  const job = db.get(
-    `SELECT j.*, c.id AS customer_id, c.name AS customer_name
-     FROM jobs j JOIN customers c ON c.id = j.customer_id
-     WHERE j.id = ?`, [jobId]
-  );
-  if (!job) {
-    setFlash(req, 'error', 'Job not found.');
-    return res.redirect('/jobs');
-  }
-
-  const estimate = loadDefaults(jobId);
-  res.render('estimates/new', {
-    title: 'New estimate',
-    activeNav: 'estimates',
-    estimate, job, errors: {},
-    trades: VALID_TRADES, units: VALID_UNITS, statuses: VALID_STATUSES
-  });
-});
-
-router.post('/', (req, res) => {
-  const { errors, data } = validateEstimate(req.body);
-  const job = data.job_id ? db.get(
-    `SELECT j.*, c.id AS customer_id, c.name AS customer_name
-     FROM jobs j JOIN customers c ON c.id = j.customer_id WHERE j.id = ?`,
-    [data.job_id]
-  ) : null;
-
-  if (Object.keys(errors).length) {
-    return res.status(400).render('estimates/new', {
-      title: 'New estimate',
-      activeNav: 'estimates',
-      estimate: { id: null, ...data },
-      job: job || { id: data.job_id },
-      errors,
-      trades: VALID_TRADES, units: VALID_UNITS, statuses: VALID_STATUSES
-    });
-  }
-
-  const t = calc.totals(data.lines, data.tax_rate);
-  const estimateNumber = numbering.nextEstimateNumber();
-
-  const newId = db.transaction(() => {
-    const r = db.run(
-      `INSERT INTO estimates (job_id, estimate_number, status, subtotal, tax_rate, tax_amount, total, valid_until, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [data.job_id, estimateNumber, data.status, t.subtotal, data.tax_rate, t.taxAmount, t.total, data.valid_until, data.notes]
-    );
-    const eid = r.lastInsertRowid;
-    data.lines.forEach((li, idx) => {
-      const lt = calc.lineTotal(li);
-      db.run(
-        `INSERT INTO estimate_line_items (estimate_id, trade, description, quantity, unit, unit_price, line_total, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [eid, li.trade, li.description, li.quantity, li.unit, li.unit_price, lt, idx]
-      );
-    });
-    return eid;
-  });
-
-  setFlash(req, 'success', `Estimate ${estimateNumber} created.`);
-  res.redirect(`/estimates/${newId}`);
-});
-
 router.get('/:id', (req, res) => {
   const estimate = loadEstimate(req.params.id);
-  if (!estimate) {
-    return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
-  }
+  if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
+  const invoice = db.get('SELECT id, status FROM invoices WHERE estimate_id = ?', [estimate.id]);
   res.render('estimates/show', {
-    title: estimate.estimate_number,
-    activeNav: 'estimates',
-    estimate
+    title: estimate.display_number, activeNav: 'estimates',
+    estimate, invoice
   });
 });
 
 router.get('/:id/edit', (req, res) => {
   const estimate = loadEstimate(req.params.id);
-  if (!estimate) {
-    return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
-  }
+  if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
   if (estimate.status !== 'draft') {
-    setFlash(req, 'error', `Estimate ${estimate.estimate_number} is "${estimate.status}" and cannot be edited. Use status actions instead.`);
+    setFlash(req, 'error', `Estimate ${estimate.display_number} is "${estimate.status}" — cannot edit.`);
     return res.redirect(`/estimates/${estimate.id}`);
   }
-  const job = db.get(
-    `SELECT j.*, c.id AS customer_id, c.name AS customer_name
-     FROM jobs j JOIN customers c ON c.id = j.customer_id
-     WHERE j.id = ?`, [estimate.job_id]
-  );
   res.render('estimates/edit', {
-    title: `Edit ${estimate.estimate_number}`,
-    activeNav: 'estimates',
-    estimate, job, errors: {},
-    trades: VALID_TRADES, units: VALID_UNITS, statuses: VALID_STATUSES
+    title: `Edit ${estimate.display_number}`, activeNav: 'estimates',
+    estimate, errors: {}, units: VALID_UNITS
   });
 });
 
 router.post('/:id', (req, res) => {
-  const existing = db.get('SELECT id, estimate_number, status, job_id FROM estimates WHERE id = ?', [req.params.id]);
-  if (!existing) {
-    return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
-  }
+  const existing = loadEstimate(req.params.id);
+  if (!existing) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
   if (existing.status !== 'draft') {
-    setFlash(req, 'error', `Estimate ${existing.estimate_number} is "${existing.status}" and cannot be edited.`);
+    setFlash(req, 'error', `Estimate ${existing.display_number} is "${existing.status}" — cannot edit.`);
     return res.redirect(`/estimates/${existing.id}`);
   }
-
-  // Force the job_id from the existing record (don't allow re-parenting via form)
-  const body = { ...req.body, job_id: existing.job_id };
-  const { errors, data } = validateEstimate(body);
-
-  const job = db.get(
-    `SELECT j.*, c.id AS customer_id, c.name AS customer_name
-     FROM jobs j JOIN customers c ON c.id = j.customer_id
-     WHERE j.id = ?`, [existing.job_id]
-  );
-
+  const { errors, data } = validateEstimate(req.body);
   if (Object.keys(errors).length) {
     return res.status(400).render('estimates/edit', {
-      title: `Edit ${existing.estimate_number}`,
-      activeNav: 'estimates',
-      estimate: { id: existing.id, estimate_number: existing.estimate_number, ...data },
-      job, errors,
-      trades: VALID_TRADES, units: VALID_UNITS, statuses: VALID_STATUSES
+      title: `Edit ${existing.display_number}`, activeNav: 'estimates',
+      estimate: { ...existing, ...data }, errors, units: VALID_UNITS
     });
   }
-
   const t = calc.totals(data.lines, data.tax_rate);
-
+  const costTotal = data.lines.reduce((s, li) => s + (Number(li.cost) || 0) * (Number(li.quantity) || 0), 0);
   db.transaction(() => {
     db.run(
-      `UPDATE estimates
-       SET subtotal=?, tax_rate=?, tax_amount=?, total=?, valid_until=?, notes=?, updated_at=datetime('now')
+      `UPDATE estimates SET subtotal=?, tax_rate=?, tax_amount=?, total=?, cost_total=?, valid_until=?, notes=?,
+                            updated_at=datetime('now')
        WHERE id=?`,
-      [t.subtotal, data.tax_rate, t.taxAmount, t.total, data.valid_until, data.notes, existing.id]
+      [t.subtotal, data.tax_rate, t.taxAmount, t.total, costTotal, data.valid_until, data.notes, existing.id]
     );
     db.run('DELETE FROM estimate_line_items WHERE estimate_id = ?', [existing.id]);
     data.lines.forEach((li, idx) => {
       const lt = calc.lineTotal(li);
       db.run(
-        `INSERT INTO estimate_line_items (estimate_id, trade, description, quantity, unit, unit_price, line_total, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [existing.id, li.trade, li.description, li.quantity, li.unit, li.unit_price, lt, idx]
+        `INSERT INTO estimate_line_items (estimate_id, description, quantity, unit, unit_price, cost, line_total, selected, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [existing.id, li.description, li.quantity, li.unit, li.unit_price, li.cost, lt, li.selected, idx]
       );
     });
   });
-
-  setFlash(req, 'success', `Estimate ${existing.estimate_number} updated.`);
+  setFlash(req, 'success', `${existing.display_number} updated.`);
   res.redirect(`/estimates/${existing.id}`);
 });
 
-// --- status transitions ---
-
 function statusTransition(req, res, fromStatus, toStatus, timestampField) {
-  const est = db.get('SELECT * FROM estimates WHERE id = ?', [req.params.id]);
-  if (!est) {
-    return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
-  }
+  const est = loadEstimate(req.params.id);
+  if (!est) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
   const allowedFrom = Array.isArray(fromStatus) ? fromStatus : [fromStatus];
   if (!allowedFrom.includes(est.status)) {
-    setFlash(req, 'error', `Cannot move ${est.estimate_number} from "${est.status}" to "${toStatus}".`);
+    setFlash(req, 'error', `Cannot move ${est.display_number} from "${est.status}" to "${toStatus}".`);
     return res.redirect(`/estimates/${est.id}`);
   }
   const sets = ['status = ?', `updated_at = datetime('now')`];
   const params = [toStatus];
-  if (timestampField) {
-    sets.push(`${timestampField} = datetime('now')`);
-  }
+  if (timestampField) sets.push(`${timestampField} = datetime('now')`);
   db.run(`UPDATE estimates SET ${sets.join(', ')} WHERE id = ?`, [...params, est.id]);
-  setFlash(req, 'success', `Estimate ${est.estimate_number} marked ${toStatus}.`);
+  setFlash(req, 'success', `${est.display_number} marked ${toStatus}.`);
   res.redirect(`/estimates/${est.id}`);
 }
 
-// PDF (read-only — anyone authed can fetch). Streams pdfkit output to res.
-router.get('/:id/pdf', (req, res) => {
+// Send: generate PDF, write .eml to mail-outbox/, transition draft -> sent
+router.post('/:id/send', async (req, res, next) => {
   const estimate = loadEstimate(req.params.id);
-  if (!estimate) {
-    return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
+  if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
+  if (estimate.status !== 'draft') {
+    setFlash(req, 'error', `${estimate.display_number} is "${estimate.status}" — already sent.`);
+    return res.redirect(`/estimates/${estimate.id}`);
   }
-  const company = db.get('SELECT * FROM company_settings WHERE id = 1') || {};
-
-  // Inline preview vs forced download: ?download=1 forces save dialog.
-  const filename = `${estimate.estimate_number}.pdf`;
-  const disposition = req.query.download ? 'attachment' : 'inline';
-
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `${disposition}; filename="${filename}"`);
-  res.setHeader('Cache-Control', 'no-store');
-
   try {
-    pdf.generateEstimatePDF(estimate, company, res);
-  } catch (err) {
-    // Headers may already be sent by the time pdfkit errors. Best we can
-    // do is log + drop the connection.
-    console.error('PDF generation failed:', err);
-    if (!res.headersSent) {
-      res.status(500).render('error', { title: 'PDF error', code: 500, message: 'PDF generation failed.' });
-    } else {
-      res.end();
-    }
-  }
+    const company = db.get('SELECT * FROM company_settings WHERE id = 1') || {};
+    const buf = await pdf.renderToBuffer(pdf.generateEstimatePDF, { ...estimate, estimate_number: estimate.display_number }, company);
+    // Estimate goes to primary email (estimate; billing_email is for invoice)
+    const recipient = estimate.customer_email || 'unknown@recon.local';
+    const subject = `Estimate ${estimate.display_number} from ${company.company_name || 'Recon Construction'}`;
+    const text = `Hello ${estimate.customer_name || ''},\n\nPlease find attached estimate ${estimate.display_number}.\nTotal: $${(Number(estimate.total)||0).toFixed(2)}\n\nThanks.\n${company.company_name || 'Recon Construction'}`;
+    const sent = await email.sendEmail({
+      to: recipient, subject, text,
+      html: text.split('\n').map(l => `<p>${l}</p>`).join(''),
+      attachments: [{ filename: `${estimate.display_number}.pdf`, content: buf, contentType: 'application/pdf' }]
+    });
+    db.run(`UPDATE estimates SET status='sent', sent_at=datetime('now'), updated_at=datetime('now') WHERE id=?`, [estimate.id]);
+    const note = sent.mode === 'file' ? ` Email saved to ${sent.filepath}.` : '';
+    setFlash(req, 'success', `${estimate.display_number} sent.${note}`);
+    res.redirect(`/estimates/${estimate.id}`);
+  } catch (err) { next(err); }
 });
 
-router.post('/:id/send',   (req, res) => statusTransition(req, res, 'draft', 'sent', 'sent_at'));
 router.post('/:id/accept', (req, res) => statusTransition(req, res, 'sent', 'accepted', 'accepted_at'));
 router.post('/:id/reject', (req, res) => statusTransition(req, res, 'sent', 'rejected', null));
 
-// Convert an accepted estimate into a Work Order. Copies line items
-// across (but each WO line gets its own row — modifying the WO does not
-// affect the estimate). Allowed only from status='accepted'. Multiple
-// conversions are permitted (an estimate can spawn N WOs if a job is
-// being phased — the estimate is the proposal, the WOs are dispatch).
-router.post('/:id/convert-to-wo', (req, res) => {
-  const est = db.get('SELECT * FROM estimates WHERE id = ?', [req.params.id]);
-  if (!est) {
-    return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
+// Generate invoice from accepted estimate (only selected lines transfer)
+router.post('/:id/generate-invoice', (req, res) => {
+  const estimate = loadEstimate(req.params.id);
+  if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
+  if (!['sent', 'accepted'].includes(estimate.status)) {
+    setFlash(req, 'error', `Estimate must be sent or accepted before invoicing. Current: ${estimate.status}.`);
+    return res.redirect(`/estimates/${estimate.id}`);
   }
-  if (est.status !== 'accepted') {
-    setFlash(req, 'error', `Estimate ${est.estimate_number} must be accepted before converting to a work order. Current status: ${est.status}.`);
-    return res.redirect(`/estimates/${est.id}`);
+  const existingInv = db.get('SELECT id FROM invoices WHERE estimate_id = ?', [estimate.id]);
+  if (existingInv) {
+    setFlash(req, 'info', `Invoice already exists for ${estimate.display_number}.`);
+    return res.redirect(`/invoices/${existingInv.id}`);
   }
 
-  const lines = db.all(
-    `SELECT * FROM estimate_line_items WHERE estimate_id = ? ORDER BY sort_order ASC, id ASC`,
-    [est.id]
-  );
+  const settings = db.get('SELECT default_payment_terms FROM company_settings WHERE id = 1') || {};
+  const paymentTerms = settings.default_payment_terms || 'Net 30';
+  // Compute due date based on payment terms
+  const due = new Date();
+  const termsMatch = String(paymentTerms).match(/Net (\d+)/i);
+  if (termsMatch) due.setDate(due.getDate() + parseInt(termsMatch[1], 10));
+  else if (/due on receipt/i.test(paymentTerms)) {} // due today
+  else due.setDate(due.getDate() + 30); // default
+  const dueDate = due.toISOString().slice(0, 10);
 
-  const woNumber = numbering.nextWONumber();
-  const newWoId = db.transaction(() => {
+  const selectedLines = estimate.lines.filter(li => li.selected);
+  if (selectedLines.length === 0) {
+    setFlash(req, 'error', `No line items are marked as selected. Edit the estimate to select lines first.`);
+    return res.redirect(`/estimates/${estimate.id}`);
+  }
+  const totals = calc.totals(selectedLines, estimate.tax_rate);
+  const costTotal = selectedLines.reduce((s, li) => s + (Number(li.cost) || 0) * (Number(li.quantity) || 0), 0);
+
+  const newId = db.transaction(() => {
     const r = db.run(
-      `INSERT INTO work_orders (job_id, estimate_id, wo_number, status, notes)
-       VALUES (?, ?, ?, 'scheduled', ?)`,
-      [est.job_id, est.id, woNumber, est.notes]
+      `INSERT INTO invoices
+       (estimate_id, work_order_id, status, subtotal, tax_rate, tax_amount, total, cost_total, payment_terms, due_date)
+       VALUES (?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?)`,
+      [estimate.id, estimate.wo_id, totals.subtotal, estimate.tax_rate, totals.taxAmount, totals.total, costTotal, paymentTerms, dueDate]
     );
-    const woId = r.lastInsertRowid;
-    lines.forEach((li, idx) => {
+    const invId = r.lastInsertRowid;
+    selectedLines.forEach((li, idx) => {
+      const lt = calc.lineTotal(li);
       db.run(
-        `INSERT INTO work_order_line_items
-         (work_order_id, trade, description, quantity, unit, unit_price, line_total, completed, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
-        [woId, li.trade, li.description, li.quantity, li.unit, li.unit_price, li.line_total, idx]
+        `INSERT INTO invoice_line_items (invoice_id, description, quantity, unit, unit_price, cost, line_total, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [invId, li.description, li.quantity, li.unit, li.unit_price, li.cost, lt, idx]
       );
     });
-    return woId;
+    return invId;
   });
 
-  setFlash(req, 'success', `${est.estimate_number} converted to ${woNumber}.`);
-  res.redirect(`/work-orders/${newWoId}`);
+  setFlash(req, 'success', `INV-${estimate.wo_display_number} generated (${selectedLines.length} line items transferred).`);
+  res.redirect(`/invoices/${newId}`);
+});
+
+router.get('/:id/pdf', (req, res) => {
+  const estimate = loadEstimate(req.params.id);
+  if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
+  const company = db.get('SELECT * FROM company_settings WHERE id = 1') || {};
+  const filename = `${estimate.display_number}.pdf`;
+  const disposition = req.query.download ? 'attachment' : 'inline';
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `${disposition}; filename="${filename}"`);
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    pdf.generateEstimatePDF({ ...estimate, estimate_number: estimate.display_number }, company, res);
+  } catch (err) {
+    console.error('Estimate PDF failed:', err);
+    if (!res.headersSent) res.status(500).render('error', { title: 'PDF error', code: 500, message: err.message });
+    else res.end();
+  }
 });
 
 router.post('/:id/delete', (req, res) => {
-  const est = db.get('SELECT id, estimate_number FROM estimates WHERE id = ?', [req.params.id]);
-  if (!est) {
-    return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
+  const estimate = loadEstimate(req.params.id);
+  if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
+  const invCount = (db.get('SELECT COUNT(*) AS n FROM invoices WHERE estimate_id = ?', [estimate.id]) || {}).n || 0;
+  if (invCount) {
+    setFlash(req, 'error', `Cannot delete ${estimate.display_number} — an invoice references it.`);
+    return res.redirect(`/estimates/${estimate.id}`);
   }
-  const woCount = (db.get('SELECT COUNT(*) AS n FROM work_orders WHERE estimate_id = ?', [est.id]) || {}).n || 0;
-  if (woCount > 0) {
-    setFlash(req, 'error', `Cannot delete ${est.estimate_number} — ${woCount} work order(s) reference it.`);
-    return res.redirect(`/estimates/${est.id}`);
-  }
-  db.run('DELETE FROM estimate_line_items WHERE estimate_id = ?', [est.id]);
-  db.run('DELETE FROM estimates WHERE id = ?', [est.id]);
-  setFlash(req, 'success', `Estimate ${est.estimate_number} deleted.`);
+  db.run('DELETE FROM estimate_line_items WHERE estimate_id = ?', [estimate.id]);
+  db.run('DELETE FROM estimates WHERE id = ?', [estimate.id]);
+  setFlash(req, 'success', `${estimate.display_number} deleted.`);
   res.redirect('/estimates');
 });
 

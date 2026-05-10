@@ -1,0 +1,24 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<div class="max-w-5xl mx-auto px-4 py-6">
+  <div class="mb-4">
+    <% if (typeof isSubWO !== 'undefined' && isSubWO && parent) { %>
+      <a href="/work-orders/<%= parent.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; WO-<%= parent.display_number %></a>
+    <% } else if (typeof job !== 'undefined' && job && job.id) { %>
+      <a href="/jobs/<%= job.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; <%= job.title || 'Job' %></a>
+    <% } %>
+  </div>
+  <h1 class="page-h1 mb-6">
+    <%= (typeof isSubWO !== 'undefined' && isSubWO) ? 'New sub-work order' : 'New work order' %>
+  </h1>
+
+  <%- include('_form', {
+    wo: wo, job: job, users: users, errors: errors, units: units,
+    formAction: (typeof isSubWO !== 'undefined' && isSubWO && parent) ? ('/work-orders/' + parent.id + '/sub') : '/work-orders',
+    submitLabel: 'Create work order',
+    isSubWO: typeof isSubWO !== 'undefined' ? isSubWO : false,
+    parent: typeof parent !== 'undefined' ? parent : null
+  }) %>
+</div>
+
+<%- include('../layouts/footer') %>

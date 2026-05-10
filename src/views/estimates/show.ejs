@@ -2,6 +2,8 @@
 
 <%
 function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
+const showCosts = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
+const margin = (Number(estimate.total) || 0) - (Number(estimate.cost_total) || 0);
 %>
 
 <div class="max-w-5xl mx-auto px-4 py-6">
@@ -12,11 +14,12 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
   <div class="flex items-baseline justify-between mb-6 flex-wrap gap-2">
     <div>
       <div class="flex items-center gap-3">
-        <h1 class="page-h1"><%= estimate.estimate_number %></h1>
+        <h1 class="page-h1"><%= estimate.display_number %></h1>
         <span class="badge badge-<%= estimate.status %>"><%= estimate.status %></span>
       </div>
       <p class="page-sub">
-        Job: <a href="/jobs/<%= estimate.job_id %>" class="hover:text-recon-red"><%= estimate.job_title %></a>
+        WO: <a href="/work-orders/<%= estimate.wo_id %>" class="hover:text-recon-red">WO-<%= estimate.wo_display_number %></a>
+        &middot; Job: <a href="/jobs/<%= estimate.job_id %>" class="hover:text-recon-red"><%= estimate.job_title %></a>
         &middot; Customer: <a href="/customers/<%= estimate.customer_id %>" class="hover:text-recon-red"><%= estimate.customer_name %></a>
       </p>
     </div>
@@ -35,9 +38,10 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
         <form action="/estimates/<%= estimate.id %>/reject" method="post" class="m-0 inline">
           <button class="btn btn-danger">Mark rejected</button>
         </form>
-      <% } else if (estimate.status === 'accepted') { %>
-        <form action="/estimates/<%= estimate.id %>/convert-to-wo" method="post" class="m-0 inline">
-          <button class="btn btn-primary">Convert to Work Order</button>
+      <% } %>
+      <% if (['sent','accepted'].includes(estimate.status) && !invoice) { %>
+        <form action="/estimates/<%= estimate.id %>/generate-invoice" method="post" class="m-0 inline">
+          <button class="btn btn-primary">Generate invoice</button>
         </form>
       <% } %>
     </div>
@@ -58,32 +62,53 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
     </div>
   </div>
 
+  <% if (showCosts) { %>
+    <div class="card p-4 mb-6 bg-recon-cloud">
+      <div class="flex flex-wrap items-center gap-6 text-sm">
+        <span><span class="text-recon-fog">Cost total:</span> <strong>$<%= fmt(estimate.cost_total) %></strong></span>
+        <span><span class="text-recon-fog">Margin:</span> <strong class="<%= margin >= 0 ? 'text-green-700' : 'text-recon-red' %>">$<%= fmt(margin) %></strong></span>
+      </div>
+      <p class="text-xs text-recon-fog mt-1">Internal — not shown on customer PDFs.</p>
+    </div>
+  <% } %>
+
+  <% if (invoice) { %>
+    <div class="card p-4 mb-6 bg-green-50 border-green-200">
+      <p class="text-sm">
+        Invoice generated: <a href="/invoices/<%= invoice.id %>" class="font-medium text-recon-red hover:underline">INV-<%= estimate.wo_display_number %></a>
+        <span class="badge badge-<%= invoice.status %>"><%= invoice.status %></span>
+      </p>
+    </div>
+  <% } %>
+
   <div class="card overflow-hidden mb-6">
     <div class="px-5 py-3 border-b border-recon-mist">
-      <h3 class="font-semibold">Line items</h3>
+      <h3 class="font-semibold">Items</h3>
     </div>
     <% if (estimate.lines.length === 0) { %>
-      <div class="p-6 text-center text-recon-fog text-sm">No line items.</div>
+      <div class="p-6 text-center text-recon-fog text-sm">No items.</div>
     <% } else { %>
       <table class="data">
         <thead>
           <tr>
-            <th>Trade</th>
+            <th>Selected</th>
             <th>Description</th>
             <th class="text-right">Qty</th>
             <th>Unit</th>
             <th class="text-right">Unit $</th>
+            <% if (showCosts) { %><th class="text-right text-recon-fog">Cost</th><% } %>
             <th class="text-right">Line $</th>
           </tr>
         </thead>
         <tbody>
           <% estimate.lines.forEach(function(li){ %>
-            <tr>
-              <td><span class="badge badge-draft"><%= li.trade %></span></td>
+            <tr class="<%= li.selected ? '' : 'opacity-50' %>">
+              <td><%= li.selected ? '✅' : '⬜' %></td>
               <td><%= li.description %></td>
               <td class="text-right"><%= li.quantity %></td>
               <td><%= li.unit %></td>
               <td class="text-right">$<%= fmt(li.unit_price) %></td>
+              <% if (showCosts) { %><td class="text-right text-recon-fog">$<%= fmt(li.cost) %></td><% } %>
               <td class="text-right font-medium">$<%= fmt(li.line_total) %></td>
             </tr>
           <% }); %>
@@ -116,12 +141,11 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
     <% } %>
   </div>
 
-  <% if (estimate.status === 'draft') { %>
+  <% if (estimate.status === 'draft' && !invoice) { %>
     <div class="card p-5 border-red-200">
       <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
-      <p class="text-sm text-recon-fog mb-3">Drafts can be deleted. Once sent or accepted, an estimate becomes immutable.</p>
       <form action="/estimates/<%= estimate.id %>/delete" method="post"
-            onsubmit="return confirm('Delete <%= estimate.estimate_number %>?');" class="m-0">
+            onsubmit="return confirm('Delete <%= estimate.display_number %>?');" class="m-0">
         <button type="submit" class="btn btn-danger">Delete estimate</button>
       </form>
     </div>
