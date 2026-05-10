@@ -30,6 +30,7 @@ const jobsRoutes = require('./routes/jobs');
 const estimatesRoutes = require('./routes/estimates');
 const workOrdersRoutes = require('./routes/work-orders');
 const invoicesRoutes = require('./routes/invoices');
+const billsRoutes = require('./routes/bills');
 const adminRoutes = require('./routes/admin');
 const dashboardRoutes = require('./routes/dashboard');
 const accountingRoutes = require('./routes/accounting');
@@ -97,6 +98,7 @@ async function main() {
   app.use('/jobs', requireAuth, requireManager, jobsRoutes);
   app.use('/estimates', requireAuth, requireManager, estimatesRoutes);
   app.use('/invoices', requireAuth, requireManager, invoicesRoutes);
+  app.use('/bills', requireAuth, requireManager, billsRoutes);
   app.use('/admin', requireAuth, requireAdmin, adminRoutes);
   // Work orders are worker-accessible (Round 4 will scope to assigned WOs only)
   app.use('/work-orders', requireAuth, workOrdersRoutes);

@@ -1,0 +1,66 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<div class="max-w-7xl mx-auto px-4 py-6">
+  <div class="flex items-baseline justify-between mb-4">
+    <div><h1 class="page-h1">Bills</h1><p class="page-sub"><%= total %> total</p></div>
+    <a href="/bills/new" class="btn btn-primary">+ New bill</a>
+  </div>
+  <form method="get" class="flex flex-wrap gap-3 mb-4 items-end">
+    <div><label class="text-xs text-recon-fog uppercase tracking-wide">Status</label>
+      <select name="status" class="input">
+        <option value="">All</option>
+        <% statuses.forEach(function(s) { %>
+          <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s %></option>
+        <% }); %>
+      </select></div>
+    <div><label class="text-xs text-recon-fog uppercase tracking-wide">Vendor</label>
+      <select name="vendor_id" class="input">
+        <option value="">All</option>
+        <% vendors.forEach(function(v) { %>
+          <option value="<%= v.id %>" <%= String(vendorId) === String(v.id) ? 'selected' : '' %>><%= v.name %></option>
+        <% }); %>
+      </select></div>
+    <button class="btn btn-secondary">Filter</button>
+    <% if (status || vendorId) { %><a href="/bills" class="btn btn-ghost">Clear</a><% } %>
+  </form>
+  <% if (!bills || bills.length === 0) { %>
+    <div class="card p-8 text-center">
+      <p class="text-recon-fog">No bills yet. Add a vendor and create a bill.</p>
+      <% if (status || vendorId) { %><a href="/bills" class="btn btn-ghost mt-2">Clear filter</a><% } %>
+    </div>
+  <% } else { %>
+    <div class="card overflow-hidden">
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Bill #</th><th>Vendor</th><th>Status</th><th class="text-right">Total</th>
+            <th class="text-right">Paid</th><th class="text-right">Balance</th>
+            <th>Date</th><th>Due</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% bills.forEach(function(b) { %>
+            <% const bal = (Number(b.total) || 0) - (Number(b.amount_paid) || 0); %>
+            <tr>
+              <td><a href="/bills/<%= b.id %>" class="text-recon-red hover:underline"><%= b.bill_number || '#' + b.id %></a></td>
+              <td><%= b.vendor_name || '-' %></td>
+              <td><span class="badge badge-<%= b.status %>"><%= b.status %></span></td>
+              <td class="text-right">$<%= Number(b.total).toFixed(2) %></td>
+              <td class="text-right">$<%= (Number(b.amount_paid) || 0).toFixed(2) %></td>
+              <td class="text-right <%= bal > 0 ? 'text-recon-red font-medium' : '' %>">$<%= bal.toFixed(2) %></td>
+              <td><%= b.bill_date ? String(b.bill_date).slice(0,10) : '-' %></td>
+              <td><%= b.due_date ? String(b.due_date).slice(0,10) : '-' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <div class="flex justify-between items-center mt-4 text-sm text-recon-fog">
+      <span>Page <%= page %> of <%= totalPages %></span>
+      <div class="flex gap-2">
+        <% if (page > 1) { %><a href="/bills?page=<%= page - 1 %><%= status ? '&status=' + status : '' %><%= vendorId ? '&vendor_id=' + vendorId : '' %>" class="btn btn-ghost text-xs">Previous</a><% } %>
+        <% if (page < totalPages) { %><a href="/bills?page=<%= page + 1 %><%= status ? '&status=' + status : '' %><%= vendorId ? '&vendor_id=' + vendorId : '' %>" class="btn btn-ghost text-xs">Next</a><% } %>
+      </div>
+    </div>
+  <% } %>
+</div>
+<%- include('../layouts/footer') %>

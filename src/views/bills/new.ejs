@@ -1,0 +1,15 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<div class="max-w-5xl mx-auto px-4 py-6">
+  <div class="mb-4">
+    <a href="/bills" class="text-sm text-recon-fog hover:text-recon-red">&larr; Bills</a>
+  </div>
+  <h1 class="page-h1 mb-6">New bill</h1>
+
+  <%- include('_form', {
+    bill: bill, vendors: vendors, expenseAccounts: expenseAccounts, errors: errors,
+    formAction: '/bills', submitLabel: 'Create draft bill'
+  }) %>
+</div>
+
+<%- include('../layouts/footer') %>

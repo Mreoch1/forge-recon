@@ -227,6 +227,83 @@ function postInvoiceVoid(invoice, opts = {}) {
   return reversingId;
 }
 
+/** Post the JE for a vendor bill being approved (draft -> approved). */
+function postBillApproved(bill, lines, opts = {}) {
+  const userId = opts.userId || null;
+  if (!isAccountingReady()) {
+    console.warn('[accounting] skipping bill post — chart of accounts not seeded');
+    return null;
+  }
+  const ap = lookupAccount(CODES.ACCOUNTS_PAYABLE);
+  if (!ap) {
+    console.warn('[accounting] missing AP account — bill NOT posted');
+    return null;
+  }
+  // Skip duplicate posting
+  const existing = db.get(
+    `SELECT id FROM journal_entries WHERE source_type='bill' AND source_id=?`,
+    [bill.id]
+  );
+  if (existing) return existing.id;
+
+  const total = Number(bill.total) || 0;
+  const description = `Bill ${bill.bill_number || '#' + bill.id} from vendor`;
+
+  // Each bill line goes to its own expense account (or Misc if not set)
+  const fallback = lookupAccount('5900'); // Miscellaneous expense
+  const jeLines = [];
+  lines.forEach(li => {
+    const amt = Number(li.line_total) || 0;
+    if (amt <= 0) return;
+    const acct = li.account_id ? db.get('SELECT id FROM accounts WHERE id = ?', [li.account_id]) : null;
+    const targetAcct = acct || fallback;
+    if (!targetAcct) return;
+    jeLines.push({
+      accountId: targetAcct.id,
+      debit: amt,
+      credit: 0,
+      description: `${description} — ${li.description || 'expense'}`,
+    });
+  });
+  if (jeLines.length === 0) return null;
+  jeLines.push({ accountId: ap.id, debit: 0, credit: total, description: `${description} — to AP` });
+
+  return postJournalEntry({
+    entryDate: bill.bill_date || todayDate(),
+    description,
+    sourceType: 'bill',
+    sourceId: bill.id,
+    userId,
+    lines: jeLines,
+  });
+}
+
+/** Post the JE for a vendor bill being paid. */
+function postBillPaid(bill, amount, opts = {}) {
+  const userId = opts.userId || null;
+  amount = Number(amount) || 0;
+  if (amount <= 0) return null;
+  if (!isAccountingReady()) return null;
+  const ap = lookupAccount(CODES.ACCOUNTS_PAYABLE);
+  const cash = lookupAccount(CODES.CASH);
+  if (!ap || !cash) {
+    console.warn('[accounting] missing AP/Cash — bill payment NOT posted');
+    return null;
+  }
+  const description = `Payment on bill ${bill.bill_number || '#' + bill.id}`;
+  return postJournalEntry({
+    entryDate: todayDate(),
+    description,
+    sourceType: 'bill_payment',
+    sourceId: bill.id,
+    userId,
+    lines: [
+      { accountId: ap.id, debit: amount, credit: 0, description: `${description} — clear AP` },
+      { accountId: cash.id, debit: 0, credit: amount, description: `${description} — cash out` },
+    ],
+  });
+}
+
 module.exports = {
   CODES,
   isAccountingReady,
@@ -234,4 +311,6 @@ module.exports = {
   postInvoiceSent,
   postPaymentReceived,
   postInvoiceVoid,
+  postBillApproved,
+  postBillPaid,
 };

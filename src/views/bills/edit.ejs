@@ -1,0 +1,15 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<div class="max-w-5xl mx-auto px-4 py-6">
+  <div class="mb-4">
+    <a href="/bills/<%= bill.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; <%= bill.bill_number || '#' + bill.id %></a>
+  </div>
+  <h1 class="page-h1 mb-6">Edit bill</h1>
+
+  <%- include('_form', {
+    bill: bill, vendors: vendors, expenseAccounts: expenseAccounts, errors: errors,
+    formAction: '/bills/' + bill.id, submitLabel: 'Save changes'
+  }) %>
+</div>
+
+<%- include('../layouts/footer') %>

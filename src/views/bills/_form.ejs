@@ -1,0 +1,143 @@
+<%
+// Bills form (v0.7). Expects: bill, vendors, expenseAccounts, errors, formAction, submitLabel.
+const linesToRender = (bill.lines && bill.lines.length) ? bill.lines : [{
+  account_id: '', description: '', quantity: 1, unit_price: 0, line_total: 0
+}];
+function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
+%>
+<form action="<%= formAction %>" method="post" class="space-y-6">
+  <div class="card p-5">
+    <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Header</h3>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div>
+        <label class="label" for="vendor_id">Vendor <span class="text-recon-red">*</span></label>
+        <select name="vendor_id" id="vendor_id" class="input<%= errors.vendor_id ? ' border-red-500' : '' %>">
+          <option value="">— Select —</option>
+          <% vendors.forEach(function(v) { %>
+            <option value="<%= v.id %>" <%= String(bill.vendor_id) === String(v.id) ? 'selected' : '' %>><%= v.name %></option>
+          <% }); %>
+        </select>
+        <% if (errors.vendor_id) { %><p class="text-sm text-red-600 mt-1"><%= errors.vendor_id %></p><% } %>
+      </div>
+      <div>
+        <label class="label" for="bill_number">Bill #</label>
+        <input type="text" name="bill_number" id="bill_number" value="<%= bill.bill_number || '' %>" class="input">
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="label" for="bill_date">Bill date</label>
+          <input type="date" name="bill_date" id="bill_date" value="<%= bill.bill_date ? String(bill.bill_date).slice(0,10) : '' %>" class="input<%= errors.bill_date ? ' border-red-500' : '' %>">
+          <% if (errors.bill_date) { %><p class="text-sm text-red-600 mt-1"><%= errors.bill_date %></p><% } %>
+        </div>
+        <div>
+          <label class="label" for="due_date">Due date</label>
+          <input type="date" name="due_date" id="due_date" value="<%= bill.due_date ? String(bill.due_date).slice(0,10) : '' %>" class="input<%= errors.due_date ? ' border-red-500' : '' %>">
+          <% if (errors.due_date) { %><p class="text-sm text-red-600 mt-1"><%= errors.due_date %></p><% } %>
+        </div>
+      </div>
+    </div>
+    <div class="mt-4">
+      <label class="label" for="tax_amount">Tax amount ($)</label>
+      <input type="number" step="0.01" min="0" name="tax_amount" id="tax_amount" value="<%= bill.tax_amount || 0 %>" class="input max-w-xs">
+    </div>
+  </div>
+
+  <div class="card overflow-hidden">
+    <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
+      <h3 class="font-semibold">Line items</h3>
+      <button type="button" data-add-line class="btn btn-secondary text-sm">+ Add line</button>
+    </div>
+    <% if (errors.lines) { %>
+      <div class="px-5 py-2 text-sm text-red-600 bg-red-50 border-b border-red-200"><%= errors.lines %></div>
+    <% } %>
+    <div class="overflow-x-auto">
+      <table class="data" data-line-items>
+        <thead>
+          <tr>
+            <th>Account</th>
+            <th>Description</th>
+            <th class="text-right">Qty</th>
+            <th class="text-right">Unit $</th>
+            <th class="text-right">Line $</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% linesToRender.forEach(function(li, idx) { %>
+            <tr class="line-row">
+              <td>
+                <select name="lines[<%= idx %>][account_id]" class="input" data-field="account_id">
+                  <option value="">— Misc —</option>
+                  <% expenseAccounts.forEach(function(a) { %>
+                    <option value="<%= a.id %>" <%= String(li.account_id) === String(a.id) ? 'selected' : '' %>><%= a.code %> — <%= a.name %></option>
+                  <% }); %>
+                </select>
+              </td>
+              <td>
+                <input type="text" name="lines[<%= idx %>][description]" data-field="description"
+                       value="<%= li.description || '' %>" class="input" placeholder="Lumber, drywall...">
+              </td>
+              <td class="text-right">
+                <input type="number" step="0.01" min="0" name="lines[<%= idx %>][quantity]" data-field="quantity"
+                       value="<%= li.quantity %>" class="input text-right" style="width: 5rem;">
+              </td>
+              <td class="text-right">
+                <input type="number" step="0.01" min="0" name="lines[<%= idx %>][unit_price]" data-field="unit_price"
+                       value="<%= li.unit_price %>" class="input text-right" style="width: 7rem;">
+              </td>
+              <td class="text-right font-medium" data-field="line_total"><%= fmt(li.line_total) %></td>
+              <td>
+                <button type="button" data-remove-line class="text-recon-fog hover:text-recon-red text-sm">remove</button>
+              </td>
+            </tr>
+          <% }); %>
+
+          <tr class="line-row hidden" data-template>
+            <td>
+              <select name="lines[__IDX__][account_id]" class="input" data-field="account_id">
+                <option value="">— Misc —</option>
+                <% expenseAccounts.forEach(function(a) { %>
+                  <option value="<%= a.id %>"><%= a.code %> — <%= a.name %></option>
+                <% }); %>
+              </select>
+            </td>
+            <td><input type="text" name="lines[__IDX__][description]" data-field="description" class="input" placeholder="Lumber, drywall..."></td>
+            <td class="text-right"><input type="number" step="0.01" min="0" name="lines[__IDX__][quantity]" data-field="quantity" value="1" class="input text-right" style="width: 5rem;"></td>
+            <td class="text-right"><input type="number" step="0.01" min="0" name="lines[__IDX__][unit_price]" data-field="unit_price" value="0" class="input text-right" style="width: 7rem;"></td>
+            <td class="text-right font-medium" data-field="line_total">0.00</td>
+            <td><button type="button" data-remove-line class="text-recon-fog hover:text-recon-red text-sm">remove</button></td>
+          </tr>
+        </tbody>
+        <tfoot class="bg-recon-cloud">
+          <tr>
+            <td colspan="4" class="text-right text-sm font-medium">Subtotal</td>
+            <td class="text-right font-semibold">$<span data-totals="subtotal">0.00</span></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td colspan="4" class="text-right text-sm font-medium">Tax</td>
+            <td class="text-right font-semibold">$<span data-totals="tax_amount">0.00</span></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td colspan="4" class="text-right text-sm font-medium uppercase">Total</td>
+            <td class="text-right text-lg font-bold text-recon-red">$<span data-totals="total">0.00</span></td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <div class="card p-5">
+    <label class="label" for="notes">Notes / memo</label>
+    <textarea name="notes" id="notes" rows="3" class="input"><%= bill.notes || '' %></textarea>
+  </div>
+
+  <div class="flex items-center gap-2 pt-2">
+    <button type="submit" class="btn btn-primary"><%= submitLabel %></button>
+    <a href="/bills" class="btn btn-ghost">Cancel</a>
+  </div>
+</form>
+
+<script src="/js/line-items.js"></script>

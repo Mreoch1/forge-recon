@@ -114,3 +114,22 @@ The live repo stays untouched. All integration happens by copying patterns into 
 ## 2026-05-10 — AI gating: extract-then-approve, never auto-post
 **Decision:** AI vendor-invoice extraction lands in an `approval_queue` table with status='pending'. Human reviews + clicks Approve before any JE posts. AI suggestions visible in line-item form fields but not committed.
 **Reason:** Per Michael's own rule: "do not let AI directly post accounting records without approval at first."
+
+## 2026-05-10 — AI assistant role: helper, not authority
+**Decision:** AI is an assistant layer that suggests and extracts — never the accounting authority. Pattern enforced everywhere: `AI Suggests → User Reviews → User Approves → System Posts`. AI never writes a journal entry directly. AI never edits an invoice or bill in place. AI output is always shown to the user as a draft suggestion they can accept, edit, or reject.
+
+**MVP AI features (Round 8+, in priority order):**
+1. **Tech-note cleanup** — paste raw field notes, AI returns cleaned invoice-ready descriptions. Save to WO line items only after user confirms.
+2. **Invoice description generator** — given a WO line, AI rewrites the description in customer-friendly language. Replace-with-this-text button.
+3. **WO → invoice line-item suggestions** — given a WO's lines, AI suggests which should transfer to the invoice and at what description. Same selected-checkbox pattern as estimates.
+4. **Vendor receipt extraction** — upload PDF/image, AI extracts vendor / date / total / line items / suggested expense account. Lands in `ai_extractions` table as `pending`. User reviews on a queue page, edits, approves → creates a draft Bill.
+5. **Expense category suggestion** — when manually entering a bill line, AI suggests which account based on description. Single-click accept.
+
+**What AI does NOT do:**
+- Post journal entries directly
+- Send invoices to customers
+- Mark anything as paid
+- Modify locked records (sent invoices, approved bills, posted JEs)
+- Run without an approver
+
+**Audit:** Every AI call logged to `audit_logs` with `source='ai'` and the originating user. Token usage and cost tracked per call (Round 9 polish).

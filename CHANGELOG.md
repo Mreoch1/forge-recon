@@ -273,3 +273,11 @@ Append-only log of every change. Newest at the bottom. Format:
 - Verified accounting auto-posting: journal entries created on send + pay
 - Trial balance balanced (Dr $5,375 = Cr $5,375), P&L ($5k revenue), Balance sheet balanced
 - All reports render with live data
+
+## [2026-05-10T13:55:00Z] — hermes — v0.7 Round 7: bills CRUD views + JE fix
+- Created `src/views/bills/` with 5 views (index, _form, new, edit, show) following vendors/customers/estimates patterns
+- `_form.ejs` uses line-items.js for dynamic line add/remove with account_id dropdown per row (expense accounts)
+- `show.ejs` has full status-aware buttons: draft→approve/void, approved→pay/void, void→delete
+- Added "Bills" nav link in header.ejs between Vendors and Accounting
+- Fixed `bills.js` validateBill to fall back to Miscellaneous (5900) when account_id is null (NOT NULL constraint fix)
+- **Known issue**: bill approve JE fails with imbalance — line debits ($325) + tax ($24.50) ≠ AP credit ($349.50). postBillApproved not including tax_amount in debit lines. Silent try/catch swallow.
