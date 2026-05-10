@@ -227,6 +227,14 @@ const actionSections = [
 
   .dv2-link        { color: #1a1a1a; text-decoration: none; }
   .dv2-link:hover  { color: #c0202b; }
+
+  /* TIMELINE EVENTS — indented children under WO anchor rows */
+  .dv2-events { margin-left: 5.5rem; padding-left: 1rem; border-left: 1px dotted #d0d0d0; padding-top: .15rem; padding-bottom: .35rem; }
+  .dv2-event-row { display: grid; grid-template-columns: 4rem 1fr; gap: .65rem; padding: .25rem 0; font-size: .78rem; align-items: baseline; }
+  .dv2-event-time { font-family: ui-monospace, monospace; color: #888; font-size: .72rem; }
+  .dv2-event-label { color: #444; }
+  .dv2-event-label .actor { color: #888; font-size: .72rem; margin-left: .25rem; }
+  .dv2-event-label .event-dot { color: #bbb; margin-right: .35rem; display: inline-block; }
 </style>
 
 <div class="dv2-bg">
@@ -259,41 +267,53 @@ const actionSections = [
         <!-- TODAY -->
         <h2 class="dv2-h-primary flex items-baseline justify-between">
           <span>Today</span>
-          <span class="dv2-eyebrow"><%= todayWOs.length %> scheduled</span>
+          <span class="dv2-eyebrow"><%= dayTimeline.length %> scheduled</span>
         </h2>
 
-        <% if (todayWOs.length === 0) { %>
+        <% if (dayTimeline.length === 0) { %>
           <div class="py-10">
             <p class="text-sm text-recon-fog">Nothing on today's board.</p>
             <a href="/work-orders" class="text-sm text-recon-red hover:underline">Browse all work orders →</a>
           </div>
         <% } else { %>
           <div>
-            <% todayWOs.forEach(function(w){
-                 const live = w.status === 'in_progress';
-                 const assignee = w.user_name || w.assigned_to || 'Unassigned';
-                 const addr = [w.job_address, w.job_city].filter(Boolean).join(', ');
-                 const timeStr = fmtTime(w.scheduled_time);
-                 // Split "8:00 AM" → "8:00" + " AM"
+            <% dayTimeline.forEach(function(entry){
+                 const live = entry.status === 'in_progress';
+                 const timeStr = fmtTime(entry.scheduled_time);
                  const tParts = timeStr.match(/^(\S+)\s*(AM|PM)?$/) || [null, timeStr, ''];
             %>
-              <a href="/work-orders/<%= w.id %>" class="dv2-link dv2-sched-row">
-                <div class="dv2-sched-time">
-                  <%= tParts[1] %><% if (tParts[2]) { %><span class="dv2-sched-time-suf"><%= tParts[2] %></span><% } %>
-                </div>
-                <div class="dv2-sched-info">
-                  <div class="dv2-sched-line1">
-                    <span class="dv2-dot <%= live ? 'dv2-dot-live' : 'dv2-dot-sched' %>" title="<%= w.status %>"></span>
-                    <span>WO-<%= w.display_number %></span>
-                    <% if (live) { %><span class="text-recon-red font-semibold" style="font-size:.7rem; letter-spacing:.05em;">· IN PROGRESS</span><% } %>
+              <div>
+                <a href="/work-orders/<%= entry.wo_id %>" class="dv2-link dv2-sched-row">
+                  <div class="dv2-sched-time">
+                    <%= tParts[1] %><% if (tParts[2]) { %><span class="dv2-sched-time-suf"><%= tParts[2] %></span><% } %>
                   </div>
-                  <div class="dv2-sched-customer"><%= w.customer_name %></div>
-                  <div class="dv2-sched-job">
-                    <%= w.job_title %><% if (addr) { %> <span class="text-recon-fog">· <%= addr %></span><% } %>
+                  <div class="dv2-sched-info">
+                    <div class="dv2-sched-line1">
+                      <span class="dv2-dot <%= live ? 'dv2-dot-live' : 'dv2-dot-sched' %>" title="<%= entry.status %>"></span>
+                      <span>WO-<%= entry.display_number %></span>
+                      <% if (live) { %><span class="text-recon-red font-semibold" style="font-size:.7rem; letter-spacing:.05em;">· IN PROGRESS</span><% } %>
+                    </div>
+                    <div class="dv2-sched-customer"><%= entry.customer_name %></div>
+                    <div class="dv2-sched-job">
+                      <%= entry.job_title %><% if (entry.address) { %> <span class="text-recon-fog">· <%= entry.address %></span><% } %>
+                    </div>
+                    <div class="dv2-sched-assignee"><strong><%= entry.assignee_name %></strong></div>
                   </div>
-                  <div class="dv2-sched-assignee"><strong><%= assignee %></strong></div>
-                </div>
-              </a>
+                </a>
+                <% if (entry.events && entry.events.length > 0) { %>
+                  <div class="dv2-events">
+                    <% entry.events.forEach(function(ev){ %>
+                      <div class="dv2-event-row">
+                        <span class="dv2-event-time"><%= ev.ts %></span>
+                        <span class="dv2-event-label">
+                          <span class="event-dot">↳</span><%= ev.label %>
+                          <% if (ev.actor) { %><span class="actor">— <%= ev.actor %></span><% } %>
+                        </span>
+                      </div>
+                    <% }); %>
+                  </div>
+                <% } %>
+              </div>
             <% }); %>
           </div>
         <% } %>

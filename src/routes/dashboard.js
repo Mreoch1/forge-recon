@@ -8,6 +8,7 @@
 
 const express = require('express');
 const db = require('../db/db');
+const timeline = require('../services/timeline');
 
 const router = express.Router();
 
@@ -111,23 +112,13 @@ router.get('/', (req, res) => {
   const today = new Date().toISOString().slice(0, 10);
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-  // ---------- Schedule: today (the primary anchor) ----------
-  // Pull every WO scheduled for today (any status that's still "live"),
-  // joined to customer + assignee. Sort by time, then by WO number.
-  const todayWOs = db.all(`
-    SELECT w.id, w.display_number, w.scheduled_time, w.status, w.assigned_to,
-           j.id AS job_id, j.title AS job_title,
-           j.address AS job_address, j.city AS job_city,
-           c.id AS customer_id, c.name AS customer_name,
-           u.id AS user_id, u.name AS user_name
-    FROM work_orders w
-    JOIN jobs j        ON j.id = w.job_id
-    JOIN customers c   ON c.id = j.customer_id
-    LEFT JOIN users u  ON u.id = w.assigned_to_user_id
-    WHERE w.scheduled_date = ?
-      AND w.status IN ('scheduled','in_progress')
-    ORDER BY COALESCE(w.scheduled_time, '99:99'), w.display_number
-  `, [today]);
+  // ---------- Timeline: today's activity feed (Phase 1) ----------
+  // Merges schedule + notes + audit events into a single chronological view.
+  const userId = req.session?.userId || null;
+  const userRole = (() => {
+    try { const u = db.get('SELECT role FROM users WHERE id = ?', [userId]); return u ? u.role : 'admin'; } catch(e) { return 'admin'; }
+  })();
+  const dayTimeline = timeline.buildDayTimeline({ date: today, userId, workerOnly: userRole === 'worker' });
 
   // ---------- Schedule: tomorrow preview (count + first 3) ----------
   const tomorrowWOs = db.all(`
@@ -293,7 +284,7 @@ router.get('/', (req, res) => {
     title: 'Dashboard',
     activeNav: 'dashboard',
     today, tomorrow,
-    todayWOs, tomorrowPreview, tomorrowCount, upcomingThisWeek,
+    dayTimeline, tomorrowPreview, tomorrowCount, upcomingThisWeek,
     estimatesToSend, estimatesToSendCount,
     overdueInvoices, overdueInvoicesCount, overdueTotal,
     billsToApprove, billsToApproveCount, billsToApproveTotal,

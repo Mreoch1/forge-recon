@@ -24,7 +24,7 @@ const TODAY = '2026-05-10';
 
 // ── Migration: add mock column to domain tables ──────────────────────
 function migrate() {
-  const tables = ['customers','vendors','jobs','work_orders','estimates','invoices','bills','estimate_line_items','work_order_line_items','invoice_line_items','bill_lines','wo_notes','items_library'];
+  const tables = ['customers','vendors','jobs','work_orders','estimates','invoices','bills','estimate_line_items','work_order_line_items','invoice_line_items','bill_lines','wo_notes','items_library','audit_logs'];
   let migrated = 0;
   tables.forEach(t => {
     const cols = db.all(`PRAGMA table_info(${t})`).map(c => c.name);
@@ -49,7 +49,7 @@ function resetMockData() {
     console.log('  No mock data found. Nothing to reset.');
     return;
   }
-  const order = ['bill_lines','bills','invoice_line_items','invoices','estimate_line_items','estimates','wo_notes','work_order_line_items','work_orders','jobs','customers','vendors','items_library'];
+  const order = ['bill_lines','bills','invoice_line_items','invoices','estimate_line_items','estimates','wo_notes','audit_logs','work_order_line_items','work_orders','jobs','customers','vendors','items_library'];
   let total = 0;
   order.forEach(t => {
     const r = db.run(`DELETE FROM ${t} WHERE mock = 1`);
@@ -353,6 +353,51 @@ async function seedMock() {
               VALUES (?, ?, ?, ?, 1)`,
         [wid, allUsers[rng(0, allUsers.length-1)].id, pick(noteTexts), ago(rng(1, 20))]);
     }
+  });
+
+  // Add today-dated notes for timeline demo (at least 3 WOs with varied times)
+  const todayDate = '2026-05-10';
+  const todayNotes = [
+    { woIdx: 0, timeIdx: 0, body: 'Cabinets delivered, framing looks good.', userIdx: 0 },
+    { woIdx: 0, timeIdx: 1, body: 'Started demo — going smoothly.', userIdx: 0 },
+    { woIdx: 0, timeIdx: 3, body: 'Customer stopped by, approved the layout.', userIdx: 1 },
+    { woIdx: 2, timeIdx: 2, body: 'Roof patch held overnight. No leaks. Proceeding with shingles.', userIdx: 2 },
+    { woIdx: 3, timeIdx: 0, body: 'Drywall delivery arrived. Crew on site.', userIdx: 1 },
+    { woIdx: 3, timeIdx: 4, body: 'Framing inspection passed. Moving to electrical rough-in.', userIdx: 1 },
+    { woIdx: 3, timeIdx: 5, body: 'Customer requested add: extra outlet in conference room.', userIdx: 0 },
+    { woIdx: 7, timeIdx: 1, body: 'Subcontractor on site for demo phase.', userIdx: 3 },
+  ];
+  const todayTimes = ['08:14','09:32','10:14','11:22','13:05','14:30'];
+  todayNotes.forEach(tn => {
+    const wid = woIds[tn.woIdx];
+    if (!wid) return;
+    const uid = allUsers[tn.userIdx % allUsers.length].id;
+    db.run(`INSERT INTO wo_notes (work_order_id, user_id, body, created_at, mock)
+            VALUES (?, ?, ?, ?, 1)`,
+      [wid, uid, tn.body, `${todayDate} ${todayTimes[tn.timeIdx]}:00`]);
+  });
+
+  // Add audit_log entries for today's WO status changes (started, completed)
+  const todayAuditEvents = [
+    { woIdx: 0, action: 'started', timeIdx: 1, userIdx: 1 },  // Mike (assigned to WO-0001)
+    { woIdx: 2, action: 'started', timeIdx: 0, userIdx: 3 },  // Dave (assigned to WO-0003)
+    { woIdx: 3, action: 'started', timeIdx: 2, userIdx: 4 },  // Tyrell (assigned to WO-0004)
+    { woIdx: 7, action: 'started', timeIdx: 1, userIdx: 1 },  // Mike (assigned to WO-0008)
+  ];
+  todayAuditEvents.forEach(ae => {
+    const wid = woIds[ae.woIdx];
+    if (!wid) return;
+    const uid = allUsers[ae.userIdx % allUsers.length].id;
+    db.run(`INSERT INTO audit_logs (entity_type, entity_id, action, user_id, created_at, source)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      ['work_order', wid, ae.action, uid, `${todayDate} ${todayTimes[ae.timeIdx]}:00`, 'user']);
+  });
+  // Add mock=1 to the created audit entries so --reset catches them
+  todayAuditEvents.forEach(ae => {
+    const wid = woIds[ae.woIdx];
+    if (!wid) return;
+    db.run('UPDATE audit_logs SET mock = 1 WHERE entity_type = ? AND entity_id = ? AND action = ? AND date(created_at) = ?',
+      ['work_order', wid, ae.action, todayDate]);
   });
 
   // ── 7. Sub-WOs (4) ──

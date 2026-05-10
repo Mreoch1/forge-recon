@@ -321,3 +321,10 @@ Append-only log of every change. Newest at the bottom. Format:
 - Mounted at /ai in server.js with requireAuth. Public health endpoint placed before gated mount.
 - Tests pass: overdue invoice query, today schedule (4 WOs with times/assignees), Cambridge Towers search, navigate-to-WO, off-topic refusal, worker-scoped schedule filter.
 - Average tokens per chat: ~500-1200 per 2-round flow.
+
+## [2026-05-10T16:15:00Z] — hermes — feat(timeline): unified day timeline on dashboard
+- New `src/services/timeline.js` — `buildDayTimeline()` merges WO schedule + wo_notes + audit_logs + estimate/invoice events into per-WO chronology
+- Dashboard route: replaced todayWOs query with timeline.buildDayTimeline() call, passes dayTimeline + tomorrowPreview unchanged
+- Dashboard v2 view: each WO anchor row now has indented event children (↳ prefix, smaller font, monospace time, dotted vertical guide-line, actor suffix)
+- Seed-mock: added 8 today-dated wo_notes (8:14-14:30 across 4 WOs) + 4 audit_log "started" entries with correct user IDs
+- Smoke: 8 WOs in timeline, events sorted chronologically, "name started work" with correct worker names, notes/status events mixed, worker filter works, tomorrow preview + right rail unchanged
