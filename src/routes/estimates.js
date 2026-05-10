@@ -437,6 +437,49 @@ router.post('/:id/send',   (req, res) => statusTransition(req, res, 'draft', 'se
 router.post('/:id/accept', (req, res) => statusTransition(req, res, 'sent', 'accepted', 'accepted_at'));
 router.post('/:id/reject', (req, res) => statusTransition(req, res, 'sent', 'rejected', null));
 
+// Convert an accepted estimate into a Work Order. Copies line items
+// across (but each WO line gets its own row — modifying the WO does not
+// affect the estimate). Allowed only from status='accepted'. Multiple
+// conversions are permitted (an estimate can spawn N WOs if a job is
+// being phased — the estimate is the proposal, the WOs are dispatch).
+router.post('/:id/convert-to-wo', (req, res) => {
+  const est = db.get('SELECT * FROM estimates WHERE id = ?', [req.params.id]);
+  if (!est) {
+    return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
+  }
+  if (est.status !== 'accepted') {
+    setFlash(req, 'error', `Estimate ${est.estimate_number} must be accepted before converting to a work order. Current status: ${est.status}.`);
+    return res.redirect(`/estimates/${est.id}`);
+  }
+
+  const lines = db.all(
+    `SELECT * FROM estimate_line_items WHERE estimate_id = ? ORDER BY sort_order ASC, id ASC`,
+    [est.id]
+  );
+
+  const woNumber = numbering.nextWONumber();
+  const newWoId = db.transaction(() => {
+    const r = db.run(
+      `INSERT INTO work_orders (job_id, estimate_id, wo_number, status, notes)
+       VALUES (?, ?, ?, 'scheduled', ?)`,
+      [est.job_id, est.id, woNumber, est.notes]
+    );
+    const woId = r.lastInsertRowid;
+    lines.forEach((li, idx) => {
+      db.run(
+        `INSERT INTO work_order_line_items
+         (work_order_id, trade, description, quantity, unit, unit_price, line_total, completed, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+        [woId, li.trade, li.description, li.quantity, li.unit, li.unit_price, li.line_total, idx]
+      );
+    });
+    return woId;
+  });
+
+  setFlash(req, 'success', `${est.estimate_number} converted to ${woNumber}.`);
+  res.redirect(`/work-orders/${newWoId}`);
+});
+
 router.post('/:id/delete', (req, res) => {
   const est = db.get('SELECT id, estimate_number FROM estimates WHERE id = ?', [req.params.id]);
   if (!est) {

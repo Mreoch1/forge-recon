@@ -1,0 +1,65 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<div class="max-w-7xl mx-auto px-4 py-6">
+  <div class="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+    <div>
+      <h1 class="page-h1">Work Orders</h1>
+      <p class="page-sub"><%= total %> total<% if (q) { %> &middot; "<%= q %>"<% } %><% if (status) { %> &middot; <%= status.replace('_',' ') %><% } %></p>
+    </div>
+  </div>
+
+  <form method="get" action="/work-orders" class="flex flex-wrap items-center gap-2 mb-4">
+    <input type="text" name="q" value="<%= q %>" placeholder="Search WO #, job, customer..." class="input max-w-md">
+    <select name="status" class="input max-w-[12rem]">
+      <option value="">All statuses</option>
+      <% statuses.forEach(function(s){ %>
+        <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s.replace('_',' ') %></option>
+      <% }); %>
+    </select>
+    <button type="submit" class="btn btn-secondary">Filter</button>
+    <% if (q || status) { %><a href="/work-orders" class="btn btn-ghost">Clear</a><% } %>
+  </form>
+
+  <div class="card overflow-hidden">
+    <% if (workOrders.length === 0) { %>
+      <div class="p-8 text-center text-recon-fog">
+        <% if (q || status) { %>
+          No work orders match. <a href="/work-orders" class="text-recon-red underline">Clear</a>
+        <% } else { %>
+          No work orders yet. They get created from accepted <a href="/estimates" class="text-recon-red underline">estimates</a>.
+        <% } %>
+      </div>
+    <% } else { %>
+      <table class="data">
+        <thead>
+          <tr><th>Number</th><th>Job</th><th>Customer</th><th>Status</th><th>Scheduled</th><th>Assigned</th><th>Created</th></tr>
+        </thead>
+        <tbody>
+          <% workOrders.forEach(function(w){ %>
+            <tr>
+              <td class="font-medium"><a href="/work-orders/<%= w.id %>" class="hover:text-recon-red"><%= w.wo_number %></a></td>
+              <td><a href="/jobs/<%= w.job_id %>" class="hover:text-recon-red"><%= w.job_title %></a></td>
+              <td><a href="/customers/<%= w.customer_id %>" class="hover:text-recon-red"><%= w.customer_name %></a></td>
+              <td><span class="badge badge-<%= w.status %>"><%= w.status.replace('_',' ') %></span></td>
+              <td><%= (w.scheduled_date || '—').slice(0,10) %></td>
+              <td><%= w.assigned_to || '—' %></td>
+              <td><%= (w.created_at || '').slice(0,10) %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+
+  <% if (totalPages > 1) { %>
+    <div class="flex items-center justify-center gap-2 mt-4">
+      <% for (let p = 1; p <= totalPages; p++) { %>
+        <% const qs = ['page='+p]; if (q) qs.push('q='+encodeURIComponent(q)); if (status) qs.push('status='+encodeURIComponent(status)); %>
+        <% if (p === page) { %><span class="btn btn-primary"><%= p %></span>
+        <% } else { %><a href="/work-orders?<%= qs.join('&') %>" class="btn btn-ghost"><%= p %></a><% } %>
+      <% } %>
+    </div>
+  <% } %>
+</div>
+
+<%- include('../layouts/footer') %>

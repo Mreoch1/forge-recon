@@ -96,8 +96,11 @@ Admin: GET /admin/users, GET/POST /admin/users/new, GET/POST /admin/users/:id/ed
 
 ## Current state
 
-- Phase: 3B (Estimate PDF) — Claude written, Hermes verifying.
-- Phase 3A complete: 24-step test pass.
+- Phase: 4 (Estimate→WO conversion + WO CRUD + WO PDF) — Claude written, Hermes verifying.
+- Phase 3A/3B complete. PDF service has reusable layout primitives.
+- WOs are created only via "convert to WO" on accepted estimates (no standalone create-WO route in v0; documented as v1 work in TODO).
+- WO status flow: scheduled → in_progress → complete (cancellable from non-complete states). complete + cancelled are terminal for editing.
+- WO show page has a "Generate invoice" button when status=complete and no invoice yet — that route doesn't exist yet (Phase 5). Will 404 until then. show page also exposes invoice link if one exists.
 - Phase 0/1/2A/2B complete. 37-step test pass on Phase 2.
 - Phase 3A files in place: numbering service, calculations service, estimates routes, _form with dynamic line items, index/new/edit/show views, line-items.js client UX. Server.js mounts /estimates. jobs/show.ejs updated to link via /estimates/new?job_id=N.
 - PDF route (GET /estimates/:id/pdf) is referenced from show.ejs but not yet implemented — Phase 3B will add it. Returns 404 until then.

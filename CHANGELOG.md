@@ -97,6 +97,19 @@ Append-only log of every change. Newest at the bottom. Format:
 - Updated src/routes/estimates.js: enriched loadEstimate query to pull customer + job address fields needed by PDF. Added GET /:id/pdf route streaming pdfkit to response. Supports ?download=1 for forced save vs inline preview.
 - Updated src/views/estimates/show.ejs — split single PDF button into "View PDF" (inline new tab) + "Download" (?download=1)
 
+## [2026-05-10T08:05:00Z] — hermes — phase 3B complete
+- 7 PDF tests green: magic bytes %PDF-1.3, inline + download dispositions, 404, logo-missing fallback (text header, no crash), 30-line page break (260KB, no crash). Sample PDFs saved in bridge folder.
+
+## [2026-05-10T08:15:00Z] — claude — phase 4 (files)
+- Wrote src/routes/work-orders.js — full CRUD + status transitions (start/complete/cancel) + PDF + delete (FK guard against invoices). Edit allowed only while scheduled or in_progress. Per-line completed checkbox.
+- Updated src/routes/estimates.js — added POST /:id/convert-to-wo. Only allowed when estimate.status='accepted'. Copies line items into work_order_line_items in transaction. Generates next WO number. Multiple conversions allowed (estimate can spawn N WOs for phased jobs).
+- Updated src/services/pdf.js — added generateWorkOrderPDF: same chrome as estimate PDF + 4-column meta strip (status / scheduled / assigned / completed) + line items table with extra "Done" checkbox column + "Total value" footer (no tax/total breakdown — WO is internal). Falls back to estimate-style chrome.
+- Wrote src/views/work-orders/index.ejs — list with search + status filter
+- Wrote src/views/work-orders/edit.ejs — schedule + assigned_to + line items table with completed checkboxes (uses line-items.js for add/remove/calc)
+- Wrote src/views/work-orders/show.ejs — header w/ status badge + estimate backlink, 4 KPI cards (scheduled/assigned/progress/total), invoice-generated banner if linked, line items with done checkmarks, status-aware action buttons (start / complete / cancel / generate invoice / delete)
+- Updated src/views/estimates/show.ejs — added "Convert to Work Order" button when estimate.status='accepted'
+- Updated src/server.js — mount /work-orders under requireAuth
+
 ## [2026-05-10T07:12:00Z] — hermes — phase 1
 - Ran npm run init-db → DB initialized at data/app.db (118KB)
 - Ran npm run seed → admin user seeded (idempotent on re-run), company_settings seeded
@@ -140,3 +153,11 @@ Append-only log of every change. Newest at the bottom. Format:
 - Logo missing fallback: generates cleanly as text-only header (2616 bytes, no crash)
 - 30-line page break test: generates without error (260KB), multi-page table continuation
 - Sample PDFs saved to bridge folder: sample-EST-2026-0003.pdf, sample-30line-pagebreak.pdf
+
+## [2026-05-10T08:10:00Z] — hermes — phase 4
+- Work Orders CRUD: create, show, edit, update with line completion, start, complete, cancel, delete
+- Estimate→WO conversion: 2 conversions from same estimate (phased work), line items copied, status gated to 'accepted'
+- WO PDF: inline, download, logo, meta strip (status/scheduled/assigned/completed), DONE column with X marks, Total value
+- Status machine: scheduled→in_progress→complete (cancelled from scheduled/in_progress). Edit blocked after complete.
+- FK guard: delete blocked when invoices reference the WO
+- All 22 test steps pass end-to-end

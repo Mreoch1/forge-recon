@@ -291,8 +291,134 @@ function generateEstimatePDF(estimate, company, stream) {
   doc.end();
 }
 
+// --- public: work order ---
+
+function drawWOLineItems(doc, lines) {
+  // WO line items add a "Done" checkbox column to the estimate table.
+  const left = doc.page.margins.left;
+  const right = doc.page.width - doc.page.margins.right;
+  const tableWidth = right - left;
+  const cols = [
+    { key: 'completed',   label: 'DONE',        width: 36,  align: 'center' },
+    { key: 'trade',       label: 'TRADE',       width: 60,  align: 'left' },
+    { key: 'description', label: 'DESCRIPTION', width: tableWidth - 36 - 60 - 50 - 50 - 60 - 60, align: 'left' },
+    { key: 'quantity',    label: 'QTY',         width: 50,  align: 'right' },
+    { key: 'unit',        label: 'UNIT',        width: 50,  align: 'left' },
+    { key: 'unit_price',  label: 'UNIT $',      width: 60,  align: 'right' },
+    { key: 'line_total',  label: 'LINE $',      width: 60,  align: 'right' },
+  ];
+
+  let y = doc.y;
+  const headerHeight = 22;
+  const rowHeight = 18;
+
+  doc.fillColor(COLOR.cloud).rect(left, y, tableWidth, headerHeight).fill();
+  doc.fillColor(COLOR.fog).fontSize(8).font('Helvetica-Bold');
+  let cx = left;
+  cols.forEach(c => {
+    doc.text(c.label, cx + 6, y + 7, { width: c.width - 12, align: c.align });
+    cx += c.width;
+  });
+  y += headerHeight;
+
+  doc.fontSize(9).font('Helvetica').fillColor(COLOR.charcoal);
+  lines.forEach((li) => {
+    if (y > doc.page.height - doc.page.margins.bottom - 100) {
+      doc.addPage();
+      y = doc.page.margins.top;
+    }
+    cx = left;
+    cols.forEach(c => {
+      let val;
+      if (c.key === 'completed')      val = li.completed ? 'X' : '';
+      else if (c.key === 'unit_price' || c.key === 'line_total') val = fmtMoney(li[c.key]);
+      else if (c.key === 'quantity')  val = String(li.quantity);
+      else                            val = String(li[c.key] == null ? '' : li[c.key]);
+      doc.text(val, cx + 6, y + 5, { width: c.width - 12, align: c.align });
+      cx += c.width;
+    });
+    doc.strokeColor(COLOR.mist).lineWidth(0.5)
+      .moveTo(left, y + rowHeight).lineTo(left + tableWidth, y + rowHeight).stroke();
+    y += rowHeight;
+  });
+
+  doc.y = y + 10;
+}
+
+function drawWOMeta(doc, wo) {
+  // 4-column meta strip: Status, Scheduled, Assigned to, Completed
+  const left = doc.page.margins.left;
+  const right = doc.page.width - doc.page.margins.right;
+  const tableWidth = right - left;
+  const cellW = tableWidth / 4;
+  let y = doc.y;
+
+  doc.fillColor(COLOR.cloud).rect(left, y, tableWidth, 36).fill();
+
+  function cell(idx, label, value) {
+    const x = left + cellW * idx;
+    doc.fillColor(COLOR.fog).fontSize(7).font('Helvetica-Bold').text(label.toUpperCase(), x + 8, y + 5, { width: cellW - 16 });
+    doc.fillColor(COLOR.charcoal).fontSize(11).font('Helvetica-Bold').text(value || '—', x + 8, y + 17, { width: cellW - 16 });
+  }
+  cell(0, 'Status', (wo.status || '').replace('_', ' '));
+  cell(1, 'Scheduled', wo.scheduled_date ? String(wo.scheduled_date).slice(0,10) : '—');
+  cell(2, 'Assigned to', wo.assigned_to || '—');
+  cell(3, 'Completed', wo.completed_date ? String(wo.completed_date).slice(0,10) : '—');
+
+  doc.y = y + 36 + 12;
+}
+
+function generateWorkOrderPDF(wo, company, stream) {
+  const doc = new PDFDocument({ size: 'LETTER', margin: 50, info: {
+    Title: wo.wo_number,
+    Subject: `Work order for ${wo.customer_name || ''}`,
+    Author: company.company_name || 'Recon Construction',
+  }});
+  doc.pipe(stream);
+
+  drawHeader(doc, company);
+  drawTitle(doc, 'Work Order', wo.wo_number, wo.status);
+
+  drawAddressBlocks(doc, [
+    wo.customer_name,
+    wo.customer_address || '',
+    [wo.customer_city, wo.customer_state, wo.customer_zip].filter(Boolean).join(', '),
+    wo.customer_email,
+    wo.customer_phone,
+  ], [
+    wo.job_title,
+    wo.job_address || '',
+    [wo.job_city, wo.job_state, wo.job_zip].filter(Boolean).join(', '),
+  ]);
+
+  drawWOMeta(doc, wo);
+  drawWOLineItems(doc, wo.lines || []);
+
+  // Compute totals from the WO line items (server is authoritative — but
+  // the WO doesn't store totals, so derive on the fly).
+  const subtotal = (wo.lines || []).reduce((s, li) => s + (Number(li.line_total) || 0), 0);
+  doc.fontSize(10).fillColor(COLOR.ash).font('Helvetica');
+  const right = doc.page.width - doc.page.margins.right;
+  const colW = 200;
+  const x = right - colW;
+  let y = doc.y;
+  doc.text('Total value', x, y, { width: colW * 0.6, align: 'right' });
+  doc.fillColor(COLOR.charcoal).font('Helvetica-Bold').fontSize(13).text(fmtMoney(subtotal), x + colW * 0.6, y, { width: colW * 0.4, align: 'right' });
+  doc.y = y + 22;
+
+  if (wo.notes) drawNotes(doc, wo.notes);
+
+  const footerLines = [];
+  if (wo.created_at) footerLines.push(`Issued: ${String(wo.created_at).slice(0,10)}`);
+  if (wo.estimate_number) footerLines.push(`From estimate: ${wo.estimate_number}`);
+  drawFooterMeta(doc, footerLines);
+
+  doc.end();
+}
+
 module.exports = {
   generateEstimatePDF,
-  // Future: generateWorkOrderPDF, generateInvoicePDF
+  generateWorkOrderPDF,
+  // Future: generateInvoicePDF
   _internal: { drawHeader, drawTitle, drawAddressBlocks, drawLineItemsTable, drawTotals, drawNotes, drawFooterMeta, fmt, fmtMoney, COLOR },
 };

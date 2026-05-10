@@ -35,6 +35,10 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
         <form action="/estimates/<%= estimate.id %>/reject" method="post" class="m-0 inline">
           <button class="btn btn-danger">Mark rejected</button>
         </form>
+      <% } else if (estimate.status === 'accepted') { %>
+        <form action="/estimates/<%= estimate.id %>/convert-to-wo" method="post" class="m-0 inline">
+          <button class="btn btn-primary">Convert to Work Order</button>
+        </form>
       <% } %>
     </div>
   </div>
