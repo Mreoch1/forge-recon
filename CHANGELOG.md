@@ -258,3 +258,10 @@ Append-only log of every change. Newest at the bottom. Format:
 - Added /accounting route under requireManager + nav link in header
 - Added npm run init-accounting script
 - Updated TODO_FOR_MICHAEL.md with next-session accounting work items
+
+## [2026-05-10T09:30:00Z] — hermes — v0.5: vendors CRUD + accounting report views
+- Vendors CRUD (routes + 6 views + nav link) — same pattern as customers, with expense-account dropdown
+- Accounting reports: trial-balance (table with Dr/Cr columns + balanced check), profit-loss (revenue/expense/net income), balance-sheet (assets/liabilities/equity with balanced check)
+- Mounted /vendors under requireManager in server.js
+- Nav link for Vendors between Invoices and Accounting
+- v0.5 E2E: core CRUD (customer/job/WO/estimate/invoice creation) works; invoice show/send/mark-paid has JOIN issue in loadInvoice (needs Claude review)

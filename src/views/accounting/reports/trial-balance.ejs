@@ -2,6 +2,26 @@
 <div class="max-w-7xl mx-auto px-4 py-6">
   <div class="mb-4"><a href="/accounting" class="text-sm text-recon-fog hover:text-recon-red">&larr; Accounting</a></div>
   <h1 class="page-h1 mb-6">Trial balance</h1>
-  <div class="card p-8 text-center"><p class="text-recon-fog">Coming in the next session. Will display a real-time trial balance of all accounts.</p></div>
+  <% if (!rows || rows.length === 0) { %>
+    <div class="card p-8 text-center"><p class="text-recon-fog">No entries yet. Post some invoices first.</p></div>
+  <% } else { %>
+    <div class="card overflow-hidden"><table class="data"><thead><tr><th>Code</th><th>Account</th><th>Type</th><th class="text-right">Debit</th><th class="text-right">Credit</th></tr></thead><tbody>
+      <% rows.forEach(function(r) { %>
+        <tr><td class="font-mono text-sm"><%= r.code %></td><td><%= r.name %></td>
+          <td><span class="badge badge-<%= r.type %>"><%= r.type %></span></td>
+          <td class="text-right font-mono"><%= r.balance > 0 ? fmt(r.balance) : '' %></td>
+          <td class="text-right font-mono"><%= r.balance < 0 ? fmt(-r.balance) : '' %></td></tr>
+      <% }); %>
+    </tbody><tfoot class="font-semibold bg-recon-mist"><tr><td colspan="3" class="text-right">Total</td>
+      <td class="text-right font-mono"><%= fmt(totalDr) %></td><td class="text-right font-mono"><%= fmt(totalCr) %></td></tr>
+    </tfoot></table></div>
+    <p class="text-sm text-recon-fog mt-2">
+      <% if (Math.abs(totalDr - totalCr) < 0.01) { %>
+        <span class="text-green-600 font-semibold">&#10003; Balanced</span> (Dr <%= fmt(totalDr) %> = Cr <%= fmt(totalCr) %>)
+      <% } else { %>
+        <span class="text-red-600 font-semibold">&#10007; Unbalanced</span> (Dr <%= fmt(totalDr) %> &ne; Cr <%= fmt(totalCr) %>)
+      <% } %>
+    </p>
+  <% } %>
 </div>
 <%- include('../../layouts/footer') %>

@@ -33,6 +33,7 @@ const invoicesRoutes = require('./routes/invoices');
 const adminRoutes = require('./routes/admin');
 const dashboardRoutes = require('./routes/dashboard');
 const accountingRoutes = require('./routes/accounting');
+const vendorsRoutes = require('./routes/vendors');
 
 const PORT = parseInt(process.env.PORT, 10) || 3001;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
@@ -100,6 +101,7 @@ async function main() {
   // Work orders are worker-accessible (Round 4 will scope to assigned WOs only)
   app.use('/work-orders', requireAuth, workOrdersRoutes);
   app.use('/accounting', requireAuth, requireManager, accountingRoutes);
+  app.use('/vendors', requireAuth, requireManager, vendorsRoutes);
 
   // Dashboard (gated)
   app.use('/', requireAuth, dashboardRoutes);

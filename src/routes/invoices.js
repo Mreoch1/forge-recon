@@ -23,6 +23,8 @@ const { setFlash } = require('../middleware/auth');
 const calc = require('../services/calculations');
 const pdf = require('../services/pdf');
 const email = require('../services/email');
+const posting = require('../services/accounting-posting');
+const { writeAudit } = require('../services/audit');
 
 const router = express.Router();
 
@@ -249,6 +251,19 @@ router.post('/:id/send', async (req, res, next) => {
       attachments: [{ filename: `${invoice.display_number}.pdf`, content: buf, contentType: 'application/pdf' }]
     });
     db.run(`UPDATE invoices SET status='sent', sent_at=datetime('now'), updated_at=datetime('now') WHERE id=?`, [invoice.id]);
+
+    // Audit + post journal entry: DR AR / CR Revenue + Sales Tax
+    writeAudit({
+      entityType: 'invoice', entityId: invoice.id, action: 'send',
+      before: { status: 'draft' }, after: { status: 'sent', recipient, sent_at: new Date().toISOString() },
+      source: 'user', userId: req.session.userId,
+    });
+    try {
+      posting.postInvoiceSent(invoice, { userId: req.session.userId });
+    } catch (e) {
+      console.error('JE post failed (invoice send) — continuing:', e.message);
+    }
+
     const note = sent.mode === 'file' ? ` Email saved to ${sent.filepath}.` : '';
     setFlash(req, 'success', `${invoice.display_number} sent to ${recipient}.${note}`);
     res.redirect(`/invoices/${invoice.id}`);
@@ -273,6 +288,23 @@ router.post('/:id/mark-paid', (req, res) => {
     params.push(newStatus);
   }
   db.run(`UPDATE invoices SET ${sets.join(', ')} WHERE id=?`, [...params, invoice.id]);
+
+  // Audit + post payment JE: DR Cash / CR AR
+  const newPaymentAmt = amount - (Number(invoice.amount_paid) || 0);
+  writeAudit({
+    entityType: 'invoice', entityId: invoice.id, action: 'payment',
+    before: { status: invoice.status, amount_paid: invoice.amount_paid },
+    after: { status: newStatus, amount_paid: amount, payment_recorded: newPaymentAmt },
+    source: 'user', userId: req.session.userId,
+  });
+  try {
+    if (newPaymentAmt > 0) {
+      posting.postPaymentReceived(invoice, newPaymentAmt, { userId: req.session.userId });
+    }
+  } catch (e) {
+    console.error('JE post failed (payment) — continuing:', e.message);
+  }
+
   if (newStatus === 'paid') {
     setFlash(req, 'success', `Invoice marked paid in full.`);
   } else {
@@ -289,6 +321,20 @@ router.post('/:id/void', (req, res) => {
     return res.redirect(`/invoices/${invoice.id}`);
   }
   db.run(`UPDATE invoices SET status='void', updated_at=datetime('now') WHERE id=?`, [invoice.id]);
+
+  writeAudit({
+    entityType: 'invoice', entityId: invoice.id, action: 'void',
+    before: { status: invoice.status }, after: { status: 'void' },
+    source: 'user', userId: req.session.userId,
+  });
+  try {
+    // Reverse the original send JE if one exists
+    const fullInv = db.get('SELECT * FROM invoices WHERE id = ?', [invoice.id]);
+    if (fullInv) posting.postInvoiceVoid(fullInv, { userId: req.session.userId });
+  } catch (e) {
+    console.error('JE post failed (void) — continuing:', e.message);
+  }
+
   setFlash(req, 'success', `Invoice voided.`);
   res.redirect(`/invoices/${invoice.id}`);
 });

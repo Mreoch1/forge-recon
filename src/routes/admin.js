@@ -26,7 +26,9 @@ const { setFlash } = require('../middleware/auth');
 
 const router = express.Router();
 
-const VALID_ROLES = ['admin', 'staff'];
+// v0.5: role enum is admin / manager / worker (schema CHECK constraint).
+// 'staff' is deprecated — auto-migrated to 'manager' on first save.
+const VALID_ROLES = ['admin', 'manager', 'worker'];
 
 function emptyToNull(v) {
   if (typeof v !== 'string') return null;
@@ -61,7 +63,7 @@ router.get('/users/new', (req, res) => {
   res.render('admin/users/new', {
     title: 'New user',
     activeNav: 'admin',
-    user: { id: null, email: '', name: '', role: 'staff', active: 1 },
+    user: { id: null, email: '', name: '', role: 'worker', active: 1 },
     errors: {},
     roles: VALID_ROLES,
   });
@@ -71,7 +73,7 @@ router.post('/users', async (req, res) => {
   const errors = {};
   const email = (emptyToNull(req.body.email) || '').toLowerCase();
   const name = emptyToNull(req.body.name);
-  const role = emptyToNull(req.body.role) || 'staff';
+  const role = emptyToNull(req.body.role) || 'worker';
   const password = req.body.password || '';
 
   if (!email) errors.email = 'Email required.';

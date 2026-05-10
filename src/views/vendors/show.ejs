@@ -1,0 +1,25 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<div class="max-w-4xl mx-auto px-4 py-6">
+  <div class="mb-4"><a href="/vendors" class="text-sm text-recon-fog hover:text-recon-red">&larr; Vendors</a></div>
+  <div class="flex items-baseline justify-between mb-6">
+    <h1 class="page-h1"><%= vendor.name %></h1>
+    <div class="flex gap-2">
+      <a href="/vendors/<%= vendor.id %>/edit" class="btn btn-secondary text-sm">Edit</a>
+      <form action="/vendors/<%= vendor.id %>/delete" method="post" class="inline" onsubmit="return confirm('Delete this vendor?')">
+        <button type="submit" class="btn btn-danger text-sm">Delete</button>
+      </form></div></div>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+    <div class="card p-4"><div class="text-xs text-recon-fog uppercase tracking-wide mb-1">Contact</div>
+      <p><%= vendor.email || '-' %></p><p><%= vendor.phone || '-' %></p></div>
+    <div class="card p-4"><div class="text-xs text-recon-fog uppercase tracking-wide mb-1">Address</div>
+      <p><%= [vendor.address, vendor.city, vendor.state, vendor.zip].filter(Boolean).join(', ') || '-' %></p>
+      <p class="text-xs text-recon-fog mt-1">EIN: <%= vendor.ein || '-' %></p></div>
+  </div>
+  <div class="card p-4"><h3 class="font-semibold mb-3">Bills</h3>
+    <% if (!bills || bills.length === 0) { %><p class="text-recon-fog text-sm">No bills yet.</p>
+    <% } else { %><table class="data"><thead><tr><th>Bill #</th><th>Status</th><th>Date</th></tr></thead><tbody>
+      <% bills.forEach(function(b) { %><tr><td><%= b.bill_number || '-' %></td><td><%= b.status %></td><td><%= (b.created_at || '').slice(0,10) %></td></tr><% }); %>
+    </tbody></table><% } %>
+  </div>
+</div>
+<%- include('../layouts/footer') %>

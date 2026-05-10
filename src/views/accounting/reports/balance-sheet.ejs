@@ -1,7 +1,46 @@
 <%- include('../../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
-<div class="max-w-7xl mx-auto px-4 py-6">
+<div class="max-w-4xl mx-auto px-4 py-6">
   <div class="mb-4"><a href="/accounting" class="text-sm text-recon-fog hover:text-recon-red">&larr; Accounting</a></div>
   <h1 class="page-h1 mb-6">Balance sheet</h1>
-  <div class="card p-8 text-center"><p class="text-recon-fog">Coming in the next session. Will display assets, liabilities, and equity with running balances.</p></div>
+  <% if (!assets || assets.length === 0) { %>
+    <div class="card p-8 text-center"><p class="text-recon-fog">No account balances yet.</p></div>
+  <% } else { %>
+    <div class="card p-6 mb-4">
+      <h3 class="font-semibold text-blue-700 mb-2">Assets</h3>
+      <table class="w-full"><tbody>
+        <% assets.forEach(function(a) { %>
+          <tr><td><%= a.name %></td><td class="text-right font-mono">$<%= fmt(a.amount) %></td></tr>
+        <% }); %>
+        <tr class="font-semibold border-t"><td>Total Assets</td><td class="text-right font-mono">$<%= fmt(totalAssets) %></td></tr>
+      </tbody></table>
+    </div>
+    <div class="card p-6 mb-4">
+      <h3 class="font-semibold text-amber-700 mb-2">Liabilities</h3>
+      <table class="w-full"><tbody>
+        <% liabilities.forEach(function(l) { %>
+          <tr><td><%= l.name %></td><td class="text-right font-mono">$<%= fmt(l.amount) %></td></tr>
+        <% }); %>
+        <tr class="font-semibold border-t"><td>Total Liabilities</td><td class="text-right font-mono">$<%= fmt(totalLiabilities) %></td></tr>
+      </tbody></table>
+    </div>
+    <div class="card p-6 mb-6">
+      <h3 class="font-semibold text-purple-700 mb-2">Equity</h3>
+      <table class="w-full"><tbody>
+        <% equity.forEach(function(e) { %>
+          <tr><td><%= e.name %></td><td class="text-right font-mono">$<%= fmt(e.amount) %></td></tr>
+        <% }); %>
+        <tr><td>Net Income (current period)</td><td class="text-right font-mono">$<%= fmt(netIncome) %></td></tr>
+        <tr class="font-semibold border-t"><td>Total Equity</td><td class="text-right font-mono">$<%= fmt(totalEquity) %></td></tr>
+      </tbody></table>
+    </div>
+    <div class="card p-4 <%= balanced ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200' %>">
+      <p class="text-center <%= balanced ? 'text-green-700' : 'text-red-700' %> font-semibold">
+        <%= balanced ? '&#10003; Balanced: Assets = Liabilities + Equity' : '&#10007; Unbalanced: Assets &ne; Liabilities + Equity' %>
+      </p>
+      <p class="text-center text-sm text-recon-fog mt-1">
+        Assets $<%= fmt(totalAssets) %> = Liabilities $<%= fmt(totalLiabilities) %> + Equity $<%= fmt(totalEquity) %>
+      </p>
+    </div>
+  <% } %>
 </div>
 <%- include('../../layouts/footer') %>

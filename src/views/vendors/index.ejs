@@ -1,0 +1,26 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<div class="max-w-7xl mx-auto px-4 py-6">
+  <div class="flex items-baseline justify-between mb-4"><div><h1 class="page-h1">Vendors</h1><p class="page-sub"><%= total %> total<% if (q) { %> &middot; filter: "<%= q %>"<% } %></p></div>
+    <a href="/vendors/new" class="btn btn-primary">+ New vendor</a></div>
+  <form method="get" class="flex gap-2 mb-4"><input type="text" name="q" value="<%= q %>" placeholder="Search name, email, phone..." class="input max-w-md"><button class="btn btn-secondary">Search</button>
+    <% if (q) { %><a href="/vendors" class="btn btn-ghost">Clear</a><% } %></form>
+  <% if (!vendors || vendors.length === 0) { %>
+    <div class="card p-8 text-center"><p class="text-recon-fog"><%= q ? 'No vendors match "' + q + '".' : 'No vendors yet.' %></p>
+      <% if (q) { %><a href="/vendors" class="btn btn-ghost mt-2">Clear filter</a><% } %></div>
+  <% } else { %>
+    <div class="card overflow-hidden"><table class="data"><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Location</th></tr></thead><tbody>
+      <% vendors.forEach(function(v) { %>
+        <tr><td><a href="/vendors/<%= v.id %>" class="text-recon-red hover:underline"><%= v.name %></a></td>
+          <td><%= v.email || '-' %></td><td><%= v.phone || '-' %></td>
+          <td><%= [v.city, v.state].filter(Boolean).join(', ') || '-' %></td></tr>
+      <% }); %>
+    </tbody></table></div>
+    <div class="flex justify-between items-center mt-4 text-sm text-recon-fog">
+      <span>Page <%= page %> of <%= totalPages %></span>
+      <div class="flex gap-2">
+        <% if (page > 1) { %><a href="/vendors?page=<%= page - 1 %><%= q ? '&q=' + q : '' %>" class="btn btn-ghost text-xs">Previous</a><% } %>
+        <% if (page < totalPages) { %><a href="/vendors?page=<%= page + 1 %><%= q ? '&q=' + q : '' %>" class="btn btn-ghost text-xs">Next</a><% } %>
+      </div></div>
+  <% } %>
+</div>
+<%- include('../layouts/footer') %>

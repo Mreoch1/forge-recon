@@ -53,3 +53,58 @@ Append-only. Every architectural decision made without Michael goes here. He can
 ## 2026-05-10T07:38:00Z — sql.js persistence behavior for testing
 **Decision:** Each process has its own in-memory sql.js copy. Persist-to-disk happens after writes (debounced 50ms) but does NOT reload other processes' instances. To test FK guards with manually-injected data, restart the server after CLI inserts so it picks up the latest disk state.
 **Reason:** sql.js is in-memory by design. Not a bug — a constraint of the library choice.
+
+## 2026-05-10 — v0.6 architecture: stay on Node/sql.js, swap pieces incrementally
+**Decision:** Michael's expanded vision (per his GPT-5.5 conversation) reaches toward a SaaS-style stack: Vercel + Supabase + Stripe + Resend + Plaid + AI APIs. We are NOT pivoting wholesale. v0.5 already works on Node + Express + sql.js + EJS, and every external service Michael wants can be added to this stack via npm packages:
+- Plaid: `plaid` SDK — works in any Node app
+- Stripe: `stripe` SDK — works in any Node app; webhook receiver added as a public-but-tunneled endpoint when needed
+- Resend: `resend` SDK or just point nodemailer at smtp.resend.com — drop-in transport swap
+- AI extraction: HTTP calls to OpenAI / Anthropic / DeepSeek — framework-agnostic
+- Supabase: optional. Postgres via `pg` npm package gets us a hosted DB without rewriting the data layer; sql.js → pg is a query-driver swap, not an architecture rewrite. Defer until single-tenant local breaks at scale.
+- Vercel: optional. Defer until we need public access. For now app runs on Michael's box.
+
+**Reason:** Throwing out v0.5 and rebuilding on Next.js+Supabase would burn ~2 sessions of work for zero functional gain. The current stack handles everything in the vision; the SaaS pieces are feature additions, not architectural prerequisites.
+
+## 2026-05-10 — Plaid for bank-balance integration
+**Decision:** Plaid (with Teller as fallback if Plaid coverage misses any of Michael's banks). No screen-scraping.
+**Reason:** Plaid is the de-facto US bank-data API — broadest coverage, best DX, the only realistic path to live balances + transactions without bespoke per-bank work.
+
+## 2026-05-10 — Accounting model: full double-entry from day one
+**Decision:** Real chart-of-accounts + journal entries + ledger lines, not single-entry "totals on invoices." Every financial event posts paired debit/credit entries.
+**Reason:** Per Michael's GPT plan, "invoice → JE → ledger" is the only model that survives the audit-trail, AR-aging, P&L, and AI-vendor-bill features he wants. Adding ledger later is harder than starting with it.
+
+## 2026-05-10 — Audit log: dedicated table, mutation-source captured, no hard deletes for financial records
+**Decision:** New `audit_logs` table (who, what, before, after, source, when). Mutations on invoices, bills, payments, journal entries write a row. Source values: `user`, `ai`, `stripe`, `plaid`, `system`. Financial records are voided/credited, never DELETE'd.
+**Reason:** Trustworthy records require provenance. AI-generated entries especially must be flagged so a bookkeeper can audit them.
+
+## 2026-05-10 — Hosting target: Vercel (when we eventually deploy)
+**Decision:** When we move from local-only to hosted, deploy on Vercel — not Netlify, not Render, not Railway. Michael prefers Vercel.
+**Reason:** Michael's preference. Practical fit too — Vercel's serverless model works fine for the Express app via their Node runtime, and they integrate cleanly with Supabase (Postgres) and Resend (transactional email) when those land.
+**Implication:** When we add the hosted-DB swap (sql.js → Postgres via `pg`), structure the code so the DB module reads connection details from env (`DATABASE_URL`) rather than a hardcoded local file. We're already mostly there — just needs the swap module when the time comes.
+
+## 2026-05-10 — Database: Supabase (Postgres) at deploy time
+**Decision:** Production DB = Supabase Postgres. Dev/local stays on sql.js for zero-config development. The `db.js` wrapper exposes run/get/all/exec/transaction; we'll add a parallel Postgres implementation behind the same API when we deploy. Reads `DATABASE_URL` env var.
+**Open question deferred:** Supabase Auth vs. our own session-based auth. Supabase Auth gives us magic links, OAuth, RLS for free; our session auth gives us full control but locks customers/workers/managers into one model. **Defer this decision to deploy day** — both work. For v0.6+ keep our own auth.
+**Implication for now:** Schema is already SQLite-flavored but mostly Postgres-portable. Watch for: `INTEGER PRIMARY KEY AUTOINCREMENT` (SQLite) → `BIGSERIAL PRIMARY KEY` (Postgres), `datetime('now')` → `NOW()`, `strftime` (used in dashboard date math) → `to_char()`. Logged as v0.7 follow-up. Supabase Storage will host PDFs, logo, photo uploads.
+
+## 2026-05-10 — Email transport: Resend at deploy time
+**Decision:** Production email = Resend. Dev/local stays on file-drop (`mail-outbox/*.eml`).
+**Reason:** Resend has the cleanest DX for transactional email, predictable deliverability, attachments work natively. Already future-proofed in `src/services/email.js` — set `EMAIL_MODE=smtp` + Resend's SMTP creds, or swap to their SDK with one require.
+**Implication for now:** Nothing. The current email module switches transports on env var; no code change until deploy day.
+
+## 2026-05-10 — Stack picture (decided)
+**Production:** Vercel (host) + Supabase (Postgres + Storage + maybe Auth) + Resend (email) + Stripe (payments) + Plaid (bank balances) + AI APIs (extract).
+**Dev / current:** Node 24 + Express + sql.js (in-memory + disk-persisted) + nodemailer (file-drop mode) + EJS + HTMX + Tailwind via CDN. Runs entirely on Michael's Windows machine.
+**Migration plan:** db swap → email transport swap → Stripe wiring → Plaid wiring → AI extraction. Each is one focused session. None of them require rewriting the route layer.
+
+## 2026-05-10 — reconprojectmanager repo: read-only reference, do NOT modify
+**Decision:** Michael has an existing `mreoch1/reconprojectmanager` GitHub repo that's actively in use. We clone it to a sister folder ON THE LOCAL MACHINE for inspection only. We read from it to harvest structure / patterns / data models that should be ported into construction-app, but we do NOT:
+- push to the upstream (origin)
+- modify any file inside that working tree
+- run scripts that mutate its database or files
+The live repo stays untouched. All integration happens by copying patterns into construction-app/.
+**Reason:** Michael's instruction: "I don't want to mess up Recon project manager it needs to stay active and unchanged."
+
+## 2026-05-10 — AI gating: extract-then-approve, never auto-post
+**Decision:** AI vendor-invoice extraction lands in an `approval_queue` table with status='pending'. Human reviews + clicks Approve before any JE posts. AI suggestions visible in line-item form fields but not committed.
+**Reason:** Per Michael's own rule: "do not let AI directly post accounting records without approval at first."
