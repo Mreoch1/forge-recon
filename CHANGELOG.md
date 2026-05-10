@@ -301,3 +301,15 @@ Append-only log of every change. Newest at the bottom. Format:
 - **Profit/ROI display**: estimate show page shows Cost/Profit/ROI strip (admin/manager only, hidden when cost=0); estimates index has Margin % column
 - **WO linkback prominent**: estimate show header now shows `← WO-XXXX-XXXX` as a click-through link
 - All 9 smoke steps pass: WO no pricing, estimate no Selected, select-for-invoice page renders, invoice generated with selected lines, trial balance still balanced
+
+## [2026-05-10T15:15:00Z] — hermes — feat(seed): comprehensive mock data seeder
+- New file `src/db/seed-mock.js` — idempotent seeder (351 lines code, 1700+ lines data pools)
+- Schema migration: adds `mock INTEGER NOT NULL DEFAULT 0` to 13 domain tables (idempotent via PRAGMA table_info)
+- package.json: added `seed:mock` script + `--reset` flag support
+- Volume: 25 items library, 5 workers, 12 customers, 8 vendors, 18 jobs, 22 WOs (18 root + 4 sub), 14 estimates, 7 invoices, 12 bills, ~40 wo_notes
+- Realistic data pool: real-sounding names/addresses, MA tax rate, varied statuses
+- Uses actual service functions (postBillApproved, postInvoiceSent, postPaymentReceived) for balanced JEs
+- Idempotency: sentinel customer check prevents duplicate; --reset deletes mock=1 rows in FK-safe order
+- Trial balance: $207,961.95 Dr = $207,961.95 Cr ✅ (32 journal entries, no imbalance errors)
+- Scenario: 4+ WOs scheduled today with times (08:00/10:30/13:00/15:30), 5 tomorrow, 8+ next-14-days
+- Smoke: dashboard KPIs show live numbers ($30k+ revenue, AR balances, etc.), all list pages render, reports balanced

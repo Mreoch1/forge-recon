@@ -22,7 +22,8 @@ function typeLabel(t) {
       <h1 class="page-h1">Dashboard</h1>
       <p class="page-sub">Welcome back, <%= currentUser.name %>.</p>
     </div>
-    <div class="flex flex-wrap gap-2">
+    <div class="flex flex-wrap gap-2 items-center">
+      <a href="/dashboard-v2" class="text-xs text-recon-fog hover:text-recon-red mr-2">try new dashboard →</a>
       <a href="/customers/new" class="btn btn-secondary">+ Customer</a>
       <a href="/jobs/new" class="btn btn-primary">+ Job</a>
     </div>

@@ -10,6 +10,7 @@
     "init-db": "node src/db/init.js",
     "seed": "node src/db/seed.js",
     "init-accounting": "node src/db/init-accounting.js",
+    "seed:mock": "node src/db/seed-mock.js",
     "test": "node --test test/"
   },
   "engines": {

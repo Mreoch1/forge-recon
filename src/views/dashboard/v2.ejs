@@ -1,0 +1,381 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<%
+function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
+function fmtMoney(n) {
+  const num = Number(n) || 0;
+  // No decimals when round, else 2 decimals.
+  return Math.abs(num) >= 1000
+    ? '$' + Math.round(num).toLocaleString()
+    : '$' + num.toFixed(2);
+}
+function fmtTime(t) {
+  if (!t) return '—';
+  const [hh, mm] = String(t).split(':');
+  const h = parseInt(hh, 10);
+  if (isNaN(h)) return t;
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return h12 + ':' + (mm || '00') + ' ' + ampm;
+}
+function pathFor(act) {
+  if (act.type === 'estimate')   return '/estimates/'    + act.id;
+  if (act.type === 'work_order') return '/work-orders/'  + act.id;
+  if (act.type === 'invoice')    return '/invoices/'     + act.id;
+  return '#';
+}
+function typeAbbr(t) {
+  if (t === 'work_order') return 'WO';
+  if (t === 'invoice')    return 'INV';
+  if (t === 'estimate')   return 'EST';
+  return t;
+}
+function dayLabel(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const opts = { weekday: 'long', month: 'short', day: 'numeric' };
+  return d.toLocaleDateString('en-US', opts);
+}
+const headerDate = dayLabel(today);
+%>
+
+<style>
+  /* dashboard-v2 design tokens — denser, less rounded, less card-y */
+  .dv2-bg          { background: #f5f5f5; }
+  .dv2-rule        { border-bottom: 1px solid #e0e0e0; }
+  .dv2-rule-strong { border-bottom: 2px solid #1a1a1a; }
+  .dv2-h1          { font-size: 1.65rem; font-weight: 700; letter-spacing: -.01em; color: #1a1a1a; }
+  .dv2-eyebrow     { font-size: .68rem; letter-spacing: .14em; text-transform: uppercase; font-weight: 600; color: #888; }
+  .dv2-eyebrow-strong { font-size: .68rem; letter-spacing: .14em; text-transform: uppercase; font-weight: 700; color: #1a1a1a; }
+  .dv2-section-title { font-size: 1.05rem; font-weight: 700; color: #1a1a1a; letter-spacing: -.005em; }
+  .dv2-time        { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92rem; font-weight: 600; color: #1a1a1a; letter-spacing: -.01em; }
+  .dv2-num         { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; color: #444; }
+  .dv2-row         { padding: .65rem 0; border-bottom: 1px solid #ececec; transition: background .12s; }
+  .dv2-row:hover   { background: #fafafa; }
+  .dv2-row:last-child { border-bottom: none; }
+  .dv2-pill        { display: inline-flex; align-items: center; gap: .3rem; padding: .1rem .45rem; border-radius: 3px; font-size: .7rem; font-weight: 600; letter-spacing: .02em; }
+  .dv2-pill-live   { background: #fef3c7; color: #92400e; }
+  .dv2-pill-sched  { background: #f3f4f6; color: #374151; }
+  .dv2-dot         { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  .dv2-dot-live    { background: #ea580c; box-shadow: 0 0 0 0 rgba(234,88,12,.5); animation: dv2-pulse 2s infinite; }
+  .dv2-dot-sched   { background: #888; }
+  @keyframes dv2-pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(234,88,12,.5); }
+    70%  { box-shadow: 0 0 0 6px rgba(234,88,12,0); }
+    100% { box-shadow: 0 0 0 0 rgba(234,88,12,0); }
+  }
+  .dv2-queue-card  { background: #ffffff; border: 1px solid #e0e0e0; border-radius: 4px; }
+  .dv2-queue-head  { padding: .6rem .85rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #ececec; }
+  .dv2-queue-list  { max-height: 12rem; overflow-y: auto; }
+  .dv2-queue-row   { padding: .45rem .85rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f4f4f4; font-size: .82rem; }
+  .dv2-queue-row:last-child { border-bottom: none; }
+  .dv2-queue-row:hover { background: #fafafa; }
+  .dv2-queue-empty { padding: 1rem .85rem; font-size: .82rem; color: #888; text-align: center; }
+  .dv2-count-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 1.5rem; height: 1.5rem; padding: 0 .45rem; border-radius: 4px; font-size: .82rem; font-weight: 700; }
+  .dv2-count-red   { background: #c0202b; color: #fff; }
+  .dv2-count-amber { background: #f59e0b; color: #fff; }
+  .dv2-count-grey  { background: #e5e5e5; color: #1a1a1a; }
+  .dv2-link        { color: #1a1a1a; }
+  .dv2-link:hover  { color: #c0202b; }
+  .dv2-metric      { padding-right: 1.5rem; border-right: 1px solid #e0e0e0; }
+  .dv2-metric:last-child { border-right: none; padding-right: 0; }
+  .dv2-metric-label { font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; color: #888; font-weight: 600; }
+  .dv2-metric-value { font-size: 1.15rem; font-weight: 700; color: #1a1a1a; margin-top: .2rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .dv2-side-stream { font-size: .82rem; }
+  .dv2-side-stream .item { padding: .55rem 0; border-bottom: 1px solid #ececec; display: flex; align-items: baseline; gap: .55rem; }
+  .dv2-side-stream .item:last-child { border-bottom: none; }
+  .dv2-side-stream .num { font-family: ui-monospace, monospace; font-weight: 600; color: #1a1a1a; font-size: .78rem; }
+  .dv2-side-stream .ts { font-size: .68rem; color: #aaa; margin-left: auto; flex-shrink: 0; font-family: ui-monospace, monospace; }
+  .dv2-status-badge { padding: .08rem .4rem; border-radius: 3px; font-size: .65rem; letter-spacing: .03em; font-weight: 600; text-transform: uppercase; }
+</style>
+
+<div class="dv2-bg">
+  <div class="max-w-7xl mx-auto px-4 py-5">
+
+    <!-- Header strip: day name + sync indicator + quick actions -->
+    <div class="flex items-end justify-between mb-5 flex-wrap gap-3">
+      <div>
+        <div class="dv2-eyebrow"><%= currentUser.role.toUpperCase() %> · <%= currentUser.name %></div>
+        <h1 class="dv2-h1 mt-1"><%= headerDate %></h1>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="text-xs text-recon-fog flex items-center gap-1.5">
+          <span class="dv2-dot dv2-dot-sched" style="background:#10b981;"></span>
+          Updated <span id="dv2-since">just now</span>
+        </span>
+        <a href="/work-orders/new" class="btn btn-secondary text-sm">+ Work order</a>
+        <a href="/jobs/new" class="btn btn-primary text-sm">+ Job</a>
+      </div>
+    </div>
+
+    <!-- Two-column asymmetric grid: schedule (wide) + queues/activity (narrow) -->
+    <div class="grid gap-6" style="grid-template-columns: minmax(0,1.65fr) minmax(0,1fr);">
+
+      <!-- ============================================================
+           LEFT COLUMN — TODAY's SCHEDULE (the primary anchor)
+           ============================================================ -->
+      <div>
+
+        <!-- TODAY -->
+        <div class="dv2-rule-strong pb-1.5 mb-1 flex items-baseline justify-between">
+          <h2 class="dv2-section-title">Today</h2>
+          <span class="dv2-eyebrow"><%= todayWOs.length %> scheduled</span>
+        </div>
+
+        <% if (todayWOs.length === 0) { %>
+          <div class="py-10 text-center">
+            <p class="text-sm text-recon-fog">Nothing on today's board.</p>
+            <a href="/work-orders" class="text-sm text-recon-red hover:underline">Browse all work orders →</a>
+          </div>
+        <% } else { %>
+          <div>
+            <% todayWOs.forEach(function(w){
+                 const live = w.status === 'in_progress';
+                 const assignee = w.user_name || w.assigned_to || 'Unassigned';
+                 const addr = [w.job_address, w.job_city].filter(Boolean).join(', ');
+            %>
+              <a href="/work-orders/<%= w.id %>" class="dv2-row dv2-link grid items-center gap-4" style="grid-template-columns: 5.25rem 6.5rem minmax(0,1fr) minmax(0,9rem);">
+                <!-- Time -->
+                <div class="dv2-time"><%= fmtTime(w.scheduled_time) %></div>
+
+                <!-- WO number -->
+                <div class="flex items-center gap-1.5">
+                  <span class="dv2-dot <%= live ? 'dv2-dot-live' : 'dv2-dot-sched' %>" title="<%= w.status %>"></span>
+                  <span class="dv2-num">WO-<%= w.display_number %></span>
+                </div>
+
+                <!-- Customer + job -->
+                <div class="min-w-0">
+                  <div class="text-sm font-semibold text-recon-charcoal truncate"><%= w.customer_name %></div>
+                  <div class="text-xs text-recon-fog truncate">
+                    <%= w.job_title %><% if (addr) { %> · <%= addr %><% } %>
+                  </div>
+                </div>
+
+                <!-- Assignee -->
+                <div class="text-sm text-recon-charcoal text-right truncate" title="<%= assignee %>"><%= assignee %></div>
+              </a>
+            <% }); %>
+          </div>
+        <% } %>
+
+        <!-- TOMORROW preview -->
+        <div class="mt-8 dv2-rule pb-1.5 mb-1 flex items-baseline justify-between">
+          <h2 class="dv2-section-title text-recon-fog" style="font-weight:600;">Tomorrow</h2>
+          <span class="dv2-eyebrow"><%= tomorrowCount %> scheduled<% if (upcomingThisWeek > 0) { %> · <%= upcomingThisWeek %> later this week<% } %></span>
+        </div>
+
+        <% if (tomorrowPreview.length === 0) { %>
+          <div class="py-4 text-sm text-recon-fog">Nothing scheduled yet.</div>
+        <% } else { %>
+          <div>
+            <% tomorrowPreview.forEach(function(w){
+                 const assignee = w.user_name || w.assigned_to || 'Unassigned';
+            %>
+              <a href="/work-orders/<%= w.id %>" class="dv2-row dv2-link grid items-center gap-4 opacity-90" style="grid-template-columns: 5.25rem 6.5rem minmax(0,1fr) minmax(0,9rem);">
+                <div class="dv2-time" style="color:#666;"><%= fmtTime(w.scheduled_time) %></div>
+                <div class="dv2-num">WO-<%= w.display_number %></div>
+                <div class="min-w-0">
+                  <div class="text-sm text-recon-charcoal truncate"><%= w.customer_name %></div>
+                  <div class="text-xs text-recon-fog truncate"><%= w.job_title %></div>
+                </div>
+                <div class="text-sm text-recon-fog text-right truncate"><%= assignee %></div>
+              </a>
+            <% }); %>
+          </div>
+          <% if (tomorrowCount > tomorrowPreview.length) { %>
+            <a href="/work-orders?status=scheduled" class="block py-2 text-xs text-recon-fog hover:text-recon-red">+ <%= tomorrowCount - tomorrowPreview.length %> more →</a>
+          <% } %>
+        <% } %>
+      </div>
+
+      <!-- ============================================================
+           RIGHT COLUMN — ACTION QUEUES + ACTIVITY STREAM
+           ============================================================ -->
+      <div class="space-y-5">
+
+        <!-- Action queues (the "what needs me?" panel) -->
+        <div>
+          <div class="dv2-rule-strong pb-1.5 mb-2 flex items-baseline justify-between">
+            <h2 class="dv2-section-title">Needs you</h2>
+            <span class="dv2-eyebrow">action queue</span>
+          </div>
+
+          <!-- 1. Overdue invoices (highest priority — money) -->
+          <div class="dv2-queue-card mb-3 <%= overdueInvoicesCount > 0 ? 'border-l-4 border-l-recon-red' : '' %>">
+            <div class="dv2-queue-head">
+              <div>
+                <div class="text-sm font-semibold">Overdue invoices</div>
+                <% if (overdueTotal > 0) { %>
+                  <div class="text-xs text-recon-fog mt-0.5"><%= fmtMoney(overdueTotal) %> outstanding</div>
+                <% } %>
+              </div>
+              <span class="dv2-count-badge <%= overdueInvoicesCount > 0 ? 'dv2-count-red' : 'dv2-count-grey' %>"><%= overdueInvoicesCount %></span>
+            </div>
+            <% if (overdueInvoices.length === 0) { %>
+              <div class="dv2-queue-empty">All current.</div>
+            <% } else { %>
+              <div class="dv2-queue-list">
+                <% overdueInvoices.forEach(function(i){ %>
+                  <a href="/invoices/<%= i.id %>" class="dv2-queue-row dv2-link">
+                    <div class="min-w-0">
+                      <div class="font-semibold truncate">INV-<%= i.display_number %></div>
+                      <div class="text-xs text-recon-fog truncate"><%= i.customer_name %> · <%= i.days_late %>d late</div>
+                    </div>
+                    <span class="dv2-num text-recon-red font-semibold"><%= fmtMoney(Number(i.total) - Number(i.amount_paid)) %></span>
+                  </a>
+                <% }); %>
+              </div>
+            <% } %>
+          </div>
+
+          <!-- 2. Estimates ready to send -->
+          <div class="dv2-queue-card mb-3">
+            <div class="dv2-queue-head">
+              <div class="text-sm font-semibold">Estimates to send</div>
+              <span class="dv2-count-badge <%= estimatesToSendCount > 0 ? 'dv2-count-amber' : 'dv2-count-grey' %>"><%= estimatesToSendCount %></span>
+            </div>
+            <% if (estimatesToSend.length === 0) { %>
+              <div class="dv2-queue-empty">No drafts waiting.</div>
+            <% } else { %>
+              <div class="dv2-queue-list">
+                <% estimatesToSend.forEach(function(e){ %>
+                  <a href="/estimates/<%= e.id %>" class="dv2-queue-row dv2-link">
+                    <div class="min-w-0">
+                      <div class="font-semibold truncate">EST-<%= e.display_number %></div>
+                      <div class="text-xs text-recon-fog truncate"><%= e.customer_name %></div>
+                    </div>
+                    <span class="dv2-num"><%= fmtMoney(e.total) %></span>
+                  </a>
+                <% }); %>
+              </div>
+            <% } %>
+          </div>
+
+          <!-- 3. Bills awaiting approval -->
+          <div class="dv2-queue-card mb-3">
+            <div class="dv2-queue-head">
+              <div>
+                <div class="text-sm font-semibold">Bills awaiting approval</div>
+                <% if (billsToApproveTotal > 0) { %>
+                  <div class="text-xs text-recon-fog mt-0.5"><%= fmtMoney(billsToApproveTotal) %> total</div>
+                <% } %>
+              </div>
+              <span class="dv2-count-badge <%= billsToApproveCount > 0 ? 'dv2-count-amber' : 'dv2-count-grey' %>"><%= billsToApproveCount %></span>
+            </div>
+            <% if (billsToApprove.length === 0) { %>
+              <div class="dv2-queue-empty">Inbox clear.</div>
+            <% } else { %>
+              <div class="dv2-queue-list">
+                <% billsToApprove.forEach(function(b){ %>
+                  <a href="/bills/<%= b.id %>" class="dv2-queue-row dv2-link">
+                    <div class="min-w-0">
+                      <div class="font-semibold truncate"><%= b.bill_number || ('Bill #' + b.id) %></div>
+                      <div class="text-xs text-recon-fog truncate"><%= b.vendor_name %></div>
+                    </div>
+                    <span class="dv2-num"><%= fmtMoney(b.total) %></span>
+                  </a>
+                <% }); %>
+              </div>
+            <% } %>
+          </div>
+
+          <!-- 4. Stale estimates (sent > 7 days, no acceptance) -->
+          <div class="dv2-queue-card mb-3">
+            <div class="dv2-queue-head">
+              <div class="text-sm font-semibold">Stale quotes <span class="text-xs text-recon-fog font-normal">(7+ days)</span></div>
+              <span class="dv2-count-badge <%= staleEstimatesCount > 0 ? 'dv2-count-amber' : 'dv2-count-grey' %>"><%= staleEstimatesCount %></span>
+            </div>
+            <% if (staleEstimates.length === 0) { %>
+              <div class="dv2-queue-empty">Nothing aging.</div>
+            <% } else { %>
+              <div class="dv2-queue-list">
+                <% staleEstimates.forEach(function(e){ %>
+                  <a href="/estimates/<%= e.id %>" class="dv2-queue-row dv2-link">
+                    <div class="min-w-0">
+                      <div class="font-semibold truncate">EST-<%= e.display_number %></div>
+                      <div class="text-xs text-recon-fog truncate"><%= e.customer_name %> · <%= e.days_since_sent %>d ago</div>
+                    </div>
+                    <span class="dv2-num"><%= fmtMoney(e.total) %></span>
+                  </a>
+                <% }); %>
+              </div>
+            <% } %>
+          </div>
+        </div>
+
+        <!-- Activity stream -->
+        <div>
+          <div class="dv2-rule pb-1.5 mb-2 flex items-baseline justify-between">
+            <h2 class="dv2-section-title text-recon-fog" style="font-weight:600;">Activity</h2>
+            <a href="#" class="dv2-eyebrow text-recon-fog hover:text-recon-red">last <%= activity.length %></a>
+          </div>
+          <div class="dv2-side-stream">
+            <% if (activity.length === 0) { %>
+              <div class="text-sm text-recon-fog py-3">No activity yet.</div>
+            <% } else { %>
+              <% activity.forEach(function(act){ %>
+                <a href="<%= pathFor(act) %>" class="item dv2-link">
+                  <span class="num"><%= typeAbbr(act.type) %>-<%= act.number.replace(/^[A-Z]+-/, '') %></span>
+                  <span class="dv2-status-badge badge-<%= act.status %>"><%= act.status.replace('_',' ') %></span>
+                  <span class="text-recon-fog truncate min-w-0" style="font-size:.78rem;"><%= act.customer_name %></span>
+                  <span class="ts"><%= (act.created_at || '').slice(5,16).replace('T',' ') %></span>
+                </a>
+              <% }); %>
+            <% } %>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         BOTTOM METRICS STRIP — de-emphasized but visible
+         ============================================================ -->
+    <div class="mt-8 pt-4 border-t border-recon-mist flex items-center gap-6 flex-wrap">
+      <div class="dv2-metric">
+        <div class="dv2-metric-label">A/R</div>
+        <div class="dv2-metric-value"><%= fmtMoney(arBalance) %></div>
+      </div>
+      <div class="dv2-metric">
+        <div class="dv2-metric-label">Revenue MTD</div>
+        <div class="dv2-metric-value"><%= fmtMoney(revenueThisMonth) %></div>
+      </div>
+      <div class="dv2-metric">
+        <div class="dv2-metric-label">Revenue YTD</div>
+        <div class="dv2-metric-value"><%= fmtMoney(revenueYTD) %></div>
+      </div>
+      <div class="dv2-metric">
+        <div class="dv2-metric-label">Active jobs</div>
+        <div class="dv2-metric-value"><%= jobsActive %></div>
+      </div>
+      <div class="dv2-metric">
+        <div class="dv2-metric-label">Customers</div>
+        <div class="dv2-metric-value"><%= customerCount %></div>
+      </div>
+      <div class="ml-auto text-xs text-recon-fog">
+        <a href="/" class="hover:text-recon-red">classic dashboard →</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Tiny "updated Xm ago" ticker — purely cosmetic, no polling.
+  (function () {
+    const el = document.getElementById('dv2-since');
+    if (!el) return;
+    const start = new Date('<%= serverTime %>').getTime();
+    function tick() {
+      const secs = Math.max(0, Math.floor((Date.now() - start) / 1000));
+      let label;
+      if (secs < 30) label = 'just now';
+      else if (secs < 60) label = secs + 's ago';
+      else if (secs < 3600) label = Math.floor(secs / 60) + 'm ago';
+      else label = Math.floor(secs / 3600) + 'h ago';
+      el.textContent = label;
+    }
+    tick();
+    setInterval(tick, 30000);
+  })();
+</script>
+
+<%- include('../layouts/footer') %>

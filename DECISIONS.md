@@ -154,3 +154,28 @@ Suggestions land in a queue (reuses the `ai_extractions` table semantics or gets
 - Run without an approver
 
 **Audit:** Every AI call logged to `audit_logs` with `source='ai'` and the originating user. Token usage and cost tracked per call (Round 9 polish).
+
+## 2026-05-10T15:30:00Z — Dashboard redesign shipped as parallel preview at /dashboard-v2
+**Decision:** Built the today-focused schedule list redesign (Round 13) as a separate route `/dashboard-v2` and view `views/dashboard/v2.ejs` rather than replacing the current dashboard in place. Existing `/` dashboard still works untouched; the new design is reachable via a small "try new dashboard →" link on the classic page, and links back via "← classic dashboard".
+
+**Reason:**
+1. Hermes is mid-flight on Round 12 (mock data seeding). Replacing the dashboard while the seed script is being written would create merge friction.
+2. The redesign needs real seeded data to evaluate visually. Leaving the old route intact lets Michael compare side-by-side once the seed lands.
+3. If the redesign turns out wrong, reverting is `delete two files` — no rollback drama.
+4. Once accepted, swap is a 3-line change in `dashboard.js` (rename handler).
+
+**Design choices baked in (per Michael's confirmation message):**
+- Today-focused vertical list, not horizontal calendar — avoids SaaS-template feel.
+- Schedule = primary visual anchor (left column, ~62% width).
+- Asymmetric grid (1.65fr / 1fr) — not symmetric cards.
+- Action queues as compact bordered cards with count badges (right column).
+- Activity stream as right-rail tertiary content.
+- Bottom metrics strip (A/R, MTD, YTD, jobs, customers) — present but de-emphasized.
+- Less border-radius (3-4px), thinner borders, monospace numbers, rule-line dividers instead of full card chrome.
+- Status indicators: pulsing dot for in_progress (the only animation in the page), grey dot for scheduled.
+- "Updated Xm ago" indicator with green dot — cosmetic only, no polling.
+
+## 2026-05-10T15:35:00Z — Round 11 (global AI assistant) scoped in advance
+**Decision:** Wrote a comprehensive scope doc at `ROUND_11_AI_ASSISTANT_SCOPE.md` covering capability tiers (Read → Navigate → Execute → Conflict-detect), tool-call set, suggest-then-confirm pattern, conflict-checking helper, audit trail, and worker/manager scoping. Doc not yet handed to Hermes — he's still on Round 12. Will turn into a directive after Round 12 verifies clean.
+
+**Reason:** Round 11 is the next-largest piece after the seed lands. Pre-scoping it now means the directive can be a 30-min write rather than a 2-hour design + write when Michael is ready to kick it off.
