@@ -264,4 +264,67 @@ router.post('/settings', (req, res) => {
   res.redirect('/admin/settings');
 });
 
+// AI Usage dashboard (admin only)
+router.get('/ai-usage', (req, res) => {
+  const db = require('../db/db');
+  const today = new Date().toISOString().slice(0, 10);
+  const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+  // Total stats
+  const totalCalls = (db.get("SELECT COUNT(*) AS n FROM audit_logs WHERE source = 'ai_chat'") || {}).n || 0;
+  // Token count stored in after_json — try to extract
+  let totalTokens = 0;
+  const tokenRows = db.all("SELECT after_json FROM audit_logs WHERE source = 'ai_chat' AND after_json IS NOT NULL LIMIT 500");
+  tokenRows.forEach(r => {
+    try {
+      const parsed = typeof r.after_json === 'string' ? JSON.parse(r.after_json) : r.after_json;
+      if (parsed && parsed.tokens_used) totalTokens += Number(parsed.tokens_used) || 0;
+    } catch(e) {}
+  });
+  const estimatedCost = totalTokens * 0.0000015; // ~$1.50/1M tokens at DeepSeek rates
+
+  // Daily aggregation (14-day)
+  const dailyRows = db.all(`SELECT date(created_at) AS d, COUNT(*) AS n FROM audit_logs
+    WHERE source = 'ai_chat' AND date(created_at) >= ? AND date(created_at) <= ?
+    GROUP BY d ORDER BY d ASC`, [fourteenDaysAgo, today]);
+  const dailyDataMap = {};
+  dailyRows.forEach(r => { dailyDataMap[r.d] = r.n; });
+  const dailyData = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    dailyData.push({ date: d, count: dailyDataMap[d] || 0 });
+  }
+
+  // Top users
+  const topUsers = db.all(`SELECT al.user_id, u.name, COUNT(*) AS count, COALESCE(SUM(
+    CASE WHEN json_extract(al.after_json, '$.tokens_used') IS NOT NULL
+      THEN CAST(json_extract(al.after_json, '$.tokens_used') AS INTEGER) ELSE 0 END
+  ), 0) AS tokens
+    FROM audit_logs al LEFT JOIN users u ON u.id = al.user_id
+    WHERE al.source = 'ai_chat' AND al.user_id IS NOT NULL
+    GROUP BY al.user_id ORDER BY count DESC LIMIT 5`);
+
+  // Recent calls
+  const recentCalls = db.all(`SELECT al.id, al.user_id, u.name, al.after_json, al.created_at
+    FROM audit_logs al LEFT JOIN users u ON u.id = al.user_id
+    WHERE al.source = 'ai_chat' ORDER BY al.created_at DESC LIMIT 20`);
+  const parsedCalls = recentCalls.map(r => {
+    let msg = '', tokens = 0, latency = 0;
+    try {
+      const parsed = typeof r.after_json === 'string' ? JSON.parse(r.after_json) : (r.after_json || {});
+      msg = (parsed.message || '').slice(0, 100);
+      tokens = parsed.tokens_used || 0;
+      latency = parsed.latency_ms || 0;
+    } catch(e) {}
+    return { created_at: r.created_at, name: r.name || 'User #' + r.user_id, message: msg, tokens, latency };
+  });
+
+  res.render('admin/ai-usage', {
+    title: 'AI Usage', activeNav: 'admin',
+    totalCalls, totalTokens, estimatedCost,
+    dailyData, topUsers, recentCalls: parsedCalls,
+    error: null
+  });
+});
+
 module.exports = router;

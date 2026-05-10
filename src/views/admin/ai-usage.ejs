@@ -1,0 +1,97 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<%
+function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
+%>
+
+<div class="max-w-5xl mx-auto px-4 py-6">
+  <div class="mb-4"><a href="/admin/users" class="text-sm text-recon-fog hover:text-recon-red">&larr; Admin</a></div>
+  <h1 class="page-h1 mb-6">AI Usage</h1>
+
+  <% if (error) { %>
+    <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-4 text-sm"><%= error %></div>
+  <% } %>
+
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div class="card p-4">
+      <div class="text-xs uppercase tracking-wide text-recon-fog">Total calls</div>
+      <div class="text-xl font-semibold mt-1"><%= totalCalls %></div>
+    </div>
+    <div class="card p-4">
+      <div class="text-xs uppercase tracking-wide text-recon-fog">Tokens used</div>
+      <div class="text-xl font-semibold mt-1"><%= totalTokens %></div>
+    </div>
+    <div class="card p-4">
+      <div class="text-xs uppercase tracking-wide text-recon-fog">Est. cost</div>
+      <div class="text-xl font-semibold mt-1">$<%= fmt(estimatedCost) %></div>
+    </div>
+    <div class="card p-4">
+      <div class="text-xs uppercase tracking-wide text-recon-fog">Avg tokens/call</div>
+      <div class="text-xl font-semibold mt-1"><%= totalCalls > 0 ? Math.round(totalTokens / totalCalls) : 0 %></div>
+    </div>
+  </div>
+
+  <!-- 14-day sparkline -->
+  <% if (dailyData.length > 0) { %>
+    <div class="card p-5 mb-6">
+      <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">14-day usage</h3>
+      <div class="flex items-end gap-1" style="height: 4rem;">
+        <% const maxCalls = Math.max(1, ...dailyData.map(d => d.count)); %>
+        <% dailyData.forEach(function(d) { %>
+          <div style="position:relative;width:100%;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;">
+            <div style="width:100%;background:#c0202b;border-radius:2px 2px 0 0;min-height:2px;height:<%= Math.round(d.count / maxCalls * 100) %>%" title="<%= d.date %>: <%= d.count %> calls"></div>
+            <span style="font-size:.5rem;color:#888;margin-top:2px;writing-mode:vertical-lr;text-orientation:mixed;"><%= d.date.slice(5) %></span>
+          </div>
+        <% }); %>
+      </div>
+    </div>
+  <% } %>
+
+  <!-- Top users -->
+  <% if (topUsers.length > 0) { %>
+    <div class="card overflow-hidden mb-6">
+      <div class="px-5 py-3 border-b border-recon-mist">
+        <h3 class="font-semibold">Top users</h3>
+      </div>
+      <table class="data">
+        <thead><tr><th>User</th><th class="text-right">Calls</th><th class="text-right">Tokens</th></tr></thead>
+        <tbody>
+          <% topUsers.forEach(function(u) { %>
+            <tr>
+              <td><%= u.name || 'User #' + u.user_id %></td>
+              <td class="text-right"><%= u.count %></td>
+              <td class="text-right"><%= u.tokens %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+
+  <!-- Recent calls table -->
+  <% if (recentCalls.length > 0) { %>
+    <div class="card overflow-hidden">
+      <div class="px-5 py-3 border-b border-recon-mist">
+        <h3 class="font-semibold">Recent calls</h3>
+      </div>
+      <table class="data">
+        <thead><tr><th>Time</th><th>User</th><th>Message</th><th class="text-right">Tokens</th><th class="text-right">Latency</th></tr></thead>
+        <tbody>
+          <% recentCalls.forEach(function(c) { %>
+            <tr>
+              <td class="text-xs"><%= (c.created_at || '').slice(11,19) %></td>
+              <td><%= c.name || 'User #' + c.user_id %></td>
+              <td class="max-w-xs truncate"><%= (c.message || '').slice(0, 60) %></td>
+              <td class="text-right"><%= c.tokens %></td>
+              <td class="text-right"><%= c.latency %>ms</td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } else { %>
+    <div class="card p-5 text-center text-recon-fog text-sm">No AI usage data yet.</div>
+  <% } %>
+</div>
+
+<%- include('../layouts/footer') %>

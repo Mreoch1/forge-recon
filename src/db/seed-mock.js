@@ -55,15 +55,18 @@ function resetMockData() {
     const r = db.run(`DELETE FROM ${t} WHERE mock = 1`);
     total += r.changes;
   });
-  // Delete JEs linked to mock bills/invoices
-  const jeIds = db.all(`SELECT DISTINCT jl.journal_entry_id FROM journal_lines jl
-    JOIN accounts a ON a.id = jl.account_id
-    JOIN journal_entries je ON je.id = jl.journal_entry_id
-    WHERE je.description LIKE '%Mock%'`);
-  jeIds.forEach(j => {
-    db.run('DELETE FROM journal_lines WHERE journal_entry_id = ?', [j.journal_entry_id]);
-    db.run('DELETE FROM journal_entries WHERE id = ?', [j.journal_entry_id]);
+  // Delete JEs linked to mock bills/invoices — these were created by accounting-posting
+  // during the seed run and reference source_type 'bill' or 'bill_payment' or mock invoice IDs.
+  const mockJeIds = db.all(`SELECT DISTINCT je.id FROM journal_entries je
+    WHERE je.source_type IN ('bill','bill_payment','invoice','payment','invoice_void')
+    AND je.source_id IN (SELECT id FROM bills WHERE mock = 1
+      UNION ALL SELECT id FROM invoices WHERE mock = 1)`);
+  const allJeIds = [...new Set(mockJeIds.map(j => j.id))];
+  allJeIds.forEach(jeId => {
+    db.run('DELETE FROM journal_lines WHERE journal_entry_id = ?', [jeId]);
+    db.run('DELETE FROM journal_entries WHERE id = ?', [jeId]);
   });
+  console.log(`  Cleaned ${allJeIds.length} orphaned journal entries.`);
   // Also delete users with mock role
   db.run("DELETE FROM users WHERE role = 'worker' AND id > 1");
   // Reset numbering counters to 1

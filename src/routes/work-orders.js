@@ -628,6 +628,10 @@ router.post('/:id', (req, res) => {
   res.redirect(`/work-orders/${existing.id}`);
 });
 
+// Note: item-completion audit hook requires per-line diff tracking,
+// which is incompatible with the delete-then-insert pattern above.
+// TODO Round 16+: use a before/after snapshot for audit.
+
 function statusTransition(req, res, fromStatus, toStatus, timestampField) {
   const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
   if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
@@ -640,6 +644,12 @@ function statusTransition(req, res, fromStatus, toStatus, timestampField) {
   const params = [toStatus];
   if (timestampField) sets.push(`${timestampField} = datetime('now')`);
   db.run(`UPDATE work_orders SET ${sets.join(', ')} WHERE id = ?`, [...params, wo.id]);
+  // Audit log
+  try {
+    const { writeAudit } = require('../services/audit');
+    const auditAction = toStatus === 'in_progress' ? 'started' : toStatus;
+    writeAudit({ entityType: 'work_order', entityId: wo.id, action: auditAction, before: { status: wo.status }, after: { status: toStatus }, source: 'web', userId: req.session.userId });
+  } catch(e) { console.error('audit failed:', e.message); }
   setFlash(req, 'success', `WO-${wo.display_number} marked ${toStatus.replace('_',' ')}.`);
   res.redirect(`/work-orders/${wo.id}`);
 }
@@ -681,6 +691,10 @@ router.post('/:id/delete', (req, res) => {
   }
   db.run('DELETE FROM work_order_line_items WHERE work_order_id = ?', [wo.id]);
   db.run('DELETE FROM work_orders WHERE id = ?', [wo.id]);
+  try {
+    const { writeAudit } = require('../services/audit');
+    writeAudit({ entityType: 'work_order', entityId: wo.id, action: 'deleted', before: null, after: null, source: 'web', userId: req.session.userId });
+  } catch(e) {}
   setFlash(req, 'success', `WO-${wo.display_number} deleted.`);
   res.redirect('/work-orders');
 });

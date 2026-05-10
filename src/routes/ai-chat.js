@@ -7,15 +7,28 @@
 const express = require('express');
 const router = express.Router();
 const chatService = require('../services/ai-chat');
+const rateLimit = require('express-rate-limit');
 
-// Kill switch: AI_CHAT_ENABLED=0 disables the endpoint
+// Rate limiter: 30 calls per 5 min per user
+const chatLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.session?.userId || req.ip,
+  handler: (req, res) => {
+    res.status(429).json({ error: 'Rate limit reached. Try again in a few minutes.' });
+  }
+});
+
+// Kill switch
 const isEnabled = () => {
   const val = process.env.AI_CHAT_ENABLED;
   return val === undefined || val === '' || val === '1' || val === 'true';
 };
 
 // Chat endpoint
-router.post('/chat', async (req, res) => {
+router.post('/chat', chatLimiter, async (req, res) => {
   if (!isEnabled()) {
     return res.status(404).json({ error: 'AI chat disabled' });
   }
@@ -28,6 +41,19 @@ router.post('/chat', async (req, res) => {
 
   if (message.length > 2000) {
     return res.status(400).json({ error: 'Message too long (max 2000 chars).' });
+  }
+
+  // Validate history — anti-tampering
+  let safeHistory = [];
+  if (Array.isArray(history)) {
+    safeHistory = history.filter(h => h && typeof h === 'object')
+      .map(h => ({
+        role: (h.role === 'user' || h.role === 'assistant') ? h.role : 'user',
+        content: typeof h.content === 'string' ? h.content.slice(0, 2000) : '',
+        chips: Array.isArray(h.chips) ? h.chips.slice(0, 5) : undefined
+      }))
+      .filter(h => h.content.length > 0)
+      .slice(-20);
   }
 
   try {
@@ -43,7 +69,7 @@ router.post('/chat', async (req, res) => {
 
     const result = await chatService.chat({
       message: message.trim(),
-      history: Array.isArray(history) ? history.slice(-20) : [],
+      history: safeHistory,
       ctx
     });
 

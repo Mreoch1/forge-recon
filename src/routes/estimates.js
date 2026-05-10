@@ -232,6 +232,10 @@ function statusTransition(req, res, fromStatus, toStatus, timestampField) {
   const params = [toStatus];
   if (timestampField) sets.push(`${timestampField} = datetime('now')`);
   db.run(`UPDATE estimates SET ${sets.join(', ')} WHERE id = ?`, [...params, est.id]);
+  try {
+    const { writeAudit } = require('../services/audit');
+    writeAudit({ entityType: 'estimate', entityId: est.id, action: toStatus, before: { status: est.status }, after: { status: toStatus }, source: 'web', userId: req.session.userId });
+  } catch(e) { console.error('audit failed:', e.message); }
   setFlash(req, 'success', `${est.display_number} marked ${toStatus}.`);
   res.redirect(`/estimates/${est.id}`);
 }
@@ -257,6 +261,10 @@ router.post('/:id/send', async (req, res, next) => {
       attachments: [{ filename: `${estimate.display_number}.pdf`, content: buf, contentType: 'application/pdf' }]
     });
     db.run(`UPDATE estimates SET status='sent', sent_at=datetime('now'), updated_at=datetime('now') WHERE id=?`, [estimate.id]);
+    try {
+      const { writeAudit } = require('../services/audit');
+      writeAudit({ entityType: 'estimate', entityId: estimate.id, action: 'sent', before: { status: 'draft' }, after: { status: 'sent' }, source: 'web', userId: req.session.userId });
+    } catch(e) { console.error('audit failed:', e.message); }
     const note = sent.mode === 'file' ? ` Email saved to ${sent.filepath}.` : '';
     setFlash(req, 'success', `${estimate.display_number} sent.${note}`);
     res.redirect(`/estimates/${estimate.id}`);

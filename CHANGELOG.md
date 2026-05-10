@@ -328,3 +328,15 @@ Append-only log of every change. Newest at the bottom. Format:
 - Dashboard v2 view: each WO anchor row now has indented event children (↳ prefix, smaller font, monospace time, dotted vertical guide-line, actor suffix)
 - Seed-mock: added 8 today-dated wo_notes (8:14-14:30 across 4 WOs) + 4 audit_log "started" entries with correct user IDs
 - Smoke: 8 WOs in timeline, events sorted chronologically, "name started work" with correct worker names, notes/status events mixed, worker filter works, tomorrow preview + right rail unchanged
+
+## [2026-05-10T16:45:00Z] — hermes — Round 15: security + audit + rate limit + AI usage page
+- **Worker scope hardening**: ai-tools.js gates workers to only search_work_orders/get_schedule/navigate/search_customers (filtered). Financial tools politely refused. filterForWorker now deletes ar_balance/overdue_invoices/unpaid_invoices/open_estimates.
+- **Mock clause removed**: search_customers no longer has WHERE mock = 1 (debug artifact).
+- **Audit hooks added**: WO statusTransition (start/complete/cancel) and estimate send/accept/reject now write audit_logs rows. WO delete route too.
+- **Navigate path guard**: rejects protocol-relative (//), path traversal (..), backslashes.
+- **History validation**: ai-chat route sanitizes client-supplied history: role must be user/assistant, content truncated to 2000 chars, max 20 items.
+- **Rate limiting**: express-rate-limit installed, 30 calls/5min per user on /ai/chat, returns 429.
+- **SESSION_SECRET production guard**: server.js refuses boot in NODE_ENV=production if secret missing or default.
+- **AI key rotation**: .env.example placeholder replaced. Boot warning for empty/placeholder key.
+- **Admin AI usage page**: GET /admin/ai-usage — total calls/tokens/cost, 14-day sparkline, top users, recent calls.
+- **Seed JE cleanup**: --reset deletes orphaned journal entries/lines linked to mock invoices/bills.

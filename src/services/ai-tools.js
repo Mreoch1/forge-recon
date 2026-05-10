@@ -7,8 +7,15 @@
  *   args        — { name: type, ... } schema for LLM
  *   needs_user  — 'read' | 'navigate' | 'write'
  *   handler     — (args, ctx) => result (must be JSON-serializable)
+ *
+ * Worker scoping: workers only have access to search_work_orders, get_schedule,
+ * navigate, and search_customers (filtered to their assigned WOs' customers).
+ * Financial tools (estimates, invoices, bills, dashboard_summary) are refused.
  */
 const db = require('../db/db');
+
+// ── Worker-allowed tools ─────────────────────────────────────────────
+const WORKER_ALLOWED = ['search_work_orders', 'get_schedule', 'navigate', 'search_customers'];
 
 // ── Helpers ──────────────────────────────────────────────────────────
 function resolveQuery(query) {
@@ -24,20 +31,25 @@ function daysAgo(dateStr) {
   return Math.floor((now - d) / (1000 * 60 * 60 * 24));
 }
 
-function fmt(n) { return isFinite(Number(n)) ? Number(n).toFixed(2) : '0.00'; }
-
 // ── Tool implementations ─────────────────────────────────────────────
 
 const tools = {};
 
 tools.search_customers = {
-  description: 'Search customers by name, email, or phone. Returns id, name, email, phone, city, state.',
+  description: 'Search customers by name, email, or phone.',
   args: { query: 'string (required) — partial name, email, or phone' },
   needs_user: 'read',
   handler: ({ query }, ctx) => {
     const like = resolveQuery(query);
     if (!like) return [];
-    const rows = db.all(`SELECT id, name, email, phone, city, state FROM customers WHERE mock = 1 AND (name LIKE ? OR email LIKE ? OR phone LIKE ?) LIMIT 10`, [like, like, like]);
+    // Workers: only customers whose jobs have a WO assigned to them
+    let cond = '(name LIKE ? OR email LIKE ? OR phone LIKE ?)';
+    const params = [like, like, like];
+    if (ctx.role === 'worker' && ctx.userId) {
+      cond += ' AND c.id IN (SELECT DISTINCT j.customer_id FROM jobs j JOIN work_orders w ON w.job_id = j.id WHERE (w.assigned_to_user_id = ? OR w.assigned_to LIKE ?) AND w.status IN (\'scheduled\',\'in_progress\',\'complete\'))';
+      params.push(ctx.userId, `%${ctx.userName}%`);
+    }
+    const rows = db.all(`SELECT c.id, c.name, c.email, c.phone, c.city, c.state FROM customers c WHERE ${cond} LIMIT 10`, params);
     return rows.map(r => ({ id: r.id, name: r.name, email: r.email || '', phone: r.phone || '', city: r.city || '', state: r.state || '' }));
   }
 };
@@ -103,7 +115,7 @@ tools.search_invoices = {
 
 tools.search_work_orders = {
   description: 'Search work orders by number, customer, job, or filter by status/scheduled_date.',
-  args: { query: 'string (optional)', status: 'string (optional) — scheduled|in_progress|complete|cancelled', scheduled_date: 'string (optional) — YYYY-MM-DD' },
+  args: { query: 'string (optional)', status: 'string (optional)', scheduled_date: 'string (optional)' },
   needs_user: 'read',
   handler: ({ query, status, scheduled_date }, ctx) => {
     const conds = ['w.id IS NOT NULL'];
@@ -111,7 +123,6 @@ tools.search_work_orders = {
     if (query) { const like = resolveQuery(query); conds.push('(w.display_number LIKE ? OR c.name LIKE ? OR j.title LIKE ?)'); params.push(like, like, like); }
     if (status) { conds.push('w.status = ?'); params.push(status); }
     if (scheduled_date) { conds.push('w.scheduled_date = ?'); params.push(scheduled_date); }
-    // Worker scoping
     if (ctx.role === 'worker' && ctx.userId) {
       conds.push('(w.assigned_to_user_id = ? OR w.assigned_to LIKE ?)');
       params.push(ctx.userId, `%${ctx.userName}%`);
@@ -137,7 +148,7 @@ tools.search_work_orders = {
 
 tools.search_bills = {
   description: 'Search bills by number, vendor name, or filter by status.',
-  args: { query: 'string (optional)', status: 'string (optional) — draft|approved|paid|void', vendor_name: 'string (optional)' },
+  args: { query: 'string (optional)', status: 'string (optional)', vendor_name: 'string (optional)' },
   needs_user: 'read',
   handler: ({ query, status, vendor_name }, ctx) => {
     const conds = ['b.id IS NOT NULL'];
@@ -178,8 +189,7 @@ tools.get_schedule = {
       LEFT JOIN users u ON u.id = w.assigned_to_user_id
       WHERE ${conds.join(' AND ')}
       ORDER BY w.scheduled_date ASC, w.scheduled_time ASC`, params);
-    
-    // Group by date
+
     const grouped = {};
     rows.forEach(r => {
       const date = r.scheduled_date ? String(r.scheduled_date).slice(0,10) : 'unscheduled';
@@ -196,7 +206,7 @@ tools.get_schedule = {
 };
 
 tools.get_dashboard_summary = {
-  description: 'Get a summary of key metrics: counts of open estimates, active WOs, unpaid invoices, A/R balance, revenue MTD/YTD.',
+  description: 'Get a summary of key metrics: counts of open estimates, active WOs, unpaid invoices, A/R balance.',
   args: {},
   needs_user: 'read',
   handler: (args, ctx) => {
@@ -216,13 +226,16 @@ tools.get_dashboard_summary = {
 };
 
 tools.navigate = {
-  description: 'Generate a navigation link to a page. Validates the path exists.',
-  args: { path: 'string (required) — e.g. /work-orders, /invoices?status=overdue, /customers/5' },
+  description: 'Generate a navigation link to a page. Validates the path.',
+  args: { path: 'string (required) — e.g. /work-orders, /invoices?status=overdue' },
   needs_user: 'navigate',
   handler: ({ path }, ctx) => {
-    // Basic validation — just strip base and check it starts with /
     const p = String(path || '').trim();
-    if (!p.startsWith('/')) return { ok: false, error: 'Invalid path format' };
+    // Reject protocol-relative, path traversal, backslashes
+    if (!p.startsWith('/')) return { ok: false, error: 'Path must start with /' };
+    if (p.startsWith('//') || p.startsWith('/\\')) return { ok: false, error: 'Protocol-relative paths not allowed' };
+    if (p.includes('..')) return { ok: false, error: 'Path traversal not allowed' };
+    if (p.includes('\\')) return { ok: false, error: 'Backslashes not allowed in paths' };
     return { ok: true, path: p };
   }
 };
@@ -230,7 +243,7 @@ tools.navigate = {
 // ── Worker post-filter ──────────────────────────────────────────────
 function filterForWorker(result, role) {
   if (role !== 'worker') return result;
-  // Workers only get WO-based data; redact costs/prices
+  // Workers only get WO-based data; redact costs/prices/financial metrics
   if (result && typeof result === 'object') {
     if (Array.isArray(result)) {
       return result.map(r => filterForWorker(r, role));
@@ -240,7 +253,13 @@ function filterForWorker(result, role) {
     delete filtered.cost;
     delete filtered.line_total;
     delete filtered.total;
+    delete filtered.amount_paid;
     if (filtered.balance !== undefined) delete filtered.balance;
+    delete filtered.ar_balance;
+    delete filtered.overdue_invoices;
+    delete filtered.unpaid_invoices;
+    delete filtered.open_estimates;
+    delete filtered.active_work_orders;
     return filtered;
   }
   return result;
@@ -260,9 +279,14 @@ module.exports = {
   call(name, args, ctx) {
     const tool = tools[name];
     if (!tool) return { ok: false, error: `Unknown tool: ${name}` };
-    // Permission check
-    if (ctx.role === 'worker' && tool.needs_user === 'write') {
-      return { ok: false, error: 'Workers cannot perform this action.' };
+    // Worker permission check
+    if (ctx.role === 'worker') {
+      if (tool.needs_user === 'write') {
+        return { ok: false, error: 'You don\'t have permission to perform write actions.' };
+      }
+      if (!WORKER_ALLOWED.includes(name)) {
+        return { ok: false, error: 'You don\'t have access to that type of data.' };
+      }
     }
     try {
       let result = tool.handler(args || {}, ctx);

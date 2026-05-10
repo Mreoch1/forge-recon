@@ -44,6 +44,17 @@ const SESSIONS_DIR = path.join(__dirname, '..', 'sessions');
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const VIEWS_DIR = path.join(__dirname, 'views');
 
+// Production safety checks
+if (process.env.NODE_ENV === 'production') {
+  if (!SESSION_SECRET || SESSION_SECRET === 'dev-secret-change-me') {
+    console.error('FATAL: SESSION_SECRET must be set in production. Set a strong random value in .env');
+    process.exit(1);
+  }
+  if (process.env.AI_PROVIDER && (!process.env.AI_API_KEY || process.env.AI_API_KEY === '' || process.env.AI_API_KEY.startsWith('sk-placeholder'))) {
+    console.warn('WARNING: AI_PROVIDER is set but AI_API_KEY is empty or placeholder. AI features disabled.');
+  }
+}
+
 if (!fs.existsSync(SESSIONS_DIR)) fs.mkdirSync(SESSIONS_DIR, { recursive: true });
 
 async function main() {
@@ -138,7 +149,7 @@ async function main() {
   });
 
   app.listen(PORT, () => {
-    console.log(`Recon WO server listening on http://localhost:${PORT}`);
+    console.log(`FORGE server listening on http://localhost:${PORT}`);
     console.log(`Node ${process.version}  pid ${process.pid}  env ${process.env.NODE_ENV || 'dev'}`);
   });
 }

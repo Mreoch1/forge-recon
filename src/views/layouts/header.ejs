@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><%= typeof title !== 'undefined' && title ? title + ' — Recon WO' : 'Recon WO' %></title>
+  <title><%= typeof title !== 'undefined' && title ? title + ' — FORGE' : 'FORGE' %></title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/htmx.org@2.0.3"></script>
   <script>
@@ -35,6 +35,18 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     body { background: #f5f5f5; color: #1a1a1a; font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif; }
+    .forge-wordmark {
+      background: linear-gradient(95deg, #e63946 0%, #ff6b75 35%, #ffffff 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      color: transparent;
+      filter: drop-shadow(0 1px 0 rgba(0,0,0,.25));
+      transition: filter .2s;
+    }
+    .group:hover .forge-wordmark {
+      filter: drop-shadow(0 0 6px rgba(230,57,70,.55)) drop-shadow(0 1px 0 rgba(0,0,0,.25));
+    }
     .navlink { color: #d0d0d0; padding: .5rem .75rem; border-radius: .25rem; transition: all .15s; font-size: .9rem; }
     .navlink:hover { background: #3d3d3d; color: #ffffff; }
     .navlink.active { background: #c0202b; color: #ffffff; }
@@ -73,9 +85,12 @@
   <nav class="bg-recon-charcoal text-white shadow-md">
     <div class="max-w-7xl mx-auto px-4 flex items-center justify-between h-14">
       <div class="flex items-center gap-2">
-        <a href="/" class="flex items-center gap-2 mr-4">
+        <a href="/" class="flex items-center gap-2 mr-4 group">
           <img src="/logos/recon.png" alt="Recon" class="h-8 w-auto">
-          <span class="font-bold text-lg tracking-tight">Recon WO</span>
+          <span class="flex flex-col leading-none">
+            <span class="forge-wordmark font-extrabold text-lg tracking-[.16em]">FORGE</span>
+            <span class="text-[.55rem] uppercase tracking-[.18em] text-recon-fog mt-0.5">by Recon Enterprises</span>
+          </span>
         </a>
         <div class="hidden md:flex items-center gap-1">
           <a href="/" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'dashboard' ? ' active' : '' %>">Dashboard</a>
