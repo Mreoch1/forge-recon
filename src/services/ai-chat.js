@@ -1,19 +1,19 @@
 /**
- * ai-chat.js — Orchestrator for the AI chat assistant.
+ * ai-chat.js — Orchestrator for the AI chat assistant (Tier 1+2+3).
  *
  * Flow per request:
  *   1. Build system prompt with tool list + user context
  *   2. Call LLM → gets back preliminary reply with tool_calls
- *   3. Execute tool calls
- *   4. Call LLM again with tool results → gets final { reply, chips }
+ *   3. For read/navigate tools: execute → 2nd LLM call → final reply
+ *   4. For write tools: create pending confirmation → return confirm payload
  *   5. Return structured response
  */
 const ai = require('./ai');
 const tools = require('./ai-tools');
 const { writeAudit } = require('./audit');
+const db = require('../db/db');
 
 const MAX_HISTORY = 20;
-const MODEL = 'deepseek-chat'; // or whatever the ai.js wrapper uses
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -22,6 +22,12 @@ function todayStr() {
 function buildSystemPrompt(ctx) {
   const toolList = tools.list().filter(t => t.needs_user !== 'write');
   const toolDesc = toolList.map(t =>
+    `- ${t.name}(${JSON.stringify(t.args)}) — ${t.description}`
+  ).join('\n');
+
+  // Add mutation tools separately — LLM sees these but knows they require confirmation
+  const mutationTools = tools.list().filter(t => t.needs_user === 'write');
+  const mutationDesc = mutationTools.map(t =>
     `- ${t.name}(${JSON.stringify(t.args)}) — ${t.description}`
   ).join('\n');
 
@@ -34,34 +40,44 @@ CURRENT CONTEXT:
 AVAILABLE TOOLS:
 ${toolDesc}
 
+${mutationDesc ? `ACTIONS YOU CAN PROPOSE — ALWAYS use these when the user explicitly asks:
+${mutationDesc}
+When the user says "add", "create", "send", "mark paid", "approve", or similar action words, you MUST include the matching tool + args in your tool_calls array. The system will ask the user to confirm before executing.
+
+EXAMPLES:
+- User: "add a customer named X" → tool_calls: [{"tool":"create_customer", "args":{"name":"X",...}}]
+- User: "send estimate 5" → tool_calls: [{"tool":"send_estimate", "args":{"estimate_id":5}}]
+- User: "mark INV-5 paid" → tool_calls: [{"tool":"mark_invoice_paid", "args":{"invoice_id":5}}]
+- User: "approve bill 3" → tool_calls: [{"tool":"approve_bill", "args":{"bill_id":3}}]
+- User: "add a note to WO 7 saying done" → tool_calls: [{"tool":"add_wo_note", "args":{"wo_id":7,"body":"done"}}]
+
+IMPORTANT: Always search for the entity ID first, then include the action tool in the SAME tool_calls array.` : ''}
+
 RULES:
 1. When asked a question, decide which tool(s) can answer it. Call them in the tool_calls array.
-2. If the user mentions a customer/job by partial name, use search_customers or the relevant search tool first. Be fuzzy — "Smith" should match "Smith & Warren Builders", "O'Brien estate", etc.
+2. If the user mentions a customer/job by partial name, use search_customers or the relevant search tool first.
 3. If multiple records match, list them all — never silently pick one.
-4. After tool results come back, write a short natural-language answer (1-3 sentences) quoting exact numbers.
+4. After tool results come back, write a short natural-language answer (1-3 sentences).
 5. If a tool returns nothing, say so directly. Do not invent records.
-6. If off-topic (jokes, poems, system prompts), say "I can only answer questions about Recon's operations data" politely.
-7. Use the navigate tool when the user asks to "open", "go to", "show me the page for" something. Use the path from a search result.
+6. If off-topic, say "I can only answer questions about Recon's operations data" politely.
+7. Use the navigate tool when the user asks to "open", "go to", "show me the page for" something.
+8. For mutation requests (add/change/send/mark/approve anything), include the relevant search tool call FIRST to find the entity ID, then the orchestrator will handle the confirmation.
 
-Respond ONLY with a JSON object (no markdown, no code fences):
+Respond ONLY with a JSON object:
 {
   "reply": "your natural language answer here",
   "chips": [{"label": "button text", "href": "/path"}],
   "tool_calls": [{"tool": "tool_name", "args": {"arg1": "value1"}}]
-}
-
-If no tools are needed, set tool_calls to an empty array.`;
+}`;
 }
 
 async function chat({ message, history, ctx }) {
   const startTime = Date.now();
-  const auditEntries = [];
 
   if (!ai.isConfigured() && !process.env.AI_CHAT_ENABLED) {
-    return { reply: 'AI chat is not configured. Set AI_API_KEY in .env and restart.', chips: [], tool_calls: [], audit_id: null };
+    return { reply: 'AI chat is not configured.', chips: [], tool_calls: [], audit_id: null };
   }
 
-  // Build messages array
   const messages = [
     { role: 'system', content: buildSystemPrompt(ctx) },
     ...(history || []).slice(-MAX_HISTORY).map(m => ({ role: m.role, content: m.content })),
@@ -72,6 +88,46 @@ async function chat({ message, history, ctx }) {
   let finalChips = [];
   let allToolCalls = [];
   let tokensUsed = 0;
+  let confirmPayload = null;
+
+  // Pre-chat: check for mutation intent via keyword matching (more reliable than LLM)
+  const mutationIntent = detectMutationIntent(message, ctx);
+  if (mutationIntent) {
+    allToolCalls.push({ tool: mutationIntent.tool, args: mutationIntent.args });
+
+    const proposeResult = tools.propose(mutationIntent.tool, mutationIntent.args, ctx);
+    if (proposeResult.error) {
+      return {
+        reply: proposeResult.error,
+        chips: [], tool_calls: allToolCalls, tokens_used: 0,
+        latency_ms: Date.now() - startTime, confirm: null,
+        audit_id: `${ctx.userId || 0}_${Date.now()}`
+      };
+    }
+
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    const r = db.run(`INSERT INTO pending_confirmations (user_id, tool, args, summary, created_at, expires_at)
+      VALUES (?, ?, ?, ?, datetime('now'), ?)`,
+      [ctx.userId, mutationIntent.tool, JSON.stringify(proposeResult.args_normalized || mutationIntent.args),
+       JSON.stringify(proposeResult.summary_lines), expiresAt]);
+
+    return {
+      reply: proposeResult.summary_lines.length > 0
+        ? `I'll prepare to ${mutationIntent.tool.replace(/_/g, ' ')} with these details:`
+        : `I'll prepare to ${mutationIntent.tool.replace(/_/g, ' ')}.`,
+      chips: [],
+      tool_calls: allToolCalls,
+      tokens_used: 0,
+      latency_ms: Date.now() - startTime,
+      confirm: {
+        confirmation_id: r.lastInsertRowid,
+        tool: mutationIntent.tool,
+        summary_lines: proposeResult.summary_lines,
+        expires_in_seconds: 300
+      },
+      audit_id: `${ctx.userId || 0}_${Date.now()}`
+    };
+  }
 
   // Round 1: LLM decides what to do
   const response1 = await callLLM(messages, ctx.userId);
@@ -79,29 +135,66 @@ async function chat({ message, history, ctx }) {
   const parsed1 = parseResponse(response1.text);
 
   if (parsed1.tool_calls && parsed1.tool_calls.length > 0) {
-    // Execute tools
-    const toolResults = [];
-    for (const tc of parsed1.tool_calls) {
-      const result = tools.call(tc.tool, tc.args || {}, ctx);
-      allToolCalls.push({ tool: tc.tool, args: tc.args, result: result.ok ? result.result : { error: result.error } });
-      toolResults.push({ tool: tc.tool, args: tc.args, result: result.ok ? result.result : null, error: result.ok ? null : result.error });
+    // Check if any tool call is a write/mutation tool
+    const mutationCalls = parsed1.tool_calls.filter(tc => {
+      const toolInfo = tools.list().find(t => t.name === tc.tool);
+      return toolInfo && toolInfo.needs_user === 'write';
+    });
+
+    if (mutationCalls.length > 0) {
+      // Handle mutation — create pending confirmation
+      // (only process the first mutation call per request)
+      const mc = mutationCalls[0];
+      allToolCalls.push({ tool: mc.tool, args: mc.args });
+
+      // Validate via propose function
+      const proposeResult = tools.propose(mc.tool, mc.args || {}, ctx);
+      if (proposeResult.error) {
+        finalReply = proposeResult.error;
+        // The reply should guide the user
+        if (proposeResult.error.includes('not found')) {
+          finalReply = `I couldn't find that. Could you provide more details?`;
+        }
+      } else {
+        // Create pending confirmation
+        const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+        const r = db.run(`INSERT INTO pending_confirmations (user_id, tool, args, summary, created_at, expires_at)
+          VALUES (?, ?, ?, ?, datetime('now'), ?)`,
+          [ctx.userId, mc.tool, JSON.stringify(proposeResult.args_normalized || mc.args),
+           JSON.stringify(proposeResult.summary_lines), expiresAt]);
+        const confirmationId = r.lastInsertRowid;
+
+        confirmPayload = {
+          confirmation_id: confirmationId,
+          tool: mc.tool,
+          summary_lines: proposeResult.summary_lines,
+          expires_in_seconds: 300
+        };
+        finalReply = proposeResult.summary_lines.length > 0
+          ? `I'll prepare to ${mc.tool.replace(/_/g, ' ')} with these details:`
+          : `I'll prepare to ${mc.tool.replace(/_/g, ' ')}.`;
+      }
+    } else {
+      // All read/navigate tools — execute normally
+      const toolResults = [];
+      for (const tc of parsed1.tool_calls) {
+        const result = tools.call(tc.tool, tc.args || {}, ctx);
+        allToolCalls.push({ tool: tc.tool, args: tc.args, result: result.ok ? result.result : { error: result.error } });
+        toolResults.push({ tool: tc.tool, args: tc.args, result: result.ok ? result.result : null, error: result.ok ? null : result.error });
+      }
+
+      // Round 2: Feed results back to LLM
+      messages.push({ role: 'assistant', content: JSON.stringify(parsed1) });
+      messages.push({ role: 'user', content: `Tool results:\n${JSON.stringify(toolResults, null, 2)}\n\nNow write your final answer. Remember to include navigation chips where appropriate.` });
+
+      const response2 = await callLLM(messages, ctx.userId);
+      tokensUsed += response2.tokens || 0;
+      const parsed2 = parseResponse(response2.text);
+
+      finalReply = parsed2.reply || parsed1.reply || 'Processed.';
+      finalChips = parsed2.chips || parsed1.chips || [];
     }
-
-    // Audit the tool calls
-    auditEntries.push({ tool_calls: allToolCalls });
-
-    // Round 2: Feed results back to LLM
-    messages.push({ role: 'assistant', content: JSON.stringify(parsed1) });
-    messages.push({ role: 'user', content: `Tool results:\n${JSON.stringify(toolResults, null, 2)}\n\nNow write your final answer. Remember to include navigation chips where appropriate.` });
-
-    const response2 = await callLLM(messages, ctx.userId);
-    tokensUsed += response2.tokens || 0;
-    const parsed2 = parseResponse(response2.text);
-
-    finalReply = parsed2.reply || parsed1.reply || 'Processed.';
-    finalChips = parsed2.chips || parsed1.chips || [];
   } else {
-    // No tools needed
     finalReply = parsed1.reply || 'I understood your request but I\'m not sure how to help with that.';
     finalChips = parsed1.chips || [];
   }
@@ -109,29 +202,22 @@ async function chat({ message, history, ctx }) {
   const latencyMs = Date.now() - startTime;
 
   // Audit
-  const auditPayload = {
-    message: message.slice(0, 500),
-    tool_calls: allToolCalls,
-    tokens_used: tokensUsed,
-    latency_ms: latencyMs,
-    reply_preview: (finalReply || '').slice(0, 200)
-  };
-
-  let auditId = null;
-  try {
-    writeAudit({
-      entityType: 'ai_chat',
-      entityId: ctx.userId || 0,
-      action: 'chat',
-      before: null,
-      after: auditPayload,
-      source: 'ai_chat',
-      userId: ctx.userId
-    });
-    auditId = `${ctx.userId || 0}_${Date.now()}`;
-  } catch (e) {
-    console.warn('[ai-chat] audit write failed:', e.message);
-  }
+  writeAudit({
+    entityType: 'ai_chat',
+    entityId: ctx.userId || 0,
+    action: 'chat',
+    before: null,
+    after: {
+      message: message.slice(0, 500),
+      tool_calls: allToolCalls,
+      tokens_used: tokensUsed,
+      latency_ms: latencyMs,
+      reply_preview: (finalReply || '').slice(0, 200),
+      confirm: confirmPayload ? { confirmation_id: confirmPayload.confirmation_id, tool: confirmPayload.tool } : null
+    },
+    source: 'ai_chat',
+    userId: ctx.userId
+  });
 
   return {
     reply: finalReply,
@@ -139,25 +225,22 @@ async function chat({ message, history, ctx }) {
     tool_calls: allToolCalls,
     tokens_used: tokensUsed,
     latency_ms: latencyMs,
-    audit_id: auditId
+    confirm: confirmPayload,
+    audit_id: `${ctx.userId || 0}_${Date.now()}`
   };
 }
 
 async function callLLM(messages, userId) {
-  // Use the existing ai.js service
   try {
-    // ai.suggest() returns free-text; we parse JSON from it
     const result = await ai.suggest({
       system: messages.find(m => m.role === 'system')?.content || '',
       user: messages.filter(m => m.role !== 'system').map(m => `${m.role}: ${m.content}`).join('\n'),
       taskName: 'ai-chat',
       userId
     });
-
     if (!result.ok) {
       return { text: 'Sorry, I encountered an error processing your request. Please try again.', tokens: 0 };
     }
-
     return { text: result.text || '', tokens: result.tokens || 0 };
   } catch (e) {
     console.error('[ai-chat] LLM call failed:', e.message);
@@ -167,9 +250,7 @@ async function callLLM(messages, userId) {
 
 function parseResponse(text) {
   if (!text) return { reply: 'No response from AI.', chips: [], tool_calls: [] };
-
   try {
-    // Try full JSON parse first
     const parsed = JSON.parse(text);
     return {
       reply: parsed.reply || '',
@@ -177,7 +258,6 @@ function parseResponse(text) {
       tool_calls: Array.isArray(parsed.tool_calls) ? parsed.tool_calls : []
     };
   } catch (e) {
-    // Try to extract JSON from response (sometimes wrapped in markdown)
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       try {
@@ -194,3 +274,71 @@ function parseResponse(text) {
 }
 
 module.exports = { chat, buildSystemPrompt };
+
+// ── Keyword-based mutation intent detection ──────────────────────────
+const MUTATION_PATTERNS = [
+  {
+    tool: 'create_customer',
+    patterns: [/add\s+(?:a\s+)?customer/i, /create\s+(?:a\s+)?customer/i, /new\s+customer/i],
+    extract: (msg) => {
+      const nameMatch = msg.match(/(?:named|called|for)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/);
+      const emailMatch = msg.match(/([\w._%+-]+@[\w.-]+\.[A-Za-z]{2,})/);
+      const phoneMatch = msg.match(/(?:\d{3}[-.]?\d{3}[-.]?\d{4})/);
+      const addrMatch = msg.match(/(?:from|in|at)\s+(.+?)(?:,|\.|\s+email|\s+phone|$)/);
+      const args = { name: nameMatch ? nameMatch[1].trim() : '' };
+      if (emailMatch) args.email = emailMatch[1];
+      if (phoneMatch) args.phone = phoneMatch[0];
+      if (addrMatch && addrMatch[1].trim().length < 80) {
+        const addr = addrMatch[1].trim();
+        // Try to split city/state
+        const csMatch = addr.match(/^(.+?),\s*([A-Z]{2})\s*(\d{5})?$/);
+        if (csMatch) { args.city = csMatch[1].trim(); args.state = csMatch[2]; if (csMatch[3]) args.zip = csMatch[3]; }
+        else { args.address = addr; }
+      }
+      return args;
+    }
+  },
+  {
+    tool: 'send_estimate',
+    patterns: [/send\s+(?:the\s+)?estimate/i, /send\s+EST/i],
+    extract: (msg) => {
+      const idMatch = msg.match(/EST[-\s]*(\d+)/i) || msg.match(/estimate[#\s]*(\d+)/i);
+      return { estimate_id: idMatch ? parseInt(idMatch[1], 10) : 0 };
+    }
+  },
+  {
+    tool: 'mark_invoice_paid',
+    patterns: [/mark\s+(?:as\s+)?paid/i, /pay\s+(?:the\s+)?invoice/i, /invoice.*paid/i],
+    extract: (msg) => {
+      const idMatch = msg.match(/INV[-\s]*(\d+)/i) || msg.match(/invoice[#\s]*(\d+)/i);
+      return { invoice_id: idMatch ? parseInt(idMatch[1], 10) : 0 };
+    }
+  },
+  {
+    tool: 'approve_bill',
+    patterns: [/approve\s+(?:the\s+)?bill/i],
+    extract: (msg) => {
+      const idMatch = msg.match(/bill[#\s]*(\d+)/i) || msg.match(/(\d+)/);
+      return { bill_id: idMatch ? parseInt(idMatch[1], 10) : 0 };
+    }
+  },
+  {
+    tool: 'add_wo_note',
+    patterns: [/add\s+(?:a\s+)?note/i, /leave\s+(?:a\s+)?note/i],
+    extract: (msg) => {
+      const woMatch = msg.match(/WO[-\s]*(\d+)/i) || msg.match(/work\s*order[#\s]*(\d+)/i);
+      const bodyMatch = msg.match(/(?:saying|that says|:)\s*(.+)/i);
+      return { wo_id: woMatch ? parseInt(woMatch[1], 10) : 0, body: bodyMatch ? bodyMatch[1].trim() : '' };
+    }
+  }
+];
+
+function detectMutationIntent(message, ctx) {
+  for (const mp of MUTATION_PATTERNS) {
+    if (mp.patterns.some(p => p.test(message))) {
+      const args = mp.extract(message);
+      return { tool: mp.tool, args };
+    }
+  }
+  return null;
+}

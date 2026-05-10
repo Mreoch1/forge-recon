@@ -60,6 +60,20 @@ if (!fs.existsSync(SESSIONS_DIR)) fs.mkdirSync(SESSIONS_DIR, { recursive: true }
 async function main() {
   await db.init();
 
+  // Ensure pending_confirmations table exists
+  try {
+    db.run(`CREATE TABLE IF NOT EXISTS pending_confirmations (
+      id INTEGER PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      tool TEXT NOT NULL,
+      args TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      created_at TEXT,
+      expires_at TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending'
+    )`);
+  } catch(e) { console.error('Failed to create pending_confirmations table:', e.message); }
+
   const app = express();
 
   // EJS

@@ -7,6 +7,8 @@
 const express = require('express');
 const router = express.Router();
 const chatService = require('../services/ai-chat');
+const tools = require('../services/ai-tools');
+const { writeAudit } = require('../services/audit');
 const rateLimit = require('express-rate-limit');
 
 // Rate limiter: 30 calls per 5 min per user
@@ -77,11 +79,76 @@ router.post('/chat', chatLimiter, async (req, res) => {
       reply: result.reply,
       chips: result.chips || [],
       tool_calls: result.tool_calls || [],
+      confirm: result.confirm || undefined,
       audit_id: result.audit_id
     });
   } catch (err) {
     console.error('[ai-chat] error:', err);
     res.status(500).json({ error: 'Internal error processing chat request.' });
+  }
+});
+
+// Confirm or cancel a pending mutation
+router.post('/chat/confirm', async (req, res) => {
+  if (!isEnabled()) {
+    return res.status(404).json({ error: 'AI chat disabled' });
+  }
+
+  const { confirmation_id, accept } = req.body;
+  if (!confirmation_id) {
+    return res.status(400).json({ error: 'confirmation_id is required.' });
+  }
+
+  const db = require('../db/db');
+  const row = db.get('SELECT * FROM pending_confirmations WHERE id = ?', [confirmation_id]);
+
+  if (!row) {
+    return res.status(404).json({ error: 'Confirmation not found.' });
+  }
+
+  // Ownership check
+  if (row.user_id !== req.session?.userId) {
+    return res.status(403).json({ error: 'This confirmation belongs to another user.' });
+  }
+
+  if (row.status !== 'pending') {
+    return res.status(409).json({ error: `Confirmation already ${row.status}.` });
+  }
+
+  // Expiry check
+  if (new Date(row.expires_at) < new Date()) {
+    db.run("UPDATE pending_confirmations SET status = 'expired' WHERE id = ?", [row.id]);
+    writeAudit({ entityType: 'pending_confirmation', entityId: row.id, action: 'expired', before: null, after: { tool: row.tool }, source: 'ai', userId: row.user_id });
+    return res.status(409).json({ error: 'Confirmation expired. Please ask the AI again.' });
+  }
+
+  if (accept === true || accept === 'true') {
+    // Execute the mutation
+    const args = JSON.parse(row.args || '{}');
+    const userId = req.session?.userId || 0;
+    const userName = (() => { try { return db.get('SELECT name FROM users WHERE id = ?', [userId]).name; } catch(e) { return 'Unknown'; } })();
+    const role = (() => { try { return db.get('SELECT role FROM users WHERE id = ?', [userId]).role; } catch(e) { return 'admin'; } })();
+    const ctx = { userId, userName, role };
+
+    const result = tools.executeMutation(row.tool, args, ctx);
+    if (result.ok) {
+      db.run("UPDATE pending_confirmations SET status = 'confirmed' WHERE id = ?", [row.id]);
+      writeAudit({ entityType: 'pending_confirmation', entityId: row.id, action: 'confirmed', before: null, after: { tool: row.tool, result: result.result }, source: 'ai', userId: row.user_id });
+
+      const chips = result.result && result.result.href
+        ? [{ label: `View ${row.tool.replace(/_/g, ' ')}`, href: result.result.href }]
+        : [];
+
+      return res.json({ ok: true, result: result.result, chips });
+    } else {
+      db.run("UPDATE pending_confirmations SET status = 'failed' WHERE id = ?", [row.id]);
+      return res.status(500).json({ ok: false, error: result.error || 'Execution failed.' });
+    }
+  } else {
+    // Cancel
+    db.run("UPDATE pending_confirmations SET status = 'cancelled' WHERE id = ?", [row.id]);
+    writeAudit({ entityType: 'pending_confirmation', entityId: row.id, action: 'cancelled', before: null, after: { tool: row.tool }, source: 'ai', userId: row.user_id });
+    return res.json({ ok: true, cancelled: true });
   }
 });
 

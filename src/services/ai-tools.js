@@ -13,6 +13,7 @@
  * Financial tools (estimates, invoices, bills, dashboard_summary) are refused.
  */
 const db = require('../db/db');
+const { writeAudit } = require('./audit');
 
 // ── Worker-allowed tools ─────────────────────────────────────────────
 const WORKER_ALLOWED = ['search_work_orders', 'get_schedule', 'navigate', 'search_customers'];
@@ -265,7 +266,163 @@ function filterForWorker(result, role) {
   return result;
 }
 
-// ── Export ───────────────────────────────────────────────────────────
+// ── Mutation tools (Tier 3 — requires confirmation) ──────────────────
+
+const MUTATION_TOOLS = {};
+
+MUTATION_TOOLS.create_customer = {
+  needs_user: 'write',
+  propose(args, ctx) {
+    if (!args.name || args.name.trim().length < 2) return { error: 'Customer name is required (min 2 chars).' };
+    const lines = [];
+    lines.push(`Name: ${args.name.trim()}`);
+    if (args.email) lines.push(`Email: ${args.email.trim()}`);
+    if (args.phone) lines.push(`Phone: ${args.phone.trim()}`);
+    if (args.address || args.city || args.state || args.zip) {
+      lines.push(`Address: ${[args.address, args.city, args.state, args.zip].filter(Boolean).join(', ')}`);
+    }
+    if (args.billing_email) lines.push(`Billing email: ${args.billing_email.trim()}`);
+    if (args.notes) lines.push(`Notes: ${args.notes.trim()}`);
+    return { summary_lines: lines, args_normalized: args };
+  },
+  execute(args, ctx) {
+    const r = db.run(`INSERT INTO customers (name, email, phone, address, city, state, zip, billing_email, notes, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+      [args.name.trim(), (args.email || '').trim() || null, (args.phone || '').trim() || null,
+       (args.address || '').trim() || null, (args.city || '').trim() || null, (args.state || '').trim() || null,
+       (args.zip || '').trim() || null, (args.billing_email || '').trim() || null, (args.notes || '').trim() || null]);
+    writeAudit({ entityType: 'customer', entityId: r.lastInsertRowid, action: 'created_by_ai', before: null, after: { name: args.name.trim() }, source: 'ai', userId: ctx.userId });
+    return { id: r.lastInsertRowid, name: args.name.trim(), href: `/customers/${r.lastInsertRowid}` };
+  }
+};
+
+MUTATION_TOOLS.send_estimate = {
+  needs_user: 'write',
+  propose(args, ctx) {
+    const est = db.get('SELECT * FROM estimates WHERE id = ?', [args.estimate_id]);
+    if (!est) return { error: 'Estimate not found.' };
+    if (est.status !== 'draft') return { error: `Estimate is "${est.status}" — must be draft to send.` };
+    const wo = db.get('SELECT display_number FROM work_orders WHERE id = ?', [est.work_order_id]);
+    const number = `EST-${wo ? wo.display_number : ''}`;
+    return { summary_lines: [`Estimate: ${number}`, `Amount: $${Number(est.total).toFixed(2)}`, `Status: draft → sent`], args_normalized: args };
+  },
+  execute(args, ctx) {
+    const est = db.get('SELECT * FROM estimates WHERE id = ?', [args.estimate_id]);
+    db.run(`UPDATE estimates SET status='sent', sent_at=datetime('now'), updated_at=datetime('now') WHERE id=?`, [est.id]);
+    writeAudit({ entityType: 'estimate', entityId: est.id, action: 'sent_by_ai', before: { status: 'draft' }, after: { status: 'sent' }, source: 'ai', userId: ctx.userId });
+    return { id: est.id, href: `/estimates/${est.id}` };
+  }
+};
+
+MUTATION_TOOLS.mark_invoice_paid = {
+  needs_user: 'write',
+  propose(args, ctx) {
+    const inv = db.get('SELECT * FROM invoices WHERE id = ?', [args.invoice_id]);
+    if (!inv) return { error: 'Invoice not found.' };
+    if (inv.status === 'paid') return { error: 'Invoice is already paid.' };
+    const balance = Math.round((Number(inv.total) - Number(inv.amount_paid)) * 100) / 100;
+    let amount = Number(args.amount) || balance;
+    if (amount > balance) { amount = balance; }
+    const wo = db.get('SELECT display_number FROM work_orders WHERE id = ?', [inv.work_order_id]);
+    const number = `INV-${wo ? wo.display_number : ''}`;
+    const lines = [`Invoice: ${number}`, `Amount: $${amount.toFixed(2)}`, `Balance before: $${balance.toFixed(2)}`];
+    if (amount !== (Number(args.amount) || balance)) lines.push('(adjusted to outstanding balance)');
+    const today = new Date().toISOString().slice(0,10);
+    return { summary_lines: lines, args_normalized: { ...args, amount, payment_date: args.payment_date || today } };
+  },
+  execute(args, ctx) {
+    const inv = db.get('SELECT * FROM invoices WHERE id = ?', [args.invoice_id]);
+    const amount = Number(args.amount);
+    const newAmt = (Number(inv.amount_paid) || 0) + amount;
+    const newStatus = newAmt >= Number(inv.total) ? 'paid' : 'sent';
+    db.run(`UPDATE invoices SET amount_paid=?, status=?, paid_at=datetime('now'), updated_at=datetime('now') WHERE id=?`, [newAmt, newStatus, inv.id]);
+    // Post JE via accounting-posting
+    try {
+      const posting = require('../services/accounting-posting');
+      posting.postPaymentReceived(inv, amount, { userId: ctx.userId });
+    } catch(e) { console.warn('JE post for payment failed:', e.message); }
+    writeAudit({ entityType: 'invoice', entityId: inv.id, action: 'paid_by_ai', before: { status: inv.status, amount_paid: inv.amount_paid }, after: { status: newStatus, amount_paid: newAmt }, source: 'ai', userId: ctx.userId });
+    return { id: inv.id, href: `/invoices/${inv.id}` };
+  }
+};
+
+MUTATION_TOOLS.approve_bill = {
+  needs_user: 'write',
+  propose(args, ctx) {
+    const bill = db.get('SELECT * FROM bills WHERE id = ?', [args.bill_id]);
+    if (!bill) return { error: 'Bill not found.' };
+    if (bill.status !== 'draft') return { error: `Bill is "${bill.status}" — must be draft to approve.` };
+    const vendor = db.get('SELECT name FROM vendors WHERE id = ?', [bill.vendor_id]);
+    return { summary_lines: [`Bill: ${bill.bill_number || '#' + bill.id}`, `Vendor: ${vendor ? vendor.name : 'Unknown'}`, `Total: $${Number(bill.total).toFixed(2)}`, `Status: draft → approved`], args_normalized: args };
+  },
+  execute(args, ctx) {
+    const bill = db.get('SELECT * FROM bills WHERE id = ?', [args.bill_id]);
+    db.run(`UPDATE bills SET status='approved', approved_by_user_id=?, approved_at=datetime('now'), updated_at=datetime('now') WHERE id=?`, [ctx.userId, bill.id]);
+    try {
+      const lines = db.all('SELECT * FROM bill_lines WHERE bill_id = ?', [bill.id]);
+      const posting = require('../services/accounting-posting');
+      posting.postBillApproved(bill, lines, { userId: ctx.userId });
+    } catch(e) { console.warn('JE post for bill approve failed:', e.message); }
+    writeAudit({ entityType: 'bill', entityId: bill.id, action: 'approved_by_ai', before: { status: 'draft' }, after: { status: 'approved' }, source: 'ai', userId: ctx.userId });
+    return { id: bill.id, href: `/bills/${bill.id}` };
+  }
+};
+
+MUTATION_TOOLS.add_wo_note = {
+  needs_user: 'write',
+  propose(args, ctx) {
+    const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [args.wo_id]);
+    if (!wo) return { error: 'Work order not found.' };
+    if (ctx.role === 'worker') {
+      const isAssigned = wo.assigned_to_user_id == ctx.userId || (wo.assigned_to && wo.assigned_to.includes(ctx.userName));
+      if (!isAssigned) return { error: 'You can only add notes to work orders assigned to you.' };
+    }
+    if (!args.body || args.body.trim().length < 2) return { error: 'Note body is required (min 2 chars).' };
+    return { summary_lines: [`WO: ${wo.display_number ? 'WO-' + wo.display_number : '#' + wo.id}`, `Note: ${args.body.trim().slice(0, 100)}`], args_normalized: args };
+  },
+  execute(args, ctx) {
+    db.run(`INSERT INTO wo_notes (work_order_id, user_id, body, created_at) VALUES (?, ?, ?, datetime('now'))`, [args.wo_id, ctx.userId, args.body.trim()]);
+    writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'note_added_by_ai', before: null, after: { note: args.body.trim().slice(0,100) }, source: 'ai', userId: ctx.userId });
+    return { id: args.wo_id, href: `/work-orders/${args.wo_id}` };
+  }
+};
+
+// ── Mutation arg schemas ─────────────────────────────────────────────
+function getMutationArgs(name) {
+  const schemas = {
+    create_customer: 'name: string (required), email: string (optional), phone: string (optional), address: string (optional), city: string (optional), state: string (optional), zip: string (optional), billing_email: string (optional), notes: string (optional)',
+    send_estimate: 'estimate_id: number (required)',
+    mark_invoice_paid: 'invoice_id: number (required), amount: number (optional, defaults to outstanding balance)',
+    approve_bill: 'bill_id: number (required)',
+    add_wo_note: 'wo_id: number (required), body: string (required)',
+  };
+  return schemas[name] || {};
+}
+
+// ── Exports ──────────────────────────────────────────────────────────
+// Mutation tools are NOT in the `tools` object visible to LLM.
+// They're only callable via the confirmation flow.
+const mutationList = {};
+Object.keys(MUTATION_TOOLS).forEach(k => {
+  mutationList[k] = { needs_user: 'write', description: '', args: {}, handler: MUTATION_TOOLS[k].execute };
+});
+
+// Merge mutation tools into the main tool list (for LLM visibility)
+// but mark them as 'write' so the orchestrator handles confirmation
+Object.entries(MUTATION_TOOLS).forEach(([name, t]) => {
+  tools[name] = {
+    description: ({
+      create_customer: 'Create a new customer record. Call this when the user says "add" or "create a customer".',
+      send_estimate: 'Send an estimate to the customer (flips draft→sent). Call this when the user says "send estimate".',
+      mark_invoice_paid: 'Mark an invoice as paid. Call this when the user says "mark paid" or "pay invoice".',
+      approve_bill: 'Approve a draft bill (flips draft→approved). Call this when the user says "approve bill".',
+      add_wo_note: 'Add a note to a work order. Call this when the user says "add a note" or "leave a note".',
+    })[name] || `[ACTION] ${name.replace(/_/g, ' ')}`,
+    args: getMutationArgs(name),
+    needs_user: 'write',
+    handler: t.execute
+  };
+});
 module.exports = {
   tools,
   list() {
@@ -295,5 +452,29 @@ module.exports = {
     } catch (e) {
       return { ok: false, error: e.message };
     }
+  },
+  // Tier 3: propose a mutation (validate + generate summary)
+  propose(name, args, ctx) {
+    if (!MUTATION_TOOLS[name]) return { error: `Unknown mutation tool: ${name}` };
+    const tool = MUTATION_TOOLS[name];
+    // Manager+admin only for most mutations
+    if (ctx.role === 'worker' && name !== 'add_wo_note') {
+      return { error: 'Only managers and admins can perform this action.' };
+    }
+    return tool.propose(args, ctx);
+  },
+  // Tier 3: execute a confirmed mutation
+  executeMutation(name, args, ctx) {
+    if (!MUTATION_TOOLS[name]) return { ok: false, error: `Unknown mutation tool: ${name}` };
+    try {
+      const result = MUTATION_TOOLS[name].execute(args, ctx);
+      return { ok: true, result };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  },
+  // List mutation tools (for confirmation flow — not exposed to LLM)
+  listMutationTools() {
+    return Object.keys(MUTATION_TOOLS);
   }
 };

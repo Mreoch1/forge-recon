@@ -33,6 +33,17 @@ function migrate() {
       migrated++;
     }
   });
+  // Create pending_confirmations table if not exists
+  db.run(`CREATE TABLE IF NOT EXISTS pending_confirmations (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    tool TEXT NOT NULL,
+    args TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    created_at TEXT,
+    expires_at TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending'
+  )`);
   if (migrated) console.log(`  Schema: added mock column to ${migrated} table(s).`);
   else console.log('  Schema: mock column already present on all tables.');
 }

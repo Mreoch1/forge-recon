@@ -340,3 +340,12 @@ Append-only log of every change. Newest at the bottom. Format:
 - **AI key rotation**: .env.example placeholder replaced. Boot warning for empty/placeholder key.
 - **Admin AI usage page**: GET /admin/ai-usage — total calls/tokens/cost, 14-day sparkline, top users, recent calls.
 - **Seed JE cleanup**: --reset deletes orphaned journal entries/lines linked to mock invoices/bills.
+
+## [2026-05-10T18:15:00Z] — hermes — feat(ai-chat-tier3): suggest-then-confirm mutations
+- `pending_confirmations` table created on server boot (transient session-state)
+- 5 mutation tools with propose + execute functions: create_customer, send_estimate, mark_invoice_paid, approve_bill, add_wo_note
+- Keyword-based mutation intent detection (more reliable than LLM) in chat orchestrator
+- POST /ai/chat/confirm endpoint — accept/cancel pending mutations with ownership + expiry checks
+- Permission scoping: manager+admin for most mutations; workers can only add_wo_note (own WOs)
+- Audit writes with source='ai' for all mutation execution traces
+- Smoke: add customer → confirm payload → confirm → customer inserted → ownership check 403

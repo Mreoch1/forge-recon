@@ -135,6 +135,55 @@
         font-family: inherit;
       }
       .recon-aic-empty .examples button:hover { color: #c0202b; border-color: #c0202b; }
+
+      .recon-aic-confirm {
+        margin-top: .5rem; padding: .65rem .75rem;
+        background: #fffaf0; border: 1px dashed #c0202b; border-radius: 4px;
+      }
+      .recon-aic-confirm .summary {
+        margin: 0 0 .5rem 0; padding: 0; list-style: none;
+        font-size: .8rem; line-height: 1.5; color: #1a1a1a;
+      }
+      .recon-aic-confirm .summary li { padding: .1rem 0; }
+      .recon-aic-confirm .summary li strong { color: #555; font-weight: 600; margin-right: .35rem; }
+      .recon-aic-confirm .actions {
+        display: flex; gap: .4rem; align-items: center;
+        margin-top: .5rem; padding-top: .5rem;
+        border-top: 1px dotted #e0c0a8;
+      }
+      .recon-aic-confirm .actions button {
+        padding: .35rem .85rem; border-radius: 3px; font-size: .78rem;
+        font-weight: 600; cursor: pointer; border: none; font-family: inherit;
+        transition: all .12s;
+      }
+      .recon-aic-confirm .actions .confirm {
+        background: #c0202b; color: #fff;
+      }
+      .recon-aic-confirm .actions .confirm:hover { background: #8a0e16; }
+      .recon-aic-confirm .actions .cancel {
+        background: transparent; color: #666; border: 1px solid #d0d0d0;
+      }
+      .recon-aic-confirm .actions .cancel:hover { background: #f5f5f5; color: #1a1a1a; }
+      .recon-aic-confirm .actions button:disabled {
+        opacity: .5; cursor: not-allowed;
+      }
+      .recon-aic-confirm .countdown {
+        margin-left: auto; font-size: .68rem; color: #999;
+        font-family: ui-monospace, monospace;
+      }
+      .recon-aic-confirm .countdown.urgent { color: #c0202b; }
+      .recon-aic-confirm.locked {
+        background: #f5f5f5; border-style: solid; border-color: #d0d0d0;
+        opacity: .7;
+      }
+      .recon-aic-confirm.locked .actions { display: none; }
+      .recon-aic-confirm .resolved-tag {
+        font-size: .68rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+        margin-top: .25rem;
+      }
+      .recon-aic-confirm .resolved-tag.confirmed { color: #065f46; }
+      .recon-aic-confirm .resolved-tag.cancelled { color: #999; }
+      .recon-aic-confirm .resolved-tag.expired   { color: #92400e; }
     `;
     document.head.appendChild(style);
   }
@@ -227,7 +276,41 @@
           <a class="recon-aic-chip" href="${escapeHTML(c.href)}">${escapeHTML(c.label)}<span class="arrow">→</span></a>
         `).join('')}</div>`
       : '';
-    return `<div class="recon-aic-msg ${role}${errClass}">${text}${chips}</div>`;
+    const confirm = m.confirm ? renderConfirmCard(m.confirm, m.confirmState) : '';
+    return `<div class="recon-aic-msg ${role}${errClass}">${text}${confirm}${chips}</div>`;
+  }
+
+  function renderConfirmCard(confirm, confirmState) {
+    if (!confirm) return '';
+    const lines = (confirm.summary_lines || []).map(line => {
+      // If line has "Label: value" shape, bold the label.
+      const m = String(line).match(/^([^:]+):\s*(.*)$/);
+      if (m) return `<li><strong>${escapeHTML(m[1])}:</strong>${escapeHTML(m[2])}</li>`;
+      return `<li>${escapeHTML(line)}</li>`;
+    }).join('');
+    const cid = confirm.confirmation_id;
+    const state = (confirmState && confirmState.status) || 'pending';
+    const inflight = confirmState && confirmState.inflight;
+    const lockedClass = state !== 'pending' ? ' locked' : '';
+    let resolved = '';
+    if (state === 'confirmed') resolved = '<div class="resolved-tag confirmed">✓ Confirmed</div>';
+    else if (state === 'cancelled') resolved = '<div class="resolved-tag cancelled">○ Cancelled</div>';
+    else if (state === 'expired')   resolved = '<div class="resolved-tag expired">⏱ Expired</div>';
+
+    const expiresAt = confirm.expires_at_ms || 0;
+    return `
+      <div class="recon-aic-confirm${lockedClass}" data-cid="${cid}" data-expires-at="${expiresAt}">
+        <ul class="summary">${lines}</ul>
+        ${resolved}
+        ${state === 'pending' ? `
+          <div class="actions">
+            <button class="confirm" data-action="ai-confirm" data-cid="${cid}" ${inflight ? 'disabled' : ''}>Confirm</button>
+            <button class="cancel" data-action="ai-cancel" data-cid="${cid}" ${inflight ? 'disabled' : ''}>Cancel</button>
+            <span class="countdown" data-cid="${cid}">…</span>
+          </div>
+        ` : ''}
+      </div>
+    `;
   }
 
   function renderEmpty() {
@@ -278,11 +361,21 @@
         throw new Error(errBody.error || `HTTP ${res.status}`);
       }
       const data = await res.json();
-      state.history.push({
+      const msg = {
         role: 'assistant',
         content: data.reply || '(no reply)',
         chips: data.chips || [],
-      });
+      };
+      if (data.confirm && data.confirm.confirmation_id) {
+        // Server returned a proposed mutation — attach to message.
+        const expiresMs = (data.confirm.expires_in_seconds || 300) * 1000;
+        msg.confirm = {
+          ...data.confirm,
+          expires_at_ms: Date.now() + expiresMs,
+        };
+        msg.confirmState = { status: 'pending', inflight: false };
+      }
+      state.history.push(msg);
     } catch (err) {
       state.history.push({
         role: 'assistant',
@@ -299,6 +392,66 @@
     try { return await res.json(); } catch (_) { return {}; }
   }
 
+  // Find the message in history that owns a confirmation_id.
+  function findMessageByCid(cid) {
+    for (let i = state.history.length - 1; i >= 0; i--) {
+      const m = state.history[i];
+      if (m.confirm && String(m.confirm.confirmation_id) === String(cid)) return m;
+    }
+    return null;
+  }
+
+  async function resolveConfirmation(cid, accept) {
+    const msg = findMessageByCid(cid);
+    if (!msg || !msg.confirmState || msg.confirmState.status !== 'pending') return;
+    msg.confirmState.inflight = true;
+    saveHistory();
+    render();
+
+    try {
+      const res = await fetch('/ai/chat/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ confirmation_id: cid, accept }),
+      });
+      if (!res.ok) {
+        const errBody = await safeJSON(res);
+        // 409 = already resolved/expired on server. Reflect that.
+        if (res.status === 409) {
+          msg.confirmState = { status: errBody.status || 'expired', inflight: false };
+          saveHistory();
+          render();
+          return;
+        }
+        throw new Error(errBody.error || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.cancelled) {
+        msg.confirmState = { status: 'cancelled', inflight: false };
+      } else if (data.ok) {
+        msg.confirmState = { status: 'confirmed', inflight: false };
+        // Append a follow-up assistant message confirming what landed.
+        state.history.push({
+          role: 'assistant',
+          content: data.result_summary || (accept ? 'Done.' : 'Cancelled.'),
+          chips: data.chips || [],
+        });
+      } else {
+        throw new Error('Unexpected response.');
+      }
+    } catch (err) {
+      msg.confirmState = { status: 'pending', inflight: false };
+      state.history.push({
+        role: 'assistant',
+        content: 'Sorry — couldn\'t complete that: ' + (err && err.message ? err.message : 'something went wrong.'),
+        error: true,
+      });
+    } finally {
+      saveHistory();
+      render();
+    }
+  }
+
   // ----- Event delegation -----
   document.addEventListener('click', (e) => {
     const target = e.target.closest('[data-action]');
@@ -310,6 +463,14 @@
     if (action === 'example') {
       e.preventDefault();
       send(target.dataset.q);
+    }
+    if (action === 'ai-confirm') {
+      e.preventDefault();
+      resolveConfirmation(target.dataset.cid, true);
+    }
+    if (action === 'ai-cancel') {
+      e.preventDefault();
+      resolveConfirmation(target.dataset.cid, false);
     }
   });
 
@@ -337,6 +498,41 @@
   if (sessionStorage.getItem('recon_ai_chat_disabled') === '1') {
     state.disabled = true;
   }
+
+  // ----- Countdown ticker for pending confirmation cards -----
+  // Updates every second; flips state to 'expired' client-side when expires_at_ms passes.
+  function tickConfirmCountdowns() {
+    const cards = document.querySelectorAll('.recon-aic-confirm[data-expires-at]');
+    let needsRerender = false;
+    cards.forEach(card => {
+      const cid = card.dataset.cid;
+      const expiresAt = parseInt(card.dataset.expiresAt, 10);
+      if (!expiresAt) return;
+      const remaining = expiresAt - Date.now();
+      const cdEl = card.querySelector('.countdown[data-cid="' + cid + '"]');
+      if (remaining <= 0) {
+        // Mark expired locally; next render will lock the card.
+        const msg = findMessageByCid(cid);
+        if (msg && msg.confirmState && msg.confirmState.status === 'pending') {
+          msg.confirmState = { status: 'expired', inflight: false };
+          needsRerender = true;
+        }
+        return;
+      }
+      if (cdEl) {
+        const mins = Math.floor(remaining / 60000);
+        const secs = Math.floor((remaining % 60000) / 1000);
+        cdEl.textContent = mins + ':' + String(secs).padStart(2, '0') + ' left';
+        if (remaining < 60000) cdEl.classList.add('urgent');
+        else cdEl.classList.remove('urgent');
+      }
+    });
+    if (needsRerender) {
+      saveHistory();
+      render();
+    }
+  }
+  setInterval(tickConfirmCountdowns, 1000);
 
   // Initial render.
   render();
