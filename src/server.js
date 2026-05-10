@@ -23,13 +23,15 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 
 const db = require('./db/db');
-const { loadCurrentUser, requireAuth } = require('./middleware/auth');
+const { loadCurrentUser, requireAuth, requireAdmin } = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
 const customersRoutes = require('./routes/customers');
 const jobsRoutes = require('./routes/jobs');
 const estimatesRoutes = require('./routes/estimates');
 const workOrdersRoutes = require('./routes/work-orders');
 const invoicesRoutes = require('./routes/invoices');
+const adminRoutes = require('./routes/admin');
+const dashboardRoutes = require('./routes/dashboard');
 
 const PORT = parseInt(process.env.PORT, 10) || 3001;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
@@ -93,30 +95,10 @@ async function main() {
   app.use('/estimates', requireAuth, estimatesRoutes);
   app.use('/work-orders', requireAuth, workOrdersRoutes);
   app.use('/invoices', requireAuth, invoicesRoutes);
+  app.use('/admin', requireAuth, requireAdmin, adminRoutes);
 
   // Dashboard (gated)
-  app.get('/', requireAuth, (req, res) => {
-    // Phase 1: simple counts. Real KPIs come in Phase 6.
-    const openEstimates = (db.get(
-      "SELECT COUNT(*) AS n FROM estimates WHERE status IN ('draft','sent')"
-    ) || {}).n || 0;
-    const scheduledWOs = (db.get(
-      "SELECT COUNT(*) AS n FROM work_orders WHERE status IN ('scheduled','in_progress')"
-    ) || {}).n || 0;
-    const unpaidInvoices = (db.get(
-      "SELECT COUNT(*) AS n FROM invoices WHERE status IN ('sent','overdue')"
-    ) || {}).n || 0;
-    const arBalance = (db.get(
-      "SELECT COALESCE(SUM(total - amount_paid), 0) AS n FROM invoices WHERE status IN ('sent','overdue')"
-    ) || {}).n || 0;
-
-    res.render('dashboard/index', {
-      title: 'Dashboard',
-      activeNav: 'dashboard',
-      openEstimates, scheduledWOs, unpaidInvoices,
-      arBalance: Number(arBalance) || 0
-    });
-  });
+  app.use('/', requireAuth, dashboardRoutes);
 
   // 404
   app.use((req, res) => {

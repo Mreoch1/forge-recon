@@ -96,7 +96,8 @@ Admin: GET /admin/users, GET/POST /admin/users/new, GET/POST /admin/users/:id/ed
 
 ## Current state
 
-- Phase: 5 (Invoices: gen from WO + CRUD + PDF + email-to-file + mark-paid) — Claude written, Hermes verifying.
+- Phase: 6 (Dashboard + Admin) — Claude written, Hermes verifying.
+- Phase 5 complete: 22 steps green.
 - Phase 0/1/2/3/4 complete. Sample PDFs in bridge folder.
 - Invoice generation: 1:1 WO→invoice in v0. Tax rate inherited from originating estimate or company default. Due date = +30d. WO must be 'complete' and have no existing invoice.
 - Invoice status flow: draft → sent (with email-to-file dropping a .eml in mail-outbox/) → paid (full) | overdue (computed display when sent + past due) → void.

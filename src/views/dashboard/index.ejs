@@ -1,41 +1,113 @@
 <%- include('../layouts/header', { title: 'Dashboard', currentUser: currentUser, flash: flash, activeNav: 'dashboard' }) %>
 
+<%
+function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
+function pathFor(act) {
+  if (act.type === 'estimate')   return '/estimates/'    + act.id;
+  if (act.type === 'work_order') return '/work-orders/'  + act.id;
+  if (act.type === 'invoice')    return '/invoices/'     + act.id;
+  return '#';
+}
+function typeLabel(t) {
+  if (t === 'work_order') return 'Work Order';
+  if (t === 'invoice')    return 'Invoice';
+  if (t === 'estimate')   return 'Estimate';
+  return t;
+}
+%>
+
 <div class="max-w-7xl mx-auto px-4 py-6">
-  <div class="flex items-baseline justify-between mb-6">
+  <div class="flex items-baseline justify-between mb-6 flex-wrap gap-2">
     <div>
       <h1 class="page-h1">Dashboard</h1>
       <p class="page-sub">Welcome back, <%= currentUser.name %>.</p>
     </div>
-  </div>
-
-  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-    <div class="card p-4">
-      <div class="text-xs uppercase tracking-wide text-recon-fog">Open Estimates</div>
-      <div class="text-3xl font-bold text-recon-charcoal mt-1"><%= typeof openEstimates !== 'undefined' ? openEstimates : 0 %></div>
-    </div>
-    <div class="card p-4">
-      <div class="text-xs uppercase tracking-wide text-recon-fog">Scheduled Work Orders</div>
-      <div class="text-3xl font-bold text-recon-charcoal mt-1"><%= typeof scheduledWOs !== 'undefined' ? scheduledWOs : 0 %></div>
-    </div>
-    <div class="card p-4">
-      <div class="text-xs uppercase tracking-wide text-recon-fog">Unpaid Invoices</div>
-      <div class="text-3xl font-bold text-recon-charcoal mt-1"><%= typeof unpaidInvoices !== 'undefined' ? unpaidInvoices : 0 %></div>
-    </div>
-    <div class="card p-4">
-      <div class="text-xs uppercase tracking-wide text-recon-fog">A/R Balance</div>
-      <div class="text-3xl font-bold text-recon-red mt-1">$<%= typeof arBalance !== 'undefined' ? arBalance.toFixed(2) : '0.00' %></div>
-    </div>
-  </div>
-
-  <div class="card p-6">
-    <h2 class="text-lg font-semibold mb-2">Getting started</h2>
-    <p class="text-sm text-recon-fog mb-4">
-      Add a customer, create a job, build an estimate, convert to a work order, then generate an invoice when the work is done.
-    </p>
     <div class="flex flex-wrap gap-2">
-      <a href="/customers/new" class="btn btn-primary">+ New customer</a>
-      <a href="/jobs/new" class="btn btn-secondary">+ New job</a>
+      <a href="/customers/new" class="btn btn-secondary">+ Customer</a>
+      <a href="/jobs/new" class="btn btn-primary">+ Job</a>
     </div>
+  </div>
+
+  <!-- Top KPIs: pipeline counts -->
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+    <a href="/estimates?status=sent" class="card p-4 hover:shadow-md transition">
+      <div class="text-xs uppercase tracking-wide text-recon-fog">Open Estimates</div>
+      <div class="text-3xl font-bold text-recon-charcoal mt-1"><%= openEstimates %></div>
+      <div class="text-xs text-recon-fog mt-1">draft + sent</div>
+    </a>
+    <a href="/work-orders?status=scheduled" class="card p-4 hover:shadow-md transition">
+      <div class="text-xs uppercase tracking-wide text-recon-fog">Active Work Orders</div>
+      <div class="text-3xl font-bold text-recon-charcoal mt-1"><%= scheduledWOs %></div>
+      <div class="text-xs text-recon-fog mt-1">scheduled + in progress</div>
+    </a>
+    <a href="/invoices?status=sent" class="card p-4 hover:shadow-md transition">
+      <div class="text-xs uppercase tracking-wide text-recon-fog">Unpaid Invoices</div>
+      <div class="text-3xl font-bold text-recon-charcoal mt-1"><%= unpaidInvoices %></div>
+      <div class="text-xs text-recon-fog mt-1">sent + overdue</div>
+    </a>
+    <a href="/invoices?status=sent" class="card p-4 hover:shadow-md transition bg-recon-charcoal text-white">
+      <div class="text-xs uppercase tracking-wide text-recon-fog">A/R Balance</div>
+      <div class="text-3xl font-bold mt-1 text-recon-red-light">$<%= fmt(arBalance) %></div>
+      <% if (overdueCount > 0) { %>
+        <div class="text-xs text-yellow-300 mt-1"><%= overdueCount %> overdue ($<%= fmt(overdueBalance) %>)</div>
+      <% } else { %>
+        <div class="text-xs text-recon-fog mt-1">none overdue</div>
+      <% } %>
+    </a>
+  </div>
+
+  <!-- Revenue KPIs -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <div class="card p-4">
+      <div class="text-xs uppercase tracking-wide text-recon-fog">Revenue this month</div>
+      <div class="text-2xl font-semibold mt-1">$<%= fmt(revenueThisMonth) %></div>
+    </div>
+    <div class="card p-4">
+      <div class="text-xs uppercase tracking-wide text-recon-fog">Revenue year-to-date</div>
+      <div class="text-2xl font-semibold mt-1">$<%= fmt(revenueYTD) %></div>
+    </div>
+    <div class="card p-4">
+      <div class="text-xs uppercase tracking-wide text-recon-fog">Customers / Jobs</div>
+      <div class="text-2xl font-semibold mt-1"><%= customerCount %> <span class="text-recon-fog text-base font-normal">customers</span> / <%= jobCount %> <span class="text-recon-fog text-base font-normal">jobs</span></div>
+    </div>
+  </div>
+
+  <!-- Recent activity -->
+  <div class="card overflow-hidden">
+    <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
+      <h3 class="font-semibold">Recent activity</h3>
+      <span class="text-xs text-recon-fog">last 10</span>
+    </div>
+    <% if (activity.length === 0) { %>
+      <div class="p-8 text-center text-recon-fog text-sm">
+        Nothing yet. <a href="/customers/new" class="text-recon-red underline">Add a customer</a> to get started.
+      </div>
+    <% } else { %>
+      <ul class="divide-y divide-recon-mist">
+        <% activity.forEach(function(act){ %>
+          <li class="px-5 py-3 hover:bg-recon-cloud transition">
+            <a href="<%= pathFor(act) %>" class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-3 flex-1 min-w-0">
+                <span class="badge badge-<%= act.status %> shrink-0"><%= act.status.replace('_',' ') %></span>
+                <div class="min-w-0">
+                  <p class="text-sm font-medium text-recon-charcoal truncate">
+                    <span class="text-xs text-recon-fog uppercase tracking-wide mr-2"><%= typeLabel(act.type) %></span>
+                    <%= act.number %>
+                    <% if (act.total != null) { %>
+                      <span class="text-recon-fog font-normal">— $<%= fmt(act.total) %></span>
+                    <% } %>
+                  </p>
+                  <p class="text-xs text-recon-fog truncate">
+                    <%= act.job_title %> &middot; <%= act.customer_name %>
+                  </p>
+                </div>
+              </div>
+              <span class="text-xs text-recon-fog shrink-0"><%= (act.created_at || '').slice(0,16) %></span>
+            </a>
+          </li>
+        <% }); %>
+      </ul>
+    <% } %>
   </div>
 </div>
 

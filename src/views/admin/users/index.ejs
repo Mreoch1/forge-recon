@@ -1,0 +1,46 @@
+<%- include('../../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<div class="max-w-5xl mx-auto px-4 py-6">
+  <div class="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+    <div>
+      <h1 class="page-h1">Users</h1>
+      <p class="page-sub"><%= users.length %> total</p>
+    </div>
+    <div class="flex gap-2">
+      <a href="/admin/settings" class="btn btn-ghost">Company settings</a>
+      <a href="/admin/users/new" class="btn btn-primary">+ New user</a>
+    </div>
+  </div>
+
+  <div class="card overflow-hidden">
+    <table class="data">
+      <thead>
+        <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Created</th><th></th></tr>
+      </thead>
+      <tbody>
+        <% users.forEach(function(u){ %>
+          <tr>
+            <td class="font-medium"><%= u.name %><% if (currentUser && u.id === currentUser.id) { %> <span class="text-xs text-recon-fog">(you)</span><% } %></td>
+            <td><%= u.email %></td>
+            <td>
+              <span class="badge <%= u.role === 'admin' ? 'badge-accepted' : 'badge-draft' %>"><%= u.role %></span>
+            </td>
+            <td>
+              <% if (u.active) { %>
+                <span class="badge badge-paid">active</span>
+              <% } else { %>
+                <span class="badge badge-cancelled">disabled</span>
+              <% } %>
+            </td>
+            <td><%= (u.created_at || '').slice(0,10) %></td>
+            <td class="text-right">
+              <a href="/admin/users/<%= u.id %>/edit" class="text-sm text-recon-fog hover:text-recon-red">Edit</a>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<%- include('../../layouts/footer') %>

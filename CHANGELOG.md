@@ -128,6 +128,24 @@ Append-only log of every change. Newest at the bottom. Format:
 - Wrote src/views/invoices/show.ejs — header w/ WO backlink, 4 KPI cards (subtotal/tax/total/balance — balance card flips green when paid), inline mark-paid form (toggle visible, defaults amount to balance), status-aware action buttons (Send / Mark paid / Void / Delete-when-draft-or-void)
 - Updated src/server.js — mounted /invoices under requireAuth
 
+## [2026-05-10T08:32:00Z] — hermes — phase 5 complete
+- 22 steps green: invoice generation from completed WO, edit, send (.eml lands in mail-outbox/ with multipart + PDF attachment), partial+full payment with status flips, void, overdue auto-display, FK guards, sample-INV-2026-0001.pdf saved.
+
+## [2026-05-10T08:40:00Z] — claude — phase 6 (files)
+- Wrote src/routes/dashboard.js — extracted from server.js. Pulls live KPIs: open estimates, active WOs, unpaid invoices, A/R balance, overdue count + balance, revenue this month, revenue YTD, customer + job counts. Unified activity feed (latest 10 estimates/WOs/invoices via UNION ALL).
+- Updated src/views/dashboard/index.ejs — full redesign: 4 clickable KPI cards (drill into filtered list views), 3 revenue/context cards, recent-activity timeline with type badges, status badges, customer + job + amount inline.
+- Wrote src/routes/admin.js — user CRUD + settings:
+  - GET/POST /admin/users (list, create with name/email/role/password)
+  - GET/POST /admin/users/:id/edit + update (name/email/role/active toggle)
+  - POST /admin/users/:id/password (separate endpoint for password reset)
+  - POST /admin/users/:id/delete (refuses self-delete + last-active-admin protection)
+  - GET/POST /admin/settings (company singleton — name, address, contact, EIN, default tax rate, prefixes)
+- Wrote src/views/admin/users/index.ejs (table with role + status badges, "you" indicator)
+- Wrote src/views/admin/users/new.ejs (name + email + role + password, 8+ char min)
+- Wrote src/views/admin/users/edit.ejs (profile form + inline change-password section + danger zone — delete hidden when isSelf)
+- Wrote src/views/admin/settings.ejs (3 sections: identity, address, defaults+numbering — counters shown read-only)
+- Updated src/server.js — extracted dashboard route, mounted /admin under requireAuth + requireAdmin
+
 ## [2026-05-10T07:12:00Z] — hermes — phase 1
 - Ran npm run init-db → DB initialized at data/app.db (118KB)
 - Ran npm run seed → admin user seeded (idempotent on re-run), company_settings seeded
@@ -187,3 +205,11 @@ Append-only log of every change. Newest at the bottom. Format:
 - Overdue auto-display on show page + list when sent + past due_date
 - Invoice PDF: inline/download, meta strip, line items, totals, amount-due callout
 - All 22 test steps pass end-to-end
+
+## [2026-05-10T08:30:00Z] — hermes — phase 6
+- Dashboard with live KPIs (open estimates, active WOs, unpaid invoices, A/R balance, revenue MTD/YTD, customer/job counts) + activity feed
+- Admin user CRUD: create, edit, password reset, delete, self-protection guards (can't delete/demote self, last-admin protection)
+- Company settings: address, phone, email, EIN, tax rate, prefixes (flows through to estimate PDF header)
+- Default tax rate auto-fills on new estimate form
+- Staff users blocked from /admin/* routes
+- All 22 test steps pass via functional checks

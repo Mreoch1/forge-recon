@@ -1,0 +1,79 @@
+<%- include('../../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<div class="max-w-2xl mx-auto px-4 py-6">
+  <div class="mb-4">
+    <a href="/admin/users" class="text-sm text-recon-fog hover:text-recon-red">&larr; Users</a>
+  </div>
+  <h1 class="page-h1 mb-6">Edit <%= user.name %><% if (isSelf) { %> <span class="text-recon-fog text-base font-normal">(you)</span><% } %></h1>
+
+  <div class="card p-6 mb-6">
+    <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-4">Profile</h3>
+    <form action="/admin/users/<%= user.id %>" method="post" class="space-y-4">
+      <div>
+        <label class="label" for="name">Name <span class="text-recon-red">*</span></label>
+        <input type="text" name="name" id="name" required value="<%= user.name || '' %>"
+               class="input <%= errors.name ? 'border-red-500' : '' %>">
+        <% if (errors.name) { %><p class="text-sm text-red-600 mt-1"><%= errors.name %></p><% } %>
+      </div>
+      <div>
+        <label class="label" for="email">Email <span class="text-recon-red">*</span></label>
+        <input type="email" name="email" id="email" required value="<%= user.email || '' %>"
+               class="input <%= errors.email ? 'border-red-500' : '' %>">
+        <% if (errors.email) { %><p class="text-sm text-red-600 mt-1"><%= errors.email %></p><% } %>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="label" for="role">Role</label>
+          <select name="role" id="role" class="input <%= errors.role ? 'border-red-500' : '' %>">
+            <% roles.forEach(function(r){ %>
+              <option value="<%= r %>" <%= user.role === r ? 'selected' : '' %>><%= r %></option>
+            <% }); %>
+          </select>
+          <% if (errors.role) { %><p class="text-sm text-red-600 mt-1"><%= errors.role %></p><% } %>
+        </div>
+        <div>
+          <label class="label">Status</label>
+          <label class="inline-flex items-center gap-2 input cursor-pointer">
+            <input type="hidden" name="active" value="0">
+            <input type="checkbox" name="active" value="1" <%= user.active ? 'checked' : '' %>>
+            <span>Active (can log in)</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 pt-4 border-t border-recon-mist">
+        <button type="submit" class="btn btn-primary">Save changes</button>
+        <a href="/admin/users" class="btn btn-ghost">Cancel</a>
+      </div>
+    </form>
+  </div>
+
+  <div class="card p-6 mb-6">
+    <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Change password</h3>
+    <form action="/admin/users/<%= user.id %>/password" method="post" class="flex items-end gap-3">
+      <div class="flex-1">
+        <input type="password" name="password" required minlength="8"
+               placeholder="New password (8+ chars)" class="input"
+               autocomplete="new-password">
+      </div>
+      <button type="submit" class="btn btn-secondary">Set password</button>
+    </form>
+  </div>
+
+  <% if (!isSelf) { %>
+    <div class="card p-6 border-red-200">
+      <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
+      <p class="text-sm text-recon-fog mb-3">Deleting a user is permanent. The system refuses to delete the last active admin.</p>
+      <form action="/admin/users/<%= user.id %>/delete" method="post"
+            onsubmit="return confirm('Delete <%= user.name %>?');" class="m-0">
+        <button type="submit" class="btn btn-danger">Delete user</button>
+      </form>
+    </div>
+  <% } else { %>
+    <div class="card p-6">
+      <p class="text-sm text-recon-fog">You can't delete or demote yourself while logged in. Sign in as another admin to make those changes.</p>
+    </div>
+  <% } %>
+</div>
+
+<%- include('../../layouts/footer') %>

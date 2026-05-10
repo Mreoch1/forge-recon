@@ -1,0 +1,47 @@
+<%- include('../../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<div class="max-w-2xl mx-auto px-4 py-6">
+  <div class="mb-4">
+    <a href="/admin/users" class="text-sm text-recon-fog hover:text-recon-red">&larr; Users</a>
+  </div>
+  <h1 class="page-h1 mb-6">New user</h1>
+
+  <div class="card p-6">
+    <form action="/admin/users" method="post" class="space-y-4">
+      <div>
+        <label class="label" for="name">Name <span class="text-recon-red">*</span></label>
+        <input type="text" name="name" id="name" required value="<%= user.name || '' %>"
+               class="input <%= errors.name ? 'border-red-500' : '' %>" autofocus>
+        <% if (errors.name) { %><p class="text-sm text-red-600 mt-1"><%= errors.name %></p><% } %>
+      </div>
+      <div>
+        <label class="label" for="email">Email <span class="text-recon-red">*</span></label>
+        <input type="email" name="email" id="email" required value="<%= user.email || '' %>"
+               class="input <%= errors.email ? 'border-red-500' : '' %>">
+        <% if (errors.email) { %><p class="text-sm text-red-600 mt-1"><%= errors.email %></p><% } %>
+      </div>
+      <div>
+        <label class="label" for="role">Role</label>
+        <select name="role" id="role" class="input">
+          <% roles.forEach(function(r){ %>
+            <option value="<%= r %>" <%= user.role === r ? 'selected' : '' %>><%= r %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div>
+        <label class="label" for="password">Password <span class="text-recon-red">*</span></label>
+        <input type="password" name="password" id="password" required minlength="8"
+               class="input <%= errors.password ? 'border-red-500' : '' %>"
+               placeholder="At least 8 characters" autocomplete="new-password">
+        <% if (errors.password) { %><p class="text-sm text-red-600 mt-1"><%= errors.password %></p><% } %>
+      </div>
+
+      <div class="flex items-center gap-2 pt-4 border-t border-recon-mist">
+        <button type="submit" class="btn btn-primary">Create user</button>
+        <a href="/admin/users" class="btn btn-ghost">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<%- include('../../layouts/footer') %>
