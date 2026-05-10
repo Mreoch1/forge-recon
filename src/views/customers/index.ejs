@@ -1,0 +1,70 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<div class="max-w-7xl mx-auto px-4 py-6">
+  <div class="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+    <div>
+      <h1 class="page-h1">Customers</h1>
+      <p class="page-sub"><%= total %> total<% if (q) { %> &middot; filter: "<%= q %>"<% } %></p>
+    </div>
+    <a href="/customers/new" class="btn btn-primary">+ New customer</a>
+  </div>
+
+  <form method="get" action="/customers" class="flex gap-2 mb-4">
+    <input type="text" name="q" value="<%= q %>" placeholder="Search name, email, phone, city..." class="input max-w-md">
+    <button type="submit" class="btn btn-secondary">Search</button>
+    <% if (q) { %>
+      <a href="/customers" class="btn btn-ghost">Clear</a>
+    <% } %>
+  </form>
+
+  <div class="card overflow-hidden">
+    <% if (customers.length === 0) { %>
+      <div class="p-8 text-center text-recon-fog">
+        <% if (q) { %>
+          No customers match "<%= q %>". <a href="/customers" class="text-recon-red underline">Clear search</a>
+        <% } else { %>
+          No customers yet. <a href="/customers/new" class="text-recon-red underline">Add your first one</a>.
+        <% } %>
+      </div>
+    <% } else { %>
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>Location</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% customers.forEach(function(c){ %>
+            <tr>
+              <td class="font-medium"><a href="/customers/<%= c.id %>" class="text-recon-charcoal hover:text-recon-red"><%= c.name %></a></td>
+              <td><%= c.email || '—' %></td>
+              <td><%= c.phone || '—' %></td>
+              <td><%= [c.city, c.state].filter(Boolean).join(', ') || '—' %></td>
+              <td class="text-right">
+                <a href="/customers/<%= c.id %>/edit" class="text-sm text-recon-fog hover:text-recon-red">Edit</a>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+
+  <% if (totalPages > 1) { %>
+    <div class="flex items-center justify-center gap-2 mt-4">
+      <% for (let p = 1; p <= totalPages; p++) { %>
+        <% if (p === page) { %>
+          <span class="btn btn-primary"><%= p %></span>
+        <% } else { %>
+          <a href="/customers?page=<%= p %><%= q ? '&q=' + encodeURIComponent(q) : '' %>" class="btn btn-ghost"><%= p %></a>
+        <% } %>
+      <% } %>
+    </div>
+  <% } %>
+</div>
+
+<%- include('../layouts/footer') %>

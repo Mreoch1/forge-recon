@@ -1,0 +1,82 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<div class="max-w-7xl mx-auto px-4 py-6">
+  <div class="mb-4">
+    <a href="/customers" class="text-sm text-recon-fog hover:text-recon-red">&larr; Customers</a>
+  </div>
+
+  <div class="flex items-baseline justify-between mb-6 flex-wrap gap-2">
+    <div>
+      <h1 class="page-h1"><%= customer.name %></h1>
+      <p class="page-sub">Customer #<%= customer.id %> &middot; created <%= customer.created_at %></p>
+    </div>
+    <div class="flex gap-2">
+      <a href="/customers/<%= customer.id %>/edit" class="btn btn-secondary">Edit</a>
+      <a href="/jobs/new?customer_id=<%= customer.id %>" class="btn btn-primary">+ New job</a>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-1">
+      <div class="card p-5">
+        <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Contact</h3>
+        <dl class="space-y-2 text-sm">
+          <% if (customer.email) { %>
+            <div><dt class="text-recon-fog text-xs">Email</dt><dd><a href="mailto:<%= customer.email %>" class="text-recon-charcoal hover:text-recon-red"><%= customer.email %></a></dd></div>
+          <% } %>
+          <% if (customer.phone) { %>
+            <div><dt class="text-recon-fog text-xs">Phone</dt><dd><a href="tel:<%= customer.phone %>" class="text-recon-charcoal hover:text-recon-red"><%= customer.phone %></a></dd></div>
+          <% } %>
+          <% if (customer.address || customer.city) { %>
+            <div>
+              <dt class="text-recon-fog text-xs">Address</dt>
+              <dd>
+                <% if (customer.address) { %><%= customer.address %><br><% } %>
+                <%= [customer.city, customer.state, customer.zip].filter(Boolean).join(' ') %>
+              </dd>
+            </div>
+          <% } %>
+          <% if (!customer.email && !customer.phone && !customer.address && !customer.city) { %>
+            <div class="text-recon-fog">No contact info on file. <a href="/customers/<%= customer.id %>/edit" class="text-recon-red underline">Add some</a>.</div>
+          <% } %>
+        </dl>
+        <% if (customer.notes) { %>
+          <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mt-5 mb-2">Notes</h3>
+          <p class="text-sm whitespace-pre-line"><%= customer.notes %></p>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="lg:col-span-2">
+      <div class="card overflow-hidden">
+        <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
+          <h3 class="font-semibold">Jobs (<%= jobs.length %>)</h3>
+          <a href="/jobs/new?customer_id=<%= customer.id %>" class="text-sm text-recon-red hover:underline">+ Add job</a>
+        </div>
+        <% if (jobs.length === 0) { %>
+          <div class="p-8 text-center text-recon-fog text-sm">
+            No jobs for this customer yet. <a href="/jobs/new?customer_id=<%= customer.id %>" class="text-recon-red underline">Create one</a>.
+          </div>
+        <% } else { %>
+          <table class="data">
+            <thead>
+              <tr><th>Title</th><th>Address</th><th>Status</th><th>Created</th></tr>
+            </thead>
+            <tbody>
+              <% jobs.forEach(function(j){ %>
+                <tr>
+                  <td class="font-medium"><a href="/jobs/<%= j.id %>" class="text-recon-charcoal hover:text-recon-red"><%= j.title %></a></td>
+                  <td><%= [j.address, j.city, j.state].filter(Boolean).join(', ') || '—' %></td>
+                  <td><span class="badge badge-<%= j.status %>"><%= j.status.replace('_',' ') %></span></td>
+                  <td><%= (j.created_at || '').slice(0,10) %></td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('../layouts/footer') %>

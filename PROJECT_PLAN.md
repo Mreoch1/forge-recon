@@ -96,12 +96,13 @@ Admin: GET /admin/users, GET/POST /admin/users/new, GET/POST /admin/users/:id/ed
 
 ## Current state
 
-- Phase: 1 (auth + DB foundation) — Claude has written all the files; Hermes needs to init+seed DB and smoke-test login.
-- Phase 0 complete: skeleton, deps installed (sql.js + session-file-store substitution), recon logo at public/logos/recon.png, /ping verified on port 3001.
-- Phase 1 files in place: schema.sql, db.js (sql.js wrapper), init.js, seed.js, auth middleware, auth routes, header/footer/login/dashboard/error views, full server.js.
-- Awaiting Hermes (msg 9): run init-db, run seed, start server, verify /login renders, login as admin, hit /, logout, report results.
-- Default admin credentials seeded by seed.js: admin@recon.local / changeme123 (rotation noted in TODO_FOR_MICHAEL.md).
-- Open question: dashboard view assumes `currentUser` is always non-null on /; this is enforced by requireAuth middleware. If currentUser ends up null in the dashboard render, that's a bug — Hermes should verify in his test pass.
+- Phase: 2A (Customers CRUD) — Claude written, awaiting Hermes verification.
+- Phase 0 complete: skeleton, deps installed.
+- Phase 1 complete: DB initialized + seeded, full auth flow tested green by Hermes (8 steps), commit dc48eae.
+- Phase 2A files in place: customers route, _form partial, index/new/edit/show views, server.js mounts /customers under requireAuth.
+- Awaiting Hermes (msg 10): smoke-test customers CRUD end-to-end (create, list, search, view, edit, delete-with-job-guard).
+- Phase 2B (Jobs) is queued — same pattern, will follow once Phase 2A is green.
+- Open consideration: customers/show.ejs links to /jobs/new?customer_id=N which doesn't exist yet — that's fine, will 404 until Phase 2B but otherwise won't break the page.
 
 ## Boot sequence for every session
 

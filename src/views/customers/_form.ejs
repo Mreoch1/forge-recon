@@ -1,0 +1,56 @@
+<%
+// Shared form partial for new + edit. Expects: customer (object), errors (object), formAction (string), submitLabel (string).
+%>
+<form action="<%= formAction %>" method="post" class="space-y-4">
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="md:col-span-2">
+      <label class="label" for="name">Name <span class="text-recon-red">*</span></label>
+      <input type="text" name="name" id="name" required value="<%= customer.name || '' %>"
+             class="input <%= errors.name ? 'border-red-500' : '' %>" autofocus>
+      <% if (errors.name) { %><p class="text-sm text-red-600 mt-1"><%= errors.name %></p><% } %>
+    </div>
+
+    <div>
+      <label class="label" for="email">Email</label>
+      <input type="email" name="email" id="email" value="<%= customer.email || '' %>"
+             class="input <%= errors.email ? 'border-red-500' : '' %>">
+      <% if (errors.email) { %><p class="text-sm text-red-600 mt-1"><%= errors.email %></p><% } %>
+    </div>
+
+    <div>
+      <label class="label" for="phone">Phone</label>
+      <input type="text" name="phone" id="phone" value="<%= customer.phone || '' %>" class="input">
+    </div>
+
+    <div class="md:col-span-2">
+      <label class="label" for="address">Address</label>
+      <input type="text" name="address" id="address" value="<%= customer.address || '' %>" class="input">
+    </div>
+
+    <div>
+      <label class="label" for="city">City</label>
+      <input type="text" name="city" id="city" value="<%= customer.city || '' %>" class="input">
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="label" for="state">State</label>
+        <input type="text" name="state" id="state" value="<%= customer.state || '' %>" class="input" maxlength="2" placeholder="OH">
+      </div>
+      <div>
+        <label class="label" for="zip">ZIP</label>
+        <input type="text" name="zip" id="zip" value="<%= customer.zip || '' %>" class="input" maxlength="10">
+      </div>
+    </div>
+
+    <div class="md:col-span-2">
+      <label class="label" for="notes">Notes</label>
+      <textarea name="notes" id="notes" rows="3" class="input"><%= customer.notes || '' %></textarea>
+    </div>
+  </div>
+
+  <div class="flex items-center gap-2 pt-4 border-t border-recon-mist">
+    <button type="submit" class="btn btn-primary"><%= submitLabel %></button>
+    <a href="<%= customer.id ? '/customers/' + customer.id : '/customers' %>" class="btn btn-ghost">Cancel</a>
+  </div>
+</form>

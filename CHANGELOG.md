@@ -35,3 +35,46 @@ Append-only log of every change. Newest at the bottom. Format:
 - Wrote src/views/dashboard/index.ejs — placeholder with KPI cards + "getting started" CTA
 - Wrote src/views/error.ejs — 404/500 page
 - Rewrote src/server.js — full app: helmet, morgan, sessions (file-store), EJS views, static, body parsers, /ping (public), /login + /logout + / (dashboard, gated), 404 + 500 handlers
+
+## [2026-05-10T07:13:00Z] — hermes — phase 1
+- Ran `npm run init-db` — DB created at data/app.db, schema applied
+- Ran `npm run seed` — admin user + company_settings row created
+- Smoke tested all 8 auth flow steps (anonymous redirect, login render, valid login, gated dashboard, already-logged-in redirect, logout, bad password 401, /ping public): all green
+- bcrypt installed cleanly (prebuilt binary for Node 24/Windows)
+- sql.js wrapper worked as-is, no patches needed
+- EJS includes resolved on Windows paths
+- Killed stale PID on port 3001
+- Updated .gitignore to include data/, sessions/, node_modules/
+- Committed dc48eae (15 files, 891+/12-)
+
+## [2026-05-10T07:25:00Z] — claude — phase 2A (files)
+- Wrote src/routes/customers.js — list (search + pagination, 25/page), new, create (validation, redirect on err), show (with linked jobs), edit, update, delete (FK guard against existing jobs)
+- Wrote src/views/customers/_form.ejs — shared form partial for new+edit
+- Wrote src/views/customers/index.ejs — list with search + pagination
+- Wrote src/views/customers/new.ejs — wraps shared form
+- Wrote src/views/customers/edit.ejs — wraps shared form, plus delete-button danger zone
+- Wrote src/views/customers/show.ejs — contact panel + jobs table
+- Updated src/server.js — mount /customers under requireAuth
+
+## [2026-05-10T07:12:00Z] — hermes — phase 1
+- Ran npm run init-db → DB initialized at data/app.db (118KB)
+- Ran npm run seed → admin user seeded (idempotent on re-run), company_settings seeded
+- Verified bcrypt works (installed cleanly, no VC++ dependency issue)
+- Booted server on port 3001 (killed stale PID 25304 first)
+- Auth smoke test: 7/7 pass + negative test pass
+  - /ping → 200 JSON
+  - / (no auth) → 302 → /login
+  - /login → 200 HTML
+  - POST /login (valid) → 302 + Set-Cookie
+  - / (with cookie) → 200 dashboard
+  - /login (already logged in) → 302 → /
+  - POST /logout → 302 → /login
+  - POST /login (bad password) → 401 "Invalid email or password"
+- All routes working, no sql.js async issues, no EJS include path problems
+- Committed: dc48eae
+
+## [2026-05-10T07:28:00Z] — hermes — phase 2a
+- Installed routes + views for Customers CRUD (written by Claude)
+- Fixed bug: emptyToNull() returned undefined for missing form fields; sql.js crashes on undefined bind params. Changed to return null.
+- Confirmed: GET /customers (200), GET /customers/new (200), POST create valid (302 → /customers/2), validation works (400 with errors)
+- Full 17-step test interrupted by blocked commands — will complete on next bridge check

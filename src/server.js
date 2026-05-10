@@ -25,6 +25,7 @@ const morgan = require('morgan');
 const db = require('./db/db');
 const { loadCurrentUser, requireAuth } = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
+const customersRoutes = require('./routes/customers');
 
 const PORT = parseInt(process.env.PORT, 10) || 3001;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
@@ -81,6 +82,9 @@ async function main() {
 
   // Auth routes (public)
   app.use('/', authRoutes);
+
+  // Feature routes (all gated)
+  app.use('/customers', requireAuth, customersRoutes);
 
   // Dashboard (gated)
   app.get('/', requireAuth, (req, res) => {
