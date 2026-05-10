@@ -43,6 +43,7 @@ const SEED_ACCOUNTS = [
   { code: '5700', name: 'Office & Admin',             type: 'expense' },
   { code: '5800', name: 'Permits & Fees',             type: 'expense' },
   { code: '5900', name: 'Miscellaneous',              type: 'expense' },
+  { code: '5950', name: 'Sales Tax — Vendor Bills',   type: 'expense' },
 ];
 
 async function main() {
@@ -53,19 +54,21 @@ async function main() {
   db.exec(schema);
   console.log('Accounting schema applied.');
 
-  // Seed chart of accounts (idempotent — skip if any accounts exist)
-  const existing = db.get('SELECT COUNT(*) AS n FROM accounts');
-  if (existing && existing.n > 0) {
-    console.log(`Accounts already seeded (${existing.n} found) — skipping.`);
-  } else {
-    for (const acc of SEED_ACCOUNTS) {
-      db.run(
-        'INSERT INTO accounts (code, name, type) VALUES (?, ?, ?)',
-        [acc.code, acc.name, acc.type]
-      );
-    }
-    console.log(`Seeded ${SEED_ACCOUNTS.length} starter accounts.`);
+  // Seed chart of accounts — idempotent per row.
+  // Existing rows are left alone; new rows from SEED_ACCOUNTS get inserted.
+  // This means a v0.7+ deploy with new accounts (e.g. 5950) will backfill
+  // them on a DB that was seeded under an earlier version.
+  let inserted = 0, skipped = 0;
+  for (const acc of SEED_ACCOUNTS) {
+    const existing = db.get('SELECT id FROM accounts WHERE code = ?', [acc.code]);
+    if (existing) { skipped++; continue; }
+    db.run(
+      'INSERT INTO accounts (code, name, type) VALUES (?, ?, ?)',
+      [acc.code, acc.name, acc.type]
+    );
+    inserted++;
   }
+  console.log(`Accounts: ${inserted} inserted, ${skipped} already present.`);
 
   await db.persist();
   console.log('Accounting init complete.');

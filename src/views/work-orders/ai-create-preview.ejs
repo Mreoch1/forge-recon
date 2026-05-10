@@ -1,0 +1,199 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<%
+function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
+const cust = extracted.customer || {};
+const job = extracted.job || {};
+const assignees = extracted.assignees || [];
+const lines = extracted.line_items || [];
+const warnings = extracted.warnings || [];
+%>
+
+<div class="max-w-5xl mx-auto px-4 py-6">
+  <div class="mb-4">
+    <a href="/work-orders/ai-create" class="text-sm text-recon-fog hover:text-recon-red">&larr; Back</a>
+  </div>
+
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="page-h1">Review AI extraction</h1>
+    <div class="text-xs text-recon-fog"><%= typeof tokens !== 'undefined' ? tokens : '?' %> tokens used</div>
+  </div>
+
+  <% if (warnings && warnings.length > 0) { %>
+    <div class="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3 mb-6">
+      <p class="text-sm font-medium text-yellow-800 mb-1">AI flags to check</p>
+      <ul class="text-sm text-yellow-700 list-disc list-inside">
+        <% warnings.forEach(function(w){ %><li><%= w %></li><% }); %>
+      </ul>
+    </div>
+  <% } %>
+
+  <form action="/work-orders/ai-finalize" method="post" class="space-y-6">
+    <input type="hidden" name="raw_text" value="<%= rawText %>">
+
+    <!-- Customer -->
+    <div class="card p-5">
+      <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Customer</h3>
+      <% if (cust.match_id) { %>
+        <div class="bg-green-50 border border-green-200 rounded-lg px-4 py-2 mb-3 text-sm text-green-800">
+          Matched existing customer: <strong><%= cust.name %></strong>
+          <span class="text-xs">(confidence: <%= Math.round((cust.match_confidence || 0) * 100) %>%)</span>
+          <input type="hidden" name="customer_id" value="<%= cust.match_id %>">
+          <input type="hidden" name="customer_action" value="use_existing">
+        </div>
+      <% } else { %>
+        <div class="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 mb-3 text-sm text-blue-800">
+          No exact customer match — will create new customer.
+        </div>
+        <input type="hidden" name="customer_action" value="create_new">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="label">Name <span class="text-recon-red">*</span></label>
+            <input type="text" name="customer_name" value="<%= cust.name || '' %>" class="input" required>
+          </div>
+          <div>
+            <label class="label">Email</label>
+            <input type="email" name="customer_email" value="<%= cust.email || '' %>" class="input">
+          </div>
+        </div>
+      <% } %>
+    </div>
+
+    <!-- Job -->
+    <div class="card p-5">
+      <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Job</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="label">Title <span class="text-recon-red">*</span></label>
+          <input type="text" name="job_title" value="<%= job.title || '' %>" class="input" required>
+        </div>
+        <div>
+          <label class="label">Address</label>
+          <input type="text" name="job_address" value="<%= job.address || '' %>" class="input">
+        </div>
+        <div>
+          <label class="label">City</label>
+          <input type="text" name="job_city" value="<%= job.city || '' %>" class="input">
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div><label class="label">State</label>
+            <input type="text" name="job_state" value="<%= job.state || '' %>" class="input" maxlength="2">
+          </div>
+          <div><label class="label">ZIP</label>
+            <input type="text" name="job_zip" value="<%= job.zip || '' %>" class="input" maxlength="10">
+          </div>
+        </div>
+      </div>
+      <div class="mt-4">
+        <label class="label">Description</label>
+        <textarea name="job_description" rows="3" class="input"><%= job.description || '' %></textarea>
+      </div>
+      <div class="grid grid-cols-2 gap-4 mt-4">
+        <div>
+          <label class="label">Scheduled date</label>
+          <input type="date" name="scheduled_date" value="<%= job.scheduled_date ? String(job.scheduled_date).slice(0,10) : '' %>" class="input">
+        </div>
+        <div>
+          <label class="label">Scheduled time</label>
+          <input type="time" name="scheduled_time" value="<%= job.scheduled_time || '' %>" class="input">
+        </div>
+      </div>
+    </div>
+
+    <!-- Assignees -->
+    <div class="card p-5">
+      <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Assignees</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <% assignees.forEach(function(a, idx) { %>
+          <div>
+            <label class="label"><%= a.name %> <span class="text-xs text-recon-fog">(<%= a.kind %>, <%= Math.round((a.match_confidence || 0) * 100) %>% confidence)</span></label>
+            <select name="assignees[<%= idx %>][user_id]" class="input">
+              <option value="">— Assign as text: <%- a.name %> —</option>
+              <% users.forEach(function(u) { %>
+                <option value="<%= u.id %>" <%= String(a.user_id) === String(u.id) ? 'selected' : '' %>><%= u.name %></option>
+              <% }); %>
+            </select>
+            <input type="hidden" name="assignees[<%= idx %>][name]" value="<%= a.name %>">
+          </div>
+        <% }); %>
+      </div>
+    </div>
+
+    <!-- Line items -->
+    <div class="card overflow-hidden">
+      <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
+        <h3 class="font-semibold">Suggested line items</h3>
+        <button type="button" data-add-line class="btn btn-secondary text-sm">+ Add item</button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="data" data-line-items>
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th>Trade</th>
+              <th class="text-right">Qty</th>
+              <th>Unit</th>
+              <th class="text-right">Est. unit $</th>
+              <th class="text-right">Line $</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% lines.forEach(function(li, idx) { %>
+              <tr class="line-row">
+                <td>
+                  <input type="text" name="lines[<%= idx %>][description]" data-field="description"
+                         value="<%= li.description || '' %>" class="input">
+                </td>
+                <td>
+                  <input type="text" name="lines[<%= idx %>][trade_hint]" data-field="trade_hint"
+                         value="<%= li.trade_hint || '' %>" class="input" style="width: 7rem;" placeholder="cabinetry, demo...">
+                </td>
+                <td class="text-right">
+                  <input type="number" step="0.01" min="0" name="lines[<%= idx %>][quantity]" data-field="quantity"
+                         value="<%= li.quantity %>" class="input text-right" style="width: 5rem;">
+                </td>
+                <td>
+                  <select name="lines[<%= idx %>][unit]" data-field="unit" class="input">
+                    <% ['ea','hr','sqft','lf','ton','lot'].forEach(function(u) { %>
+                      <option value="<%= u %>" <%= li.unit === u ? 'selected' : '' %>><%= u %></option>
+                    <% }); %>
+                  </select>
+                </td>
+                <td class="text-right">
+                  <input type="number" step="0.01" min="0" name="lines[<%= idx %>][unit_price]" data-field="unit_price"
+                         value="<%= li.estimated_unit_price || '' %>" class="input text-right" style="width: 7rem;">
+                </td>
+                <td class="text-right font-medium" data-field="line_total">0.00</td>
+                <td>
+                  <button type="button" data-remove-line class="text-recon-fog hover:text-recon-red text-sm">remove</button>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+          <tfoot class="bg-recon-cloud">
+            <tr>
+              <td colspan="6" class="text-right text-sm font-medium uppercase">Total estimated value</td>
+              <td class="text-right text-lg font-bold text-recon-red">$<span data-totals="total">0.00</span></td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- Notes -->
+    <div class="card p-5">
+      <label class="label" for="notes">AI notes</label>
+      <textarea name="notes" id="notes" rows="3" class="input"><%= extracted.notes || '' %></textarea>
+    </div>
+
+    <div class="flex items-center gap-2 pt-2">
+      <button type="submit" class="btn btn-primary">Create work order</button>
+      <a href="/work-orders/ai-create" class="btn btn-ghost">Start over</a>
+    </div>
+  </form>
+</div>
+
+<script src="/js/line-items.js"></script>
+<%- include('../layouts/footer') %>

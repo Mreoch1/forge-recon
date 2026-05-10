@@ -115,6 +115,27 @@ The live repo stays untouched. All integration happens by copying patterns into 
 **Decision:** AI vendor-invoice extraction lands in an `approval_queue` table with status='pending'. Human reviews + clicks Approve before any JE posts. AI suggestions visible in line-item form fields but not committed.
 **Reason:** Per Michael's own rule: "do not let AI directly post accounting records without approval at first."
 
+## 2026-05-10 — Bill JE: tax_amount as separate debit line (option C+)
+**Decision:** Bills keep `tax_amount` for display honesty (PDF + show page show "Tax: $X.XX"). The journal entry posted on bill approval routes the tax to a dedicated expense account, code `5950 — Sales Tax — Vendor Bills`. So a bill with subtotal $325 + tax $24.50 posts as: DR Materials $325 + DR Sales Tax — Vendor Bills $24.50 / CR Accounts Payable $349.50. JE balances. Tax stays auditable.
+**Reason:** Keeps the books balanced (which option-A "lump tax into total" doesn't without one of these tricks), preserves accurate per-account expense (which option-B "gross up each line" doesn't), and adds zero workflow friction. If Michael wants a use-tax-recovery flow later, the tax history is already separated by account.
+**Implication:** `init-accounting.js` is now per-row idempotent (UPSERT-style: skip existing codes, insert missing ones) so an already-seeded DB will backfill 5950 automatically the next time `npm run init-accounting` runs.
+
+## 2026-05-10 — AI items-library auto-maintenance (Round 9 work)
+**Decision:** AI will help maintain the `items_library` table organically. After each estimate / WO / invoice save, an async pass compares each line item to the library:
+- New description that's not in the library → suggest adding it (with the captured price + cost).
+- Same description, different price → flag a price-drift suggestion ("Update library entry from $X to $Y?").
+- Near-duplicate descriptions (e.g. "kitchen demo" vs "kitchen demolition") → suggest merging.
+
+Suggestions land in a queue (reuses the `ai_extractions` table semantics or gets its own `library_suggestions` table). User reviews + approves before any library row is written or modified — same suggest-then-approve pattern as everything else.
+**Reason:** Per Michael's request: "AI can help create reusable estimate items. If recurring descriptions come up with same pricing it should create / edit or modify existing items so they are always [current]."
+**Implication:** Implementation lands in Round 9 after Round 8 (manual AI features + WO from free text) ships.
+
+## 2026-05-10 — Bridge watcher: defer wakes during user keyboard activity (TODO patch)
+**Issue:** Watcher's pyautogui injection types `check bridge` into whatever window is focused at the moment the wake fires. If Michael is typing in his Cowork chat box when Hermes replies, the wake message gets injected mid-word, garbling the user's input.
+**Workaround for now:** Be aware of this. If a wake interrupts you, just delete the partial garble and continue.
+**Patch (deferred to next bridge maintenance pass):** Use a global keyboard hook to detect recent user keypresses and defer the wake by 5-10 seconds when keystroke activity was detected within the last 2 seconds. `pynput.keyboard.Listener` gives us this on Windows. Trade-off: adds a dependency to the watcher.
+**Status:** TODO — log noted, no action this session.
+
 ## 2026-05-10 — AI assistant role: helper, not authority
 **Decision:** AI is an assistant layer that suggests and extracts — never the accounting authority. Pattern enforced everywhere: `AI Suggests → User Reviews → User Approves → System Posts`. AI never writes a journal entry directly. AI never edits an invoice or bill in place. AI output is always shown to the user as a draft suggestion they can accept, edit, or reject.
 

@@ -41,8 +41,10 @@ const CODES = {
   CASH:               '1000',
   ACCOUNTS_RECEIVABLE:'1100',
   ACCOUNTS_PAYABLE:   '2000',
-  SALES_TAX_PAYABLE:  '2100',
+  SALES_TAX_PAYABLE:  '2100',  // tax we owe (sale-side)
   SERVICE_REVENUE:    '4000',
+  MISC_EXPENSE:       '5900',  // fallback when bill line has no account_id
+  SALES_TAX_BILLS:    '5950',  // tax we paid on vendor bills (purchase-side)
 };
 
 function lookupAccount(code) {
@@ -247,10 +249,11 @@ function postBillApproved(bill, lines, opts = {}) {
   if (existing) return existing.id;
 
   const total = Number(bill.total) || 0;
+  const taxAmount = Number(bill.tax_amount) || 0;
   const description = `Bill ${bill.bill_number || '#' + bill.id} from vendor`;
 
   // Each bill line goes to its own expense account (or Misc if not set)
-  const fallback = lookupAccount('5900'); // Miscellaneous expense
+  const fallback = lookupAccount(CODES.MISC_EXPENSE);
   const jeLines = [];
   lines.forEach(li => {
     const amt = Number(li.line_total) || 0;
@@ -266,6 +269,23 @@ function postBillApproved(bill, lines, opts = {}) {
     });
   });
   if (jeLines.length === 0) return null;
+
+  // Tax paid to vendor: separate debit line to a dedicated expense account.
+  // Keeps the JE balanced AND keeps tax-paid auditable in the books.
+  if (taxAmount > 0) {
+    const taxAcct = lookupAccount(CODES.SALES_TAX_BILLS);
+    if (!taxAcct) {
+      console.warn('[accounting] missing 5950 Sales Tax account — bill will fail to post until init-accounting is re-run');
+      return null;
+    }
+    jeLines.push({
+      accountId: taxAcct.id,
+      debit: taxAmount,
+      credit: 0,
+      description: `${description} — sales tax`,
+    });
+  }
+
   jeLines.push({ accountId: ap.id, debit: 0, credit: total, description: `${description} — to AP` });
 
   return postJournalEntry({

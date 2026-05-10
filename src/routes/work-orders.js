@@ -298,6 +298,149 @@ router.post('/', (req, res) => {
   res.redirect(`/work-orders/${newId}`);
 });
 
+// ---- AI-assisted WO creation (Round 8) ----
+// These MUST come before /:id routes to avoid Express route collision with /ai-create being caught as :id
+
+router.get('/ai-create', (req, res) => {
+  res.render('work-orders/ai-create', { title: 'AI-assisted work order', activeNav: 'work-orders', text: '', error: null });
+});
+
+router.post('/ai-create', async (req, res) => {
+  const text = (req.body.description || '').trim();
+  if (!text || text.length < 20) {
+    return res.render('work-orders/ai-create', { title: 'AI-assisted WO', activeNav: 'work-orders', text, error: 'Provide more detail (at least 20 characters).' });
+  }
+  const ai = require('../services/ai');
+  if (!ai.isConfigured()) {
+    return res.render('work-orders/ai-create', { title: 'AI-assisted WO', activeNav: 'work-orders', text, error: 'AI not configured. Add AI_API_KEY to .env.' });
+  }
+  const customers = db.all('SELECT id, name, email FROM customers');
+  const users = db.all("SELECT id, name FROM users WHERE active = 1");
+  try {
+    const result = await ai.extractWorkOrder({ text, customers, users, userId: req.session.userId });
+    if (!result.ok) {
+      return res.render('work-orders/ai-create', { title: 'AI-assisted WO', activeNav: 'work-orders', text, error: `AI parse failed: ${result.reason}` });
+    }
+    res.render('work-orders/ai-create-preview', {
+      title: 'Review AI extraction',
+      activeNav: 'work-orders',
+      extracted: result.data,
+      rawText: text,
+      customers, users,
+      tokens: result.tokens,
+    });
+  } catch (err) {
+    console.error('AI extraction error:', err);
+    res.render('work-orders/ai-create', { title: 'AI-assisted WO', activeNav: 'work-orders', text, error: `AI error: ${err.message}` });
+  }
+});
+
+router.post('/ai-finalize', (req, res) => {
+  const { customer_action, customer_name, customer_email, customer_id } = req.body;
+  const jobTitle = (req.body.job_title || '').trim();
+  const jobAddress = (req.body.job_address || '').trim();
+  const jobCity = (req.body.job_city || '').trim();
+  const jobState = (req.body.job_state || '').trim();
+  const jobZip = (req.body.job_zip || '').trim();
+  const jobDescription = (req.body.job_description || '').trim();
+  const scheduledDate = (req.body.scheduled_date || '').trim() || null;
+  const scheduledTime = (req.body.scheduled_time || '').trim() || null;
+  const notes = (req.body.notes || '').trim() || null;
+
+  if (!jobTitle) {
+    setFlash(req, 'error', 'Job title is required.');
+    return res.redirect('/work-orders/ai-create');
+  }
+
+  // Resolve customer
+  let resolvedCustomerId;
+  if (customer_action === 'use_existing' && customer_id) {
+    resolvedCustomerId = parseInt(customer_id, 10);
+  } else {
+    const name = (customer_name || '').trim();
+    if (!name) {
+      setFlash(req, 'error', 'Customer name is required for a new customer.');
+      return res.redirect('/work-orders/ai-create');
+    }
+    resolvedCustomerId = db.run(
+      `INSERT INTO customers (name, email, created_at) VALUES (?, ?, datetime('now'))`,
+      [name, customer_email || null]
+    ).lastInsertRowid;
+  }
+
+  // Create job
+  const jobId = db.run(
+    `INSERT INTO jobs (customer_id, title, address, city, state, zip, description, status, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'estimating', datetime('now'))`,
+    [resolvedCustomerId, jobTitle, jobAddress, jobCity, jobState, jobZip, jobDescription]
+  ).lastInsertRowid;
+
+  // Create work order
+  const calc = require('../services/calculations');
+  const numbering = require('../services/numbering');
+  const next = numbering.nextRootWoNumber();
+  const display = next.display;
+
+  // Parse assignees from req.body.assignees (array of {name, user_id})
+  const rawAssignees = (() => {
+    const input = req.body.assignees;
+    if (!input) return [];
+    if (Array.isArray(input)) return input;
+    return Object.keys(input).sort((a, b) => parseInt(a,10)-parseInt(b,10)).map(k => input[k]);
+  })();
+  // For the first assignee with a user_id, they become assigned_to_user_id
+  // The rest are concatenated into assigned_to text
+  let assignedUserId = null;
+  let assignedToParts = [];
+  rawAssignees.forEach(a => {
+    const uid = a.user_id ? parseInt(a.user_id, 10) : null;
+    if (uid && !assignedUserId) assignedUserId = uid;
+    else assignedToParts.push(a.name);
+  });
+  // Also include the named user who's the primary assignee
+  if (assignedUserId) {
+    const u = db.get('SELECT name FROM users WHERE id = ?', [assignedUserId]);
+    if (u) assignedToParts.unshift(u.name);
+  }
+  const assignedToText = assignedToParts.filter(Boolean).join(', ') || null;
+
+  const woId = db.transaction(() => {
+    const r = db.run(
+      `INSERT INTO work_orders
+       (job_id, parent_wo_id, wo_number_main, wo_number_sub, display_number, status,
+        scheduled_date, scheduled_time, assigned_to_user_id, assigned_to, notes, created_at)
+       VALUES (?, NULL, ?, ?, ?, 'scheduled', ?, ?, ?, ?, ?, datetime('now'))`,
+      [jobId, next.main, next.sub, display, scheduledDate, scheduledTime, assignedUserId, assignedToText, notes]
+    );
+    const wid = r.lastInsertRowid;
+
+    // Insert line items
+    const rawLines = (() => {
+      const input = req.body.lines;
+      if (!input) return [];
+      if (Array.isArray(input)) return input;
+      return Object.keys(input).sort((a,b)=>parseInt(a,10)-parseInt(b,10)).map(k => input[k]);
+    })();
+    rawLines.forEach((li, idx) => {
+      const desc = (li.description || '').trim();
+      if (!desc) return;
+      const qty = parseFloat(li.quantity) || 0;
+      const up = parseFloat(li.unit_price) || 0;
+      const lt = Math.round(qty * up * 100) / 100;
+      db.run(
+        `INSERT INTO work_order_line_items
+         (work_order_id, description, quantity, unit, unit_price, line_total, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [wid, desc, qty, li.unit || 'ea', up, lt, idx]
+      );
+    });
+    return wid;
+  });
+
+  setFlash(req, 'success', `WO-${display} created from AI extraction.`);
+  res.redirect(`/work-orders/${woId}`);
+});
+
 // Sub-WO creation (POST /:id/sub) — opens a new form scoped to this parent
 router.get('/:id/sub/new', (req, res) => {
   const parent = loadWorkOrder(req.params.id);

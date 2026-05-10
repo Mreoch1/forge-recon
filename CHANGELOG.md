@@ -280,4 +280,16 @@ Append-only log of every change. Newest at the bottom. Format:
 - `show.ejs` has full status-aware buttons: draft→approve/void, approved→pay/void, void→delete
 - Added "Bills" nav link in header.ejs between Vendors and Accounting
 - Fixed `bills.js` validateBill to fall back to Miscellaneous (5900) when account_id is null (NOT NULL constraint fix)
-- **Known issue**: bill approve JE fails with imbalance — line debits ($325) + tax ($24.50) ≠ AP credit ($349.50). postBillApproved not including tax_amount in debit lines. Silent try/catch swallow.
+- **Known issue (fixed in msg 24)**: bill approve JE fails with imbalance — line debits ($325) + tax ($24.50) ≠ AP credit ($349.50). postBillApproved not including tax_amount in debit lines. Silent try/catch swallow.
+
+## [2026-05-10T14:15:00Z] — hermes — msg 24: bill JE fix verified + AI service live + AI-assisted WO UI
+- **Task 1**: Verified bill JE fix — init-accounting seeded 5950 (Sales Tax — Vendor Bills). Bill approve JE now has 4 balanced lines (DR Materials $250, DR Materials $75, DR Sales Tax $24.50, CR AP $349.50). Trial balance: $1,048.50 Dr = $1,048.50 Cr.
+- **Task 2**: AI service test — `extractWorkOrder` produced valid extraction (customer, job, 4 line items, warnings, 1247 tokens). Customer name prompt needs tuning ("Manager at Plymouth square" vs "Plymouth Square") but output shape is correct.
+- **Task 3**: AI-assisted WO creation UI built:
+  - `src/views/work-orders/ai-create.ejs` — textarea form with example text
+  - `src/views/work-orders/ai-create-preview.ejs` — review page with editable customer/job/assignees/line items, warnings callout
+  - Routes: GET/POST /work-orders/ai-create, POST /work-orders/ai-finalize (creates customer → job → WO in transaction)
+  - Added "+ AI work order" button to WO index
+  - Fixed `router.get('/ai-create')` placement before `/:id` routes (Express collision)
+  - Added `require('dotenv').config()` to server.js so AI_API_KEY is available at runtime
+- Full E2E test: paste free text → AI extracts → review → finalize → WO-0001-0000 created with customer + job + 3 line items.

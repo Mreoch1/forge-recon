@@ -6,6 +6,9 @@
       <h1 class="page-h1">Work Orders</h1>
       <p class="page-sub"><%= total %> total<% if (q) { %> &middot; "<%= q %>"<% } %><% if (status) { %> &middot; <%= status.replace('_',' ') %><% } %></p>
     </div>
+    <div class="flex gap-2">
+      <a href="/work-orders/ai-create" class="btn btn-primary">+ AI work order</a>
+    </div>
   </div>
 
   <form method="get" action="/work-orders" class="flex flex-wrap items-center gap-2 mb-4">

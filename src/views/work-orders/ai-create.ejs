@@ -1,0 +1,27 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<div class="max-w-3xl mx-auto px-4 py-6">
+  <div class="mb-4">
+    <a href="/work-orders" class="text-sm text-recon-fog hover:text-recon-red">&larr; Work Orders</a>
+  </div>
+  <h1 class="page-h1 mb-2">AI-assisted work order</h1>
+  <p class="page-sub mb-6">Paste a free-form description of the work. AI will extract customer, scope, line items, and assignees for you to review.</p>
+
+  <% if (error) { %>
+    <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-4 text-sm"><%= error %></div>
+  <% } %>
+
+  <form method="post" action="/work-orders/ai-create" class="space-y-4">
+    <div class="card p-5">
+      <label class="label" for="description">Work description <span class="text-recon-red">*</span></label>
+      <textarea name="description" id="description" rows="8" class="input" placeholder="Kitchen cabinet replacement for apt 1010 at Plymouth Square..."><%= typeof text !== 'undefined' ? text : '' %></textarea>
+      <p class="text-xs text-recon-fog mt-2">Example: <em>"Manager at Plymouth Square called about a kitchen cabinet replacement for apt 1010. Demo and replace cabinets. Possibly replace countertops. Assign to Office and Jason Altman."</em></p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button type="submit" class="btn btn-primary">Parse with AI</button>
+      <a href="/work-orders" class="btn btn-ghost">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<%- include('../layouts/footer') %>
