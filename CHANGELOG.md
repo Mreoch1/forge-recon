@@ -265,3 +265,11 @@ Append-only log of every change. Newest at the bottom. Format:
 - Mounted /vendors under requireManager in server.js
 - Nav link for Vendors between Invoices and Accounting
 - v0.5 E2E: core CRUD (customer/job/WO/estimate/invoice creation) works; invoice show/send/mark-paid has JOIN issue in loadInvoice (needs Claude review)
+
+## [2026-05-10T09:45:00Z] — hermes — v0.6 retest
+- Fixed `fmt` function not passed to accounting report views (EJS 500)
+- Verified invoice show page works (200, was 404)
+- Verified invoice send (302, .eml created), mark paid (302)
+- Verified accounting auto-posting: journal entries created on send + pay
+- Trial balance balanced (Dr $5,375 = Cr $5,375), P&L ($5k revenue), Balance sheet balanced
+- All reports render with live data

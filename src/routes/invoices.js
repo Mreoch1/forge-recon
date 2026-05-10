@@ -87,10 +87,13 @@ function validateInvoice(body) {
 }
 
 function loadInvoice(id) {
+  // LEFT JOINs throughout so a missing reference can't 404 the whole row.
+  // The unused `estimates` join is dropped — `i.estimate_id` (from i.*) is
+  // already the FK value the view needs; we never aliased anything from
+  // the estimates table that wasn't a duplicate.
   const inv = db.get(
     `SELECT i.*,
             w.id AS wo_id, w.display_number AS wo_display_number,
-            e.id AS estimate_id_alias,
             j.id AS job_id, j.title AS job_title,
             j.address AS job_address, j.city AS job_city, j.state AS job_state, j.zip AS job_zip,
             c.id AS customer_id, c.name AS customer_name,
@@ -98,10 +101,9 @@ function loadInvoice(id) {
             c.phone AS customer_phone,
             c.address AS customer_address, c.city AS customer_city, c.state AS customer_state, c.zip AS customer_zip
      FROM invoices i
-     JOIN estimates e ON e.id = i.estimate_id
-     JOIN work_orders w ON w.id = i.work_order_id
-     JOIN jobs j ON j.id = w.job_id
-     JOIN customers c ON c.id = j.customer_id
+     LEFT JOIN work_orders w ON w.id = i.work_order_id
+     LEFT JOIN jobs j        ON j.id = w.job_id
+     LEFT JOIN customers c   ON c.id = j.customer_id
      WHERE i.id = ?`,
     [id]
   );
@@ -110,7 +112,7 @@ function loadInvoice(id) {
     `SELECT * FROM invoice_line_items WHERE invoice_id = ? ORDER BY sort_order ASC, id ASC`,
     [id]
   );
-  inv.display_number = `INV-${inv.wo_display_number}`;
+  inv.display_number = `INV-${inv.wo_display_number || '????-????'}`;
   return inv;
 }
 

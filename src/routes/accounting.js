@@ -125,7 +125,7 @@ router.get('/reports/trial-balance', (req, res) => {
   });
   res.render('accounting/reports/trial-balance', {
     title: 'Trial balance', activeNav: 'accounting',
-    rows, totalDr, totalCr
+    rows, totalDr, totalCr, fmt
   });
 });
 
@@ -144,7 +144,7 @@ router.get('/reports/profit-loss', (req, res) => {
 
   res.render('accounting/reports/profit-loss', {
     title: 'Profit & loss', activeNav: 'accounting',
-    revenueRows, expenseRows, totalRevenue, totalExpenses, netIncome
+    revenueRows, expenseRows, totalRevenue, totalExpenses, netIncome, fmt
   });
 });
 
@@ -170,7 +170,8 @@ router.get('/reports/balance-sheet', (req, res) => {
     title: 'Balance sheet', activeNav: 'accounting',
     assets, liabilities, equity, netIncome,
     totalAssets, totalLiabilities, totalEquity: totalEquityWithIncome,
-    balanced: Math.abs(totalAssets - (totalLiabilities + totalEquityWithIncome)) < 0.01
+    balanced: Math.abs(totalAssets - (totalLiabilities + totalEquityWithIncome)) < 0.01,
+    fmt
   });
 });
 

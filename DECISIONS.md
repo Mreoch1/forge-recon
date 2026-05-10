@@ -105,6 +105,12 @@ Append-only. Every architectural decision made without Michael goes here. He can
 The live repo stays untouched. All integration happens by copying patterns into construction-app/.
 **Reason:** Michael's instruction: "I don't want to mess up Recon project manager it needs to stay active and unchanged."
 
+## 2026-05-10 — Secrets policy: env vars only, never in code, never in git
+**Decision:** All API keys, secrets, tokens (AI provider keys, Stripe live + restricted keys, Plaid client_id + secret, Resend API key, Supabase service role key, SESSION_SECRET in production) live exclusively in `construction-app/.env` on the local machine, and in Vercel's environment-variables UI when deployed. Code reads them via `process.env.<NAME>`. The `.env` file is already in `.gitignore`. A `.env.example` (committed) lists the required variable names with placeholder values, never real values.
+**Reason:** Even a "test" key can leak through chat transcripts, log files, browser dev-tools recordings, screen-shares, and PR descriptions. Treating every key as production-sensitive is cheaper than discovering otherwise.
+**Implication:** I (Claude) and Hermes never echo, paraphrase, write to a non-`.env` file, or commit any secret value. If a key is shared in chat, the action is: (1) acknowledge, (2) tell Michael to put it in `.env` himself, (3) recommend rotation if the chat is logged/persisted anywhere, (4) document the env var name for the eventual integration code. The actual secret string never enters our working files.
+**TODO for Michael:** create `.env` (already gitignored), add `AI_API_KEY=...`, `AI_PROVIDER=...`. Rotate any key that's been pasted into chat as a precaution before production launch.
+
 ## 2026-05-10 — AI gating: extract-then-approve, never auto-post
 **Decision:** AI vendor-invoice extraction lands in an `approval_queue` table with status='pending'. Human reviews + clicks Approve before any JE posts. AI suggestions visible in line-item form fields but not committed.
 **Reason:** Per Michael's own rule: "do not let AI directly post accounting records without approval at first."
