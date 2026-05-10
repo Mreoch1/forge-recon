@@ -96,7 +96,8 @@ Admin: GET /admin/users, GET/POST /admin/users/new, GET/POST /admin/users/:id/ed
 
 ## Current state
 
-- Phase: 3A (Estimates CRUD + line items + status actions) — Claude written, Hermes verifying.
+- Phase: 3B (Estimate PDF) — Claude written, Hermes verifying.
+- Phase 3A complete: 24-step test pass.
 - Phase 0/1/2A/2B complete. 37-step test pass on Phase 2.
 - Phase 3A files in place: numbering service, calculations service, estimates routes, _form with dynamic line items, index/new/edit/show views, line-items.js client UX. Server.js mounts /estimates. jobs/show.ejs updated to link via /estimates/new?job_id=N.
 - PDF route (GET /estimates/:id/pdf) is referenced from show.ejs but not yet implemented — Phase 3B will add it. Returns 404 until then.

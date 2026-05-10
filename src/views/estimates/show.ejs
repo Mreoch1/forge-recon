@@ -21,7 +21,8 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
       </p>
     </div>
     <div class="flex flex-wrap gap-2">
-      <a href="/estimates/<%= estimate.id %>/pdf" class="btn btn-secondary">PDF</a>
+      <a href="/estimates/<%= estimate.id %>/pdf" class="btn btn-secondary" target="_blank" rel="noopener">View PDF</a>
+      <a href="/estimates/<%= estimate.id %>/pdf?download=1" class="btn btn-ghost">Download</a>
       <% if (estimate.status === 'draft') { %>
         <a href="/estimates/<%= estimate.id %>/edit" class="btn btn-secondary">Edit</a>
         <form action="/estimates/<%= estimate.id %>/send" method="post" class="m-0 inline">

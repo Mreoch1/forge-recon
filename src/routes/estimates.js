@@ -25,6 +25,7 @@ const db = require('../db/db');
 const { setFlash } = require('../middleware/auth');
 const numbering = require('../services/numbering');
 const calc = require('../services/calculations');
+const pdf = require('../services/pdf');
 
 const router = express.Router();
 
@@ -143,8 +144,23 @@ function loadDefaults(jobId) {
 }
 
 function loadEstimate(id) {
+  // Pulls customer + job fields needed by the PDF generator alongside the
+  // standard estimate row. Aliased prefixes keep the namespace clean.
   const est = db.get(
-    `SELECT e.*, j.title AS job_title, c.id AS customer_id, c.name AS customer_name
+    `SELECT e.*,
+            j.title   AS job_title,
+            j.address AS job_address,
+            j.city    AS job_city,
+            j.state   AS job_state,
+            j.zip     AS job_zip,
+            c.id      AS customer_id,
+            c.name    AS customer_name,
+            c.email   AS customer_email,
+            c.phone   AS customer_phone,
+            c.address AS customer_address,
+            c.city    AS customer_city,
+            c.state   AS customer_state,
+            c.zip     AS customer_zip
      FROM estimates e
      JOIN jobs j ON j.id = e.job_id
      JOIN customers c ON c.id = j.customer_id
@@ -386,6 +402,36 @@ function statusTransition(req, res, fromStatus, toStatus, timestampField) {
   setFlash(req, 'success', `Estimate ${est.estimate_number} marked ${toStatus}.`);
   res.redirect(`/estimates/${est.id}`);
 }
+
+// PDF (read-only — anyone authed can fetch). Streams pdfkit output to res.
+router.get('/:id/pdf', (req, res) => {
+  const estimate = loadEstimate(req.params.id);
+  if (!estimate) {
+    return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
+  }
+  const company = db.get('SELECT * FROM company_settings WHERE id = 1') || {};
+
+  // Inline preview vs forced download: ?download=1 forces save dialog.
+  const filename = `${estimate.estimate_number}.pdf`;
+  const disposition = req.query.download ? 'attachment' : 'inline';
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `${disposition}; filename="${filename}"`);
+  res.setHeader('Cache-Control', 'no-store');
+
+  try {
+    pdf.generateEstimatePDF(estimate, company, res);
+  } catch (err) {
+    // Headers may already be sent by the time pdfkit errors. Best we can
+    // do is log + drop the connection.
+    console.error('PDF generation failed:', err);
+    if (!res.headersSent) {
+      res.status(500).render('error', { title: 'PDF error', code: 500, message: 'PDF generation failed.' });
+    } else {
+      res.end();
+    }
+  }
+});
 
 router.post('/:id/send',   (req, res) => statusTransition(req, res, 'draft', 'sent', 'sent_at'));
 router.post('/:id/accept', (req, res) => statusTransition(req, res, 'sent', 'accepted', 'accepted_at'));

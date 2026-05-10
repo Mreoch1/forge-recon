@@ -87,6 +87,16 @@ Append-only log of every change. Newest at the bottom. Format:
 - Updated src/views/jobs/show.ejs — "+ New estimate" link now /estimates/new?job_id=X
 - Updated src/server.js — mount /estimates under requireAuth
 
+## [2026-05-10T07:52:00Z] — hermes — phase 3A complete
+- All 24 Phase 3A steps green: gates, validation, math (subtotal 21500, tax 1612.50 at 7.5%, total 23112.50), edit-only-when-draft, status flow draft->sent->accepted, status guards block invalid transitions, FK guard against work_orders blocks delete
+- Numbering: EST-2026-0001 first create, increments to 0002 second
+- line-items.js shipped, browser test deferred (curl can't run JS)
+
+## [2026-05-10T08:00:00Z] — claude — phase 3B (files)
+- Wrote src/services/pdf.js — pdfkit-based estimate PDF: header (logo + company info right-aligned), title, two-column Bill-to/Job-site blocks, line items table with cloud header bg + mist row borders, right-aligned totals stack with red total amount, notes block, footer meta line. Page-break safety in line items table. Falls back to text-only header if logo missing.
+- Updated src/routes/estimates.js: enriched loadEstimate query to pull customer + job address fields needed by PDF. Added GET /:id/pdf route streaming pdfkit to response. Supports ?download=1 for forced save vs inline preview.
+- Updated src/views/estimates/show.ejs — split single PDF button into "View PDF" (inline new tab) + "Download" (?download=1)
+
 ## [2026-05-10T07:12:00Z] — hermes — phase 1
 - Ran npm run init-db → DB initialized at data/app.db (118KB)
 - Ran npm run seed → admin user seeded (idempotent on re-run), company_settings seeded
@@ -123,3 +133,10 @@ Append-only log of every change. Newest at the bottom. Format:
 - FK guard: delete blocked when WO references exist, shows "Cannot delete — 1 work order(s) reference it"
 - line-items.js on disk, client-side add/remove/calc ready for browser testing
 - All 24 test steps pass end-to-end
+
+## [2026-05-10T07:58:00Z] — hermes — phase 3b
+- PDF generation via pdfkit: inline (200, application/pdf, 259KB) and download (?download=1, attachment)
+- Logo in top-left, company info top-right, estimate title, bill-to/job-site, line items table, totals stack (subtotal/tax/total), notes block, footer meta
+- Logo missing fallback: generates cleanly as text-only header (2616 bytes, no crash)
+- 30-line page break test: generates without error (260KB), multi-page table continuation
+- Sample PDFs saved to bridge folder: sample-EST-2026-0003.pdf, sample-30line-pagebreak.pdf
