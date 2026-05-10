@@ -27,6 +27,7 @@ const { loadCurrentUser, requireAuth } = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
 const customersRoutes = require('./routes/customers');
 const jobsRoutes = require('./routes/jobs');
+const estimatesRoutes = require('./routes/estimates');
 
 const PORT = parseInt(process.env.PORT, 10) || 3001;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
@@ -87,6 +88,7 @@ async function main() {
   // Feature routes (all gated)
   app.use('/customers', requireAuth, customersRoutes);
   app.use('/jobs', requireAuth, jobsRoutes);
+  app.use('/estimates', requireAuth, estimatesRoutes);
 
   // Dashboard (gated)
   app.get('/', requireAuth, (req, res) => {

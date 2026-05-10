@@ -1,0 +1,126 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<%
+function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
+%>
+
+<div class="max-w-5xl mx-auto px-4 py-6">
+  <div class="mb-4">
+    <a href="/estimates" class="text-sm text-recon-fog hover:text-recon-red">&larr; Estimates</a>
+  </div>
+
+  <div class="flex items-baseline justify-between mb-6 flex-wrap gap-2">
+    <div>
+      <div class="flex items-center gap-3">
+        <h1 class="page-h1"><%= estimate.estimate_number %></h1>
+        <span class="badge badge-<%= estimate.status %>"><%= estimate.status %></span>
+      </div>
+      <p class="page-sub">
+        Job: <a href="/jobs/<%= estimate.job_id %>" class="hover:text-recon-red"><%= estimate.job_title %></a>
+        &middot; Customer: <a href="/customers/<%= estimate.customer_id %>" class="hover:text-recon-red"><%= estimate.customer_name %></a>
+      </p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <a href="/estimates/<%= estimate.id %>/pdf" class="btn btn-secondary">PDF</a>
+      <% if (estimate.status === 'draft') { %>
+        <a href="/estimates/<%= estimate.id %>/edit" class="btn btn-secondary">Edit</a>
+        <form action="/estimates/<%= estimate.id %>/send" method="post" class="m-0 inline">
+          <button class="btn btn-primary">Send</button>
+        </form>
+      <% } else if (estimate.status === 'sent') { %>
+        <form action="/estimates/<%= estimate.id %>/accept" method="post" class="m-0 inline">
+          <button class="btn btn-primary">Mark accepted</button>
+        </form>
+        <form action="/estimates/<%= estimate.id %>/reject" method="post" class="m-0 inline">
+          <button class="btn btn-danger">Mark rejected</button>
+        </form>
+      <% } %>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <div class="card p-4">
+      <div class="text-xs uppercase tracking-wide text-recon-fog">Subtotal</div>
+      <div class="text-xl font-semibold mt-1">$<%= fmt(estimate.subtotal) %></div>
+    </div>
+    <div class="card p-4">
+      <div class="text-xs uppercase tracking-wide text-recon-fog">Tax (<%= fmt(estimate.tax_rate) %>%)</div>
+      <div class="text-xl font-semibold mt-1">$<%= fmt(estimate.tax_amount) %></div>
+    </div>
+    <div class="card p-4 bg-recon-charcoal text-white">
+      <div class="text-xs uppercase tracking-wide text-recon-fog">Total</div>
+      <div class="text-2xl font-bold mt-1 text-recon-red-light">$<%= fmt(estimate.total) %></div>
+    </div>
+  </div>
+
+  <div class="card overflow-hidden mb-6">
+    <div class="px-5 py-3 border-b border-recon-mist">
+      <h3 class="font-semibold">Line items</h3>
+    </div>
+    <% if (estimate.lines.length === 0) { %>
+      <div class="p-6 text-center text-recon-fog text-sm">No line items.</div>
+    <% } else { %>
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Trade</th>
+            <th>Description</th>
+            <th class="text-right">Qty</th>
+            <th>Unit</th>
+            <th class="text-right">Unit $</th>
+            <th class="text-right">Line $</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% estimate.lines.forEach(function(li){ %>
+            <tr>
+              <td><span class="badge badge-draft"><%= li.trade %></span></td>
+              <td><%= li.description %></td>
+              <td class="text-right"><%= li.quantity %></td>
+              <td><%= li.unit %></td>
+              <td class="text-right">$<%= fmt(li.unit_price) %></td>
+              <td class="text-right font-medium">$<%= fmt(li.line_total) %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+    <div class="card p-5">
+      <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-2">Dates</h3>
+      <dl class="space-y-1 text-sm">
+        <div><dt class="text-recon-fog text-xs inline">Created:</dt> <dd class="inline"><%= (estimate.created_at || '—').slice(0,10) %></dd></div>
+        <% if (estimate.valid_until) { %>
+          <div><dt class="text-recon-fog text-xs inline">Valid until:</dt> <dd class="inline"><%= String(estimate.valid_until).slice(0,10) %></dd></div>
+        <% } %>
+        <% if (estimate.sent_at) { %>
+          <div><dt class="text-recon-fog text-xs inline">Sent:</dt> <dd class="inline"><%= estimate.sent_at %></dd></div>
+        <% } %>
+        <% if (estimate.accepted_at) { %>
+          <div><dt class="text-recon-fog text-xs inline">Accepted:</dt> <dd class="inline"><%= estimate.accepted_at %></dd></div>
+        <% } %>
+      </dl>
+    </div>
+    <% if (estimate.notes) { %>
+      <div class="card p-5">
+        <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-2">Notes</h3>
+        <p class="text-sm whitespace-pre-line"><%= estimate.notes %></p>
+      </div>
+    <% } %>
+  </div>
+
+  <% if (estimate.status === 'draft') { %>
+    <div class="card p-5 border-red-200">
+      <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
+      <p class="text-sm text-recon-fog mb-3">Drafts can be deleted. Once sent or accepted, an estimate becomes immutable.</p>
+      <form action="/estimates/<%= estimate.id %>/delete" method="post"
+            onsubmit="return confirm('Delete <%= estimate.estimate_number %>?');" class="m-0">
+        <button type="submit" class="btn btn-danger">Delete estimate</button>
+      </form>
+    </div>
+  <% } %>
+</div>
+
+<%- include('../layouts/footer') %>

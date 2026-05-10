@@ -70,6 +70,23 @@ Append-only log of every change. Newest at the bottom. Format:
 - Wrote src/views/jobs/show.ejs — header w/ status badge + customer link, 3 info cards (job site/customer/description), 3 stacked sections (Estimates/Work Orders/Invoices) with empty states
 - Updated src/server.js — mount /jobs under requireAuth
 
+## [2026-05-10T07:40:00Z] — hermes — phase 2 complete
+- 18-step Phase 2A test pass: all green (create, show, search, edit, update, delete, FK guard, cross-link)
+- 19-step Phase 2B test pass: all green (no-customers gate, customer dropdown, prefill, validation, search across title+customer, status filter, FK guard against estimates)
+- Discovery: sql.js per-process — CLI inserts don't reach a running server's in-memory copy. Documented in DECISIONS.md.
+
+## [2026-05-10T07:50:00Z] — claude — phase 3A (files)
+- Wrote src/services/numbering.js — atomic next-number via transaction, formats EST/WO/INV-YYYY-NNNN
+- Wrote src/services/calculations.js — server-side authoritative subtotal/tax/total, money-safe rounding
+- Wrote src/routes/estimates.js — full CRUD + status actions (send/accept/reject) + delete with WO FK guard. Edits restricted to draft only. Forces job_id from existing record on update (no re-parenting via form).
+- Wrote src/views/estimates/_form.ejs — line items table with hidden template row, totals tfoot, tax_rate input, hidden job_id, Notes textarea
+- Wrote src/views/estimates/index.ejs — list with search + status filter
+- Wrote src/views/estimates/new.ejs, edit.ejs — both wrap _form
+- Wrote src/views/estimates/show.ejs — totals cards (subtotal/tax/total in dark hero), line items table, dates panel, status-aware action buttons (Send / Accept-Reject / Edit / Delete), PDF link present (404 until 3B)
+- Wrote public/js/line-items.js — vanilla JS, add/remove rows, live calc, reindexes lines[N] names on remove, prevents removing last row
+- Updated src/views/jobs/show.ejs — "+ New estimate" link now /estimates/new?job_id=X
+- Updated src/server.js — mount /estimates under requireAuth
+
 ## [2026-05-10T07:12:00Z] — hermes — phase 1
 - Ran npm run init-db → DB initialized at data/app.db (118KB)
 - Ran npm run seed → admin user seeded (idempotent on re-run), company_settings seeded
@@ -97,3 +114,12 @@ Append-only log of every change. Newest at the bottom. Format:
 - 2A: Customers CRUD — all 18 steps pass (create, show, search, update, delete, FK guard against jobs)
 - 2B: Jobs CRUD — all 19 steps pass (create with customer dropdown, prefilled form, validation, search/filter, update, delete, FK guard against estimates)
 - Note: sql.js in-memory persistence means CLI-based FK guard tests require server restart to pick up disk changes
+
+## [2026-05-10T07:50:00Z] — hermes — phase 3a
+- Estimates CRUD with line items: create, show, edit, update, status transitions all pass
+- Server-side total calculation confirmed: subtotal 21500, tax 1612.50, total 23112.50
+- Numbering generates EST-2026-0001 and increments properly
+- Status machine: draft→sent (locked from edit), sent→accepted, invalid transitions refused cleanly
+- FK guard: delete blocked when WO references exist, shows "Cannot delete — 1 work order(s) reference it"
+- line-items.js on disk, client-side add/remove/calc ready for browser testing
+- All 24 test steps pass end-to-end

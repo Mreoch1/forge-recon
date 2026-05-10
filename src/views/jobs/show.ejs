@@ -22,7 +22,7 @@ function fmt(n) { n = Number(n) || 0; return n.toFixed(2); }
     </div>
     <div class="flex gap-2">
       <a href="/jobs/<%= job.id %>/edit" class="btn btn-secondary">Edit</a>
-      <a href="/jobs/<%= job.id %>/estimates/new" class="btn btn-primary">+ New estimate</a>
+      <a href="/estimates/new?job_id=<%= job.id %>" class="btn btn-primary">+ New estimate</a>
     </div>
   </div>
 
@@ -58,11 +58,11 @@ function fmt(n) { n = Number(n) || 0; return n.toFixed(2); }
   <div class="card overflow-hidden mb-6">
     <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
       <h3 class="font-semibold">Estimates (<%= estimates.length %>)</h3>
-      <a href="/jobs/<%= job.id %>/estimates/new" class="text-sm text-recon-red hover:underline">+ Add estimate</a>
+      <a href="/estimates/new?job_id=<%= job.id %>" class="text-sm text-recon-red hover:underline">+ Add estimate</a>
     </div>
     <% if (estimates.length === 0) { %>
       <div class="p-6 text-center text-recon-fog text-sm">
-        No estimates yet. <a href="/jobs/<%= job.id %>/estimates/new" class="text-recon-red underline">Create one</a>.
+        No estimates yet. <a href="/estimates/new?job_id=<%= job.id %>" class="text-recon-red underline">Create one</a>.
       </div>
     <% } else { %>
       <table class="data">

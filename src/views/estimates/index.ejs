@@ -1,0 +1,79 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<%
+function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
+%>
+
+<div class="max-w-7xl mx-auto px-4 py-6">
+  <div class="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+    <div>
+      <h1 class="page-h1">Estimates</h1>
+      <p class="page-sub"><%= total %> total<% if (q) { %> &middot; "<%= q %>"<% } %><% if (status) { %> &middot; <%= status %><% } %></p>
+    </div>
+  </div>
+
+  <form method="get" action="/estimates" class="flex flex-wrap items-center gap-2 mb-4">
+    <input type="text" name="q" value="<%= q %>" placeholder="Search number, job, customer..." class="input max-w-md">
+    <select name="status" class="input max-w-[12rem]">
+      <option value="">All statuses</option>
+      <% statuses.forEach(function(s){ %>
+        <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s %></option>
+      <% }); %>
+    </select>
+    <button type="submit" class="btn btn-secondary">Filter</button>
+    <% if (q || status) { %>
+      <a href="/estimates" class="btn btn-ghost">Clear</a>
+    <% } %>
+  </form>
+
+  <div class="card overflow-hidden">
+    <% if (estimates.length === 0) { %>
+      <div class="p-8 text-center text-recon-fog">
+        <% if (q || status) { %>
+          No estimates match. <a href="/estimates" class="text-recon-red underline">Clear</a>
+        <% } else { %>
+          No estimates yet. Create one from a <a href="/jobs" class="text-recon-red underline">job</a>.
+        <% } %>
+      </div>
+    <% } else { %>
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Number</th>
+            <th>Job</th>
+            <th>Customer</th>
+            <th>Status</th>
+            <th class="text-right">Total</th>
+            <th>Valid until</th>
+            <th>Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% estimates.forEach(function(e){ %>
+            <tr>
+              <td class="font-medium"><a href="/estimates/<%= e.id %>" class="hover:text-recon-red"><%= e.estimate_number %></a></td>
+              <td><a href="/jobs/<%= e.job_id %>" class="hover:text-recon-red"><%= e.job_title %></a></td>
+              <td><a href="/customers/<%= e.customer_id %>" class="hover:text-recon-red"><%= e.customer_name %></a></td>
+              <td><span class="badge badge-<%= e.status %>"><%= e.status %></span></td>
+              <td class="text-right">$<%= fmt(e.total) %></td>
+              <td><%= (e.valid_until || '—').slice(0,10) %></td>
+              <td><%= (e.created_at || '').slice(0,10) %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+
+  <% if (totalPages > 1) { %>
+    <div class="flex items-center justify-center gap-2 mt-4">
+      <% for (let p = 1; p <= totalPages; p++) { %>
+        <% const qs = ['page='+p]; if (q) qs.push('q='+encodeURIComponent(q)); if (status) qs.push('status='+encodeURIComponent(status)); %>
+        <% if (p === page) { %><span class="btn btn-primary"><%= p %></span>
+        <% } else { %><a href="/estimates?<%= qs.join('&') %>" class="btn btn-ghost"><%= p %></a><% } %>
+      <% } %>
+    </div>
+  <% } %>
+</div>
+
+<%- include('../layouts/footer') %>

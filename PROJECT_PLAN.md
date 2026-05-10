@@ -96,12 +96,12 @@ Admin: GET /admin/users, GET/POST /admin/users/new, GET/POST /admin/users/:id/ed
 
 ## Current state
 
-- Phase: 2A finishing + 2B starting — Claude written both, Hermes has 2A partial-verified (bug fixed) and 2B queued.
-- Phase 0/1 complete.
-- Phase 2A: bug fixed by Hermes (`emptyToNull` had `trim(undefined)` returning undefined, sql.js doesn't accept undefined binds). Steps 1-5 verified, 6-17 pending.
-- Phase 2B files in place: jobs route, _form partial, index/new/edit/show views, server.js mounts /jobs.
-- Lesson applied to 2B: helpers patched from the start, no repeat of the same bug.
-- Awaiting Hermes (msg 11 + 12): finish 2A tests, then run 2B tests in same session.
+- Phase: 3A (Estimates CRUD + line items + status actions) — Claude written, Hermes verifying.
+- Phase 0/1/2A/2B complete. 37-step test pass on Phase 2.
+- Phase 3A files in place: numbering service, calculations service, estimates routes, _form with dynamic line items, index/new/edit/show views, line-items.js client UX. Server.js mounts /estimates. jobs/show.ejs updated to link via /estimates/new?job_id=N.
+- PDF route (GET /estimates/:id/pdf) is referenced from show.ejs but not yet implemented — Phase 3B will add it. Returns 404 until then.
+- Edits are restricted to draft estimates. Once sent/accepted/rejected, edit form refuses with flash. job_id is forced from the existing record on update (form can't re-parent the estimate).
+- Status flow: draft -> sent -> accepted/rejected. expired status exists in schema but no auto-transition yet (Phase 6+).
 
 ## Important pattern: optional form fields
 
