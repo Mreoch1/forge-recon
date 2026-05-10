@@ -184,6 +184,18 @@
       .recon-aic-confirm .resolved-tag.confirmed { color: #065f46; }
       .recon-aic-confirm .resolved-tag.cancelled { color: #999; }
       .recon-aic-confirm .resolved-tag.expired   { color: #92400e; }
+      .recon-aic-confirm .warnings {
+        margin: .35rem 0 .15rem; padding: .4rem .55rem;
+        background: #fef2f2; border-left: 3px solid #c0202b; border-radius: 2px;
+        font-size: .76rem; color: #991b1b; line-height: 1.4;
+      }
+      .recon-aic-confirm .warnings ul { margin: 0; padding: 0; list-style: none; }
+      .recon-aic-confirm .warnings li { padding: .1rem 0; }
+      .recon-aic-confirm .warnings li::before { content: "⚠ "; margin-right: .25rem; }
+      .recon-aic-confirm.has-warnings .actions .confirm {
+        background: #92400e; /* darker amber to acknowledge the override */
+      }
+      .recon-aic-confirm.has-warnings .actions .confirm:hover { background: #78350f; }
     `;
     document.head.appendChild(style);
   }
@@ -292,19 +304,30 @@
     const state = (confirmState && confirmState.status) || 'pending';
     const inflight = confirmState && confirmState.inflight;
     const lockedClass = state !== 'pending' ? ' locked' : '';
+    const warnings = Array.isArray(confirm.warnings) ? confirm.warnings : [];
+    const hasWarningsClass = warnings.length > 0 ? ' has-warnings' : '';
     let resolved = '';
     if (state === 'confirmed') resolved = '<div class="resolved-tag confirmed">✓ Confirmed</div>';
     else if (state === 'cancelled') resolved = '<div class="resolved-tag cancelled">○ Cancelled</div>';
     else if (state === 'expired')   resolved = '<div class="resolved-tag expired">⏱ Expired</div>';
 
+    const warningsBlock = warnings.length > 0
+      ? `<div class="warnings"><ul>${warnings.map(w =>
+          // Strip any leading "⚠ " from server text so we don't double-render it
+          `<li>${escapeHTML(String(w).replace(/^\s*[⚠!]\s*/, ''))}</li>`
+        ).join('')}</ul></div>`
+      : '';
+
     const expiresAt = confirm.expires_at_ms || 0;
+    const confirmLabel = warnings.length > 0 ? 'Confirm anyway' : 'Confirm';
     return `
-      <div class="recon-aic-confirm${lockedClass}" data-cid="${cid}" data-expires-at="${expiresAt}">
+      <div class="recon-aic-confirm${lockedClass}${hasWarningsClass}" data-cid="${cid}" data-expires-at="${expiresAt}">
         <ul class="summary">${lines}</ul>
+        ${warningsBlock}
         ${resolved}
         ${state === 'pending' ? `
           <div class="actions">
-            <button class="confirm" data-action="ai-confirm" data-cid="${cid}" ${inflight ? 'disabled' : ''}>Confirm</button>
+            <button class="confirm" data-action="ai-confirm" data-cid="${cid}" ${inflight ? 'disabled' : ''}>${confirmLabel}</button>
             <button class="cancel" data-action="ai-cancel" data-cid="${cid}" ${inflight ? 'disabled' : ''}>Cancel</button>
             <span class="countdown" data-cid="${cid}">…</span>
           </div>

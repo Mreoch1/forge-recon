@@ -14,6 +14,7 @@
  */
 const db = require('../db/db');
 const { writeAudit } = require('./audit');
+const scheduling = require('./scheduling');
 
 // ── Worker-allowed tools ─────────────────────────────────────────────
 const WORKER_ALLOWED = ['search_work_orders', 'get_schedule', 'navigate', 'search_customers'];
@@ -387,6 +388,195 @@ MUTATION_TOOLS.add_wo_note = {
   }
 };
 
+MUTATION_TOOLS.schedule_wo = {
+  needs_user: 'write',
+  propose(args, ctx) {
+    const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [args.wo_id]);
+    if (!wo) return { error: 'Work order not found.' };
+
+    const date = args.date;
+    if (!date) return { error: 'A date is required. Please specify a date like "May 14" or "tomorrow".' };
+    // Reject past dates
+    const today = new Date().toISOString().slice(0, 10);
+    if (date < today) return { error: `Cannot schedule WOs in the past (${date}). Please pick a future date.` };
+
+    const time = args.time || null;
+    if (time && !/^\d{2}:\d{2}$/.test(time)) {
+      return { error: `Invalid time format "${time}". Please use HH:MM format (e.g., "09:00" or "14:30").` };
+    }
+
+    const assigneeUserId = args.assignee_user_id || null;
+    let assigneeName = args.assignee_name || null;
+
+    // If assignee_user_id provided, look up name
+    if (assigneeUserId) {
+      const u = db.get('SELECT name FROM users WHERE id = ?', [assigneeUserId]);
+      if (u) assigneeName = u.name;
+    }
+
+    // If only name provided, try to resolve to user_id for conflict check
+    let resolvedUserId = assigneeUserId;
+    if (!assigneeUserId && assigneeName) {
+      const resolved = scheduling.resolveUserName(assigneeName);
+      if (resolved.user) {
+        resolvedUserId = resolved.user.id;
+        assigneeName = resolved.user.name;
+      } else if (resolved.matches) {
+        // Multiple matches — still proceed with conflict check just skip if ambiguous
+      }
+    }
+
+    // Conflict check
+    const conflicts = scheduling.findScheduleConflicts({
+      assignee_user_id: resolvedUserId,
+      date,
+      time,
+      duration_hours: parseInt(process.env.WO_DEFAULT_DURATION_HOURS || '4', 10),
+      exclude_wo_id: wo.id
+    });
+
+    let summary = [
+      `Work order: WO-${wo.display_number || ''}`,
+      `Date: ${scheduling.formatDate(date)}`,
+    ];
+    if (time) summary.push(`Time: ${scheduling.formatTime(time)}`);
+    if (assigneeName) summary.push(`Assignee: ${assigneeName}`);
+
+    const warnings = conflicts.map(c =>
+      `⚠ ${assigneeName || 'Assignee'} is already on WO-${c.display_number} (${c.customer_name}) at ${c.scheduled_time} — ${c.overlap_minutes}min overlap`
+    );
+
+    return { summary_lines: summary, args_normalized: { ...args, date, time, assignee_user_id: assigneeUserId, assignee_name: assigneeName }, warnings };
+  },
+  execute(args, ctx) {
+    const updateFields = [];
+    const updateParams = [];
+    if (args.date) { updateFields.push('scheduled_date = ?'); updateParams.push(args.date); }
+    if (args.time) { updateFields.push('scheduled_time = ?'); updateParams.push(args.time); }
+    if (args.assignee_user_id) { updateFields.push('assigned_to_user_id = ?'); updateParams.push(args.assignee_user_id); }
+    if (args.assignee_name) { updateFields.push('assigned_to = ?'); updateParams.push(args.assignee_name); }
+    updateParams.push(args.wo_id);
+    db.run(`UPDATE work_orders SET ${updateFields.join(', ')}, updated_at = datetime('now') WHERE id = ?`, updateParams);
+    writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'scheduled_by_ai', before: {}, after: { scheduled_date: args.date, scheduled_time: args.time, assigned_to: args.assignee_name }, source: 'ai', userId: ctx.userId });
+    return { id: args.wo_id, href: `/work-orders/${args.wo_id}` };
+  }
+};
+
+MUTATION_TOOLS.reschedule_wo = {
+  needs_user: 'write',
+  propose(args, ctx) {
+    const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [args.wo_id]);
+    if (!wo) return { error: 'Work order not found.' };
+
+    const date = args.new_date;
+    if (!date) return { error: 'A new date is required.' };
+    const today = new Date().toISOString().slice(0, 10);
+    if (date < today) return { error: `Cannot reschedule WOs to the past (${date}). Pick a future date.` };
+
+    const time = args.new_time || wo.scheduled_time || null;
+    if (time && !/^\d{2}:\d{2}$/.test(time)) {
+      return { error: `Invalid time format "${time}". Use HH:MM.` };
+    }
+
+    // Conflict check — exclude current WO
+    const assigneeUserId = wo.assigned_to_user_id || null;
+    const conflicts = scheduling.findScheduleConflicts({
+      assignee_user_id: assigneeUserId,
+      date,
+      time,
+      duration_hours: parseInt(process.env.WO_DEFAULT_DURATION_HOURS || '4', 10),
+      exclude_wo_id: wo.id
+    });
+
+    const assigneeName = wo.assigned_to || '';
+    let summary = [
+      `Work order: WO-${wo.display_number || ''}`,
+      `New date: ${scheduling.formatDate(date)}`,
+    ];
+    if (time) summary.push(`Time: ${scheduling.formatTime(time)}`);
+    if (assigneeName) summary.push(`Assignee: ${assigneeName}`);
+
+    const warnings = conflicts.map(c =>
+      `⚠ ${assigneeName || 'Assignee'} is already on WO-${c.display_number} (${c.customer_name}) at ${c.scheduled_time} — ${c.overlap_minutes}min overlap`
+    );
+
+    return { summary_lines: summary, args_normalized: { ...args, date, time }, warnings };
+  },
+  execute(args, ctx) {
+    const updateFields = [];
+    const updateParams = [];
+    if (args.new_date) { updateFields.push('scheduled_date = ?'); updateParams.push(args.new_date); }
+    if (args.new_time) { updateFields.push('scheduled_time = ?'); updateParams.push(args.new_time); }
+    updateParams.push(args.wo_id);
+    db.run(`UPDATE work_orders SET ${updateFields.join(', ')}, updated_at = datetime('now') WHERE id = ?`, updateParams);
+    writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'rescheduled_by_ai', before: {}, after: { scheduled_date: args.new_date, scheduled_time: args.new_time }, source: 'ai', userId: ctx.userId });
+    return { id: args.wo_id, href: `/work-orders/${args.wo_id}` };
+  }
+};
+
+MUTATION_TOOLS.assign_wo = {
+  needs_user: 'write',
+  propose(args, ctx) {
+    const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [args.wo_id]);
+    if (!wo) return { error: 'Work order not found.' };
+
+    let assigneeUserId = args.assignee_user_id;
+    let assigneeName = args.assignee_name;
+
+    // Resolve by name if only assignee_name provided
+    if (!assigneeUserId && assigneeName) {
+      const resolved = scheduling.resolveUserName(assigneeName);
+      if (resolved.error) return { error: resolved.error };
+      if (resolved.matches) {
+        return { suggest_disambiguation: true, matches: resolved.matches.map(m => ({ id: m.id, name: m.name, email: m.email })) };
+      }
+      assigneeUserId = resolved.user.id;
+      assigneeName = resolved.user.name;
+    }
+
+    if (!assigneeUserId && !assigneeName) {
+      return { error: 'Please specify who to assign this to.' };
+    }
+
+    // If we have a user_id but no name, look it up
+    if (assigneeUserId && !assigneeName) {
+      const u = db.get('SELECT name FROM users WHERE id = ?', [assigneeUserId]);
+      if (u) assigneeName = u.name;
+    }
+
+    // Conflict check if assigned to a user
+    const conflicts = wo.scheduled_date ? scheduling.findScheduleConflicts({
+      assignee_user_id: assigneeUserId,
+      date: wo.scheduled_date,
+      time: wo.scheduled_time,
+      duration_hours: parseInt(process.env.WO_DEFAULT_DURATION_HOURS || '4', 10),
+      exclude_wo_id: wo.id
+    }) : [];
+
+    let summary = [
+      `Work order: WO-${wo.display_number || ''}`,
+      `New assignee: ${assigneeName}`,
+    ];
+    if (wo.scheduled_date) summary.push(`Date: ${scheduling.formatDate(wo.scheduled_date)}`);
+
+    const warnings = conflicts.map(c =>
+      `⚠ ${assigneeName} is already on WO-${c.display_number} (${c.customer_name}) at ${c.scheduled_time} — ${c.overlap_minutes}min overlap`
+    );
+
+    return { summary_lines: summary, args_normalized: { ...args, assignee_user_id: assigneeUserId, assignee_name: assigneeName }, warnings };
+  },
+  execute(args, ctx) {
+    const updateFields = [];
+    const updateParams = [];
+    if (args.assignee_user_id) { updateFields.push('assigned_to_user_id = ?'); updateParams.push(args.assignee_user_id); }
+    if (args.assignee_name) { updateFields.push('assigned_to = ?'); updateParams.push(args.assignee_name); }
+    updateParams.push(args.wo_id);
+    db.run(`UPDATE work_orders SET ${updateFields.join(', ')}, updated_at = datetime('now') WHERE id = ?`, updateParams);
+    writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'assigned_by_ai', before: {}, after: { assigned_to: args.assignee_name }, source: 'ai', userId: ctx.userId });
+    return { id: args.wo_id, href: `/work-orders/${args.wo_id}` };
+  }
+};
+
 // ── Mutation arg schemas ─────────────────────────────────────────────
 function getMutationArgs(name) {
   const schemas = {
@@ -395,6 +585,9 @@ function getMutationArgs(name) {
     mark_invoice_paid: 'invoice_id: number (required), amount: number (optional, defaults to outstanding balance)',
     approve_bill: 'bill_id: number (required)',
     add_wo_note: 'wo_id: number (required), body: string (required)',
+    schedule_wo: 'wo_id: number (required), date: string (required — YYYY-MM-DD or relative like "tomorrow"), time: string (optional — HH:MM), assignee_user_id: number (optional), assignee_name: string (optional)',
+    reschedule_wo: 'wo_id: number (required), new_date: string (required — YYYY-MM-DD or relative), new_time: string (optional — HH:MM)',
+    assign_wo: 'wo_id: number (required), assignee_user_id: number (optional), assignee_name: string (optional — fuzzy-matched)',
   };
   return schemas[name] || {};
 }
@@ -417,6 +610,9 @@ Object.entries(MUTATION_TOOLS).forEach(([name, t]) => {
       mark_invoice_paid: 'Mark an invoice as paid. Call this when the user says "mark paid" or "pay invoice".',
       approve_bill: 'Approve a draft bill (flips draft→approved). Call this when the user says "approve bill".',
       add_wo_note: 'Add a note to a work order. Call this when the user says "add a note" or "leave a note".',
+      schedule_wo: 'Schedule a work order on a specific date/time with an assignee. Call this when the user says "schedule", "assign", or "book" a WO for a date.',
+      reschedule_wo: 'Change the date/time of an already-scheduled work order. Call this when the user says "reschedule", "move", "push back", or "change the date" of a WO.',
+      assign_wo: 'Assign a work order to a worker. Call this when the user says "assign WO to [name]" or "reassign".',
     })[name] || `[ACTION] ${name.replace(/_/g, ' ')}`,
     args: getMutationArgs(name),
     needs_user: 'write',

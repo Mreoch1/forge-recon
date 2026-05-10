@@ -105,6 +105,22 @@ async function chat({ message, history, ctx }) {
       };
     }
 
+    // Disambiguation: multiple name matches → show chips
+    if (proposeResult.suggest_disambiguation) {
+      const chips = (proposeResult.matches || []).map(m => ({
+        label: `${m.name} (${m.email})`,
+        action: 'assign_wo',
+        // Re-run with specific user_id
+        meta: { wo_id: mutationIntent.args.wo_id, assignee_user_id: m.id }
+      }));
+      return {
+        reply: `Multiple users match. Which one did you mean?`,
+        chips, tool_calls: allToolCalls, tokens_used: 0,
+        latency_ms: Date.now() - startTime, confirm: null,
+        audit_id: `${ctx.userId || 0}_${Date.now()}`
+      };
+    }
+
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
     const r = db.run(`INSERT INTO pending_confirmations (user_id, tool, args, summary, created_at, expires_at)
       VALUES (?, ?, ?, ?, datetime('now'), ?)`,
@@ -123,6 +139,7 @@ async function chat({ message, history, ctx }) {
         confirmation_id: r.lastInsertRowid,
         tool: mutationIntent.tool,
         summary_lines: proposeResult.summary_lines,
+        warnings: proposeResult.warnings || [],
         expires_in_seconds: 300
       },
       audit_id: `${ctx.userId || 0}_${Date.now()}`
@@ -155,6 +172,15 @@ async function chat({ message, history, ctx }) {
         if (proposeResult.error.includes('not found')) {
           finalReply = `I couldn't find that. Could you provide more details?`;
         }
+      } else if (proposeResult.suggest_disambiguation) {
+        // Multiple name matches — return chips
+        const chips = (proposeResult.matches || []).map(m => ({
+          label: `${m.name} (${m.email})`,
+          action: 'assign_wo',
+          meta: { wo_id: mc.args.wo_id, assignee_user_id: m.id }
+        }));
+        finalReply = `Multiple users match. Which one did you mean?`;
+        finalChips = chips;
       } else {
         // Create pending confirmation
         const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
@@ -168,6 +194,7 @@ async function chat({ message, history, ctx }) {
           confirmation_id: confirmationId,
           tool: mc.tool,
           summary_lines: proposeResult.summary_lines,
+          warnings: proposeResult.warnings || [],
           expires_in_seconds: 300
         };
         finalReply = proposeResult.summary_lines.length > 0
@@ -326,9 +353,106 @@ const MUTATION_PATTERNS = [
     tool: 'add_wo_note',
     patterns: [/add\s+(?:a\s+)?note/i, /leave\s+(?:a\s+)?note/i],
     extract: (msg) => {
-      const woMatch = msg.match(/WO[-\s]*(\d+)/i) || msg.match(/work\s*order[#\s]*(\d+)/i);
+      const woMatch = msg.match(/WO[-.\s]*(\d+)/i) || msg.match(/work\s*order[#\s]*(\d+)/i);
       const bodyMatch = msg.match(/(?:saying|that says|:)\s*(.+)/i);
       return { wo_id: woMatch ? parseInt(woMatch[1], 10) : 0, body: bodyMatch ? bodyMatch[1].trim() : '' };
+    }
+  },
+  {
+    tool: 'schedule_wo',
+    patterns: [/schedule\s+(?:the\s+)?WO/i, /schedule\s+work\s*order/i, /book\s+(?:the\s+)?WO/i],
+    extract: (msg) => {
+      const scheduling = require('./scheduling');
+      const woMatch = msg.match(/WO[-.\s]*(\d+(?:-\d+)*)/i);
+      const timeMatch = msg.match(/(?:at\s+|@\s*)(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i);
+      let args = { wo_id: 0, date: '', time: '' };
+
+      if (woMatch) args.wo_id = parseInt(woMatch[1], 10);
+      if (timeMatch) args.time = scheduling.parseTime(timeMatch[1]) || timeMatch[1];
+
+      // Extract name: capitalized word(s) after "for" or "to", but not a day name
+      let nameText = null;
+      const nameMatch = msg.match(/(?:for|to)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/);
+      if (nameMatch) {
+        let candidate = nameMatch[1];
+        // Strip trailing day names from the candidate (e.g., "Mike Thursday" → "Mike")
+        const dayNames = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday','today','tomorrow'];
+        const words = candidate.split(/\s+/);
+        while (words.length > 1 && dayNames.includes(words[words.length-1].toLowerCase())) {
+          words.pop();
+        }
+        candidate = words.join(' ');
+        if (candidate.length > 0 && !dayNames.includes(candidate.toLowerCase())) {
+          nameText = candidate;
+        }
+      }
+
+      // Extract date: look for relative day names or month-day patterns
+      // Try after "for" first, stripping the name part
+      let dateText = null;
+      const forMatch = msg.match(/for\s+(.+?)(?:at\s+|$)/i);
+      if (forMatch) {
+        let rest = forMatch[1].trim();
+        // If we found a name, remove it from the date search
+        if (nameText) {
+          rest = rest.replace(new RegExp('^' + nameText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), '').trim();
+        }
+        if (rest) {
+          const parsed = scheduling.parseDate(rest);
+          if (parsed) dateText = parsed;
+          else {
+            // Try absolute date pattern from the full message
+            const absDate = msg.match(/(?:on\s+|for\s+)?(May|June|July|August|April|March|January|February|September|October|November|December)\s+(\d{1,2})(?:st|nd|rd|th)?/i);
+            if (absDate) dateText = scheduling.parseDate(absDate[0]);
+          }
+        }
+      }
+
+      // Also try standalone date patterns in the message
+      if (!dateText) {
+        const dayRef = msg.match(/(?:next\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i);
+        if (dayRef) dateText = scheduling.parseDate(dayRef[0]);
+        if (!dateText) {
+          const absDate = msg.match(/(?:on\s+|for\s+)?(May|June|July|August|April|March|January|February|September|October|November|December)\s+(\d{1,2})(?:st|nd|rd|th)?/i);
+          if (absDate) dateText = scheduling.parseDate(absDate[1] + ' ' + absDate[2]);
+        }
+      }
+
+      if (dateText) args.date = dateText;
+      if (nameText) args.assignee_name = nameText;
+
+      return args;
+    }
+  },
+  {
+    tool: 'reschedule_wo',
+    patterns: [/reschedule\s+(?:the\s+)?WO/i, /reschedule\s+work\s*order/i, /move\s+(?:the\s+)?WO/i, /push\s+(?:back\s+)?WO/i],
+    extract: (msg) => {
+      const woMatch = msg.match(/WO[-.\s]*(\d+(?:-\d+)*)/i);
+      const scheduling = require('./scheduling');
+      // Try "to [date]" or "to next [day]"
+      let dateStr = msg.match(/(?:to|for)\s+(.+?)$/i);
+      let args = { wo_id: 0, new_date: '', new_time: '' };
+      if (woMatch) args.wo_id = parseInt(woMatch[1], 10);
+      if (dateStr) {
+        args.new_date = scheduling.parseDate(dateStr[1]) || dateStr[1].trim();
+        // Check for time in the rest
+        const timeInDate = dateStr[1].match(/at\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i);
+        if (timeInDate) args.new_time = scheduling.parseTime(timeInDate[1]) || timeInDate[1];
+      }
+      return args;
+    }
+  },
+  {
+    tool: 'assign_wo',
+    patterns: [/assign\s+(?:the\s+)?WO/i, /reassign\s+(?:the\s+)?WO/i],
+    extract: (msg) => {
+      const woMatch = msg.match(/WO[-.\s]*(\d+(?:-\d+)*)/i);
+      const nameMatch = msg.match(/(?:to|for)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i);
+      let args = { wo_id: 0, assignee_name: '' };
+      if (woMatch) args.wo_id = parseInt(woMatch[1], 10);
+      if (nameMatch) args.assignee_name = nameMatch[1].trim();
+      return args;
     }
   }
 ];

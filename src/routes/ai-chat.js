@@ -17,6 +17,7 @@ const chatLimiter = rateLimit({
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: false,
   keyGenerator: (req) => req.session?.userId || req.ip,
   handler: (req, res) => {
     res.status(429).json({ error: 'Rate limit reached. Try again in a few minutes.' });
