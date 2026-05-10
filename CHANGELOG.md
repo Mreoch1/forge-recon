@@ -341,6 +341,18 @@ Append-only log of every change. Newest at the bottom. Format:
 - **Admin AI usage page**: GET /admin/ai-usage — total calls/tokens/cost, 14-day sparkline, top users, recent calls.
 - **Seed JE cleanup**: --reset deletes orphaned journal entries/lines linked to mock invoices/bills.
 
+## [2026-05-10T20:20:00Z] — hermes — feat(timeline-polish): item-completion audit + AI send .eml + Across all jobs rail
+- Added `completed_at` column to work_order_line_items (idempotent migration)
+- Item-completion audit hook in WO update route: logs `item_completed` events when an item transitions from not-done to done, with grouping (5-min window) in timeline
+- Timeline now shows "Marked done: ..." or "Marked N items done" events under WO rows
+- Extracted .eml generation into `src/services/estimate-email.js` — shared between manual `/estimates/:id/send` route and AI `send_estimate` mutation
+- AI-confirmed send_estimate now also writes .eml to mail-outbox/
+- Refactored manual route to use the shared service (no duplication)
+- Dashboard right-rail "Activity" renamed to "Across all jobs" and filtered to exclude today's timeline WOs
+- Fixed `completed` field parsing in validateLineItem (support numeric `1` from qs parser)
+- Added `validate: false` to rate-limit config (IPv6 validation crash fix)
+- Round 16 remaining tests (3-12) all pass + R17 tests all pass
+
 ## [2026-05-10T20:00:00Z] — hermes — feat(ai-chat-tier3b): schedule/assign/reschedule WO mutations with conflict detection
 - New src/services/scheduling.js — findScheduleConflicts(), parseDate/parseTime/formatDate/formatTime, resolveUserName, resolveWorkOrder
 - 3 new mutation tools: schedule_wo, reschedule_wo, assign_wo — each with propose() + execute() and conflict detection

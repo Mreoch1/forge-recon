@@ -309,6 +309,15 @@ MUTATION_TOOLS.send_estimate = {
   },
   execute(args, ctx) {
     const est = db.get('SELECT * FROM estimates WHERE id = ?', [args.estimate_id]);
+    if (!est) return { error: 'Estimate not found.' };
+    if (est.status !== 'draft') return { error: `Estimate is "${est.status}" — must be draft to send.` };
+    // Generate .eml via the shared service (async — wrap in promise)
+    try {
+      const emailService = require('./estimate-email');
+      emailService.sendEstimateEmail(est.id).then(result => {
+        if (result.filepath) console.log('[ai-send-estimate] .eml saved:', result.filepath);
+      }).catch(e => console.error('[ai-send-estimate] .eml failed:', e.message));
+    } catch(e) { console.error('[ai-send-estimate] service error:', e.message); }
     db.run(`UPDATE estimates SET status='sent', sent_at=datetime('now'), updated_at=datetime('now') WHERE id=?`, [est.id]);
     writeAudit({ entityType: 'estimate', entityId: est.id, action: 'sent_by_ai', before: { status: 'draft' }, after: { status: 'sent' }, source: 'ai', userId: ctx.userId });
     return { id: est.id, href: `/estimates/${est.id}` };

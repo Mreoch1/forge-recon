@@ -231,7 +231,11 @@ router.get('/', (req, res) => {
   `);
   const staleEstimatesCount = staleEstimates.length;
 
-  // ---------- Activity stream ----------
+  // ---------- Activity stream (excluding today's timeline WOs) ----------
+  const todayWoIds = dayTimeline.map(d => d.wo_id);
+  const excludeTodayClause = todayWoIds.length > 0
+    ? `WHERE w.id NOT IN (${todayWoIds.join(',')})`
+    : '';
   const activity = db.all(`
     SELECT * FROM (
       SELECT 'work_order' AS type, w.id AS id, ('WO-' || w.display_number) AS number,
@@ -240,6 +244,7 @@ router.get('/', (req, res) => {
       FROM work_orders w
       JOIN jobs j      ON j.id = w.job_id
       JOIN customers c ON c.id = j.customer_id
+      ${excludeTodayClause}
       UNION ALL
       SELECT 'estimate', e.id, ('EST-' || w.display_number),
              e.status, e.created_at, e.total,
@@ -248,6 +253,7 @@ router.get('/', (req, res) => {
       JOIN work_orders w ON w.id = e.work_order_id
       JOIN jobs j        ON j.id = w.job_id
       JOIN customers c   ON c.id = j.customer_id
+      ${todayWoIds.length > 0 ? `WHERE w.id NOT IN (${todayWoIds.join(',')})` : ''}
       UNION ALL
       SELECT 'invoice', i.id, ('INV-' || w.display_number),
              i.status, i.created_at, i.total,
@@ -256,6 +262,7 @@ router.get('/', (req, res) => {
       JOIN work_orders w ON w.id = i.work_order_id
       JOIN jobs j        ON j.id = w.job_id
       JOIN customers c   ON c.id = j.customer_id
+      ${todayWoIds.length > 0 ? `WHERE w.id NOT IN (${todayWoIds.join(',')})` : ''}
     )
     ORDER BY created_at DESC
     LIMIT 12

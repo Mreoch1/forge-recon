@@ -249,23 +249,14 @@ router.post('/:id/send', async (req, res, next) => {
     return res.redirect(`/estimates/${estimate.id}`);
   }
   try {
-    const company = db.get('SELECT * FROM company_settings WHERE id = 1') || {};
-    const buf = await pdf.renderToBuffer(pdf.generateEstimatePDF, { ...estimate, estimate_number: estimate.display_number }, company);
-    // Estimate goes to primary email (estimate; billing_email is for invoice)
-    const recipient = estimate.customer_email || 'unknown@recon.local';
-    const subject = `Estimate ${estimate.display_number} from ${company.company_name || 'Recon Construction'}`;
-    const text = `Hello ${estimate.customer_name || ''},\n\nPlease find attached estimate ${estimate.display_number}.\nTotal: $${(Number(estimate.total)||0).toFixed(2)}\n\nThanks.\n${company.company_name || 'Recon Construction'}`;
-    const sent = await email.sendEmail({
-      to: recipient, subject, text,
-      html: text.split('\n').map(l => `<p>${l}</p>`).join(''),
-      attachments: [{ filename: `${estimate.display_number}.pdf`, content: buf, contentType: 'application/pdf' }]
-    });
+    const emailService = require('../services/estimate-email');
+    const result = await emailService.sendEstimateEmail(estimate.id);
     db.run(`UPDATE estimates SET status='sent', sent_at=datetime('now'), updated_at=datetime('now') WHERE id=?`, [estimate.id]);
     try {
       const { writeAudit } = require('../services/audit');
       writeAudit({ entityType: 'estimate', entityId: estimate.id, action: 'sent', before: { status: 'draft' }, after: { status: 'sent' }, source: 'web', userId: req.session.userId });
     } catch(e) { console.error('audit failed:', e.message); }
-    const note = sent.mode === 'file' ? ` Email saved to ${sent.filepath}.` : '';
+    const note = result.mode === 'file' && result.filepath ? ` Email saved to ${result.filepath}.` : '';
     setFlash(req, 'success', `${estimate.display_number} sent.${note}`);
     res.redirect(`/estimates/${estimate.id}`);
   } catch (err) { next(err); }

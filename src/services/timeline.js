@@ -70,6 +70,17 @@ function buildDayTimeline({ date, userId = null, workerOnly = false }) {
     ORDER BY al.created_at ASC
   `, [...woIds, date]);
 
+  // 2b2. Item-completion audit events (work_order_line_item)
+  const itemEvents = db.all(`
+    SELECT al.entity_id, al.action, al.after_json, al.created_at, u.name AS actor_name
+    FROM audit_logs al
+    LEFT JOIN users u ON u.id = al.user_id
+    WHERE al.entity_type = 'work_order_line_item'
+      AND date(al.created_at) = date(?)
+      AND al.action = 'item_completed'
+    ORDER BY al.created_at ASC
+  `, [date]);
+
   // 2c. Audit logs for linked estimates/invoices today
   const woToEstInv = db.all(`
     SELECT e.id AS est_id, e.work_order_id,
@@ -115,6 +126,58 @@ function buildDayTimeline({ date, userId = null, workerOnly = false }) {
   const eventsByWO = {};
 
   wos.forEach(wo => { eventsByWO[wo.id] = []; });
+
+  // Group consecutive item completions on the same WO within 5 minutes
+  const groupedItems = {};
+  itemEvents.forEach(ie => {
+    const ts = String(ie.created_at || '').slice(0, 16); // YYYY-MM-DD HH:MM (minute precision)
+    const bucket = `${ie.entity_id}_${ts}`;
+    if (!groupedItems[bucket]) groupedItems[bucket] = [];
+    groupedItems[bucket].push(ie);
+  });
+
+  // Merge adjacent buckets within 5 minutes on same WO
+  const mergedGroups = [];
+  const sortedItems = [...itemEvents].sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
+  let currentGroup = null;
+  sortedItems.forEach(ie => {
+    try {
+      const after = JSON.parse(ie.after_json || '{}');
+      const woId = after.wo_id;
+      if (!currentGroup || currentGroup.wo_id !== woId) {
+        if (currentGroup) mergedGroups.push(currentGroup);
+        currentGroup = { wo_id: woId, events: [ie], startTime: ie.created_at };
+      } else {
+        const minsAgo = (new Date(ie.created_at) - new Date(currentGroup.startTime)) / 60000;
+        if (minsAgo <= 5 && currentGroup.wo_id === woId) {
+          currentGroup.events.push(ie);
+        } else {
+          mergedGroups.push(currentGroup);
+          currentGroup = { wo_id: woId, events: [ie], startTime: ie.created_at };
+        }
+      }
+    } catch(e) { /* skip unparseable */ }
+  });
+  if (currentGroup) mergedGroups.push(currentGroup);
+
+  // Convert groups to timeline events
+  mergedGroups.forEach(group => {
+    if (!eventsByWO[group.wo_id]) return;
+    const count = group.events.length;
+    const firstEvent = group.events[0];
+    const ts = String(firstEvent.created_at || '').slice(11, 16);
+    const actor = firstEvent.actor_name || '';
+    let label = '';
+    if (count === 1) {
+      try {
+        const after = JSON.parse(firstEvent.after_json || '{}');
+        label = `Marked done: ${after.description || 'item'}`;
+      } catch(e) { label = 'Marked 1 item done'; }
+    } else {
+      label = `Marked ${count} items done`;
+    }
+    eventsByWO[group.wo_id].push({ type: 'item_completed', ts, label, actor });
+  });
 
   // Add audit events for WO status changes
   auditEvents.forEach(ae => {

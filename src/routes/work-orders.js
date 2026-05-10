@@ -53,7 +53,7 @@ function validateLineItem(li) {
   const quantity = parseFloat(li.quantity);
   const unitPrice = parseFloat(li.unit_price);
   const cost = parseFloat(li.cost);
-  const completed = (li.completed === '1' || li.completed === 'on' || li.completed === true) ? 1 : 0;
+  const completed = (li.completed === '1' || li.completed === 'on' || li.completed === true || li.completed === 1) ? 1 : 0;
   return {
     data: {
       description,
@@ -601,6 +601,9 @@ router.post('/:id', (req, res) => {
     });
   }
 
+  // ── Item-completion audit: snapshot old completed states ──
+  const oldLines = db.all('SELECT id, description, completed, completed_at FROM work_order_line_items WHERE work_order_id = ?', [existing.id]);
+
   db.transaction(() => {
     db.run(
       `UPDATE work_orders SET
@@ -615,12 +618,29 @@ router.post('/:id', (req, res) => {
     db.run('DELETE FROM work_order_line_items WHERE work_order_id = ?', [existing.id]);
     data.lines.forEach((li, idx) => {
       const lt = calc.lineTotal(li);
+      const isCompleted = li.completed ? 1 : 0;
+      // Check if this line was previously NOT completed (new completion)
+      const oldLine = oldLines[idx] || oldLines.find(o => String(o.description).trim() === String(li.description || '').trim());
+      const wasAlreadyCompleted = oldLine && oldLine.completed === 1 && oldLine.completed_at;
+      const completedAt = isCompleted && !wasAlreadyCompleted ? "datetime('now')" : (oldLine && oldLine.completed_at ? `'${oldLine.completed_at}'` : 'NULL');
       db.run(
         `INSERT INTO work_order_line_items
-         (work_order_id, description, quantity, unit, unit_price, cost, line_total, completed, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [existing.id, li.description, li.quantity, li.unit, li.unit_price, li.cost, lt, li.completed, idx]
+         (work_order_id, description, quantity, unit, unit_price, cost, line_total, completed, completed_at, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ${completedAt}, ?)`,
+        [existing.id, li.description, li.quantity, li.unit, li.unit_price, li.cost, lt, isCompleted, idx]
       );
+      // Write audit for new completions
+      if (isCompleted && !wasAlreadyCompleted) {
+        try {
+          const { writeAudit } = require('../services/audit');
+          writeAudit({
+            entityType: 'work_order_line_item', entityId: 0,
+            action: 'item_completed',
+            before: {}, after: { wo_id: existing.id, description: li.description, quantity: li.quantity, unit: li.unit },
+            source: 'user', userId: req.session.userId
+          });
+        } catch(e) { console.error('item-completion audit failed:', e.message); }
+      }
     });
   });
 
