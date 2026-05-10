@@ -1,6 +1,23 @@
 # Construction Work Order System — PROJECT PLAN
 
+**STATUS AS OF 2026-05-10 ~08:30 UTC: v0 COMPLETE.** All seven phases shipped and Hermes-tested. See HANDOFF.md for the morning briefing. See CHANGELOG.md for what got built when. See DECISIONS.md for defaults picked without Michael.
+
 **THIS IS THE MASTER MEMORY FILE.** Both Claude and Hermes MUST read this at the start of every session before doing anything else. It is the single source of truth for what has been done, what is being done, and what comes next.
+
+## v0 Hand-off summary
+
+- Phase 0: skeleton, deps, logo, /ping smoke server (Node 24, sql.js + session-file-store substituted for better-sqlite3 because no VS C++ build tools)
+- Phase 1: auth (login/logout, sessions, bcrypt), DB schema, seed admin
+- Phase 2A: customers CRUD with FK guard against jobs
+- Phase 2B: jobs CRUD with FK guard against estimates/WOs/invoices
+- Phase 3A: estimates CRUD + dynamic line items + status flow draft→sent→accepted/rejected
+- Phase 3B: estimate PDF generation (logo, company info, line items, totals, notes, page-break safe)
+- Phase 4: estimate→WO conversion + WO CRUD + WO PDF (with DONE checkboxes column, meta strip)
+- Phase 5: invoice gen from WO + invoice CRUD + invoice PDF + email-to-file (.eml with PDF attachment) + partial+full mark-paid
+- Phase 6: dashboard with live KPIs (open estimates, active WOs, unpaid + overdue invoices, A/R balance, revenue MTD/YTD) + unified activity feed + admin user CRUD with self-protection + admin company settings
+- Phase 7: unit tests for calculation + numbering primitives, README polish, this hand-off section, HANDOFF.md morning briefing
+
+Approximately 100+ assertions tested green by Hermes across the seven phases. Sample PDFs (estimate, WO, invoice, 30-line page-break) sit in the bridge folder for inspection. Default admin: `admin@recon.local` / `changeme123` (rotate immediately).
 
 ---
 
@@ -96,8 +113,9 @@ Admin: GET /admin/users, GET/POST /admin/users/new, GET/POST /admin/users/:id/ed
 
 ## Current state
 
-- Phase: 6 (Dashboard + Admin) — Claude written, Hermes verifying.
-- Phase 5 complete: 22 steps green.
+- Phase: 7 (final) — Claude written tests + README + HANDOFF, Hermes verifying.
+- Phase 6 complete: 22 steps green (dashboard + admin).
+- All previous phases: COMPLETE. v0 ships when Phase 7 is verified.
 - Phase 0/1/2/3/4 complete. Sample PDFs in bridge folder.
 - Invoice generation: 1:1 WO→invoice in v0. Tax rate inherited from originating estimate or company default. Due date = +30d. WO must be 'complete' and have no existing invoice.
 - Invoice status flow: draft → sent (with email-to-file dropping a .eml in mail-outbox/) → paid (full) | overdue (computed display when sent + past due) → void.

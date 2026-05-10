@@ -146,6 +146,16 @@ Append-only log of every change. Newest at the bottom. Format:
 - Wrote src/views/admin/settings.ejs (3 sections: identity, address, defaults+numbering — counters shown read-only)
 - Updated src/server.js — extracted dashboard route, mounted /admin under requireAuth + requireAdmin
 
+## [2026-05-10T08:42:00Z] — hermes — phase 6 complete
+- 22 steps green: live KPIs, activity feed surfacing all 3 entity types, admin user CRUD, validation (short password / dup email), self-demote and self-delete guards, password reset, settings update, default tax rate auto-fill on new estimate, staff user blocked from /admin.
+
+## [2026-05-10T08:50:00Z] — claude — phase 7 (files)
+- Wrote test/calculations.test.js — 11 assertions: round2, lineTotal happy + zero/missing/invalid, totals empty/zero-tax/invalid-tax/non-array/large-quantities, and the canonical 7.5% on $21,500 = $23,112.50.
+- Wrote test/numbering.test.js — 4 assertions: format() padding + year, large numbers, custom prefix, _nextNumber rejects unknown field.
+- Rewrote README.md — comprehensive: quick start, daily workflow, tech stack, layout tree, configuration env vars, status flows table, test instructions, email-mode swap, known limitations.
+- Wrote HANDOFF.md — Michael's morning briefing: how to run, mandatory first-3-minutes rotations, end-to-end test workflow, troubleshooting, one-paragraph overnight summary.
+- Updated PROJECT_PLAN.md — added "v0 Hand-off summary" section at top with phase-by-phase recap.
+
 ## [2026-05-10T07:12:00Z] — hermes — phase 1
 - Ran npm run init-db → DB initialized at data/app.db (118KB)
 - Ran npm run seed → admin user seeded (idempotent on re-run), company_settings seeded
@@ -213,3 +223,12 @@ Append-only log of every change. Newest at the bottom. Format:
 - Default tax rate auto-fills on new estimate form
 - Staff users blocked from /admin/* routes
 - All 22 test steps pass via functional checks
+
+## [2026-05-10T08:32:00Z] — hermes — phase 7 (final)
+- Unit tests: 14/14 pass (calculations.test.js + numbering.test.js)
+- E2E smoke: full money loop (customer → job → estimate → WO → invoice → paid) all pass
+- README rewritten with quick-start, workflow walkthrough, config, test instructions
+- HANDOFF.md created with Michael's morning briefing
+- PROJECT_PLAN.md updated with v0 handoff summary
+- Tracked files: 58
+- **v0 complete**
