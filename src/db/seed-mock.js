@@ -101,13 +101,13 @@ function future(days) {
 const FIRST_NAMES = ['James','Maria','Carlos','Sarah','David','Emily','Michael','Aisha','Tyrell','Sam','Luis','Keisha','Derek','Vanessa','Raj'];
 const LAST_NAMES = ['O\'Brien','Martinez','Washington','Chen','Patel','Johnson','Kim','Garcia','Thompson','Lee','Rossi','Nguyen','Brown','Park','Miller'];
 
-const WORKER_NAMES = [
-  {name:'Mike Kowalski', role:'manager'},
-  {name:'Carlos Mendez', role:'worker'},
-  {name:'Dave Thompson', role:'worker'},
-  {name:'Tyrell Jones',  role:'worker'},
-  {name:'Sam Hartley',   role:'worker'},
-];
+  const WORKER_NAMES = [
+    { name: 'Mike Kowalski', role: 'manager', phone: '(617) 555-0101' },
+    { name: 'Carlos Mendez', role: 'worker', phone: '(617) 555-0102' },
+    { name: 'Dave Thompson', role: 'worker', phone: '(617) 555-0103' },
+    { name: 'Tyrell Jones',  role: 'worker', phone: '(617) 555-0104' },
+    { name: 'Sam Hartley',   role: 'worker', phone: '(617) 555-0105' },
+  ];
 
 const CUSTOMERS = [
   {name:'Cambridge Towers Property Mgmt', email:'office@cambridgetowers.com',  phone:'617-555-0101', city:'Cambridge', state:'MA', zip:'02138', notes:'Property management — 12-unit building'},
@@ -234,9 +234,9 @@ async function seedMock() {
     const existing = db.get('SELECT id FROM users WHERE email = ?', [u.name.toLowerCase().replace(' ','.')+'@recon.local']);
     if (!existing) {
       const hash = bcrypt.hashSync('changeme123', 10);
-      db.run(`INSERT INTO users (email, password_hash, name, role, active, created_at)
-              VALUES (?, ?, ?, ?, 1, datetime('now'))`,
-        [u.name.toLowerCase().replace(' ','.')+'@recon.local', hash, u.name, u.role]);
+      db.run(`INSERT INTO users (email, password_hash, name, role, phone, active, created_at)
+              VALUES (?, ?, ?, ?, ?, 1, datetime('now'))`,
+        [u.name.toLowerCase().replace(' ','.')+'@recon.local', hash, u.name, u.role, u.phone]);
       userCount++;
     }
   });

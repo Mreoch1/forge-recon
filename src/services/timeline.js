@@ -187,7 +187,11 @@ function buildDayTimeline({ date, userId = null, workerOnly = false }) {
     if (ae.action === 'started') label = `${actor} started work`;
     else if (ae.action === 'completed') label = `${actor} marked WO complete`;
     else if (ae.action === 'cancelled') label = `${actor} cancelled WO`;
-    else if (ae.action === 'status_transition') {
+    else if (ae.action === 'photo_uploaded') {
+      let cnt = '';
+      try { const a = JSON.parse(ae.after_json || '{}'); cnt = a.count ? ` ${a.count}` : ''; } catch(e) {}
+      label = `${actor} uploaded${cnt} photo${cnt === ' 1' ? '' : 's'}`;
+    } else if (ae.action === 'status_transition') {
       try {
         const after = typeof ae.after_json === 'string' ? JSON.parse(ae.after_json) : (ae.after_json || {});
         label = `Status: ${(after.status || '').replace('_',' ')}`;

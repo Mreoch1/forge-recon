@@ -235,6 +235,33 @@ const actionSections = [
   .dv2-event-label { color: #444; }
   .dv2-event-label .actor { color: #888; font-size: .72rem; margin-left: .25rem; }
   .dv2-event-label .event-dot { color: #bbb; margin-right: .35rem; display: inline-block; }
+
+  /* === RESPONSIVE: stack columns + tighten on phones/tablets === */
+  @media (max-width: 900px) {
+    .dv2-grid { grid-template-columns: 1fr !important; gap: 2rem !important; }
+    .dv2-sched-row { grid-template-columns: 4.5rem 1fr; gap: .65rem; padding: .75rem 0; }
+    .dv2-tom-row { grid-template-columns: 4.5rem 1fr; gap: .65rem; }
+    .dv2-events { margin-left: 4rem; }
+    .dv2-event-row { grid-template-columns: 3.5rem 1fr; gap: .5rem; }
+  }
+  @media (max-width: 600px) {
+    .dv2-h1 { font-size: 1.4rem; }
+    .dv2-sched-time { font-size: .92rem; }
+    .dv2-sched-customer { font-size: .92rem; }
+    .dv2-sched-job { font-size: .8rem; }
+    .dv2-sched-row { padding: .65rem 0; }
+    .dv2-events { margin-left: 3.25rem; padding-left: .65rem; }
+    .dv2-event-row { font-size: .72rem; grid-template-columns: 3rem 1fr; }
+    .dv2-queue-card,
+    .dv2-queue-row { font-size: .78rem; }
+    .dv2-act-row { grid-template-columns: 4rem auto 1fr; }
+    .dv2-act-row .dv2-act-ts { display: none; }
+    .dv2-metric-strip { gap: 1rem; }
+    .dv2-metric-value { font-size: .9rem; }
+    .dv2-metric-label { font-size: .58rem; }
+    .recon-aic-pill span:not(.dot) { display: none; }
+    .recon-aic-pill { padding: .55rem; }
+  }
 </style>
 
 <div class="dv2-bg">
@@ -257,7 +284,7 @@ const actionSections = [
     </div>
 
     <!-- Asymmetric grid: schedule (1.65) | right rail (1) -->
-    <div class="grid gap-8" style="grid-template-columns: minmax(0,1.65fr) minmax(0,1fr);">
+    <div class="grid gap-8 dv2-grid" style="grid-template-columns: minmax(0,1.65fr) minmax(0,1fr);">
 
       <!-- ============================================================
            LEFT — SCHEDULE (looser rows, multi-line, dispatch-board feel)

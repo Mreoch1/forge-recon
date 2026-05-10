@@ -101,6 +101,25 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
 
   /* Empty states */
   .ws-empty { padding: 1rem 0; color: #aaa; font-size: .82rem; text-align: center; font-style: italic; }
+
+  /* === RESPONSIVE === */
+  @media (max-width: 900px) {
+    .ws-grid { grid-template-columns: 1fr !important; gap: 2rem !important; }
+    .ws-strip { flex-wrap: wrap; }
+    .ws-strip-cell { min-width: 50%; flex: 1 1 50%; border-right: none; border-bottom: 1px solid #e0e0e0; }
+    .ws-strip-cell:nth-last-child(-n+2) { border-bottom: none; }
+  }
+  @media (max-width: 600px) {
+    .ws-h1 { font-size: 1.3rem; }
+    .ws-strip-cell { min-width: 100%; flex: 1 1 100%; padding: .55rem .85rem; }
+    .ws-strip-cell:nth-last-child(-n+2) { border-bottom: 1px solid #e0e0e0; }
+    .ws-strip-cell:last-child { border-bottom: none; }
+    .ws-items { font-size: .8rem; }
+    .ws-items th, .ws-items td { padding: .5rem .55rem; }
+    .ws-items .qty-cell { width: auto; }
+    .ws-items .unit-cell { width: auto; }
+    .ws-back { font-size: .72rem; }
+  }
 </style>
 
 <div class="max-w-7xl mx-auto px-4 py-5">
@@ -208,7 +227,7 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
   </div>
 
   <!-- Two-column layout: scope (left, wide) | context (right, narrow) -->
-  <div class="grid gap-8" style="grid-template-columns: minmax(0,1.6fr) minmax(0,1fr);">
+  <div class="grid gap-8 ws-grid" style="grid-template-columns: minmax(0,1.6fr) minmax(0,1fr);">
 
     <!-- LEFT: scope of work + notes -->
     <div>
@@ -244,27 +263,69 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
         </table>
       <% } %>
 
-      <!-- Notes block — combines the WO description note with the wo_notes feed if present -->
-      <% if (wo.notes || (typeof notes !== 'undefined' && notes && notes.length)) { %>
-        <h2 class="ws-h-secondary mt-8">Notes</h2>
+      <!-- Notes block — form + feed -->
+      <h2 class="ws-h-secondary mt-8">Notes</h2>
 
-        <% if (wo.notes) { %>
+      <!-- Add note form -->
+      <form action="/work-orders/<%= wo.id %>/notes" method="post" class="mb-4">
+        <textarea name="body" required minlength="2" maxlength="2000" rows="3"
+                  class="input w-full text-sm" style="resize:vertical;"
+                  placeholder="Add a note — what got done, blockers, photos uploaded, etc."></textarea>
+        <div class="flex justify-end mt-1">
+          <button type="submit" class="btn btn-sm btn-primary">Post note</button>
+        </div>
+      </form>
+
+      <% if (wo.notes) { %>
+        <div class="ws-note-row">
+          <div class="ws-note-meta">work order brief</div>
+          <div class="ws-note-body"><%= wo.notes %></div>
+        </div>
+      <% } %>
+
+      <% if (typeof notes !== 'undefined' && notes && notes.length) { %>
+        <% notes.forEach(function(n){ %>
           <div class="ws-note-row">
-            <div class="ws-note-meta">work order brief</div>
-            <div class="ws-note-body"><%= wo.notes %></div>
+            <div class="ws-note-meta">
+              <%= (n.user_name || 'Unknown') %> · <%= (n.created_at || '').slice(0,16).replace('T',' ') %>
+            </div>
+            <div class="ws-note-body"><%= n.body %></div>
           </div>
-        <% } %>
+        <% }); %>
+      <% } %>
 
-        <% if (typeof notes !== 'undefined' && notes && notes.length) { %>
-          <% notes.forEach(function(n){ %>
-            <div class="ws-note-row">
-              <div class="ws-note-meta">
-                <%= (n.user_name || 'Unknown') %> · <%= (n.created_at || '').slice(0,16).replace('T',' ') %>
-              </div>
-              <div class="ws-note-body"><%= n.body %></div>
+      <!-- Photo gallery -->
+      <h2 class="ws-h-secondary mt-8">Photos</h2>
+      <form action="/work-orders/<%= wo.id %>/photos" method="post" enctype="multipart/form-data" class="mb-4">
+        <div class="flex items-start gap-3">
+          <input type="file" name="photos" multiple accept="image/jpeg,image/png,image/webp,image/heic"
+                 class="text-sm flex-1" style="padding-top:.35rem;">
+          <input type="text" name="caption" placeholder="Caption (optional)" class="input text-sm flex-1" maxlength="200">
+          <button type="submit" class="btn btn-sm btn-primary whitespace-nowrap">Upload</button>
+        </div>
+      </form>
+      <% if (typeof photos !== 'undefined' && photos && photos.length) { %>
+        <div class="grid grid-cols-3 gap-2 mb-4">
+          <% photos.forEach(function(p){ %>
+            <div class="relative group">
+              <a href="/uploads/wo/<%= wo.id %>/<%= p.filename %>" target="_blank">
+                <img src="/uploads/wo/<%= wo.id %>/<%= p.filename %>"
+                     class="w-full h-24 object-cover rounded border"
+                     loading="lazy"
+                     title="<%= (p.user_name || 'Unknown') %> · <%= (p.created_at || '').slice(0,16).replace('T',' ') %><%= p.caption ? ' — ' + p.caption : '' %>">
+              </a>
+              <% if (p.user_id === currentUser.id || currentUser.role !== 'worker') { %>
+                <form method="post" action="/work-orders/<%= wo.id %>/photos/<%= p.id %>/delete"
+                      class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onsubmit="return confirm('Delete this photo?');">
+                  <button class="bg-red-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center hover:bg-red-700">&times;</button>
+                </form>
+              <% } %>
             </div>
           <% }); %>
-        <% } %>
+        </div>
+      <% } else { %>
+        <p class="text-sm text-recon-fog mb-4">No photos yet.</p>
       <% } %>
     </div>
 

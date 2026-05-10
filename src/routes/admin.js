@@ -99,10 +99,8 @@ router.post('/users', async (req, res) => {
   }
 
   const hash = await bcrypt.hash(password, 10);
-  db.run(
-    `INSERT INTO users (email, password_hash, name, role, active) VALUES (?, ?, ?, ?, 1)`,
-    [email, hash, name, role]
-  );
+  db.run(`INSERT INTO users (email, password_hash, name, role, phone, active) VALUES (?, ?, ?, ?, ?, 1)`,
+    [req.body.email, hash, req.body.name, req.body.role, req.body.phone]);
   setFlash(req, 'success', `User "${name}" created.`);
   res.redirect('/admin/users');
 });
@@ -163,10 +161,8 @@ router.post('/users/:id', (req, res) => {
     });
   }
 
-  db.run(
-    `UPDATE users SET email=?, name=?, role=?, active=?, updated_at=datetime('now') WHERE id=?`,
-    [email, name, role, active, target.id]
-  );
+  db.run(`UPDATE users SET name=?, email=?, role=?, active=?, phone=?, updated_at=datetime('now') WHERE id=?`,
+    [req.body.name, req.body.email, req.body.role, active, req.body.phone, userId]);
   setFlash(req, 'success', `User "${name}" updated.`);
   res.redirect('/admin/users');
 });

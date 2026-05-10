@@ -24,10 +24,37 @@
 const express = require('express');
 const db = require('../db/db');
 const { setFlash } = require('../middleware/auth');
+const { writeAudit } = require('../services/audit');
 const calc = require('../services/calculations');
-const pdf = require('../services/pdf');
 const numbering = require('../services/numbering');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
+// Multer config — WO photo uploads
+const UPLOAD_BASE = path.join(__dirname, '..', '..', 'public', 'uploads', 'wo');
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
+const MAX_SIZE = 10 * 1024 * 1024;
+const MAX_FILES = 6;
+function ensureDir(d) { if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); }
+const woUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const dir = path.join(UPLOAD_BASE, String(req.params.id));
+      ensureDir(dir); cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+      const ts = Date.now();
+      const s = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 60);
+      cb(null, `${ts}-${s}`);
+    }
+  }),
+  limits: { fileSize: MAX_SIZE, files: MAX_FILES },
+  fileFilter: (req, file, cb) => {
+    if (ALLOWED_TYPES.includes(file.mimetype)) cb(null, true);
+    else cb(new Error('Only jpg/png/webp/heic allowed.'));
+  }
+});
 const router = express.Router();
 
 const PAGE_SIZE = 25;
@@ -546,9 +573,22 @@ router.get('/:id', (req, res) => {
     // wo_notes table may be missing on very old DBs
   }
 
+  // Fetch photos
+  let photos = [];
+  try {
+    photos = db.all(
+      `SELECT p.*, u.name AS user_name
+       FROM wo_photos p
+       LEFT JOIN users u ON u.id = p.user_id
+       WHERE p.work_order_id = ?
+       ORDER BY p.created_at DESC`,
+      [wo.id]
+    );
+  } catch (e) {}
+
   res.render('work-orders/show', {
     title: `WO-${wo.display_number}`, activeNav: 'work-orders',
-    wo, subs, estimate, invoice, notes
+    wo, subs, estimate, invoice, notes, photos
   });
 });
 
@@ -677,6 +717,79 @@ function statusTransition(req, res, fromStatus, toStatus, timestampField) {
 router.post('/:id/start',    (req, res) => statusTransition(req, res, 'scheduled', 'in_progress', null));
 router.post('/:id/complete', (req, res) => statusTransition(req, res, 'in_progress', 'complete', 'completed_date'));
 router.post('/:id/cancel',   (req, res) => statusTransition(req, res, ['scheduled','in_progress'], 'cancelled', null));
+
+// POST /:id/notes — add a note to a work order
+router.post('/:id/notes', (req, res) => {
+  const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
+  if (!wo) {
+    setFlash(req, 'error', 'Work order not found.');
+    return res.redirect('/work-orders');
+  }
+  // Permission: workers can post only on assigned WOs
+  if (req.session.role === 'worker') {
+    const isAssigned = wo.assigned_to_user_id === req.session.userId ||
+      (wo.assigned_to && wo.assigned_to.includes(req.session.userName || ''));
+    if (!isAssigned) {
+      setFlash(req, 'error', 'You can only post notes on work orders assigned to you.');
+      return res.redirect(`/work-orders/${wo.id}`);
+    }
+  }
+  const body = (req.body.body || '').trim();
+  if (!body || body.length < 2) {
+    setFlash(req, 'error', 'Note must be at least 2 characters.');
+    return res.redirect(`/work-orders/${wo.id}`);
+  }
+  db.run(`INSERT INTO wo_notes (work_order_id, user_id, body, created_at) VALUES (?, ?, ?, datetime('now'))`,
+    [wo.id, req.session.userId, body]);
+  setFlash(req, 'success', 'Note posted.');
+  res.redirect(`/work-orders/${wo.id}`);
+});
+
+// POST /:id/photos — upload photos
+router.post('/:id/photos', (req, res) => {
+  const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
+  if (!wo) { setFlash(req, 'error', 'Work order not found.'); return res.redirect('/work-orders'); }
+  if (req.session.role === 'worker') {
+    const isAssigned = wo.assigned_to_user_id === req.session.userId ||
+      (wo.assigned_to && wo.assigned_to.includes(req.session.userName || ''));
+    if (!isAssigned) { setFlash(req, 'error', 'You can only upload photos to assigned WOs.'); return res.redirect(`/work-orders/${wo.id}`); }
+  }
+  woUpload.array('photos', MAX_FILES)(req, res, (err) => {
+    if (err) { setFlash(req, 'error', err.message); return res.redirect(`/work-orders/${wo.id}`); }
+    const files = req.files || [];
+    if (files.length === 0) { setFlash(req, 'error', 'No files selected.'); return res.redirect(`/work-orders/${wo.id}`); }
+    const caption = (req.body.caption || '').trim();
+    db.transaction(() => {
+      files.forEach(f => {
+        db.run(`INSERT INTO wo_photos (work_order_id, user_id, filename, caption, created_at) VALUES (?, ?, ?, ?, datetime('now'))`,
+          [wo.id, req.session.userId, f.filename, caption || null]);
+      });
+      // Single audit row for the batch
+      writeAudit({ entityType: 'work_order', entityId: wo.id, action: 'photo_uploaded', before: {}, after: { count: files.length, filenames: files.map(f => f.filename) }, source: 'user', userId: req.session.userId });
+    });
+    const msg = files.length === 1 ? '1 photo uploaded.' : `${files.length} photos uploaded.`;
+    setFlash(req, 'success', msg);
+    res.redirect(`/work-orders/${wo.id}`);
+  });
+});
+
+// POST /:id/photos/:photoId/delete — delete a photo
+router.post('/:id/photos/:photoId/delete', (req, res) => {
+  const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
+  if (!wo) { setFlash(req, 'error', 'Work order not found.'); return res.redirect('/work-orders'); }
+  const photo = db.get('SELECT * FROM wo_photos WHERE id = ? AND work_order_id = ?', [req.params.photoId, wo.id]);
+  if (!photo) { setFlash(req, 'error', 'Photo not found.'); return res.redirect(`/work-orders/${wo.id}`); }
+  // Permission: uploader or manager+
+  const isOwner = photo.user_id === req.session.userId;
+  const isManager = req.session.role !== 'worker';
+  if (!isOwner && !isManager) { setFlash(req, 'error', 'You can only delete your own photos.'); return res.redirect(`/work-orders/${wo.id}`); }
+  // Delete file from disk
+  const filepath = path.join(UPLOAD_BASE, String(wo.id), photo.filename);
+  try { if (fs.existsSync(filepath)) fs.unlinkSync(filepath); } catch(e) { /* best effort */ }
+  db.run('DELETE FROM wo_photos WHERE id = ?', [photo.id]);
+  setFlash(req, 'success', 'Photo deleted.');
+  res.redirect(`/work-orders/${wo.id}`);
+});
 
 router.get('/:id/pdf', (req, res) => {
   const wo = loadWorkOrder(req.params.id);

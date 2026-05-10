@@ -74,6 +74,22 @@ async function main() {
     )`);
   } catch(e) { console.error('Failed to create pending_confirmations table:', e.message); }
 
+  // Column migrations for existing databases
+  try {
+    const bootMigrations = [
+      {table: 'users', col: 'phone', type: 'TEXT'},
+      {table: 'users', col: 'mock', type: 'INTEGER NOT NULL DEFAULT 0'},
+      {table: 'work_order_line_items', col: 'completed_at', type: 'TEXT'}
+    ];
+    bootMigrations.forEach(m => {
+      const existing = db.all('PRAGMA table_info(' + m.table + ')');
+      if (!existing.find(c => c.name === m.col)) {
+        db.run('ALTER TABLE ' + m.table + ' ADD COLUMN ' + m.col + ' ' + m.type);
+        console.log('  Boot migration: added ' + m.table + '.' + m.col);
+      }
+    });
+  } catch(e) { console.error('Boot migration failed:', e.message); }
+
   const app = express();
 
   // EJS

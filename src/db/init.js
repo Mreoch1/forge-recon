@@ -13,9 +13,21 @@ async function main() {
   await db.init();
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
   db.exec(schema);
+  // Idempotent column migrations for existing databases
+  migrateColumn('users', 'phone', 'TEXT');
+  migrateColumn('users', 'mock', 'INTEGER NOT NULL DEFAULT 0');
+  migrateColumn('work_order_line_items', 'completed_at', 'TEXT');
   db.persist();
   console.log('DB initialized at', path.join(__dirname, '..', '..', 'data', 'app.db'));
   process.exit(0);
+}
+
+function migrateColumn(table, column, type) {
+  const cols = db.all("PRAGMA table_info(" + table + ")");
+  if (!cols.find(c => c.name === column)) {
+    db.run("ALTER TABLE " + table + " ADD COLUMN " + column + " " + type);
+    console.log(`  Added ${table}.${column}`);
+  }
 }
 
 main().catch(err => {

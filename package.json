@@ -11,6 +11,7 @@
     "seed": "node src/db/seed.js",
     "init-accounting": "node src/db/init-accounting.js",
     "seed:mock": "node src/db/seed-mock.js",
+    "seed:double": "node src/db/seed-double.js",
     "test": "node --test test/"
   },
   "engines": {

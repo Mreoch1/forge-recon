@@ -21,6 +21,11 @@
         <% if (errors.email) { %><p class="text-sm text-red-600 mt-1"><%= errors.email %></p><% } %>
       </div>
       <div>
+        <label class="label" for="phone">Phone</label>
+        <input type="tel" name="phone" id="phone" value="<%= user.phone || '' %>"
+               class="input" placeholder="(555) 123-4567">
+      </div>
+      <div>
         <label class="label" for="role">Role</label>
         <select name="role" id="role" class="input">
           <% roles.forEach(function(r){ %>

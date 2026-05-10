@@ -21,6 +21,11 @@
                class="input <%= errors.email ? 'border-red-500' : '' %>">
         <% if (errors.email) { %><p class="text-sm text-red-600 mt-1"><%= errors.email %></p><% } %>
       </div>
+      <div>
+        <label class="label" for="phone">Phone</label>
+        <input type="tel" name="phone" id="phone" value="<%= user.phone || '' %>"
+               class="input" placeholder="(555) 123-4567">
+      </div>
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="label" for="role">Role</label>

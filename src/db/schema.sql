@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   role TEXT NOT NULL CHECK(role IN ('admin','manager','worker')),
   active INTEGER NOT NULL DEFAULT 1,
+  phone TEXT,
+  mock INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -98,6 +100,7 @@ CREATE TABLE IF NOT EXISTS work_order_line_items (
   cost REAL NOT NULL DEFAULT 0,           -- internal-only, never on PDF
   line_total REAL NOT NULL DEFAULT 0,
   completed INTEGER NOT NULL DEFAULT 0,
+  completed_at TEXT,
   sort_order INTEGER NOT NULL DEFAULT 0
 );
 
