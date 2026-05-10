@@ -1,8 +1,9 @@
 /**
  * Dashboard route. Mounted at GET /.
  *
- * Pulls a live KPI snapshot + a unified activity feed of the latest 10
- * estimate/WO/invoice events.
+ * Round 13: the modern operational dashboard (today-focused schedule, action queue,
+ * activity stream) is the default at "/". The earlier KPI-card dashboard has been
+ * moved to "/dashboard-classic" for reference and easy revert.
  */
 
 const express = require('express');
@@ -10,7 +11,8 @@ const db = require('../db/db');
 
 const router = express.Router();
 
-router.get('/', (req, res) => {
+// Classic dashboard handler (was the original "/")
+router.get('/dashboard-classic', (req, res) => {
   const openEstimates = (db.get(
     "SELECT COUNT(*) AS n FROM estimates WHERE status IN ('draft','sent')"
   ) || {}).n || 0;
@@ -101,11 +103,11 @@ router.get('/', (req, res) => {
 });
 
 // =============================================================================
-// /dashboard-v2 — preview of the redesign (today-focused schedule list,
-// asymmetric action queues, denser typography, less card chrome).
-// Lives alongside the existing dashboard so we can A/B until it's accepted.
+// "/" — the modern operational dashboard (today-focused schedule list,
+// asymmetric action queues, denser typography, flat right-rail action queue).
+// The earlier KPI-card dashboard is at /dashboard-classic.
 // =============================================================================
-router.get('/dashboard-v2', (req, res) => {
+router.get('/', (req, res) => {
   const today = new Date().toISOString().slice(0, 10);
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
