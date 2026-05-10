@@ -293,3 +293,11 @@ Append-only log of every change. Newest at the bottom. Format:
   - Fixed `router.get('/ai-create')` placement before `/:id` routes (Express collision)
   - Added `require('dotenv').config()` to server.js so AI_API_KEY is available at runtime
 - Full E2E test: paste free text → AI extracts → review → finalize → WO-0001-0000 created with customer + job + 3 line items.
+
+## [2026-05-10T14:40:00Z] — hermes — Round 10: line-items regex fix + WO depricing + invoice-time line selection + profit/ROI + WO# linkback
+- **Regex fix verified**: line-items.js `/^lines\\[[^\\]]+\\]/` matches `__IDX__` template and digit indices
+- **WO depricing**: stripped unit_price/cost/line_total from WO _form.ejs, show.ejs, and PDF (drawWOLineItems is now Done/Description/Qty/Unit only; "Total value" section removed)
+- **Invoice-time line selection**: removed "Selected" checkbox from estimate form; POST /generate-invoice now redirects to new GET /select-for-invoice page with per-line checkboxes; form POSTs back with `selected_lines[]` to generate invoice with only checked lines
+- **Profit/ROI display**: estimate show page shows Cost/Profit/ROI strip (admin/manager only, hidden when cost=0); estimates index has Margin % column
+- **WO linkback prominent**: estimate show header now shows `← WO-XXXX-XXXX` as a click-through link
+- All 9 smoke steps pass: WO no pricing, estimate no Selected, select-for-invoice page renders, invoice generated with selected lines, trial balance still balanced

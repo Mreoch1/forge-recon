@@ -1,13 +1,8 @@
 <%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
 
 <%
-function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
-const subtotal = (wo.lines || []).reduce(function(s, li){ return s + (Number(li.line_total) || 0); }, 0);
-const costTotal = (wo.lines || []).reduce(function(s, li){ return s + (Number(li.cost) || 0) * (Number(li.quantity) || 0); }, 0);
 const completedCount = (wo.lines || []).filter(function(li){ return li.completed; }).length;
 const totalCount = (wo.lines || []).length;
-const margin = subtotal - costTotal;
-const showPrices = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
 %>
 
 <div class="max-w-5xl mx-auto px-4 py-6">
@@ -47,7 +42,7 @@ const showPrices = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
         </form>
       <% } %>
 
-      <% if (showPrices && wo.status !== 'cancelled') { %>
+      <% if (wo.status !== 'cancelled') { %>
         <% if (!estimate) { %>
           <form action="/work-orders/<%= wo.id %>/create-estimate" method="post" class="m-0 inline">
             <button class="btn btn-primary">Create estimate</button>
@@ -67,29 +62,22 @@ const showPrices = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
     </div>
   </div>
 
-  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
     <div class="card p-4">
       <div class="text-xs uppercase tracking-wide text-recon-fog">Scheduled</div>
       <div class="text-lg font-semibold mt-1">
-        <%= wo.scheduled_date ? String(wo.scheduled_date).slice(0,10) : '—' %>
+        <%= wo.scheduled_date ? String(wo.scheduled_date).slice(0,10) : '--' %>
         <% if (wo.scheduled_time) { %><span class="text-sm font-normal text-recon-fog"><%= wo.scheduled_time %></span><% } %>
       </div>
     </div>
     <div class="card p-4">
       <div class="text-xs uppercase tracking-wide text-recon-fog">Assigned</div>
-      <div class="text-lg font-semibold mt-1"><%= wo.assigned_user_name || wo.assigned_to || '—' %></div>
+      <div class="text-lg font-semibold mt-1"><%= wo.assigned_user_name || wo.assigned_to || '--' %></div>
     </div>
     <div class="card p-4">
       <div class="text-xs uppercase tracking-wide text-recon-fog">Progress</div>
       <div class="text-lg font-semibold mt-1"><%= completedCount %> / <%= totalCount %> done</div>
     </div>
-    <% if (showPrices) { %>
-      <div class="card p-4">
-        <div class="text-xs uppercase tracking-wide text-recon-fog">Total value</div>
-        <div class="text-lg font-semibold mt-1 text-recon-red">$<%= fmt(subtotal) %></div>
-        <div class="text-xs text-recon-fog mt-1">Cost: $<%= fmt(costTotal) %> &middot; Margin: $<%= fmt(margin) %></div>
-      </div>
-    <% } %>
   </div>
 
   <% if (estimate || invoice) { %>
@@ -118,8 +106,8 @@ const showPrices = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
             <tr>
               <td class="font-medium"><a href="/work-orders/<%= s.id %>" class="hover:text-recon-red">WO-<%= s.display_number %></a></td>
               <td><span class="badge badge-<%= s.status %>"><%= s.status.replace('_',' ') %></span></td>
-              <td><%= s.scheduled_date ? String(s.scheduled_date).slice(0,10) : '—' %></td>
-              <td><%= s.completed_date ? String(s.completed_date).slice(0,10) : '—' %></td>
+              <td><%= s.scheduled_date ? String(s.scheduled_date).slice(0,10) : '--' %></td>
+              <td><%= s.completed_date ? String(s.completed_date).slice(0,10) : '--' %></td>
             </tr>
           <% }); %>
         </tbody>
@@ -141,25 +129,15 @@ const showPrices = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
             <th>Description</th>
             <th class="text-right">Qty</th>
             <th>Unit</th>
-            <% if (showPrices) { %>
-              <th class="text-right">Unit $</th>
-              <th class="text-right text-recon-fog">Cost</th>
-              <th class="text-right">Line $</th>
-            <% } %>
           </tr>
         </thead>
         <tbody>
           <% wo.lines.forEach(function(li){ %>
             <tr>
-              <td><%= li.completed ? '✅' : '⬜' %></td>
+              <td><%= li.completed ? '&#9989;' : '&#9632;' %></td>
               <td><%= li.description %></td>
               <td class="text-right"><%= li.quantity %></td>
               <td><%= li.unit %></td>
-              <% if (showPrices) { %>
-                <td class="text-right">$<%= fmt(li.unit_price) %></td>
-                <td class="text-right text-recon-fog">$<%= fmt(li.cost) %></td>
-                <td class="text-right font-medium">$<%= fmt(li.line_total) %></td>
-              <% } %>
             </tr>
           <% }); %>
         </tbody>
@@ -174,7 +152,7 @@ const showPrices = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
     </div>
   <% } %>
 
-  <% if (showPrices && (wo.status === 'scheduled' || wo.status === 'cancelled')) { %>
+  <% if (wo.status === 'scheduled' || wo.status === 'cancelled') { %>
     <div class="card p-5 border-red-200">
       <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
       <p class="text-sm text-recon-fog mb-3">Allowed only when no estimate or sub-WOs reference this work order.</p>

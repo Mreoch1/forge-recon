@@ -51,7 +51,7 @@ function validateLineItem(li) {
   const quantity = parseFloat(li.quantity);
   const unitPrice = parseFloat(li.unit_price);
   const cost = parseFloat(li.cost);
-  const selected = (li.selected === '1' || li.selected === 'on' || li.selected === true) ? 1 : 0;
+  const selected = 1; // Always default to selected; line selection happens at invoice time
   return {
     data: {
       description,
@@ -138,7 +138,7 @@ router.get('/', (req, res) => {
   ) || {}).n || 0;
 
   const estimates = db.all(
-    `SELECT e.id, e.status, e.total, e.valid_until, e.created_at,
+    `SELECT e.id, e.status, e.total, e.cost_total, e.valid_until, e.created_at,
             w.display_number AS wo_display_number, w.id AS wo_id,
             j.id AS job_id, j.title AS job_title,
             c.id AS customer_id, c.name AS customer_name
@@ -156,7 +156,7 @@ router.get('/', (req, res) => {
     title: 'Estimates', activeNav: 'estimates',
     estimates, q, status, page,
     totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
-    total, statuses: VALID_STATUSES
+    total, statuses: VALID_STATUSES, canSeePrices: true
   });
 });
 
@@ -166,7 +166,7 @@ router.get('/:id', (req, res) => {
   const invoice = db.get('SELECT id, status FROM invoices WHERE estimate_id = ?', [estimate.id]);
   res.render('estimates/show', {
     title: estimate.display_number, activeNav: 'estimates',
-    estimate, invoice
+    estimate, invoice, canSeePrices: true
   });
 });
 
@@ -266,7 +266,7 @@ router.post('/:id/send', async (req, res, next) => {
 router.post('/:id/accept', (req, res) => statusTransition(req, res, 'sent', 'accepted', 'accepted_at'));
 router.post('/:id/reject', (req, res) => statusTransition(req, res, 'sent', 'rejected', null));
 
-// Generate invoice from accepted estimate (only selected lines transfer)
+// Generate invoice from accepted estimate — first redirects to line-selection page
 router.post('/:id/generate-invoice', (req, res) => {
   const estimate = loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
@@ -280,45 +280,81 @@ router.post('/:id/generate-invoice', (req, res) => {
     return res.redirect(`/invoices/${existingInv.id}`);
   }
 
-  const settings = db.get('SELECT default_payment_terms FROM company_settings WHERE id = 1') || {};
-  const paymentTerms = settings.default_payment_terms || 'Net 30';
-  // Compute due date based on payment terms
-  const due = new Date();
-  const termsMatch = String(paymentTerms).match(/Net (\d+)/i);
-  if (termsMatch) due.setDate(due.getDate() + parseInt(termsMatch[1], 10));
-  else if (/due on receipt/i.test(paymentTerms)) {} // due today
-  else due.setDate(due.getDate() + 30); // default
-  const dueDate = due.toISOString().slice(0, 10);
+  // If this is a form submission from select-for-invoice page with selected_lines
+  const rawSelectedLines = req.body.selected_lines;
+  if (rawSelectedLines !== undefined) {
+    // Process selected lines
+    const selectedLineIds = {};
+    if (Array.isArray(rawSelectedLines)) {
+      rawSelectedLines.forEach(id => { selectedLineIds[id] = true; });
+    } else if (typeof rawSelectedLines === 'string') {
+      selectedLineIds[rawSelectedLines] = true;
+    } else if (typeof rawSelectedLines === 'object') {
+      Object.keys(rawSelectedLines).forEach(k => { selectedLineIds[k] = true; });
+    }
 
-  const selectedLines = estimate.lines.filter(li => li.selected);
-  if (selectedLines.length === 0) {
-    setFlash(req, 'error', `No line items are marked as selected. Edit the estimate to select lines first.`);
+    const selectedLines = estimate.lines.filter(li => selectedLineIds[li.id]);
+    if (selectedLines.length === 0) {
+      setFlash(req, 'error', 'Select at least one line item to invoice.');
+      return res.redirect(`/estimates/${estimate.id}/select-for-invoice`);
+    }
+
+    const settings = db.get('SELECT default_payment_terms FROM company_settings WHERE id = 1') || {};
+    const paymentTerms = settings.default_payment_terms || 'Net 30';
+    const due = new Date();
+    const termsMatch = String(paymentTerms).match(/Net (\d+)/i);
+    if (termsMatch) due.setDate(due.getDate() + parseInt(termsMatch[1], 10));
+    else if (/due on receipt/i.test(paymentTerms)) {}
+    else due.setDate(due.getDate() + 30);
+    const dueDate = due.toISOString().slice(0, 10);
+
+    const totals = calc.totals(selectedLines, estimate.tax_rate);
+    const costTotal = selectedLines.reduce((s, li) => s + (Number(li.cost) || 0) * (Number(li.quantity) || 0), 0);
+
+    const newId = db.transaction(() => {
+      const r = db.run(
+        `INSERT INTO invoices
+         (estimate_id, work_order_id, status, subtotal, tax_rate, tax_amount, total, cost_total, payment_terms, due_date)
+         VALUES (?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?)`,
+        [estimate.id, estimate.wo_id, totals.subtotal, estimate.tax_rate, totals.taxAmount, totals.total, costTotal, paymentTerms, dueDate]
+      );
+      const invId = r.lastInsertRowid;
+      selectedLines.forEach((li, idx) => {
+        const lt = calc.lineTotal(li);
+        db.run(
+          `INSERT INTO invoice_line_items (invoice_id, description, quantity, unit, unit_price, cost, line_total, sort_order)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [invId, li.description, li.quantity, li.unit, li.unit_price, li.cost, lt, idx]
+        );
+      });
+      return invId;
+    });
+
+    setFlash(req, 'success', `INV-${estimate.wo_display_number} generated (${selectedLines.length} line items transferred).`);
+    return res.redirect(`/invoices/${newId}`);
+  }
+
+  // First-time click: redirect to select-for-invoice page
+  res.redirect(`/estimates/${estimate.id}/select-for-invoice`);
+});
+
+// Select-for-invoice page — pick which lines to invoice
+router.get('/:id/select-for-invoice', (req, res) => {
+  const estimate = loadEstimate(req.params.id);
+  if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
+  if (!['sent', 'accepted'].includes(estimate.status)) {
+    setFlash(req, 'error', `Estimate must be sent or accepted. Current: ${estimate.status}.`);
     return res.redirect(`/estimates/${estimate.id}`);
   }
-  const totals = calc.totals(selectedLines, estimate.tax_rate);
-  const costTotal = selectedLines.reduce((s, li) => s + (Number(li.cost) || 0) * (Number(li.quantity) || 0), 0);
-
-  const newId = db.transaction(() => {
-    const r = db.run(
-      `INSERT INTO invoices
-       (estimate_id, work_order_id, status, subtotal, tax_rate, tax_amount, total, cost_total, payment_terms, due_date)
-       VALUES (?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?)`,
-      [estimate.id, estimate.wo_id, totals.subtotal, estimate.tax_rate, totals.taxAmount, totals.total, costTotal, paymentTerms, dueDate]
-    );
-    const invId = r.lastInsertRowid;
-    selectedLines.forEach((li, idx) => {
-      const lt = calc.lineTotal(li);
-      db.run(
-        `INSERT INTO invoice_line_items (invoice_id, description, quantity, unit, unit_price, cost, line_total, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [invId, li.description, li.quantity, li.unit, li.unit_price, li.cost, lt, idx]
-      );
-    });
-    return invId;
+  const existingInv = db.get('SELECT id FROM invoices WHERE estimate_id = ?', [estimate.id]);
+  if (existingInv) {
+    setFlash(req, 'info', `Invoice already exists.`);
+    return res.redirect(`/invoices/${existingInv.id}`);
+  }
+  res.render('estimates/select-for-invoice', {
+    title: `Select lines to invoice`, activeNav: 'estimates',
+    estimate
   });
-
-  setFlash(req, 'success', `INV-${estimate.wo_display_number} generated (${selectedLines.length} line items transferred).`);
-  res.redirect(`/invoices/${newId}`);
 });
 
 router.get('/:id/pdf', (req, res) => {

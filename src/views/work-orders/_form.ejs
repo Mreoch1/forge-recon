@@ -1,11 +1,10 @@
 <%
-// Shared WO form. Expects: wo, job, users, errors, units, formAction, submitLabel,
+// Shared WO form (v0.7 — depriced). WOs are scope/dispatch, not money docs.
+// Expects: wo, job, users, errors, units, formAction, submitLabel,
 // isSubWO (boolean), parent (when isSubWO).
-// Cost column is internal (visible to admin/manager); workers shouldn't reach this form.
 const linesToRender = (wo.lines && wo.lines.length) ? wo.lines : [{
-  description: '', quantity: 1, unit: 'ea', unit_price: 0, cost: 0, line_total: 0, completed: 0
+  description: '', quantity: 1, unit: 'ea', completed: 0
 }];
-function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
 %>
 <form action="<%= formAction %>" method="post" class="space-y-6">
   <% if (typeof job !== 'undefined' && job && job.id) { %>
@@ -48,7 +47,7 @@ function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed
       <div class="md:col-span-2">
         <label class="label" for="assigned_to_user_id">Assigned employee</label>
         <select name="assigned_to_user_id" id="assigned_to_user_id" class="input">
-          <option value="">— unassigned —</option>
+          <option value="">-- unassigned --</option>
           <% users.forEach(function(u){ %>
             <option value="<%= u.id %>" <%= (wo.assigned_to_user_id == u.id) ? 'selected' : '' %>><%= u.name %></option>
           <% }); %>
@@ -75,9 +74,6 @@ function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed
             <th>Description</th>
             <th class="text-right">Qty</th>
             <th>Unit</th>
-            <th class="text-right">Unit $</th>
-            <th class="text-right text-recon-fog" title="Internal cost — not on customer PDFs">Cost</th>
-            <th class="text-right">Line $</th>
             <th></th>
           </tr>
         </thead>
@@ -103,16 +99,6 @@ function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed
                   <% }); %>
                 </select>
               </td>
-              <td class="text-right">
-                <input type="number" step="0.01" min="0" name="lines[<%= idx %>][unit_price]" data-field="unit_price"
-                       value="<%= li.unit_price %>" class="input text-right" style="width: 7rem;">
-              </td>
-              <td class="text-right">
-                <input type="number" step="0.01" min="0" name="lines[<%= idx %>][cost]" data-field="cost"
-                       value="<%= li.cost %>" class="input text-right text-recon-fog" style="width: 7rem;"
-                       title="Internal cost">
-              </td>
-              <td class="text-right font-medium" data-field="line_total"><%= moneyFmt(li.line_total) %></td>
               <td>
                 <button type="button" data-remove-line class="text-recon-fog hover:text-recon-red text-sm">remove</button>
               </td>
@@ -124,12 +110,8 @@ function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed
               <input type="hidden" name="lines[__IDX__][completed]" value="0">
               <input type="checkbox" name="lines[__IDX__][completed]" value="1">
             </td>
-            <td>
-              <input type="text" name="lines[__IDX__][description]" data-field="description" class="input">
-            </td>
-            <td class="text-right">
-              <input type="number" step="0.01" min="0" name="lines[__IDX__][quantity]" data-field="quantity" value="1" class="input text-right" style="width: 5rem;">
-            </td>
+            <td><input type="text" name="lines[__IDX__][description]" data-field="description" class="input"></td>
+            <td class="text-right"><input type="number" step="0.01" min="0" name="lines[__IDX__][quantity]" data-field="quantity" value="1" class="input text-right" style="width: 5rem;"></td>
             <td>
               <select name="lines[__IDX__][unit]" data-field="unit" class="input">
                 <% units.forEach(function(u){ %>
@@ -137,23 +119,9 @@ function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed
                 <% }); %>
               </select>
             </td>
-            <td class="text-right">
-              <input type="number" step="0.01" min="0" name="lines[__IDX__][unit_price]" data-field="unit_price" value="0" class="input text-right" style="width: 7rem;">
-            </td>
-            <td class="text-right">
-              <input type="number" step="0.01" min="0" name="lines[__IDX__][cost]" data-field="cost" value="0" class="input text-right text-recon-fog" style="width: 7rem;">
-            </td>
-            <td class="text-right font-medium" data-field="line_total">0.00</td>
             <td><button type="button" data-remove-line class="text-recon-fog hover:text-recon-red text-sm">remove</button></td>
           </tr>
         </tbody>
-        <tfoot class="bg-recon-cloud">
-          <tr>
-            <td colspan="6" class="text-right text-sm font-medium">Subtotal</td>
-            <td class="text-right font-semibold">$<span data-totals="subtotal">0.00</span></td>
-            <td></td>
-          </tr>
-        </tfoot>
       </table>
     </div>
   </div>

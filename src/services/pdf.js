@@ -294,18 +294,15 @@ function generateEstimatePDF(estimate, company, stream) {
 // --- public: work order ---
 
 function drawWOLineItems(doc, lines) {
-  // WO line items add a "Done" checkbox column to the estimate table.
+  // WO line items — scope sheet, no pricing.
   const left = doc.page.margins.left;
   const right = doc.page.width - doc.page.margins.right;
   const tableWidth = right - left;
   const cols = [
     { key: 'completed',   label: 'DONE',        width: 36,  align: 'center' },
-    { key: 'trade',       label: 'TRADE',       width: 60,  align: 'left' },
-    { key: 'description', label: 'DESCRIPTION', width: tableWidth - 36 - 60 - 50 - 50 - 60 - 60, align: 'left' },
+    { key: 'description', label: 'DESCRIPTION', width: tableWidth - 36 - 50 - 50, align: 'left' },
     { key: 'quantity',    label: 'QTY',         width: 50,  align: 'right' },
     { key: 'unit',        label: 'UNIT',        width: 50,  align: 'left' },
-    { key: 'unit_price',  label: 'UNIT $',      width: 60,  align: 'right' },
-    { key: 'line_total',  label: 'LINE $',      width: 60,  align: 'right' },
   ];
 
   let y = doc.y;
@@ -393,18 +390,6 @@ function generateWorkOrderPDF(wo, company, stream) {
 
   drawWOMeta(doc, wo);
   drawWOLineItems(doc, wo.lines || []);
-
-  // Compute totals from the WO line items (server is authoritative — but
-  // the WO doesn't store totals, so derive on the fly).
-  const subtotal = (wo.lines || []).reduce((s, li) => s + (Number(li.line_total) || 0), 0);
-  doc.fontSize(10).fillColor(COLOR.ash).font('Helvetica');
-  const right = doc.page.width - doc.page.margins.right;
-  const colW = 200;
-  const x = right - colW;
-  let y = doc.y;
-  doc.text('Total value', x, y, { width: colW * 0.6, align: 'right' });
-  doc.fillColor(COLOR.charcoal).font('Helvetica-Bold').fontSize(13).text(fmtMoney(subtotal), x + colW * 0.6, y, { width: colW * 0.4, align: 'right' });
-  doc.y = y + 22;
 
   if (wo.notes) drawNotes(doc, wo.notes);
 

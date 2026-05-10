@@ -2,6 +2,15 @@
 
 <%
 function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
+function calcMargin(e) {
+  const cost = Number(e.cost_total) || 0;
+  const total = Number(e.total) || 0;
+  if (cost <= 0 || total <= 0) return '&mdash;';
+  const subtotal = Number(e.subtotal) || total;
+  const profit = subtotal - cost;
+  return ((profit / cost) * 100).toFixed(1) + '%';
+}
+const showPrices = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
 %>
 
 <div class="max-w-7xl mx-auto px-4 py-6">
@@ -44,6 +53,7 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
             <th>Customer</th>
             <th>Status</th>
             <th class="text-right">Total</th>
+            <% if (showPrices) { %><th class="text-right">Margin</th><% } %>
             <th>Valid until</th>
             <th>Created</th>
           </tr>
@@ -56,7 +66,8 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
               <td><a href="/customers/<%= e.customer_id %>" class="hover:text-recon-red"><%= e.customer_name %></a></td>
               <td><span class="badge badge-<%= e.status %>"><%= e.status %></span></td>
               <td class="text-right">$<%= fmt(e.total) %></td>
-              <td><%= (e.valid_until || '—').slice(0,10) %></td>
+              <% if (showPrices) { %><td class="text-right" style="color:<%= (Number(e.cost_total)||0) > 0 && (Number(e.subtotal)||0) > (Number(e.cost_total)||0) ? '#065f46' : '#991b1b' %>"><%= calcMargin(e) %></td><% } %>
+              <td><%= (e.valid_until || '&mdash;').slice(0,10) %></td>
               <td><%= (e.created_at || '').slice(0,10) %></td>
             </tr>
           <% }); %>

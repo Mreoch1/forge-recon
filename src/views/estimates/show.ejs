@@ -3,7 +3,10 @@
 <%
 function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
 const showCosts = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
-const margin = (Number(estimate.total) || 0) - (Number(estimate.cost_total) || 0);
+const costTotal = Number(estimate.cost_total) || 0;
+const subtotal = Number(estimate.subtotal) || 0;
+const margin = subtotal - costTotal;
+const roi = costTotal > 0 ? ((margin / costTotal) * 100).toFixed(1) : '&mdash;';
 %>
 
 <div class="max-w-5xl mx-auto px-4 py-6">
@@ -18,7 +21,7 @@ const margin = (Number(estimate.total) || 0) - (Number(estimate.cost_total) || 0
         <span class="badge badge-<%= estimate.status %>"><%= estimate.status %></span>
       </div>
       <p class="page-sub">
-        WO: <a href="/work-orders/<%= estimate.wo_id %>" class="hover:text-recon-red">WO-<%= estimate.wo_display_number %></a>
+        <a href="/work-orders/<%= estimate.wo_id %>" class="hover:text-recon-red font-medium">&larr; WO-<%= estimate.wo_display_number %></a>
         &middot; Job: <a href="/jobs/<%= estimate.job_id %>" class="hover:text-recon-red"><%= estimate.job_title %></a>
         &middot; Customer: <a href="/customers/<%= estimate.customer_id %>" class="hover:text-recon-red"><%= estimate.customer_name %></a>
       </p>
@@ -50,7 +53,7 @@ const margin = (Number(estimate.total) || 0) - (Number(estimate.cost_total) || 0
   <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
     <div class="card p-4">
       <div class="text-xs uppercase tracking-wide text-recon-fog">Subtotal</div>
-      <div class="text-xl font-semibold mt-1">$<%= fmt(estimate.subtotal) %></div>
+      <div class="text-xl font-semibold mt-1">$<%= fmt(subtotal) %></div>
     </div>
     <div class="card p-4">
       <div class="text-xs uppercase tracking-wide text-recon-fog">Tax (<%= fmt(estimate.tax_rate) %>%)</div>
@@ -62,13 +65,14 @@ const margin = (Number(estimate.total) || 0) - (Number(estimate.cost_total) || 0
     </div>
   </div>
 
-  <% if (showCosts) { %>
+  <% if (showCosts && costTotal > 0) { %>
     <div class="card p-4 mb-6 bg-recon-cloud">
       <div class="flex flex-wrap items-center gap-6 text-sm">
-        <span><span class="text-recon-fog">Cost total:</span> <strong>$<%= fmt(estimate.cost_total) %></strong></span>
-        <span><span class="text-recon-fog">Margin:</span> <strong class="<%= margin >= 0 ? 'text-green-700' : 'text-recon-red' %>">$<%= fmt(margin) %></strong></span>
+        <span><span class="text-recon-fog">Cost:</span> <strong>$<%= fmt(costTotal) %></strong></span>
+        <span><span class="text-recon-fog">Profit:</span> <strong class="<%= margin >= 0 ? 'text-green-700' : 'text-recon-red' %>">$<%= fmt(margin) %></strong></span>
+        <span><span class="text-recon-fog">ROI:</span> <strong class="<%= roi !== '&mdash;' && parseFloat(roi) >= 0 ? 'text-green-700' : 'text-recon-red' %>"><%= roi %>%</strong></span>
       </div>
-      <p class="text-xs text-recon-fog mt-1">Internal — not shown on customer PDFs.</p>
+      <p class="text-xs text-recon-fog mt-1">Internal &mdash; not shown on customer PDFs.</p>
     </div>
   <% } %>
 
@@ -91,7 +95,6 @@ const margin = (Number(estimate.total) || 0) - (Number(estimate.cost_total) || 0
       <table class="data">
         <thead>
           <tr>
-            <th>Selected</th>
             <th>Description</th>
             <th class="text-right">Qty</th>
             <th>Unit</th>
@@ -102,8 +105,7 @@ const margin = (Number(estimate.total) || 0) - (Number(estimate.cost_total) || 0
         </thead>
         <tbody>
           <% estimate.lines.forEach(function(li){ %>
-            <tr class="<%= li.selected ? '' : 'opacity-50' %>">
-              <td><%= li.selected ? '✅' : '⬜' %></td>
+            <tr>
               <td><%= li.description %></td>
               <td class="text-right"><%= li.quantity %></td>
               <td><%= li.unit %></td>
@@ -121,7 +123,7 @@ const margin = (Number(estimate.total) || 0) - (Number(estimate.cost_total) || 0
     <div class="card p-5">
       <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-2">Dates</h3>
       <dl class="space-y-1 text-sm">
-        <div><dt class="text-recon-fog text-xs inline">Created:</dt> <dd class="inline"><%= (estimate.created_at || '—').slice(0,10) %></dd></div>
+        <div><dt class="text-recon-fog text-xs inline">Created:</dt> <dd class="inline"><%= (estimate.created_at || '&mdash;').slice(0,10) %></dd></div>
         <% if (estimate.valid_until) { %>
           <div><dt class="text-recon-fog text-xs inline">Valid until:</dt> <dd class="inline"><%= String(estimate.valid_until).slice(0,10) %></dd></div>
         <% } %>

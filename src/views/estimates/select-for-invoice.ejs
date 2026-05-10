@@ -1,0 +1,98 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<%
+function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
+const subtotal = (estimate.lines || []).reduce(function(s, li) { return s + (Number(li.line_total) || 0); }, 0);
+const taxAmt = (estimate.tax_amount || 0);
+const total = (estimate.total || 0);
+%>
+
+<div class="max-w-5xl mx-auto px-4 py-6">
+  <div class="mb-4">
+    <a href="/estimates/<%= estimate.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; <%= estimate.display_number %></a>
+  </div>
+
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="page-h1">Select lines to invoice</h1>
+      <p class="page-sub">Only checked lines will transfer. Uncheck items the customer didn't approve.</p>
+    </div>
+  </div>
+
+  <form action="/estimates/<%= estimate.id %>/generate-invoice" method="post" class="space-y-6">
+    <div class="card overflow-hidden">
+      <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
+        <h3 class="font-semibold">Line items from <%= estimate.display_number %></h3>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="data">
+          <thead>
+            <tr>
+              <th class="text-center" style="width: 3rem;">Invoice</th>
+              <th>Description</th>
+              <th class="text-right">Qty</th>
+              <th>Unit</th>
+              <th class="text-right">Unit $</th>
+              <th class="text-right">Line $</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% (estimate.lines || []).forEach(function(li) { %>
+              <tr>
+                <td class="text-center">
+                  <input type="checkbox" name="selected_lines" value="<%= li.id %>" checked>
+                </td>
+                <td><%= li.description %></td>
+                <td class="text-right"><%= li.quantity %></td>
+                <td><%= li.unit %></td>
+                <td class="text-right">$<%= fmt(li.unit_price) %></td>
+                <td class="text-right font-medium">$<%= fmt(li.line_total) %></td>
+              </tr>
+            <% }); %>
+          </tbody>
+          <tfoot class="bg-recon-cloud">
+            <tr>
+              <td colspan="5" class="text-right text-sm font-medium">Subtotal</td>
+              <td class="text-right font-semibold">$<%= fmt(subtotal) %></td>
+            </tr>
+            <tr>
+              <td colspan="5" class="text-right text-sm font-medium">Tax (<%= estimate.tax_rate %>%)</td>
+              <td class="text-right font-semibold">$<%= fmt(taxAmt) %></td>
+            </tr>
+            <tr>
+              <td colspan="5" class="text-right text-sm font-medium uppercase">Total</td>
+              <td class="text-right text-lg font-bold text-recon-red">$<%= fmt(total) %></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <p class="text-sm text-recon-fog" id="line-count-display">All <%= (estimate.lines || []).length %> line(s) selected for invoice.</p>
+
+    <div class="flex items-center gap-2 pt-2">
+      <button type="submit" class="btn btn-primary">Generate invoice</button>
+      <a href="/estimates/<%= estimate.id %>" class="btn btn-ghost">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<script>
+// Live count display
+document.querySelectorAll('input[name="selected_lines"]').forEach(function(cb) {
+  cb.addEventListener('change', function() {
+    var total = document.querySelectorAll('input[name="selected_lines"]').length;
+    var checked = document.querySelectorAll('input[name="selected_lines"]:checked').length;
+    var el = document.getElementById('line-count-display');
+    if (checked === total) {
+      el.textContent = 'All ' + total + ' line(s) selected for invoice.';
+    } else if (checked === 0) {
+      el.textContent = 'No lines selected — select at least one.';
+    } else {
+      el.textContent = checked + ' of ' + total + ' line(s) selected for invoice.';
+    }
+  });
+});
+</script>
+
+<%- include('../layouts/footer') %>

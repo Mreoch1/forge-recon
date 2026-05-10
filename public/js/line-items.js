@@ -31,7 +31,8 @@
     rows.forEach((row, idx) => {
       $$('input, select, textarea', row).forEach(input => {
         if (input.name && input.name.startsWith('lines[')) {
-          input.name = input.name.replace(/^lines\[\d+\]/, `lines[${idx}]`);
+          // Match digits or __IDX__ (template-leftover) — see makeRow note above.
+          input.name = input.name.replace(/^lines\[[^\]]+\]/, `lines[${idx}]`);
         }
       });
     });
@@ -69,7 +70,11 @@
     row.removeAttribute('data-template');
     $$('input, select, textarea', row).forEach(input => {
       if (input.name) {
-        input.name = input.name.replace(/^lines\[\d+\]/, `lines[${idx}]`);
+        // Match either `lines[__IDX__]` (template) or `lines[<digits>]` (live row).
+        // Earlier regex only caught digits, so the template's __IDX__ placeholder
+        // never got rewritten — new rows submitted as `lines[__IDX__]` and got
+        // dropped by Express's body parser. That was the "line items disappear" bug.
+        input.name = input.name.replace(/^lines\[[^\]]+\]/, `lines[${idx}]`);
       }
       if (input.dataset.field === 'quantity') input.value = '1';
       else if (input.dataset.field === 'unit_price') input.value = '0';
