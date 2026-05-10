@@ -96,13 +96,26 @@ Admin: GET /admin/users, GET/POST /admin/users/new, GET/POST /admin/users/:id/ed
 
 ## Current state
 
-- Phase: 2A (Customers CRUD) — Claude written, awaiting Hermes verification.
-- Phase 0 complete: skeleton, deps installed.
-- Phase 1 complete: DB initialized + seeded, full auth flow tested green by Hermes (8 steps), commit dc48eae.
-- Phase 2A files in place: customers route, _form partial, index/new/edit/show views, server.js mounts /customers under requireAuth.
-- Awaiting Hermes (msg 10): smoke-test customers CRUD end-to-end (create, list, search, view, edit, delete-with-job-guard).
-- Phase 2B (Jobs) is queued — same pattern, will follow once Phase 2A is green.
-- Open consideration: customers/show.ejs links to /jobs/new?customer_id=N which doesn't exist yet — that's fine, will 404 until Phase 2B but otherwise won't break the page.
+- Phase: 2A finishing + 2B starting — Claude written both, Hermes has 2A partial-verified (bug fixed) and 2B queued.
+- Phase 0/1 complete.
+- Phase 2A: bug fixed by Hermes (`emptyToNull` had `trim(undefined)` returning undefined, sql.js doesn't accept undefined binds). Steps 1-5 verified, 6-17 pending.
+- Phase 2B files in place: jobs route, _form partial, index/new/edit/show views, server.js mounts /jobs.
+- Lesson applied to 2B: helpers patched from the start, no repeat of the same bug.
+- Awaiting Hermes (msg 11 + 12): finish 2A tests, then run 2B tests in same session.
+
+## Important pattern: optional form fields
+
+Any optional form field that's not submitted (empty form input, missing field) arrives as `undefined`. sql.js rejects `undefined` binds. ALL optional fields MUST be normalized through `emptyToNull(v)` (the patched version) before binding. The patched version:
+
+```js
+function emptyToNull(v) {
+  if (typeof v !== 'string') return null;
+  const t = v.trim();
+  return t === '' ? null : t;
+}
+```
+
+This is in customers.js and jobs.js. For Phase 3+ (estimates/WOs/invoices) routes, copy this exact helper or extract to a shared lib. Future Claude or Hermes — when you write a new route, grep for `trim(` and make sure it never reaches a `db.run(...)` parameter array.
 
 ## Boot sequence for every session
 

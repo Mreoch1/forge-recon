@@ -49,3 +49,7 @@ Append-only. Every architectural decision made without Michael goes here. He can
 ## 2026-05-10T07:00:00Z — Default port: 3001 instead of 3000
 **Decision:** Smoke server defaults to port 3001.
 **Reason:** Port 3000 is occupied by another service (Next.js app, PID 29832). Changed default PORT in server.js to 3001 to avoid conflict. Configurable via PORT env var.
+
+## 2026-05-10T07:38:00Z — sql.js persistence behavior for testing
+**Decision:** Each process has its own in-memory sql.js copy. Persist-to-disk happens after writes (debounced 50ms) but does NOT reload other processes' instances. To test FK guards with manually-injected data, restart the server after CLI inserts so it picks up the latest disk state.
+**Reason:** sql.js is in-memory by design. Not a bug — a constraint of the library choice.

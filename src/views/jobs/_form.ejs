@@ -1,0 +1,66 @@
+<%
+// Shared form partial for new + edit. Expects: job, customers, statuses, errors, formAction, submitLabel.
+%>
+<form action="<%= formAction %>" method="post" class="space-y-4">
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="md:col-span-2">
+      <label class="label" for="title">Title <span class="text-recon-red">*</span></label>
+      <input type="text" name="title" id="title" required value="<%= job.title || '' %>"
+             class="input <%= errors.title ? 'border-red-500' : '' %>"
+             placeholder="Kitchen remodel — Smith residence" autofocus>
+      <% if (errors.title) { %><p class="text-sm text-red-600 mt-1"><%= errors.title %></p><% } %>
+    </div>
+
+    <div>
+      <label class="label" for="customer_id">Customer <span class="text-recon-red">*</span></label>
+      <select name="customer_id" id="customer_id" required class="input <%= errors.customer_id ? 'border-red-500' : '' %>">
+        <option value="">— select —</option>
+        <% customers.forEach(function(c){ %>
+          <option value="<%= c.id %>" <%= (job.customer_id == c.id) ? 'selected' : '' %>><%= c.name %></option>
+        <% }); %>
+      </select>
+      <% if (errors.customer_id) { %><p class="text-sm text-red-600 mt-1"><%= errors.customer_id %></p><% } %>
+    </div>
+
+    <div>
+      <label class="label" for="status">Status</label>
+      <select name="status" id="status" class="input">
+        <% statuses.forEach(function(s){ %>
+          <option value="<%= s %>" <%= job.status === s ? 'selected' : '' %>><%= s.replace('_',' ') %></option>
+        <% }); %>
+      </select>
+    </div>
+
+    <div class="md:col-span-2">
+      <label class="label" for="address">Job site address</label>
+      <input type="text" name="address" id="address" value="<%= job.address || '' %>" class="input">
+    </div>
+
+    <div>
+      <label class="label" for="city">City</label>
+      <input type="text" name="city" id="city" value="<%= job.city || '' %>" class="input">
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="label" for="state">State</label>
+        <input type="text" name="state" id="state" value="<%= job.state || '' %>" class="input" maxlength="2">
+      </div>
+      <div>
+        <label class="label" for="zip">ZIP</label>
+        <input type="text" name="zip" id="zip" value="<%= job.zip || '' %>" class="input" maxlength="10">
+      </div>
+    </div>
+
+    <div class="md:col-span-2">
+      <label class="label" for="description">Description / scope</label>
+      <textarea name="description" id="description" rows="4" class="input"
+                placeholder="What's the scope of work?"><%= job.description || '' %></textarea>
+    </div>
+  </div>
+
+  <div class="flex items-center gap-2 pt-4 border-t border-recon-mist">
+    <button type="submit" class="btn btn-primary"><%= submitLabel %></button>
+    <a href="<%= job.id ? '/jobs/' + job.id : '/jobs' %>" class="btn btn-ghost">Cancel</a>
+  </div>
+</form>

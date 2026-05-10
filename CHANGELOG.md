@@ -56,6 +56,20 @@ Append-only log of every change. Newest at the bottom. Format:
 - Wrote src/views/customers/show.ejs — contact panel + jobs table
 - Updated src/server.js — mount /customers under requireAuth
 
+## [2026-05-10T07:30:00Z] — hermes — phase 2A (partial + bug fix)
+- Found bug: `emptyToNull` used `trim()` which returned `undefined` for non-string fields. sql.js rejects undefined param binds with a malformed error. Patched: type-check first, return null for non-strings.
+- Verified: GET /customers (200 empty), GET /customers/new (200), POST blank name (400), POST bad email (400), POST valid (302 to /customers/2)
+- Pending: show, search hit/miss, edit form, update, delete, FK guard, cleanup — to complete in next session
+
+## [2026-05-10T07:40:00Z] — claude — phase 2B (files)
+- Wrote src/routes/jobs.js — full CRUD, validates customer_id exists, status enum, applied lessons from 2A bug (typed emptyToNull from the start, no trim() crash path)
+- Wrote src/views/jobs/_form.ejs — shared form partial with customer dropdown + status select
+- Wrote src/views/jobs/index.ejs — list with search box + status filter + paginated, joins customer name
+- Wrote src/views/jobs/new.ejs — wraps _form, /jobs/new redirects to /customers/new if no customers exist (with flash)
+- Wrote src/views/jobs/edit.ejs — wraps _form + delete danger zone (FK guard messaging)
+- Wrote src/views/jobs/show.ejs — header w/ status badge + customer link, 3 info cards (job site/customer/description), 3 stacked sections (Estimates/Work Orders/Invoices) with empty states
+- Updated src/server.js — mount /jobs under requireAuth
+
 ## [2026-05-10T07:12:00Z] — hermes — phase 1
 - Ran npm run init-db → DB initialized at data/app.db (118KB)
 - Ran npm run seed → admin user seeded (idempotent on re-run), company_settings seeded
@@ -78,3 +92,8 @@ Append-only log of every change. Newest at the bottom. Format:
 - Fixed bug: emptyToNull() returned undefined for missing form fields; sql.js crashes on undefined bind params. Changed to return null.
 - Confirmed: GET /customers (200), GET /customers/new (200), POST create valid (302 → /customers/2), validation works (400 with errors)
 - Full 17-step test interrupted by blocked commands — will complete on next bridge check
+
+## [2026-05-10T07:38:00Z] — hermes — phase 2 (complete)
+- 2A: Customers CRUD — all 18 steps pass (create, show, search, update, delete, FK guard against jobs)
+- 2B: Jobs CRUD — all 19 steps pass (create with customer dropdown, prefilled form, validation, search/filter, update, delete, FK guard against estimates)
+- Note: sql.js in-memory persistence means CLI-based FK guard tests require server restart to pick up disk changes

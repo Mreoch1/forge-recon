@@ -1,0 +1,141 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<%
+function fmt(n) { n = Number(n) || 0; return n.toFixed(2); }
+%>
+
+<div class="max-w-7xl mx-auto px-4 py-6">
+  <div class="mb-4">
+    <a href="/jobs" class="text-sm text-recon-fog hover:text-recon-red">&larr; Jobs</a>
+  </div>
+
+  <div class="flex items-baseline justify-between mb-6 flex-wrap gap-2">
+    <div>
+      <div class="flex items-center gap-3">
+        <h1 class="page-h1"><%= job.title %></h1>
+        <span class="badge badge-<%= job.status %>"><%= job.status.replace('_',' ') %></span>
+      </div>
+      <p class="page-sub">
+        <a href="/customers/<%= job.customer_id %>" class="hover:text-recon-red"><%= job.customer_name %></a>
+        &middot; Job #<%= job.id %> &middot; created <%= (job.created_at || '').slice(0,10) %>
+      </p>
+    </div>
+    <div class="flex gap-2">
+      <a href="/jobs/<%= job.id %>/edit" class="btn btn-secondary">Edit</a>
+      <a href="/jobs/<%= job.id %>/estimates/new" class="btn btn-primary">+ New estimate</a>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+    <div class="card p-5">
+      <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Job site</h3>
+      <% if (job.address || job.city) { %>
+        <p class="text-sm">
+          <% if (job.address) { %><%= job.address %><br><% } %>
+          <%= [job.city, job.state, job.zip].filter(Boolean).join(' ') %>
+        </p>
+      <% } else { %>
+        <p class="text-sm text-recon-fog">No address on file.</p>
+      <% } %>
+    </div>
+    <div class="card p-5">
+      <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Customer</h3>
+      <p class="text-sm font-medium"><%= job.customer_name %></p>
+      <% if (job.customer_email) { %><p class="text-sm"><a href="mailto:<%= job.customer_email %>" class="hover:text-recon-red"><%= job.customer_email %></a></p><% } %>
+      <% if (job.customer_phone) { %><p class="text-sm"><a href="tel:<%= job.customer_phone %>" class="hover:text-recon-red"><%= job.customer_phone %></a></p><% } %>
+    </div>
+    <div class="card p-5 lg:col-span-1">
+      <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Description</h3>
+      <% if (job.description) { %>
+        <p class="text-sm whitespace-pre-line"><%= job.description %></p>
+      <% } else { %>
+        <p class="text-sm text-recon-fog">No description.</p>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- Estimates section -->
+  <div class="card overflow-hidden mb-6">
+    <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
+      <h3 class="font-semibold">Estimates (<%= estimates.length %>)</h3>
+      <a href="/jobs/<%= job.id %>/estimates/new" class="text-sm text-recon-red hover:underline">+ Add estimate</a>
+    </div>
+    <% if (estimates.length === 0) { %>
+      <div class="p-6 text-center text-recon-fog text-sm">
+        No estimates yet. <a href="/jobs/<%= job.id %>/estimates/new" class="text-recon-red underline">Create one</a>.
+      </div>
+    <% } else { %>
+      <table class="data">
+        <thead><tr><th>#</th><th>Status</th><th class="text-right">Total</th><th>Valid until</th><th>Created</th></tr></thead>
+        <tbody>
+          <% estimates.forEach(function(e){ %>
+            <tr>
+              <td class="font-medium"><a href="/estimates/<%= e.id %>" class="hover:text-recon-red"><%= e.estimate_number %></a></td>
+              <td><span class="badge badge-<%= e.status %>"><%= e.status %></span></td>
+              <td class="text-right">$<%= fmt(e.total) %></td>
+              <td><%= (e.valid_until || '—').slice(0,10) %></td>
+              <td><%= (e.created_at || '').slice(0,10) %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+
+  <!-- Work Orders section -->
+  <div class="card overflow-hidden mb-6">
+    <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
+      <h3 class="font-semibold">Work Orders (<%= workOrders.length %>)</h3>
+    </div>
+    <% if (workOrders.length === 0) { %>
+      <div class="p-6 text-center text-recon-fog text-sm">
+        No work orders yet. They get created from accepted estimates.
+      </div>
+    <% } else { %>
+      <table class="data">
+        <thead><tr><th>#</th><th>Status</th><th>Scheduled</th><th>Completed</th><th>Created</th></tr></thead>
+        <tbody>
+          <% workOrders.forEach(function(w){ %>
+            <tr>
+              <td class="font-medium"><a href="/work-orders/<%= w.id %>" class="hover:text-recon-red"><%= w.wo_number %></a></td>
+              <td><span class="badge badge-<%= w.status %>"><%= w.status.replace('_',' ') %></span></td>
+              <td><%= (w.scheduled_date || '—').slice(0,10) %></td>
+              <td><%= (w.completed_date || '—').slice(0,10) %></td>
+              <td><%= (w.created_at || '').slice(0,10) %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+
+  <!-- Invoices section -->
+  <div class="card overflow-hidden">
+    <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
+      <h3 class="font-semibold">Invoices (<%= invoices.length %>)</h3>
+    </div>
+    <% if (invoices.length === 0) { %>
+      <div class="p-6 text-center text-recon-fog text-sm">
+        No invoices yet. They get generated from completed work orders.
+      </div>
+    <% } else { %>
+      <table class="data">
+        <thead><tr><th>#</th><th>Status</th><th class="text-right">Total</th><th class="text-right">Paid</th><th>Due</th><th>Created</th></tr></thead>
+        <tbody>
+          <% invoices.forEach(function(i){ %>
+            <tr>
+              <td class="font-medium"><a href="/invoices/<%= i.id %>" class="hover:text-recon-red"><%= i.invoice_number %></a></td>
+              <td><span class="badge badge-<%= i.status %>"><%= i.status %></span></td>
+              <td class="text-right">$<%= fmt(i.total) %></td>
+              <td class="text-right">$<%= fmt(i.amount_paid) %></td>
+              <td><%= (i.due_date || '—').slice(0,10) %></td>
+              <td><%= (i.created_at || '').slice(0,10) %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+</div>
+
+<%- include('../layouts/footer') %>

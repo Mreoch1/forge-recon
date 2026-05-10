@@ -1,0 +1,22 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<div class="max-w-3xl mx-auto px-4 py-6">
+  <div class="mb-4">
+    <a href="/jobs/<%= job.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; <%= job.title %></a>
+  </div>
+  <h1 class="page-h1 mb-6">Edit job</h1>
+
+  <div class="card p-6">
+    <%- include('_form', { job: job, customers: customers, statuses: statuses, errors: errors, formAction: '/jobs/' + job.id, submitLabel: 'Save changes' }) %>
+  </div>
+
+  <div class="card p-6 mt-6 border-red-200">
+    <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
+    <p class="text-sm text-recon-fog mb-3">Deletion is permanent and only allowed if the job has no estimates, work orders, or invoices.</p>
+    <form action="/jobs/<%= job.id %>/delete" method="post" onsubmit="return confirm('Delete <%= job.title %>? This cannot be undone.');" class="m-0">
+      <button type="submit" class="btn btn-danger">Delete job</button>
+    </form>
+  </div>
+</div>
+
+<%- include('../layouts/footer') %>

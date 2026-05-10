@@ -1,0 +1,75 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<div class="max-w-7xl mx-auto px-4 py-6">
+  <div class="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+    <div>
+      <h1 class="page-h1">Jobs</h1>
+      <p class="page-sub"><%= total %> total<% if (q) { %> &middot; filter: "<%= q %>"<% } %><% if (status) { %> &middot; status: <%= status.replace('_',' ') %><% } %></p>
+    </div>
+    <a href="/jobs/new" class="btn btn-primary">+ New job</a>
+  </div>
+
+  <form method="get" action="/jobs" class="flex flex-wrap items-center gap-2 mb-4">
+    <input type="text" name="q" value="<%= q %>" placeholder="Search title, address, customer..." class="input max-w-md">
+    <select name="status" class="input max-w-[12rem]">
+      <option value="">All statuses</option>
+      <% statuses.forEach(function(s){ %>
+        <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s.replace('_',' ') %></option>
+      <% }); %>
+    </select>
+    <button type="submit" class="btn btn-secondary">Filter</button>
+    <% if (q || status) { %>
+      <a href="/jobs" class="btn btn-ghost">Clear</a>
+    <% } %>
+  </form>
+
+  <div class="card overflow-hidden">
+    <% if (jobs.length === 0) { %>
+      <div class="p-8 text-center text-recon-fog">
+        <% if (q || status) { %>
+          No jobs match those filters. <a href="/jobs" class="text-recon-red underline">Clear</a>
+        <% } else { %>
+          No jobs yet. <a href="/jobs/new" class="text-recon-red underline">Create one</a>.
+        <% } %>
+      </div>
+    <% } else { %>
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th>Customer</th>
+            <th>Location</th>
+            <th>Status</th>
+            <th>Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% jobs.forEach(function(j){ %>
+            <tr>
+              <td class="font-medium"><a href="/jobs/<%= j.id %>" class="text-recon-charcoal hover:text-recon-red"><%= j.title %></a></td>
+              <td><a href="/customers/<%= j.customer_id %>" class="text-recon-charcoal hover:text-recon-red"><%= j.customer_name %></a></td>
+              <td><%= [j.address, j.city, j.state].filter(Boolean).join(', ') || '—' %></td>
+              <td><span class="badge badge-<%= j.status %>"><%= j.status.replace('_',' ') %></span></td>
+              <td><%= (j.created_at || '').slice(0,10) %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+
+  <% if (totalPages > 1) { %>
+    <div class="flex items-center justify-center gap-2 mt-4">
+      <% for (let p = 1; p <= totalPages; p++) { %>
+        <% const qs = []; if (p) qs.push('page='+p); if (q) qs.push('q='+encodeURIComponent(q)); if (status) qs.push('status='+encodeURIComponent(status)); %>
+        <% if (p === page) { %>
+          <span class="btn btn-primary"><%= p %></span>
+        <% } else { %>
+          <a href="/jobs?<%= qs.join('&') %>" class="btn btn-ghost"><%= p %></a>
+        <% } %>
+      <% } %>
+    </div>
+  <% } %>
+</div>
+
+<%- include('../layouts/footer') %>
