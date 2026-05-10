@@ -96,10 +96,12 @@ Admin: GET /admin/users, GET/POST /admin/users/new, GET/POST /admin/users/:id/ed
 
 ## Current state
 
-- Phase: 0 (skeleton)
-- Files written by Claude this turn: PROJECT_PLAN.md, package.json, .gitignore, README.md (skeleton)
-- Awaiting Hermes: npm install, Node version check, fetch logo, smoke-test server
-- Last bridge msg from Claude: msg 8 (kickoff)
+- Phase: 1 (auth + DB foundation) — Claude has written all the files; Hermes needs to init+seed DB and smoke-test login.
+- Phase 0 complete: skeleton, deps installed (sql.js + session-file-store substitution), recon logo at public/logos/recon.png, /ping verified on port 3001.
+- Phase 1 files in place: schema.sql, db.js (sql.js wrapper), init.js, seed.js, auth middleware, auth routes, header/footer/login/dashboard/error views, full server.js.
+- Awaiting Hermes (msg 9): run init-db, run seed, start server, verify /login renders, login as admin, hit /, logout, report results.
+- Default admin credentials seeded by seed.js: admin@recon.local / changeme123 (rotation noted in TODO_FOR_MICHAEL.md).
+- Open question: dashboard view assumes `currentUser` is always non-null on /; this is enforced by requireAuth middleware. If currentUser ends up null in the dashboard render, that's a bug — Hermes should verify in his test pass.
 
 ## Boot sequence for every session
 

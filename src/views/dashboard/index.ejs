@@ -1,0 +1,42 @@
+<%- include('../layouts/header', { title: 'Dashboard', currentUser: currentUser, flash: flash, activeNav: 'dashboard' }) %>
+
+<div class="max-w-7xl mx-auto px-4 py-6">
+  <div class="flex items-baseline justify-between mb-6">
+    <div>
+      <h1 class="page-h1">Dashboard</h1>
+      <p class="page-sub">Welcome back, <%= currentUser.name %>.</p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div class="card p-4">
+      <div class="text-xs uppercase tracking-wide text-recon-fog">Open Estimates</div>
+      <div class="text-3xl font-bold text-recon-charcoal mt-1"><%= typeof openEstimates !== 'undefined' ? openEstimates : 0 %></div>
+    </div>
+    <div class="card p-4">
+      <div class="text-xs uppercase tracking-wide text-recon-fog">Scheduled Work Orders</div>
+      <div class="text-3xl font-bold text-recon-charcoal mt-1"><%= typeof scheduledWOs !== 'undefined' ? scheduledWOs : 0 %></div>
+    </div>
+    <div class="card p-4">
+      <div class="text-xs uppercase tracking-wide text-recon-fog">Unpaid Invoices</div>
+      <div class="text-3xl font-bold text-recon-charcoal mt-1"><%= typeof unpaidInvoices !== 'undefined' ? unpaidInvoices : 0 %></div>
+    </div>
+    <div class="card p-4">
+      <div class="text-xs uppercase tracking-wide text-recon-fog">A/R Balance</div>
+      <div class="text-3xl font-bold text-recon-red mt-1">$<%= typeof arBalance !== 'undefined' ? arBalance.toFixed(2) : '0.00' %></div>
+    </div>
+  </div>
+
+  <div class="card p-6">
+    <h2 class="text-lg font-semibold mb-2">Getting started</h2>
+    <p class="text-sm text-recon-fog mb-4">
+      Add a customer, create a job, build an estimate, convert to a work order, then generate an invoice when the work is done.
+    </p>
+    <div class="flex flex-wrap gap-2">
+      <a href="/customers/new" class="btn btn-primary">+ New customer</a>
+      <a href="/jobs/new" class="btn btn-secondary">+ New job</a>
+    </div>
+  </div>
+</div>
+
+<%- include('../layouts/footer') %>

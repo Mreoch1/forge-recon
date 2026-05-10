@@ -6,3 +6,6 @@ mail-outbox/
 public/uploads/
 .DS_Store
 Thumbs.db
+data/
+sessions/
+node_modules/

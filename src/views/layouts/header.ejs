@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= typeof title !== 'undefined' && title ? title + ' — Recon WO' : 'Recon WO' %></title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@2.0.3"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            recon: {
+              red: '#c0202b',
+              'red-dark': '#8a0e16',
+              'red-light': '#e63946',
+              charcoal: '#1a1a1a',
+              steel: '#2d2d2d',
+              ash: '#3d3d3d',
+              fog: '#888888',
+              mist: '#e5e5e5',
+              cloud: '#f5f5f5'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { background: #f5f5f5; color: #1a1a1a; font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif; }
+    .navlink { color: #d0d0d0; padding: .5rem .75rem; border-radius: .25rem; transition: all .15s; font-size: .9rem; }
+    .navlink:hover { background: #3d3d3d; color: #ffffff; }
+    .navlink.active { background: #c0202b; color: #ffffff; }
+    .btn { display: inline-flex; align-items: center; padding: .5rem 1rem; border-radius: .375rem; font-weight: 500; transition: all .15s; cursor: pointer; border: none; font-size: .9rem; }
+    .btn-primary { background: #c0202b; color: #ffffff; }
+    .btn-primary:hover { background: #8a0e16; }
+    .btn-secondary { background: #2d2d2d; color: #ffffff; }
+    .btn-secondary:hover { background: #1a1a1a; }
+    .btn-ghost { background: transparent; color: #1a1a1a; }
+    .btn-ghost:hover { background: #e5e5e5; }
+    .btn-danger { background: #ffffff; color: #c0202b; border: 1px solid #c0202b; }
+    .btn-danger:hover { background: #c0202b; color: #ffffff; }
+    .card { background: #ffffff; border-radius: .5rem; box-shadow: 0 1px 3px rgba(0,0,0,.06); border: 1px solid #e5e5e5; }
+    .input, select.input, textarea.input { display: block; width: 100%; padding: .5rem .75rem; border-radius: .375rem; border: 1px solid #d0d0d0; background: #ffffff; font-size: .9rem; transition: all .15s; }
+    .input:focus { border-color: #c0202b; outline: none; box-shadow: 0 0 0 3px rgba(192,32,43,.15); }
+    .label { display: block; font-size: .85rem; font-weight: 500; color: #1a1a1a; margin-bottom: .25rem; }
+    .badge { display: inline-flex; align-items: center; padding: .15rem .6rem; border-radius: 9999px; font-size: .75rem; font-weight: 500; }
+    .badge-draft   { background: #e5e5e5; color: #1a1a1a; }
+    .badge-sent    { background: #dbeafe; color: #1e40af; }
+    .badge-accepted, .badge-paid, .badge-complete { background: #d1fae5; color: #065f46; }
+    .badge-rejected, .badge-cancelled, .badge-void { background: #fee2e2; color: #991b1b; }
+    .badge-overdue, .badge-expired { background: #fef3c7; color: #92400e; }
+    .badge-scheduled, .badge-in_progress, .badge-estimating { background: #ede9fe; color: #5b21b6; }
+    .badge-lead    { background: #f3f4f6; color: #374151; }
+    table.data { width: 100%; border-collapse: collapse; }
+    table.data th { text-align: left; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: #888; padding: .75rem 1rem; border-bottom: 1px solid #e5e5e5; background: #fafafa; }
+    table.data td { padding: .75rem 1rem; border-bottom: 1px solid #f0f0f0; font-size: .9rem; }
+    table.data tr:hover td { background: #fafafa; }
+    .page-h1 { font-size: 1.5rem; font-weight: 700; color: #1a1a1a; }
+    .page-sub { color: #888; font-size: .9rem; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+<% if (typeof currentUser !== 'undefined' && currentUser) { %>
+  <nav class="bg-recon-charcoal text-white shadow-md">
+    <div class="max-w-7xl mx-auto px-4 flex items-center justify-between h-14">
+      <div class="flex items-center gap-2">
+        <a href="/" class="flex items-center gap-2 mr-4">
+          <img src="/logos/recon.png" alt="Recon" class="h-8 w-auto">
+          <span class="font-bold text-lg tracking-tight">Recon WO</span>
+        </a>
+        <div class="hidden md:flex items-center gap-1">
+          <a href="/" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'dashboard' ? ' active' : '' %>">Dashboard</a>
+          <a href="/customers" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'customers' ? ' active' : '' %>">Customers</a>
+          <a href="/jobs" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'jobs' ? ' active' : '' %>">Jobs</a>
+          <a href="/estimates" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'estimates' ? ' active' : '' %>">Estimates</a>
+          <a href="/work-orders" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'work-orders' ? ' active' : '' %>">Work Orders</a>
+          <a href="/invoices" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'invoices' ? ' active' : '' %>">Invoices</a>
+          <% if (currentUser.role === 'admin') { %>
+            <a href="/admin/users" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'admin' ? ' active' : '' %>">Admin</a>
+          <% } %>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="text-sm text-recon-fog hidden sm:inline"><%= currentUser.name %></span>
+        <span class="text-xs text-recon-fog hidden sm:inline">(<%= currentUser.role %>)</span>
+        <form action="/logout" method="post" class="m-0 p-0">
+          <button type="submit" class="text-sm text-recon-fog hover:text-white transition">Logout</button>
+        </form>
+      </div>
+    </div>
+  </nav>
+<% } %>
+
+<% if (typeof flash !== 'undefined' && flash) { %>
+  <% if (flash.success) { %>
+    <div class="bg-green-50 border-b border-green-200 text-green-800 px-4 py-2 text-sm">
+      <div class="max-w-7xl mx-auto"><%= flash.success %></div>
+    </div>
+  <% } %>
+  <% if (flash.error) { %>
+    <div class="bg-red-50 border-b border-red-200 text-red-800 px-4 py-2 text-sm">
+      <div class="max-w-7xl mx-auto"><%= flash.error %></div>
+    </div>
+  <% } %>
+  <% if (flash.info) { %>
+    <div class="bg-blue-50 border-b border-blue-200 text-blue-800 px-4 py-2 text-sm">
+      <div class="max-w-7xl mx-auto"><%= flash.info %></div>
+    </div>
+  <% } %>
+<% } %>
+
+<main class="flex-1">

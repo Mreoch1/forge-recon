@@ -1,0 +1,11 @@
+<%- include('layouts/header', { title: title || 'Error', currentUser: typeof currentUser !== 'undefined' ? currentUser : null, flash: typeof flash !== 'undefined' ? flash : {} }) %>
+
+<div class="min-h-[60vh] flex items-center justify-center px-4">
+  <div class="card p-8 max-w-md text-center">
+    <div class="text-5xl font-bold text-recon-red mb-2"><%= code %></div>
+    <p class="text-recon-charcoal mb-6"><%= message %></p>
+    <a href="/" class="btn btn-primary">Back to dashboard</a>
+  </div>
+</div>
+
+<%- include('layouts/footer') %>

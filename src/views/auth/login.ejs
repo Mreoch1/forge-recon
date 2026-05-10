@@ -1,0 +1,40 @@
+<%- include('../layouts/header', { title: title, currentUser: typeof currentUser !== 'undefined' ? currentUser : null, flash: typeof flash !== 'undefined' ? flash : {} }) %>
+
+<div class="min-h-[80vh] flex items-center justify-center px-4">
+  <div class="card w-full max-w-md p-8">
+    <div class="flex flex-col items-center mb-6">
+      <img src="/logos/recon.png" alt="Recon Construction" class="h-16 w-auto mb-3">
+      <h1 class="text-xl font-bold text-recon-charcoal">Recon Work Orders</h1>
+      <p class="text-sm text-recon-fog mt-1">Sign in to continue</p>
+    </div>
+
+    <% if (typeof error !== 'undefined' && error) { %>
+      <div class="mb-4 p-3 rounded bg-red-50 border border-red-200 text-red-800 text-sm">
+        <%= error %>
+      </div>
+    <% } %>
+
+    <form action="/login" method="post" class="space-y-4" autocomplete="on">
+      <div>
+        <label for="email" class="label">Email</label>
+        <input type="email" name="email" id="email" required
+               value="<%= typeof email !== 'undefined' ? email : '' %>"
+               class="input" autocomplete="email" autofocus>
+      </div>
+      <div>
+        <label for="password" class="label">Password</label>
+        <input type="password" name="password" id="password" required
+               class="input" autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn-primary w-full justify-center">
+        Sign in
+      </button>
+    </form>
+
+    <p class="text-center text-xs text-recon-fog mt-6">
+      In-house only. Forgot your password? Ask an admin.
+    </p>
+  </div>
+</div>
+
+<%- include('../layouts/footer') %>
