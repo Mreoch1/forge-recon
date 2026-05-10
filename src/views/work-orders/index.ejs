@@ -1,58 +1,104 @@
 <%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
 
-<div class="max-w-7xl mx-auto px-4 py-6">
-  <div class="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+<style>
+  .wol-h1 { font-size: 1.45rem; font-weight: 700; letter-spacing: -.015em; color: #1a1a1a; }
+  .wol-sub { color: #888; font-size: .82rem; }
+  .wol-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+  .wol-table thead th {
+    text-align: left; font-size: .65rem; letter-spacing: .12em; text-transform: uppercase;
+    color: #888; font-weight: 700; padding: .55rem .75rem;
+    border-top: 2px solid #1a1a1a; border-bottom: 1px solid #cfcfcf;
+    background: #fafafa;
+  }
+  .wol-table tbody td { padding: .65rem .75rem; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+  .wol-table tbody tr:hover td { background: #fafafa; }
+  .wol-num { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; font-size: .85rem; color: #1a1a1a; }
+  .wol-customer { font-weight: 600; color: #1a1a1a; }
+  .wol-job-title { font-size: .78rem; color: #666; margin-top: .1rem; }
+  .wol-meta { font-family: ui-monospace, monospace; font-size: .8rem; color: #555; }
+  .wol-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: .4rem; vertical-align: middle; }
+  .wol-dot-live { background: #ea580c; box-shadow: 0 0 0 0 rgba(234,88,12,.5); animation: wol-pulse 2.4s infinite; }
+  .wol-dot-sched { background: #b8b8b8; }
+  .wol-dot-done { background: #10b981; }
+  .wol-dot-cancel { background: #fca5a5; }
+  @keyframes wol-pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(234,88,12,.5); }
+    70%  { box-shadow: 0 0 0 5px rgba(234,88,12,0); }
+    100% { box-shadow: 0 0 0 0 rgba(234,88,12,0); }
+  }
+  .wol-filter-row { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem; padding-bottom: .85rem; }
+  .wol-empty { padding: 2rem 1rem; text-align: center; color: #888; font-size: .85rem; }
+</style>
+
+<div class="max-w-7xl mx-auto px-4 py-5">
+  <div class="flex items-end justify-between mb-3 flex-wrap gap-2">
     <div>
-      <h1 class="page-h1">Work Orders</h1>
-      <p class="page-sub"><%= total %> total<% if (q) { %> &middot; "<%= q %>"<% } %><% if (status) { %> &middot; <%= status.replace('_',' ') %><% } %></p>
+      <h1 class="wol-h1">Work orders</h1>
+      <p class="wol-sub mt-1"><%= total %> total<% if (q) { %> &middot; "<%= q %>"<% } %><% if (status) { %> &middot; <%= status.replace('_',' ') %><% } %></p>
     </div>
     <div class="flex gap-2">
-      <a href="/work-orders/ai-create" class="btn btn-primary">+ AI work order</a>
+      <a href="/work-orders/ai-create" class="btn btn-primary text-sm">+ AI work order</a>
     </div>
   </div>
 
-  <form method="get" action="/work-orders" class="flex flex-wrap items-center gap-2 mb-4">
-    <input type="text" name="q" value="<%= q %>" placeholder="Search WO #, job, customer..." class="input max-w-md">
-    <select name="status" class="input max-w-[12rem]">
+  <form method="get" action="/work-orders" class="wol-filter-row">
+    <input type="text" name="q" value="<%= q %>" placeholder="Search WO #, job, customer..." class="input max-w-md text-sm">
+    <select name="status" class="input max-w-[12rem] text-sm">
       <option value="">All statuses</option>
       <% statuses.forEach(function(s){ %>
         <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s.replace('_',' ') %></option>
       <% }); %>
     </select>
-    <button type="submit" class="btn btn-secondary">Filter</button>
-    <% if (q || status) { %><a href="/work-orders" class="btn btn-ghost">Clear</a><% } %>
+    <button type="submit" class="btn btn-secondary text-sm">Filter</button>
+    <% if (q || status) { %><a href="/work-orders" class="btn btn-ghost text-sm">Clear</a><% } %>
   </form>
 
-  <div class="card overflow-hidden">
-    <% if (workOrders.length === 0) { %>
-      <div class="p-8 text-center text-recon-fog">
-        <% if (q || status) { %>
-          No work orders match. <a href="/work-orders" class="text-recon-red underline">Clear</a>
-        <% } else { %>
-          No work orders yet. They get created from accepted <a href="/estimates" class="text-recon-red underline">estimates</a>.
-        <% } %>
-      </div>
-    <% } else { %>
-      <table class="data">
-        <thead>
-          <tr><th>Number</th><th>Job</th><th>Customer</th><th>Status</th><th>Scheduled</th><th>Assigned</th><th>Created</th></tr>
-        </thead>
-        <tbody>
-          <% workOrders.forEach(function(w){ %>
-            <tr>
-              <td class="font-medium"><a href="/work-orders/<%= w.id %>" class="hover:text-recon-red"><%= w.wo_number %></a></td>
-              <td><a href="/jobs/<%= w.job_id %>" class="hover:text-recon-red"><%= w.job_title %></a></td>
-              <td><a href="/customers/<%= w.customer_id %>" class="hover:text-recon-red"><%= w.customer_name %></a></td>
-              <td><span class="badge badge-<%= w.status %>"><%= w.status.replace('_',' ') %></span></td>
-              <td><%= (w.scheduled_date || '—').slice(0,10) %></td>
-              <td><%= w.assigned_to || '—' %></td>
-              <td><%= (w.created_at || '').slice(0,10) %></td>
-            </tr>
-          <% }); %>
-        </tbody>
-      </table>
-    <% } %>
-  </div>
+  <% if (workOrders.length === 0) { %>
+    <div class="wol-empty">
+      <% if (q || status) { %>
+        No work orders match. <a href="/work-orders" class="text-recon-red underline">Clear filters</a>.
+      <% } else { %>
+        No work orders yet. They get created from accepted <a href="/estimates" class="text-recon-red underline">estimates</a>.
+      <% } %>
+    </div>
+  <% } else { %>
+    <table class="wol-table">
+      <thead>
+        <tr>
+          <th style="width:1.5rem;"></th>
+          <th style="width:9rem;">Number</th>
+          <th>Customer · Job</th>
+          <th style="width:7rem;">Status</th>
+          <th style="width:7rem;">Scheduled</th>
+          <th style="width:7rem;">Assigned</th>
+          <th style="width:6rem;">Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% workOrders.forEach(function(w){
+             const dotClass = w.status === 'in_progress' ? 'wol-dot-live'
+                            : w.status === 'complete'    ? 'wol-dot-done'
+                            : w.status === 'cancelled'   ? 'wol-dot-cancel'
+                            :                              'wol-dot-sched';
+        %>
+          <tr>
+            <td><span class="wol-dot <%= dotClass %>"></span></td>
+            <td><a href="/work-orders/<%= w.id %>" class="wol-num hover:text-recon-red"><%= w.wo_number %></a></td>
+            <td>
+              <a href="/customers/<%= w.customer_id %>" class="wol-customer hover:text-recon-red"><%= w.customer_name %></a>
+              <div class="wol-job-title">
+                <a href="/jobs/<%= w.job_id %>" class="hover:text-recon-red"><%= w.job_title %></a>
+              </div>
+            </td>
+            <td><span class="badge badge-<%= w.status %>"><%= w.status.replace('_',' ') %></span></td>
+            <td class="wol-meta"><%= (w.scheduled_date || '—').slice(0,10) %></td>
+            <td class="wol-meta"><%= w.assigned_to || '—' %></td>
+            <td class="wol-meta"><%= (w.created_at || '').slice(0,10) %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
 
   <% if (totalPages > 1) { %>
     <div class="flex items-center justify-center gap-2 mt-4">

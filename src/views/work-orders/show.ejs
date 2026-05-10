@@ -3,165 +3,343 @@
 <%
 const completedCount = (wo.lines || []).filter(function(li){ return li.completed; }).length;
 const totalCount = (wo.lines || []).length;
+const pct = totalCount > 0 ? Math.round(completedCount * 100 / totalCount) : 0;
+const live = wo.status === 'in_progress';
+function fmtDate(d) { return d ? String(d).slice(0,10) : '—'; }
+function fmtTime(t) {
+  if (!t) return '';
+  const [hh, mm] = String(t).split(':');
+  const h = parseInt(hh, 10);
+  if (isNaN(h)) return t;
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return h12 + ':' + (mm || '00') + ' ' + ampm;
+}
+const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(', ');
 %>
 
-<div class="max-w-5xl mx-auto px-4 py-6">
-  <div class="mb-4">
-    <a href="/work-orders" class="text-sm text-recon-fog hover:text-recon-red">&larr; Work Orders</a>
-  </div>
+<style>
+  /* WO show v2 — single-pane operational workspace */
+  .ws-back { font-size: .78rem; color: #999; }
+  .ws-back:hover { color: #c0202b; }
 
-  <div class="flex items-baseline justify-between mb-6 flex-wrap gap-2">
+  .ws-h1 { font-size: 1.55rem; font-weight: 700; letter-spacing: -.015em; color: #1a1a1a; }
+  .ws-eyebrow { font-size: .68rem; letter-spacing: .14em; text-transform: uppercase; font-weight: 600; color: #999; }
+
+  .ws-status-badge { padding: .15rem .55rem; border-radius: 3px; font-size: .72rem; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; }
+
+  /* Strip: schedule | assignee | progress | estimate | invoice */
+  .ws-strip {
+    display: flex; flex-wrap: wrap; align-items: stretch;
+    border-top: 2px solid #1a1a1a; border-bottom: 1px solid #cfcfcf;
+    background: #fafafa;
+    margin: 1rem 0 1.5rem;
+  }
+  .ws-strip-cell {
+    padding: .65rem 1.1rem; border-right: 1px solid #e0e0e0; min-width: 8.5rem;
+  }
+  .ws-strip-cell:last-child { border-right: none; }
+  .ws-strip-label { font-size: .65rem; letter-spacing: .12em; text-transform: uppercase; color: #888; font-weight: 600; }
+  .ws-strip-value { font-size: .92rem; font-weight: 700; color: #1a1a1a; margin-top: .15rem; }
+  .ws-strip-value-mono { font-family: ui-monospace, monospace; }
+  .ws-strip-value a { color: #1a1a1a; }
+  .ws-strip-value a:hover { color: #c0202b; }
+  .ws-strip-meta { font-size: .72rem; color: #888; font-weight: 500; margin-top: .1rem; }
+
+  /* Section heading rules */
+  .ws-h-primary { font-size: 1.05rem; font-weight: 700; color: #1a1a1a; padding-bottom: .35rem; border-bottom: 2px solid #1a1a1a; margin-bottom: .25rem; display: flex; justify-content: space-between; align-items: baseline; }
+  .ws-h-secondary { font-size: .82rem; font-weight: 700; color: #888; letter-spacing: .06em; text-transform: uppercase; padding-bottom: .25rem; border-bottom: 1px solid #e0e0e0; margin-bottom: .25rem; display: flex; justify-content: space-between; align-items: baseline; }
+
+  /* Items table — flat, dividers only */
+  .ws-items { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  .ws-items th { text-align: left; font-size: .65rem; letter-spacing: .12em; text-transform: uppercase; color: #999; font-weight: 600; padding: .55rem .75rem; border-bottom: 1px solid #e5e5e5; }
+  .ws-items td { padding: .65rem .75rem; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+  .ws-items tr:last-child td { border-bottom: none; }
+  .ws-items tr:hover td { background: #fafafa; }
+  .ws-items .done-cell { width: 1.6rem; }
+  .ws-items .qty-cell { font-family: ui-monospace, monospace; font-size: .85rem; text-align: right; width: 4.5rem; }
+  .ws-items .unit-cell { width: 4rem; color: #666; font-size: .8rem; }
+  .ws-items .desc-cell { color: #1a1a1a; }
+  .ws-items .desc-cell.done { color: #888; text-decoration: line-through; text-decoration-color: #ccc; }
+  .ws-checkbox { display: inline-block; width: 14px; height: 14px; border: 1.5px solid #888; border-radius: 2px; vertical-align: middle; }
+  .ws-checkbox.done { background: #10b981; border-color: #10b981; position: relative; }
+  .ws-checkbox.done::after { content: ''; position: absolute; left: 3px; top: 0px; width: 4px; height: 8px; border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+
+  /* Progress bar */
+  .ws-progress { display: inline-flex; align-items: center; gap: .5rem; }
+  .ws-progress-bar { width: 5rem; height: 5px; background: #e5e5e5; border-radius: 999px; overflow: hidden; }
+  .ws-progress-fill { height: 100%; background: <%= pct === 100 ? '#10b981' : '#c0202b' %>; transition: width .3s; }
+
+  /* Notes feed (right column) */
+  .ws-note-row { padding: .6rem 0; border-bottom: 1px solid #f0f0f0; font-size: .82rem; }
+  .ws-note-row:last-child { border-bottom: none; }
+  .ws-note-meta { font-size: .68rem; color: #aaa; margin-bottom: .15rem; font-family: ui-monospace, monospace; }
+  .ws-note-body { color: #1a1a1a; line-height: 1.4; white-space: pre-line; }
+
+  /* Sub-WO compact list */
+  .ws-sub-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: .65rem; padding: .4rem 0; border-bottom: 1px solid #f0f0f0; align-items: center; font-size: .82rem; }
+  .ws-sub-row:last-child { border-bottom: none; }
+  .ws-sub-row:hover { background: #fafafa; }
+  .ws-sub-num { font-family: ui-monospace, monospace; font-weight: 600; }
+  .ws-sub-meta { font-size: .72rem; color: #999; }
+
+  /* Customer block */
+  .ws-cust { font-size: .85rem; color: #1a1a1a; }
+  .ws-cust-name { font-weight: 700; font-size: .95rem; margin-bottom: .15rem; }
+  .ws-cust-line { color: #666; font-size: .8rem; }
+
+  /* Status dot */
+  .ws-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .ws-dot-live { background: #ea580c; box-shadow: 0 0 0 0 rgba(234,88,12,.5); animation: ws-pulse 2.4s infinite; }
+  .ws-dot-sched { background: #b8b8b8; }
+  .ws-dot-done { background: #10b981; }
+  @keyframes ws-pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(234,88,12,.5); }
+    70%  { box-shadow: 0 0 0 6px rgba(234,88,12,0); }
+    100% { box-shadow: 0 0 0 0 rgba(234,88,12,0); }
+  }
+
+  /* Empty states */
+  .ws-empty { padding: 1rem 0; color: #aaa; font-size: .82rem; text-align: center; font-style: italic; }
+</style>
+
+<div class="max-w-7xl mx-auto px-4 py-5">
+
+  <!-- Back nav -->
+  <div class="mb-2"><a href="/work-orders" class="ws-back">&larr; Work orders</a></div>
+
+  <!-- Header: WO# / status / customer / job / actions -->
+  <div class="flex items-start justify-between flex-wrap gap-3">
     <div>
       <div class="flex items-center gap-3">
-        <h1 class="page-h1">WO-<%= wo.display_number %></h1>
-        <span class="badge badge-<%= wo.status %>"><%= wo.status.replace('_',' ') %></span>
+        <span class="ws-dot <%= live ? 'ws-dot-live' : (wo.status === 'complete' ? 'ws-dot-done' : 'ws-dot-sched') %>"></span>
+        <h1 class="ws-h1">WO-<%= wo.display_number %></h1>
+        <span class="ws-status-badge badge-<%= wo.status %>"><%= wo.status.replace('_',' ') %></span>
       </div>
-      <p class="page-sub">
-        Job: <a href="/jobs/<%= wo.job_id %>" class="hover:text-recon-red"><%= wo.job_title %></a>
-        &middot; Customer: <a href="/customers/<%= wo.customer_id %>" class="hover:text-recon-red"><%= wo.customer_name %></a>
+      <p class="text-sm text-recon-fog mt-1">
+        <a href="/customers/<%= wo.customer_id %>" class="font-semibold text-recon-charcoal hover:text-recon-red"><%= wo.customer_name %></a>
+        · <a href="/jobs/<%= wo.job_id %>" class="hover:text-recon-red"><%= wo.job_title %></a>
+        <% if (addr) { %><span class="text-recon-fog">· <%= addr %></span><% } %>
         <% if (wo.parent_wo_id) { %>
-          &middot; Sub-WO of <a href="/work-orders/<%= wo.parent_wo_id %>" class="hover:text-recon-red">WO-<%= wo.parent_display_number %></a>
+          <br><span class="text-xs">Sub-WO of <a href="/work-orders/<%= wo.parent_wo_id %>" class="hover:text-recon-red">WO-<%= wo.parent_display_number %></a></span>
         <% } %>
       </p>
     </div>
+
     <div class="flex flex-wrap gap-2">
-      <a href="/work-orders/<%= wo.id %>/pdf" class="btn btn-secondary" target="_blank" rel="noopener">View PDF</a>
-      <a href="/work-orders/<%= wo.id %>/pdf?download=1" class="btn btn-ghost">Download</a>
-
+      <a href="/work-orders/<%= wo.id %>/pdf" class="btn btn-secondary text-sm" target="_blank" rel="noopener">PDF</a>
       <% if (wo.status === 'scheduled' || wo.status === 'in_progress') { %>
-        <a href="/work-orders/<%= wo.id %>/edit" class="btn btn-secondary">Edit</a>
+        <a href="/work-orders/<%= wo.id %>/edit" class="btn btn-secondary text-sm">Edit</a>
       <% } %>
-
       <% if (wo.status === 'scheduled') { %>
         <form action="/work-orders/<%= wo.id %>/start" method="post" class="m-0 inline">
-          <button class="btn btn-primary">Start work</button>
+          <button class="btn btn-primary text-sm">Start work</button>
         </form>
       <% } else if (wo.status === 'in_progress') { %>
         <form action="/work-orders/<%= wo.id %>/complete" method="post" class="m-0 inline">
-          <button class="btn btn-primary">Mark complete</button>
+          <button class="btn btn-primary text-sm">Mark complete</button>
         </form>
       <% } %>
-
-      <% if (wo.status !== 'cancelled') { %>
-        <% if (!estimate) { %>
-          <form action="/work-orders/<%= wo.id %>/create-estimate" method="post" class="m-0 inline">
-            <button class="btn btn-primary">Create estimate</button>
-          </form>
-        <% } %>
-        <% if (!wo.parent_wo_id) { %>
-          <a href="/work-orders/<%= wo.id %>/sub/new" class="btn btn-secondary">+ Sub-WO</a>
-        <% } %>
+      <% if (wo.status !== 'cancelled' && !estimate) { %>
+        <form action="/work-orders/<%= wo.id %>/create-estimate" method="post" class="m-0 inline">
+          <button class="btn btn-primary text-sm">Create estimate</button>
+        </form>
       <% } %>
-
+      <% if (wo.status !== 'cancelled' && !wo.parent_wo_id) { %>
+        <a href="/work-orders/<%= wo.id %>/sub/new" class="btn btn-ghost text-sm">+ Sub-WO</a>
+      <% } %>
       <% if (wo.status !== 'complete' && wo.status !== 'cancelled') { %>
         <form action="/work-orders/<%= wo.id %>/cancel" method="post" class="m-0 inline"
               onsubmit="return confirm('Cancel this work order?');">
-          <button class="btn btn-ghost">Cancel WO</button>
+          <button class="btn btn-ghost text-sm">Cancel</button>
         </form>
       <% } %>
     </div>
   </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-    <div class="card p-4">
-      <div class="text-xs uppercase tracking-wide text-recon-fog">Scheduled</div>
-      <div class="text-lg font-semibold mt-1">
-        <%= wo.scheduled_date ? String(wo.scheduled_date).slice(0,10) : '--' %>
-        <% if (wo.scheduled_time) { %><span class="text-sm font-normal text-recon-fog"><%= wo.scheduled_time %></span><% } %>
+  <!-- Operational strip: dense info bar with rule-line dividers, no card chrome -->
+  <div class="ws-strip">
+    <div class="ws-strip-cell">
+      <div class="ws-strip-label">Scheduled</div>
+      <div class="ws-strip-value ws-strip-value-mono"><%= fmtDate(wo.scheduled_date) %></div>
+      <% if (wo.scheduled_time) { %>
+        <div class="ws-strip-meta"><%= fmtTime(wo.scheduled_time) %></div>
+      <% } %>
+    </div>
+    <div class="ws-strip-cell">
+      <div class="ws-strip-label">Assignee</div>
+      <div class="ws-strip-value"><%= wo.assigned_user_name || wo.assigned_to || '—' %></div>
+    </div>
+    <div class="ws-strip-cell">
+      <div class="ws-strip-label">Progress</div>
+      <div class="ws-strip-value">
+        <span class="ws-progress">
+          <span class="ws-strip-value-mono"><%= completedCount %>/<%= totalCount %></span>
+          <% if (totalCount > 0) { %>
+            <span class="ws-progress-bar"><span class="ws-progress-fill" style="width: <%= pct %>%"></span></span>
+          <% } %>
+        </span>
       </div>
     </div>
-    <div class="card p-4">
-      <div class="text-xs uppercase tracking-wide text-recon-fog">Assigned</div>
-      <div class="text-lg font-semibold mt-1"><%= wo.assigned_user_name || wo.assigned_to || '--' %></div>
-    </div>
-    <div class="card p-4">
-      <div class="text-xs uppercase tracking-wide text-recon-fog">Progress</div>
-      <div class="text-lg font-semibold mt-1"><%= completedCount %> / <%= totalCount %> done</div>
-    </div>
-  </div>
-
-  <% if (estimate || invoice) { %>
-    <div class="card p-4 mb-6 bg-recon-cloud">
-      <div class="flex flex-wrap items-center gap-4 text-sm">
-        <% if (estimate) { %>
-          <span>Estimate: <a href="/estimates/<%= estimate.id %>" class="font-medium text-recon-red hover:underline">EST-<%= wo.display_number %></a> <span class="badge badge-<%= estimate.status %>"><%= estimate.status %></span></span>
-        <% } %>
-        <% if (invoice) { %>
-          <span>Invoice: <a href="/invoices/<%= invoice.id %>" class="font-medium text-recon-red hover:underline">INV-<%= wo.display_number %></a> <span class="badge badge-<%= invoice.status %>"><%= invoice.status %></span></span>
-        <% } %>
+    <% if (estimate) { %>
+      <div class="ws-strip-cell">
+        <div class="ws-strip-label">Estimate</div>
+        <div class="ws-strip-value">
+          <a href="/estimates/<%= estimate.id %>" class="ws-strip-value-mono">EST-<%= wo.display_number %></a>
+          <span class="badge badge-<%= estimate.status %>" style="font-size:.65rem;"><%= estimate.status %></span>
+        </div>
       </div>
-    </div>
-  <% } %>
-
-  <% if (subs && subs.length) { %>
-    <div class="card overflow-hidden mb-6">
-      <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
-        <h3 class="font-semibold">Sub-work orders (<%= subs.length %>)</h3>
-        <a href="/work-orders/<%= wo.id %>/sub/new" class="text-sm text-recon-red hover:underline">+ Add sub-WO</a>
+    <% } %>
+    <% if (invoice) { %>
+      <div class="ws-strip-cell">
+        <div class="ws-strip-label">Invoice</div>
+        <div class="ws-strip-value">
+          <a href="/invoices/<%= invoice.id %>" class="ws-strip-value-mono">INV-<%= wo.display_number %></a>
+          <span class="badge badge-<%= invoice.status %>" style="font-size:.65rem;"><%= invoice.status %></span>
+        </div>
       </div>
-      <table class="data">
-        <thead><tr><th>Number</th><th>Status</th><th>Scheduled</th><th>Completed</th></tr></thead>
-        <tbody>
-          <% subs.forEach(function(s){ %>
-            <tr>
-              <td class="font-medium"><a href="/work-orders/<%= s.id %>" class="hover:text-recon-red">WO-<%= s.display_number %></a></td>
-              <td><span class="badge badge-<%= s.status %>"><%= s.status.replace('_',' ') %></span></td>
-              <td><%= s.scheduled_date ? String(s.scheduled_date).slice(0,10) : '--' %></td>
-              <td><%= s.completed_date ? String(s.completed_date).slice(0,10) : '--' %></td>
-            </tr>
-          <% }); %>
-        </tbody>
-      </table>
-    </div>
-  <% } %>
-
-  <div class="card overflow-hidden mb-6">
-    <div class="px-5 py-3 border-b border-recon-mist">
-      <h3 class="font-semibold">Items</h3>
-    </div>
-    <% if (wo.lines.length === 0) { %>
-      <div class="p-6 text-center text-recon-fog text-sm">No items.</div>
-    <% } else { %>
-      <table class="data">
-        <thead>
-          <tr>
-            <th>Done</th>
-            <th>Description</th>
-            <th class="text-right">Qty</th>
-            <th>Unit</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% wo.lines.forEach(function(li){ %>
-            <tr>
-              <td><%= li.completed ? '&#9989;' : '&#9632;' %></td>
-              <td><%= li.description %></td>
-              <td class="text-right"><%= li.quantity %></td>
-              <td><%= li.unit %></td>
-            </tr>
-          <% }); %>
-        </tbody>
-      </table>
+    <% } %>
+    <% if (wo.completed_date) { %>
+      <div class="ws-strip-cell">
+        <div class="ws-strip-label">Completed</div>
+        <div class="ws-strip-value ws-strip-value-mono"><%= fmtDate(wo.completed_date) %></div>
+      </div>
     <% } %>
   </div>
 
-  <% if (wo.notes) { %>
-    <div class="card p-5 mb-6">
-      <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-2">Notes</h3>
-      <p class="text-sm whitespace-pre-line"><%= wo.notes %></p>
-    </div>
-  <% } %>
+  <!-- Two-column layout: scope (left, wide) | context (right, narrow) -->
+  <div class="grid gap-8" style="grid-template-columns: minmax(0,1.6fr) minmax(0,1fr);">
 
-  <% if (wo.status === 'scheduled' || wo.status === 'cancelled') { %>
-    <div class="card p-5 border-red-200">
-      <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
-      <p class="text-sm text-recon-fog mb-3">Allowed only when no estimate or sub-WOs reference this work order.</p>
-      <form action="/work-orders/<%= wo.id %>/delete" method="post"
-            onsubmit="return confirm('Delete WO-<%= wo.display_number %>?');" class="m-0">
-        <button type="submit" class="btn btn-danger">Delete</button>
-      </form>
+    <!-- LEFT: scope of work + notes -->
+    <div>
+      <h2 class="ws-h-primary">
+        <span>Scope</span>
+        <% if (totalCount > 0) { %>
+          <span class="ws-eyebrow"><%= completedCount %> of <%= totalCount %> complete</span>
+        <% } %>
+      </h2>
+
+      <% if (wo.lines.length === 0) { %>
+        <div class="ws-empty">No items on this work order.</div>
+      <% } else { %>
+        <table class="ws-items">
+          <thead>
+            <tr>
+              <th class="done-cell"></th>
+              <th>Description</th>
+              <th class="qty-cell">Qty</th>
+              <th class="unit-cell">Unit</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% wo.lines.forEach(function(li){ %>
+              <tr>
+                <td class="done-cell"><span class="ws-checkbox <%= li.completed ? 'done' : '' %>"></span></td>
+                <td class="desc-cell <%= li.completed ? 'done' : '' %>"><%= li.description %></td>
+                <td class="qty-cell"><%= li.quantity %></td>
+                <td class="unit-cell"><%= li.unit %></td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      <% } %>
+
+      <!-- Notes block — combines the WO description note with the wo_notes feed if present -->
+      <% if (wo.notes || (typeof notes !== 'undefined' && notes && notes.length)) { %>
+        <h2 class="ws-h-secondary mt-8">Notes</h2>
+
+        <% if (wo.notes) { %>
+          <div class="ws-note-row">
+            <div class="ws-note-meta">work order brief</div>
+            <div class="ws-note-body"><%= wo.notes %></div>
+          </div>
+        <% } %>
+
+        <% if (typeof notes !== 'undefined' && notes && notes.length) { %>
+          <% notes.forEach(function(n){ %>
+            <div class="ws-note-row">
+              <div class="ws-note-meta">
+                <%= (n.user_name || 'Unknown') %> · <%= (n.created_at || '').slice(0,16).replace('T',' ') %>
+              </div>
+              <div class="ws-note-body"><%= n.body %></div>
+            </div>
+          <% }); %>
+        <% } %>
+      <% } %>
     </div>
-  <% } %>
+
+    <!-- RIGHT: customer + sub-WOs + danger zone -->
+    <div>
+
+      <!-- Customer card -->
+      <h2 class="ws-h-secondary">Customer</h2>
+      <div class="ws-cust mb-6">
+        <div class="ws-cust-name">
+          <a href="/customers/<%= wo.customer_id %>" class="hover:text-recon-red"><%= wo.customer_name %></a>
+        </div>
+        <% if (wo.customer_phone) { %>
+          <div class="ws-cust-line"><a href="tel:<%= wo.customer_phone %>" class="hover:text-recon-red"><%= wo.customer_phone %></a></div>
+        <% } %>
+        <% if (wo.customer_email) { %>
+          <div class="ws-cust-line"><a href="mailto:<%= wo.customer_email %>" class="hover:text-recon-red"><%= wo.customer_email %></a></div>
+        <% } %>
+        <% const custAddr = [wo.customer_address, wo.customer_city, wo.customer_state, wo.customer_zip].filter(Boolean).join(', '); %>
+        <% if (custAddr) { %>
+          <div class="ws-cust-line"><%= custAddr %></div>
+        <% } %>
+      </div>
+
+      <!-- Sub-WOs (if any) -->
+      <% if (subs && subs.length) { %>
+        <h2 class="ws-h-secondary">
+          <span>Sub-work orders</span>
+          <a href="/work-orders/<%= wo.id %>/sub/new" class="text-xs text-recon-red hover:underline" style="text-transform:none; letter-spacing:0; font-weight:500;">+ Add</a>
+        </h2>
+        <div class="mb-6">
+          <% subs.forEach(function(s){ %>
+            <a href="/work-orders/<%= s.id %>" class="ws-sub-row" style="color:inherit;">
+              <span class="ws-dot ws-dot-<%= s.status === 'in_progress' ? 'live' : (s.status === 'complete' ? 'done' : 'sched') %>"></span>
+              <span>
+                <span class="ws-sub-num">WO-<%= s.display_number %></span>
+                <span class="badge badge-<%= s.status %>" style="font-size:.62rem; margin-left:.4rem;"><%= s.status.replace('_',' ') %></span>
+              </span>
+              <span class="ws-sub-meta"><%= fmtDate(s.scheduled_date) %></span>
+              <span class="ws-sub-meta"><%= s.completed_date ? '✓ ' + fmtDate(s.completed_date) : '' %></span>
+            </a>
+          <% }); %>
+        </div>
+      <% } %>
+
+      <!-- Documents quick links -->
+      <% if (estimate || invoice) { %>
+        <h2 class="ws-h-secondary">Documents</h2>
+        <div class="mb-6 space-y-1">
+          <% if (estimate) { %>
+            <a href="/estimates/<%= estimate.id %>" class="block py-1 text-sm hover:text-recon-red">
+              <span class="ws-sub-num">EST-<%= wo.display_number %></span>
+              <span class="badge badge-<%= estimate.status %>" style="font-size:.62rem; margin-left:.3rem;"><%= estimate.status %></span>
+            </a>
+          <% } %>
+          <% if (invoice) { %>
+            <a href="/invoices/<%= invoice.id %>" class="block py-1 text-sm hover:text-recon-red">
+              <span class="ws-sub-num">INV-<%= wo.display_number %></span>
+              <span class="badge badge-<%= invoice.status %>" style="font-size:.62rem; margin-left:.3rem;"><%= invoice.status %></span>
+            </a>
+          <% } %>
+        </div>
+      <% } %>
+
+      <!-- Danger zone (only when relevant) -->
+      <% if (wo.status === 'scheduled' || wo.status === 'cancelled') { %>
+        <h2 class="ws-h-secondary text-recon-red" style="border-color:#fca5a5;">Danger zone</h2>
+        <p class="text-xs text-recon-fog mb-2">Allowed only when no estimate or sub-WOs reference this WO.</p>
+        <form action="/work-orders/<%= wo.id %>/delete" method="post"
+              onsubmit="return confirm('Delete WO-<%= wo.display_number %>?');" class="m-0">
+          <button type="submit" class="btn btn-danger text-sm">Delete</button>
+        </form>
+      <% } %>
+    </div>
+  </div>
 </div>
 
 <%- include('../layouts/footer') %>

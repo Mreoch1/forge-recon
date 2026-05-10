@@ -4,5 +4,10 @@
   Recon Construction &mdash; Work Order System
 </footer>
 
+<% if (typeof currentUser !== 'undefined' && currentUser) { %>
+  <div id="ai-chat-root"></div>
+  <script src="/js/ai-chat.js" defer></script>
+<% } %>
+
 </body>
 </html>

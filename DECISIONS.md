@@ -179,3 +179,40 @@ Suggestions land in a queue (reuses the `ai_extractions` table semantics or gets
 **Decision:** Wrote a comprehensive scope doc at `ROUND_11_AI_ASSISTANT_SCOPE.md` covering capability tiers (Read → Navigate → Execute → Conflict-detect), tool-call set, suggest-then-confirm pattern, conflict-checking helper, audit trail, and worker/manager scoping. Doc not yet handed to Hermes — he's still on Round 12. Will turn into a directive after Round 12 verifies clean.
 
 **Reason:** Round 11 is the next-largest piece after the seed lands. Pre-scoping it now means the directive can be a 30-min write rather than a 2-hour design + write when Michael is ready to kick it off.
+
+## 2026-05-10T16:25:00Z — Dashboard v2 promoted to default, classic moved to /dashboard-classic
+**Decision:** After Michael's positive review of dashboard-v2 ("dramatically better... actual operations software"), promoted v2 to be the canonical `/` route. Old KPI dashboard remains accessible at `/dashboard-classic` for reference and easy revert.
+
+**Reason:** Michael said the redesign direction is "correct" and to "develop this out 100%." Keeping classic accessible is cheap insurance against finding a regression.
+
+## 2026-05-10T16:30:00Z — Dashboard v2 visual iteration based on GPT-5.5 design notes
+**Decision:** Iterated dashboard-v2 view with three concrete changes:
+1. **Schedule rows multi-line, looser**: each row stacks WO# / customer (bold) / job desc (muted) / assignee — better human scanning rhythm. Time uses larger monospace with separated AM/PM suffix.
+2. **Right rail collapsed from 4 cards to single flat queue**: "Overdue invoices · 3", "Estimates to send · 4", "Bills awaiting approval · 3", "Stale quotes · 2" — separated only by hairline rules, no card chrome. Single visual column rather than four boxed islands.
+3. **Variable density across sections** (intentional irregularity): schedule rows ~0.9rem padding, action queue rows ~0.25rem, activity rows ~0.3rem with smaller font. Stronger heading hierarchy (h-primary 2px black underline, h-secondary 1px grey, h-tertiary uppercase eyebrow).
+
+**Why:** Michael's feedback was "everything still has the same visual weight" and "too boxed". The flat rail with section dividers + variable density gives the page operational rhythm without adding component types.
+
+## 2026-05-10T16:40:00Z — AI chat client widget shipped (Round 11 client side)
+**Decision:** Built `public/js/ai-chat.js` as a vanilla-JS chat widget mounted via `src/views/layouts/footer.ejs` (only when authenticated). Floating bottom-right pill, expands to 380×500 panel. POSTs to `/ai/chat` (Hermes building server side). Handles 404 kill switch by hiding itself for the session. History in sessionStorage, capped at 20 messages. Pure progressive enhancement.
+
+**Reason:** Hermes's strength is server-side implementation. By splitting the client side off to me, his Round 11 directive simplifies to tool registry + orchestrator + route handler. Client + server can develop in parallel and integrate via a documented JSON contract.
+
+## 2026-05-10T16:55:00Z — WO show page redesigned to single-pane operational workspace
+**Decision:** Edited `src/views/work-orders/show.ejs` in place with the same operational design tokens as dashboard-v2:
+- Status strip with rule-line dividers (scheduled / assignee / progress / estimate / invoice / completed) — replaces the 3-card stat grid.
+- Two-column main area: scope (left, wide) + customer/sub-WOs/documents (right).
+- Custom checkbox visual for done/not-done items (green check if done, hollow square if not).
+- Progress bar inline with the count (visual at-a-glance, no extra widget).
+- Status dot in header (pulsing if in_progress, green if complete, grey if scheduled) — same vocabulary as dashboard.
+- Notes feed with metadata-first layout (author + timestamp on top, body indented below).
+- Customer block with phone/email/address as clickable lines (tel:, mailto:).
+- Sub-WOs as a flat divider list, not a card-wrapped table.
+- Danger zone styled with light red rule, only shown when allowed.
+
+Also updated route handler to pass `notes` array (newest last, joined with users for author name) — wraps the table read in try/catch in case `wo_notes` is missing on older DBs.
+
+**Reason:** Michael's stated page priority was "1. Dashboard first, 2. Then WO show page." With dashboard accepted, WO show is the next-most-trafficked page in operational use (workers hitting it during a shift). The same design language extends naturally — the strip pattern, status dot vocabulary, and rule-line section heads all reuse from the dashboard.
+
+## 2026-05-10T17:00:00Z — Git commit collision while Hermes mid-flight on Round 11
+**Decision:** Could not commit Round 13.x view changes from this side because Hermes left an `index.lock` orphan in `.git/`. The Linux mount lacks permission to remove it. Files are saved on disk. Will let Hermes pick them up in his Round 11 commit, or commit them after he wraps. Documented in DECISIONS in case the work appears uncommitted on review.

@@ -36,6 +36,7 @@ const adminRoutes = require('./routes/admin');
 const dashboardRoutes = require('./routes/dashboard');
 const accountingRoutes = require('./routes/accounting');
 const vendorsRoutes = require('./routes/vendors');
+const aiChatRoutes = require('./routes/ai-chat');
 
 const PORT = parseInt(process.env.PORT, 10) || 3001;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
@@ -105,8 +106,14 @@ async function main() {
   app.use('/work-orders', requireAuth, workOrdersRoutes);
   app.use('/accounting', requireAuth, requireManager, accountingRoutes);
   app.use('/vendors', requireAuth, requireManager, vendorsRoutes);
+  // Public AI health check (no auth needed — must be before the gated /ai mount)
+  app.get('/ai/chat/health', (req, res) => {
+    const enabled = process.env.AI_CHAT_ENABLED === undefined || process.env.AI_CHAT_ENABLED === '' || process.env.AI_CHAT_ENABLED === '1' || process.env.AI_CHAT_ENABLED === 'true';
+    res.json({ enabled, model: 'deepseek-chat', provider: process.env.AI_PROVIDER || 'deepseek' });
+  });
+  app.use('/ai', requireAuth, aiChatRoutes);
 
-  // Dashboard (gated)
+  // Dashboard — v2 redesign (classic at /dashboard-classic)
   app.use('/', requireAuth, dashboardRoutes);
 
   // 404

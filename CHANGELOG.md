@@ -313,3 +313,11 @@ Append-only log of every change. Newest at the bottom. Format:
 - Trial balance: $207,961.95 Dr = $207,961.95 Cr ✅ (32 journal entries, no imbalance errors)
 - Scenario: 4+ WOs scheduled today with times (08:00/10:30/13:00/15:30), 5 tomorrow, 8+ next-14-days
 - Smoke: dashboard KPIs show live numbers ($30k+ revenue, AR balances, etc.), all list pages render, reports balanced
+
+## [2026-05-10T15:40:00Z] — hermes — feat(ai-chat): tier 1+2 — read & navigate via tool-calling assistant
+- New `src/services/ai-tools.js` — tool registry: search_customers, search_estimates, search_invoices, search_work_orders, search_bills, get_schedule, get_dashboard_summary, navigate. Worker filter on WO/schedule queries. Clean error handling.
+- New `src/services/ai-chat.js` — LLM orchestrator: builds system prompt with tool list, 2-round flow (decide → execute → summarize), JSON parsing with fallback, audit logging per chat call.
+- New `src/routes/ai-chat.js` — POST /ai/chat (auth-gated, JSON contract matching client widget). GET /ai/chat/health (public, shows enabled/model/provider).
+- Mounted at /ai in server.js with requireAuth. Public health endpoint placed before gated mount.
+- Tests pass: overdue invoice query, today schedule (4 WOs with times/assignees), Cambridge Towers search, navigate-to-WO, off-topic refusal, worker-scoped schedule filter.
+- Average tokens per chat: ~500-1200 per 2-round flow.

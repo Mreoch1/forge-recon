@@ -531,9 +531,24 @@ router.get('/:id', (req, res) => {
   const estimate = db.get('SELECT id, status FROM estimates WHERE work_order_id = ?', [wo.id]);
   const invoice = estimate ? db.get('SELECT id, status FROM invoices WHERE estimate_id = ?', [estimate.id]) : null;
 
+  // Notes feed (newest last so it reads top-down chronologically)
+  let notes = [];
+  try {
+    notes = db.all(
+      `SELECT n.id, n.body, n.created_at, u.name AS user_name
+       FROM wo_notes n
+       LEFT JOIN users u ON u.id = n.user_id
+       WHERE n.work_order_id = ?
+       ORDER BY n.created_at ASC`,
+      [wo.id]
+    );
+  } catch (e) {
+    // wo_notes table may be missing on very old DBs
+  }
+
   res.render('work-orders/show', {
     title: `WO-${wo.display_number}`, activeNav: 'work-orders',
-    wo, subs, estimate, invoice
+    wo, subs, estimate, invoice, notes
   });
 });
 
