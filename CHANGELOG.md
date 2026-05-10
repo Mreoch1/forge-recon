@@ -341,7 +341,16 @@ Append-only log of every change. Newest at the bottom. Format:
 - **Admin AI usage page**: GET /admin/ai-usage — total calls/tokens/cost, 14-day sparkline, top users, recent calls.
 - **Seed JE cleanup**: --reset deletes orphaned journal entries/lines linked to mock invoices/bills.
 
-## [2026-05-10T18:15:00Z] — hermes — feat(ai-chat-tier3): suggest-then-confirm mutations
+## [2026-05-10T20:00:00Z] — hermes — feat(ai-chat-tier3b): schedule/assign/reschedule WO mutations with conflict detection
+- New src/services/scheduling.js — findScheduleConflicts(), parseDate/parseTime/formatDate/formatTime, resolveUserName, resolveWorkOrder
+- 3 new mutation tools: schedule_wo, reschedule_wo, assign_wo — each with propose() + execute() and conflict detection
+- Keyword patterns added for schedule/reschedule/assign with relative date parsing, weekday-month-day, and name resolution
+- Name extraction strips trailing day names ("Mike Thursday" → "Mike Kowalski")
+- Disambiguation chips returned for ambiguous name matches (multi-match)
+- Past-date rejection, invalid-time graceful handling, worker permission gating
+- Rate-limit IPv6 validation suppressed (validate: false)
+- Round 16 remaining smoke tests completed (tests #3-12, all pass)
+- Round 17 smoke: all 13 scenarios pass including conflict warnings, cancel, reschedule, assign, disambiguation, worker refusal, past-date block, trial balance
 - `pending_confirmations` table created on server boot (transient session-state)
 - 5 mutation tools with propose + execute functions: create_customer, send_estimate, mark_invoice_paid, approve_bill, add_wo_note
 - Keyword-based mutation intent detection (more reliable than LLM) in chat orchestrator
