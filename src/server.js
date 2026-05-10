@@ -31,6 +31,7 @@ const jobsRoutes = require('./routes/jobs');
 const estimatesRoutes = require('./routes/estimates');
 const workOrdersRoutes = require('./routes/work-orders');
 const invoicesRoutes = require('./routes/invoices');
+const scheduleRoutes = require('./routes/schedule');
 const billsRoutes = require('./routes/bills');
 const adminRoutes = require('./routes/admin');
 const dashboardRoutes = require('./routes/dashboard');
@@ -145,6 +146,7 @@ async function main() {
   app.use('/admin', requireAuth, requireAdmin, adminRoutes);
   // Work orders are worker-accessible (Round 4 will scope to assigned WOs only)
   app.use('/work-orders', requireAuth, workOrdersRoutes);
+  app.use('/schedule', requireAuth, scheduleRoutes);
   app.use('/accounting', requireAuth, requireManager, accountingRoutes);
   app.use('/vendors', requireAuth, requireManager, vendorsRoutes);
   // Public AI health check (no auth needed — must be before the gated /ai mount)

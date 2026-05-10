@@ -1,0 +1,159 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<style>
+  /* ── Schedule week view ── */
+  .sc-layout { display: flex; flex-direction: column; height: calc(100vh - 3.5rem); }
+  .sc-header { display: flex; align-items: center; gap: .75rem; padding: .75rem 1.25rem; border-bottom: 1px solid #e0e0e0; flex-shrink: 0; flex-wrap: wrap; }
+  .sc-header h1 { font-size: 1rem; font-weight: 600; margin: 0; }
+  .sc-header .sc-date-range { font-size: .82rem; color: #666; }
+  .sc-header .sc-nav-btn { padding: .3rem .7rem; border: 1px solid #d0d0d0; border-radius: 4px; background: #fff; font-size: .78rem; cursor: pointer; }
+  .sc-header .sc-nav-btn:hover { background: #f5f5f5; }
+  .sc-header .sc-today-btn { padding: .3rem .7rem; border: 1px solid #1a1a1a; border-radius: 4px; background: #1a1a1a; color: #fff; font-size: .78rem; cursor: pointer; }
+  .sc-header .sc-today-btn:hover { background: #333; }
+  .sc-header select { font-size: .78rem; padding: .25rem .5rem; border: 1px solid #d0d0d0; border-radius: 4px; }
+
+  /* Grid */
+  .sc-grid-wrap { flex: 1; overflow-y: auto; position: relative; }
+  .sc-grid { display: grid; grid-template-columns: 3.5rem repeat(7, 1fr); position: relative; min-height: 100%; }
+  .sc-hour-gutter { grid-column: 1; border-right: 1px solid #e8e8e8; position: relative; }
+  .sc-hour-label { position: absolute; right: .4rem; font-size: .65rem; color: #999; font-family: ui-monospace, monospace; transform: translateY(-50%); white-space: nowrap; }
+  .sc-day-col { position: relative; min-height: 840px; border-right: 1px solid #f0f0f0; }
+  .sc-day-col.is-today { background: #fafbfe; }
+  .sc-day-col:last-child { border-right: none; }
+  .sc-day-header { text-align: center; padding: .4rem 0; font-size: .72rem; font-weight: 600; color: #555; border-bottom: 1px solid #e0e0e0; position: sticky; top: 0; background: #fff; z-index: 2; }
+  .sc-day-header .sc-day-num { display: block; font-size: 1.1rem; font-weight: 700; color: #1a1a1a; }
+  .sc-day-header.is-today { background: #f0f4ff; }
+  .sc-day-header.is-today .sc-day-num { color: #2563eb; }
+
+  /* Hour row lines */
+  .sc-hour-line { position: absolute; left: 0; right: 0; border-top: 1px solid #f0f0f0; pointer-events: none; }
+
+  /* Now line */
+  .sc-now-line { position: absolute; left: 0; right: 0; border-top: 1px solid #ef4444; z-index: 3; pointer-events: none; }
+  .sc-now-dot { position: absolute; left: -3px; top: -3px; width: 7px; height: 7px; border-radius: 50%; background: #ef4444; }
+
+  /* WO block */
+  .sc-wo-block { position: absolute; left: 3px; right: 3px; border-radius: 4px; padding: .25rem .4rem; font-size: .7rem; line-height: 1.3; overflow: hidden; cursor: pointer; z-index: 1; border: 1px solid rgba(0,0,0,.08); transition: box-shadow .1s; }
+  .sc-wo-block:hover { box-shadow: 0 2px 6px rgba(0,0,0,.15); z-index: 4; }
+  .sc-wo-block .sc-wo-num { font-family: ui-monospace, monospace; font-size: .62rem; opacity: .8; }
+  .sc-wo-block .sc-wo-customer { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sc-wo-block .sc-wo-assignee { font-size: .62rem; opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Unassigned: grey hatched */
+  .sc-wo-block.sc-unassigned { background: #f5f5f5 !important; border-color: #ddd; background-image: repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,.03) 4px, rgba(0,0,0,.03) 8px) !important; }
+
+  /* Conflict badge */
+  .sc-conflict-badge { position: absolute; top: 2px; right: 2px; font-size: .65rem; z-index: 5; cursor: help; }
+  .sc-conflict-tip { display: none; position: absolute; top: 0; right: 110%; background: #1a1a1a; color: #fff; font-size: .65rem; padding: .35rem .5rem; border-radius: 4px; white-space: nowrap; z-index: 10; pointer-events: none; }
+  .sc-conflict-badge:hover .sc-conflict-tip { display: block; }
+
+  /* Empty state */
+  .sc-empty { text-align: center; padding: 3rem 1rem; color: #999; grid-column: 1 / -1; }
+
+  /* Grid lines for hours */
+  .sc-day-col { background-clip: content-box; }
+</style>
+
+<div class="sc-layout">
+  <!-- Header chrome -->
+  <div class="sc-header">
+    <a href="/schedule?date=<%= prevWeek %><%= assigneeFilter ? '&assignee=' + assigneeFilter : '' %>" class="sc-nav-btn">&larr;</a>
+    <a href="/schedule?date=<%= nextWeek %><%= assigneeFilter ? '&assignee=' + assigneeFilter : '' %>" class="sc-nav-btn">Next &rarr;</a>
+    <a href="/schedule" class="sc-today-btn">Today</a>
+    <h1>Schedule</h1>
+    <span class="sc-date-range"><%= fmtDate(weekStart) %> – <%= fmtDate(weekEnd) %>, 2026</span>
+
+    <div style="flex:1"></div>
+
+    <form method="get" action="/schedule" class="flex items-center gap-2">
+      <input type="hidden" name="date" value="<%= weekStart %>">
+      <select name="assignee" onchange="this.form.submit()">
+        <option value="">All assignees</option>
+        <% (users || []).forEach(function(u){ %>
+          <option value="<%= u.id %>" <%= Number(assigneeFilter) === u.id ? 'selected' : '' %>><%= u.name %></option>
+        <% }); %>
+      </select>
+      <a href="/work-orders/new" class="sc-nav-btn" style="font-weight:600;color:#1a1a1a;">+ New WO</a>
+    </form>
+  </div>
+
+  <!-- Grid body -->
+  <div class="sc-grid-wrap">
+    <div class="sc-grid">
+      <!-- Gutter (hour labels) -->
+      <div class="sc-hour-gutter">
+        <% hours.forEach(function(h){ %>
+          <div class="sc-hour-label" style="top:<%= ((h - HOURS_START) / HOUR_COUNT * 100) %>%"><%= h %>:00</div>
+          <div class="sc-hour-line" style="top:<%= ((h - HOURS_START) / HOUR_COUNT * 100) %>%"></div>
+        <% }); %>
+      </div>
+
+      <!-- Day columns -->
+      <% days.forEach(function(day){ %>
+        <div class="sc-day-col<%= day.isToday ? ' is-today' : '' %>">
+          <div class="sc-day-header<%= day.isToday ? ' is-today' : '' %>">
+            <%= day.label %>
+            <span class="sc-day-num"><%= day.num %></span>
+          </div>
+
+          <!-- Hour lines -->
+          <% hours.forEach(function(h){ %>
+            <div class="sc-hour-line" style="top:<%= ((h - HOURS_START) / HOUR_COUNT * 100) %>%"></div>
+          <% }); %>
+
+          <!-- Now line (today only) -->
+          <% if (day.isToday && nowOffset !== null) { %>
+            <div class="sc-now-line" style="top:<%= nowOffset %>%"><div class="sc-now-dot"></div></div>
+          <% } %>
+
+          <!-- WO blocks -->
+          <%
+          var dayWos = wos.filter(function(w){ return w.scheduled_date === day.date; });
+          if (dayWos.length > 0) {
+            dayWos.forEach(function(wo){
+              var timeStr = wo.scheduled_time || '08:00';
+              var parts = timeStr.split(':');
+              var hour = parseInt(parts[0], 10);
+              var min = parseInt(parts[1], 10);
+              var startMin = (hour - HOURS_START) * 60 + min;
+              var topPct = (startMin / TOTAL_MINUTES) * 100;
+              var durHours = parseInt(process.env.WO_DEFAULT_DURATION_HOURS || '4', 10);
+              var heightPct = (durHours * 60 / TOTAL_MINUTES) * 100;
+              var color = colorForUser(wo.assigned_to_user_id);
+              var hasConflict = !!woConflicts[wo.id];
+              var isUnassigned = !wo.assigned_to_user_id && !wo.assigned_to;
+          %>
+            <a href="/work-orders/<%= wo.id %>" class="sc-wo-block<%= isUnassigned ? ' sc-unassigned' : '' %>"
+               style="top:<%= topPct.toFixed(1) %>%<%= color ? ';background:' + color : '' %>;height:<%= Math.max(heightPct, 3).toFixed(1) %>%"
+               data-wo-id="<%= wo.id %>"
+               data-current-date="<%= wo.scheduled_date %>"
+               data-current-time="<%= wo.scheduled_time || '' %>">
+              <% if (hasConflict) { %>
+                <span class="sc-conflict-badge">
+                  &#9888;
+                  <span class="sc-conflict-tip">
+                    <% woConflicts[wo.id].forEach(function(c){ %>
+                      <%= 'WO-' + c.display_number %>: <%= c.overlap_minutes %>min overlap<br>
+                    <% }); %>
+                  </span>
+                </span>
+              <% } %>
+              <div class="sc-wo-num">WO-<%= wo.display_number %></div>
+              <div class="sc-wo-customer"><%= (wo.customer_name || '').slice(0, 30) %></div>
+              <div class="sc-wo-assignee"><%= wo.assigned_user_name || wo.assigned_to || 'Unassigned' %></div>
+            </a>
+          <%
+            });
+          }
+          %>
+        </div>
+      <% }); %>
+
+      <!-- Empty state -->
+      <% if (wos.length === 0) { %>
+        <div class="sc-empty">No work scheduled this week.</div>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<%- include('../layouts/footer') %>
