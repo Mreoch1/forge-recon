@@ -1,0 +1,8 @@
+node_modules/
+*.log
+.env
+data/
+mail-outbox/
+public/uploads/
+.DS_Store
+Thumbs.db
