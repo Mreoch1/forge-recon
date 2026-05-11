@@ -31,29 +31,28 @@ router.get('/dashboard-classic', (req, res) => {
   ) || {}).n) || 0;
 
   // Revenue this month (sum of paid invoices where paid_at falls in current month)
-  // Using SQLite date functions: strftime('%Y-%m', paid_at) = strftime('%Y-%m', 'now')
   const revenueThisMonth = Number((db.get(
     "SELECT COALESCE(SUM(amount_paid), 0) AS n FROM invoices " +
     "WHERE status='paid' AND paid_at IS NOT NULL " +
-    "AND strftime('%Y-%m', paid_at) = strftime('%Y-%m', 'now')"
+    "AND to_char(paid_at, 'YYYY-MM') = to_char(now(), 'YYYY-MM')"
   ) || {}).n) || 0;
 
   // Revenue YTD
   const revenueYTD = Number((db.get(
     "SELECT COALESCE(SUM(amount_paid), 0) AS n FROM invoices " +
     "WHERE status='paid' AND paid_at IS NOT NULL " +
-    "AND strftime('%Y', paid_at) = strftime('%Y', 'now')"
+    "AND to_char(paid_at, 'YYYY') = to_char(now(), 'YYYY')"
   ) || {}).n) || 0;
 
   // Overdue count (sent past due_date)
   const overdueCount = (db.get(
     "SELECT COUNT(*) AS n FROM invoices " +
-    "WHERE status='sent' AND due_date IS NOT NULL AND date(due_date) < date('now')"
+    "WHERE status='sent' AND due_date IS NOT NULL AND due_date::date < current_date"
   ) || {}).n || 0;
 
   const overdueBalance = Number((db.get(
     "SELECT COALESCE(SUM(total - amount_paid), 0) AS n FROM invoices " +
-    "WHERE status='sent' AND due_date IS NOT NULL AND date(due_date) < date('now')"
+    "WHERE status='sent' AND due_date IS NOT NULL AND due_date::date < current_date"
   ) || {}).n) || 0;
 
   // Unified recent activity (latest 10 across estimates/WOs/invoices).
@@ -141,7 +140,7 @@ router.get('/', (req, res) => {
   // ---------- Schedule: this week (peek) ----------
   const upcomingThisWeek = (db.get(`
     SELECT COUNT(*) AS n FROM work_orders
-    WHERE date(scheduled_date) BETWEEN date(?, '+2 days') AND date(?, '+7 days')
+    WHERE scheduled_date::date BETWEEN (?::date + 2) AND (?::date + 7)
       AND status IN ('scheduled','in_progress')
   `, [today, today]) || {}).n || 0;
 
@@ -167,14 +166,14 @@ router.get('/', (req, res) => {
   const overdueInvoices = db.all(`
     SELECT i.id, w.display_number, i.total, i.amount_paid, i.due_date,
            c.name AS customer_name,
-           CAST(julianday('now') - julianday(i.due_date) AS INTEGER) AS days_late
+           (current_date - i.due_date::date) AS days_late
     FROM invoices i
     JOIN work_orders w ON w.id = i.work_order_id
     JOIN jobs j        ON j.id = w.job_id
     JOIN customers c   ON c.id = j.customer_id
     WHERE i.status IN ('sent','overdue')
       AND i.due_date IS NOT NULL
-      AND date(i.due_date) < date('now')
+      AND i.due_date::date < current_date
     ORDER BY i.due_date ASC
     LIMIT 5
   `);
@@ -182,13 +181,13 @@ router.get('/', (req, res) => {
     SELECT COUNT(*) AS n FROM invoices
     WHERE status IN ('sent','overdue')
       AND due_date IS NOT NULL
-      AND date(due_date) < date('now')
+      AND due_date::date < current_date
   `) || {}).n || 0;
   const overdueTotal = Number((db.get(`
     SELECT COALESCE(SUM(total - amount_paid), 0) AS n FROM invoices
     WHERE status IN ('sent','overdue')
       AND due_date IS NOT NULL
-      AND date(due_date) < date('now')
+      AND due_date::date < current_date
   `) || {}).n) || 0;
 
   // 3. Bills awaiting approval (draft)
@@ -218,14 +217,14 @@ router.get('/', (req, res) => {
   const staleEstimates = db.all(`
     SELECT e.id, w.display_number, e.total, c.name AS customer_name,
            e.sent_at,
-           CAST(julianday('now') - julianday(e.sent_at) AS INTEGER) AS days_since_sent
+           (current_date - e.sent_at::date) AS days_since_sent
     FROM estimates e
     JOIN work_orders w ON w.id = e.work_order_id
     JOIN jobs j        ON j.id = w.job_id
     JOIN customers c   ON c.id = j.customer_id
     WHERE e.status='sent'
       AND e.sent_at IS NOT NULL
-      AND date(e.sent_at) < date('now', '-7 days')
+      AND e.sent_at::date < current_date - 7
     ORDER BY e.sent_at ASC
     LIMIT 5
   `);
@@ -275,12 +274,12 @@ router.get('/', (req, res) => {
   const revenueThisMonth = Number((db.get(
     "SELECT COALESCE(SUM(amount_paid), 0) AS n FROM invoices " +
     "WHERE status='paid' AND paid_at IS NOT NULL " +
-    "AND strftime('%Y-%m', paid_at) = strftime('%Y-%m', 'now')"
+    "AND to_char(paid_at, 'YYYY-MM') = to_char(now(), 'YYYY-MM')"
   ) || {}).n) || 0;
   const revenueYTD = Number((db.get(
     "SELECT COALESCE(SUM(amount_paid), 0) AS n FROM invoices " +
     "WHERE status='paid' AND paid_at IS NOT NULL " +
-    "AND strftime('%Y', paid_at) = strftime('%Y', 'now')"
+    "AND to_char(paid_at, 'YYYY') = to_char(now(), 'YYYY')"
   ) || {}).n) || 0;
   const customerCount = (db.get('SELECT COUNT(*) AS n FROM customers') || {}).n || 0;
   const jobsActive = (db.get(

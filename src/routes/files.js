@@ -150,7 +150,7 @@ router.post('/folders/:folderId/upload', requireAuth, requireManager, upload.arr
   }
   req.files.forEach(file => {
     db.run(`INSERT INTO files (folder_id, name, original_filename, storage_path, mime_type, size_bytes, uploaded_by_user_id, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, now(), now())`,
       [folder.id, file.filename, file.originalname, file.path, file.mimetype, file.size, req.session.userId]);
     try {
       const { writeAudit } = require('../services/audit');
@@ -168,7 +168,7 @@ router.post('/folders/:folderId/subfolder', requireAuth, requireManager, (req, r
   const name = (req.body.name || '').trim();
   if (!name) { setFlash(req, 'error', 'Folder name required.'); return res.redirect('/files/folders/' + folder.id); }
   const r = db.run(`INSERT INTO folders (parent_folder_id, name, entity_type, entity_id, created_by_user_id, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+    VALUES (?, ?, ?, ?, ?, now(), now())`,
     [folder.id, name, folder.entity_type, folder.entity_id, req.session.userId]);
   setFlash(req, 'success', 'Folder "' + name + '" created.');
   res.redirect('/files/folders/' + folder.id);

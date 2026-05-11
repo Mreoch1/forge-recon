@@ -10,7 +10,7 @@ function ensureRootFolder(entityType, entityId, createdByUserId) {
   if (existing) return existing.id;
   const r = db.run(
     `INSERT INTO folders (name, entity_type, entity_id, is_root, created_by_user_id, created_at, updated_at)
-     VALUES (?, ?, ?, 1, ?, datetime('now'), datetime('now'))`,
+     VALUES (?, ?, ?, 1, ?, now(), now())`,
     [entityType + '_' + entityId, entityType, entityId, createdByUserId || null]
   );
   return r.lastInsertRowid;

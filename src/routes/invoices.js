@@ -127,7 +127,7 @@ router.get('/', (req, res) => {
   const conds = [];
   const params = [];
   if (q) {
-    conds.push('(w.display_number LIKE ? OR j.title LIKE ? OR c.name LIKE ?)');
+    conds.push('(w.display_number ILIKE ? OR j.title ILIKE ? OR c.name ILIKE ?)');
     const like = `%${q}%`;
     params.push(like, like, like);
   }
@@ -215,7 +215,7 @@ router.post('/:id', (req, res) => {
   db.transaction(() => {
     db.run(
       `UPDATE invoices SET subtotal=?, tax_rate=?, tax_amount=?, total=?, cost_total=?,
-                            payment_terms=?, due_date=?, notes=?, updated_at=datetime('now')
+                            payment_terms=?, due_date=?, notes=?, updated_at=now()
        WHERE id=?`,
       [t.subtotal, data.tax_rate, t.taxAmount, t.total, costTotal,
        data.payment_terms, data.due_date, data.notes, existing.id]
@@ -254,7 +254,7 @@ router.post('/:id/send', async (req, res, next) => {
       html: text.split('\n').map(l => `<p>${l}</p>`).join(''),
       attachments: [{ filename: `${invoice.display_number}.pdf`, content: buf, contentType: 'application/pdf' }]
     });
-    db.run(`UPDATE invoices SET status='sent', sent_at=datetime('now'), sent_by_user_id=?, sent_to_email=?, sent_to_name=?, updated_at=datetime('now') WHERE id=?`,
+    db.run(`UPDATE invoices SET status='sent', sent_at=now(), sent_by_user_id=?, sent_to_email=?, sent_to_name=?, updated_at=now() WHERE id=?`,
       [req.session.userId, recipient, invoice.customer_name || 'Unknown', invoice.id]);
 
     // Audit + post journal entry: DR AR / CR Revenue + Sales Tax
@@ -286,10 +286,10 @@ router.post('/:id/mark-paid', (req, res) => {
   if (!isFinite(amount) || amount <= 0) amount = Number(invoice.total) || 0;
   if (amount > Number(invoice.total)) amount = Number(invoice.total);
   const newStatus = (amount >= Number(invoice.total)) ? 'paid' : 'sent';
-  const sets = ['amount_paid=?', `updated_at=datetime('now')`];
+  const sets = ['amount_paid=?', `updated_at=now()`];
   const params = [amount];
   if (newStatus === 'paid') {
-    sets.push('status=?', `paid_at=datetime('now')`);
+    sets.push('status=?', `paid_at=now()`);
     params.push(newStatus);
   }
   db.run(`UPDATE invoices SET ${sets.join(', ')} WHERE id=?`, [...params, invoice.id]);
@@ -325,7 +325,7 @@ router.post('/:id/void', (req, res) => {
     setFlash(req, 'error', `Cannot void a paid invoice.`);
     return res.redirect(`/invoices/${invoice.id}`);
   }
-  db.run(`UPDATE invoices SET status='void', updated_at=datetime('now') WHERE id=?`, [invoice.id]);
+  db.run(`UPDATE invoices SET status='void', updated_at=now() WHERE id=?`, [invoice.id]);
 
   writeAudit({
     entityType: 'invoice', entityId: invoice.id, action: 'void',

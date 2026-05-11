@@ -135,7 +135,7 @@ async function chat({ message, history, ctx }) {
 
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
     const r = db.run(`INSERT INTO pending_confirmations (user_id, tool, args, summary, created_at, expires_at)
-      VALUES (?, ?, ?, ?, datetime('now'), ?)`,
+      VALUES (?, ?, ?, ?, now(), ?)`,
       [ctx.userId, mutationIntent.tool, JSON.stringify(proposeResult.args_normalized || mutationIntent.args),
        JSON.stringify(proposeResult.summary_lines), expiresAt]);
 
@@ -197,7 +197,7 @@ async function chat({ message, history, ctx }) {
         // Create pending confirmation
         const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
         const r = db.run(`INSERT INTO pending_confirmations (user_id, tool, args, summary, created_at, expires_at)
-          VALUES (?, ?, ?, ?, datetime('now'), ?)`,
+          VALUES (?, ?, ?, ?, now(), ?)`,
           [ctx.userId, mc.tool, JSON.stringify(proposeResult.args_normalized || mc.args),
            JSON.stringify(proposeResult.summary_lines), expiresAt]);
         const confirmationId = r.lastInsertRowid;

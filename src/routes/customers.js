@@ -65,7 +65,7 @@ router.get('/', (req, res) => {
   let where = '';
   let params = [];
   if (q) {
-    where = 'WHERE name LIKE ? OR email LIKE ? OR billing_email LIKE ? OR phone LIKE ? OR city LIKE ?';
+    where = 'WHERE name ILIKE ? OR email ILIKE ? OR billing_email ILIKE ? OR phone ILIKE ? OR city ILIKE ?';
     const like = `%${q}%`;
     params = [like, like, like, like, like];
   }
@@ -148,7 +148,7 @@ router.post('/:id', (req, res) => {
   }
   db.run(
     `UPDATE customers
-     SET name=?, email=?, billing_email=?, phone=?, address=?, city=?, state=?, zip=?, notes=?, updated_at=datetime('now')
+     SET name=?, email=?, billing_email=?, phone=?, address=?, city=?, state=?, zip=?, notes=?, updated_at=now()
      WHERE id=?`,
     [data.name, data.email, data.billing_email, data.phone, data.address, data.city, data.state, data.zip, data.notes, req.params.id]
   );

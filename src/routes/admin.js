@@ -161,7 +161,7 @@ router.post('/users/:id', (req, res) => {
     });
   }
 
-  db.run(`UPDATE users SET name=?, email=?, role=?, active=?, phone=?, updated_at=datetime('now') WHERE id=?`,
+  db.run(`UPDATE users SET name=?, email=?, role=?, active=?, phone=?, updated_at=now() WHERE id=?`,
     [req.body.name, req.body.email, req.body.role, active, req.body.phone, userId]);
   setFlash(req, 'success', `User "${name}" updated.`);
   res.redirect('/admin/users');
@@ -349,7 +349,7 @@ router.post('/closures/create', (req, res) => {
     return res.redirect('/admin');
   }
   db.run(`INSERT INTO closures (date_start, date_end, name, type, notes, created_by_user_id, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
+          VALUES (?, ?, ?, ?, ?, ?, now())`,
     [date_start, req.body.date_end || null, name, type, req.body.notes || null, req.session.userId]);
   setFlash(req, 'success', `Closure "${name}" created.`);
   res.redirect('/admin');

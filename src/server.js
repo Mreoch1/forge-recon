@@ -19,7 +19,6 @@ const fs = require('fs');
 require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
-const FileStore = require('session-file-store')(session);
 const helmet = require('helmet');
 const morgan = require('morgan');
 
@@ -87,7 +86,7 @@ async function main() {
       type TEXT NOT NULL DEFAULT 'holiday',
       notes TEXT,
       created_by_user_id INTEGER,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TEXT NOT NULL DEFAULT (now())
     )`);
   } catch(e) { console.error("Failed to create closures table:", e.message); }
 
@@ -131,20 +130,33 @@ async function main() {
   // Static
   app.use(express.static(PUBLIC_DIR, { maxAge: '1h' }));
 
-  // Sessions (file-backed, stored under sessions/)
-  app.use(session({
-    store: new FileStore({
+  // Sessions — pg-backed when DATABASE_URL is set, file-backed for local sqlite dev
+  let sessionStore;
+  if (db.getMode() === 'pg') {
+    const pgSession = require('connect-pg-simple')(session);
+    sessionStore = new pgSession({
+      pool: db.getPool(),
+      tableName: 'session',
+      createTableIfMissing: true,
+    });
+  } else {
+    const FileStore = require('session-file-store')(session);
+    sessionStore = new FileStore({
       path: SESSIONS_DIR,
       retries: 1,
-      logFn: () => {} // suppress file-store chatter
-    }),
+      logFn: () => {}
+    });
+  }
+  app.use(session({
+    store: sessionStore,
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     cookie: {
-      maxAge: 1000 * 60 * 60 * 8,  // 8h
+      secure: process.env.NODE_ENV === 'production',
       httpOnly: true,
-      sameSite: 'lax'
+      sameSite: 'lax',
+      maxAge: 1000 * 60 * 60 * 8,  // 8h
     }
   }));
 

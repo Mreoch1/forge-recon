@@ -45,10 +45,10 @@ tools.search_customers = {
     const like = resolveQuery(query);
     if (!like) return [];
     // Workers: only customers whose jobs have a WO assigned to them
-    let cond = '(name LIKE ? OR email LIKE ? OR phone LIKE ?)';
+    let cond = '(name ILIKE ? OR email ILIKE ? OR phone ILIKE ?)';
     const params = [like, like, like];
     if (ctx.role === 'worker' && ctx.userId) {
-      cond += ' AND c.id IN (SELECT DISTINCT j.customer_id FROM jobs j JOIN work_orders w ON w.job_id = j.id WHERE (w.assigned_to_user_id = ? OR w.assigned_to LIKE ?) AND w.status IN (\'scheduled\',\'in_progress\',\'complete\'))';
+      cond += ' AND c.id IN (SELECT DISTINCT j.customer_id FROM jobs j JOIN work_orders w ON w.job_id = j.id WHERE (w.assigned_to_user_id = ? OR w.assigned_to ILIKE ?) AND w.status IN (\'scheduled\',\'in_progress\',\'complete\'))';
       params.push(ctx.userId, `%${ctx.userName}%`);
     }
     const rows = db.all(`SELECT c.id, c.name, c.email, c.phone, c.city, c.state FROM customers c WHERE ${cond} LIMIT 10`, params);
@@ -63,7 +63,7 @@ tools.search_estimates = {
   handler: ({ query, status }, ctx) => {
     const conds = ['e.id IS NOT NULL'];
     const params = [];
-    if (query) { const like = resolveQuery(query); conds.push('(e.id LIKE ? OR j.title LIKE ? OR c.name LIKE ?)'); params.push(like, like, like); }
+    if (query) { const like = resolveQuery(query); conds.push('(e.id ILIKE ? OR j.title ILIKE ? OR c.name ILIKE ?)'); params.push(like, like, like); }
     if (status) { conds.push('e.status = ?'); params.push(status); }
     const rows = db.all(`SELECT e.id, e.status, e.total, e.created_at,
       w.display_number AS wo_display,
@@ -89,7 +89,7 @@ tools.search_invoices = {
   handler: ({ query, status }, ctx) => {
     const conds = ['i.id IS NOT NULL'];
     const params = [];
-    if (query) { const like = resolveQuery(query); conds.push('(i.id LIKE ? OR c.name LIKE ? OR j.title LIKE ?)'); params.push(like, like, like); }
+    if (query) { const like = resolveQuery(query); conds.push('(i.id ILIKE ? OR c.name ILIKE ? OR j.title ILIKE ?)'); params.push(like, like, like); }
     if (status) { conds.push('i.status = ?'); params.push(status); }
     const rows = db.all(`SELECT i.id, i.status, i.total, i.amount_paid, i.due_date, i.created_at,
       w.display_number AS wo_display,
@@ -122,11 +122,11 @@ tools.search_work_orders = {
   handler: ({ query, status, scheduled_date }, ctx) => {
     const conds = ['w.id IS NOT NULL'];
     const params = [];
-    if (query) { const like = resolveQuery(query); conds.push('(w.display_number LIKE ? OR c.name LIKE ? OR j.title LIKE ?)'); params.push(like, like, like); }
+    if (query) { const like = resolveQuery(query); conds.push('(w.display_number ILIKE ? OR c.name ILIKE ? OR j.title ILIKE ?)'); params.push(like, like, like); }
     if (status) { conds.push('w.status = ?'); params.push(status); }
     if (scheduled_date) { conds.push('w.scheduled_date = ?'); params.push(scheduled_date); }
     if (ctx.role === 'worker' && ctx.userId) {
-      conds.push('(w.assigned_to_user_id = ? OR w.assigned_to LIKE ?)');
+      conds.push('(w.assigned_to_user_id = ? OR w.assigned_to ILIKE ?)');
       params.push(ctx.userId, `%${ctx.userName}%`);
     }
     const rows = db.all(`SELECT w.id, w.display_number, w.status, w.scheduled_date, w.scheduled_time,
@@ -155,9 +155,9 @@ tools.search_bills = {
   handler: ({ query, status, vendor_name }, ctx) => {
     const conds = ['b.id IS NOT NULL'];
     const params = [];
-    if (query) { const like = resolveQuery(query); conds.push('(b.bill_number LIKE ? OR v.name LIKE ?)'); params.push(like, like); }
+    if (query) { const like = resolveQuery(query); conds.push('(b.bill_number ILIKE ? OR v.name ILIKE ?)'); params.push(like, like); }
     if (status) { conds.push('b.status = ?'); params.push(status); }
-    if (vendor_name) { conds.push('v.name LIKE ?'); params.push(`%${vendor_name}%`); }
+    if (vendor_name) { conds.push('v.name ILIKE ?'); params.push(`%${vendor_name}%`); }
     const rows = db.all(`SELECT b.id, b.bill_number, b.status, b.total, b.amount_paid, b.bill_date, b.due_date,
       v.name AS vendor_name
       FROM bills b LEFT JOIN vendors v ON v.id = b.vendor_id
@@ -179,7 +179,7 @@ tools.get_schedule = {
     const conds = ['w.scheduled_date >= ? AND w.scheduled_date <= ?'];
     const params = [date_start || '2026-01-01', date_end || '2027-01-01'];
     if (ctx.role === 'worker' && ctx.userId) {
-      conds.push('(w.assigned_to_user_id = ? OR w.assigned_to LIKE ?)');
+      conds.push('(w.assigned_to_user_id = ? OR w.assigned_to ILIKE ?)');
       params.push(ctx.userId, `%${ctx.userName}%`);
     }
     const rows = db.all(`SELECT w.id, w.display_number, w.status, w.scheduled_date, w.scheduled_time,
@@ -288,7 +288,7 @@ MUTATION_TOOLS.create_customer = {
   },
   execute(args, ctx) {
     const r = db.run(`INSERT INTO customers (name, email, phone, address, city, state, zip, billing_email, notes, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, now())`,
       [args.name.trim(), (args.email || '').trim() || null, (args.phone || '').trim() || null,
        (args.address || '').trim() || null, (args.city || '').trim() || null, (args.state || '').trim() || null,
        (args.zip || '').trim() || null, (args.billing_email || '').trim() || null, (args.notes || '').trim() || null]);
@@ -318,7 +318,7 @@ MUTATION_TOOLS.send_estimate = {
         if (result.filepath) console.log('[ai-send-estimate] .eml saved:', result.filepath);
       }).catch(e => console.error('[ai-send-estimate] .eml failed:', e.message));
     } catch(e) { console.error('[ai-send-estimate] service error:', e.message); }
-    db.run(`UPDATE estimates SET status='sent', sent_at=datetime('now'), updated_at=datetime('now') WHERE id=?`, [est.id]);
+    db.run(`UPDATE estimates SET status='sent', sent_at=now(), updated_at=now() WHERE id=?`, [est.id]);
     writeAudit({ entityType: 'estimate', entityId: est.id, action: 'sent_by_ai', before: { status: 'draft' }, after: { status: 'sent' }, source: 'ai', userId: ctx.userId });
     return { id: est.id, href: `/estimates/${est.id}` };
   }
@@ -345,7 +345,7 @@ MUTATION_TOOLS.mark_invoice_paid = {
     const amount = Number(args.amount);
     const newAmt = (Number(inv.amount_paid) || 0) + amount;
     const newStatus = newAmt >= Number(inv.total) ? 'paid' : 'sent';
-    db.run(`UPDATE invoices SET amount_paid=?, status=?, paid_at=datetime('now'), updated_at=datetime('now') WHERE id=?`, [newAmt, newStatus, inv.id]);
+    db.run(`UPDATE invoices SET amount_paid=?, status=?, paid_at=now(), updated_at=now() WHERE id=?`, [newAmt, newStatus, inv.id]);
     // Post JE via accounting-posting
     try {
       const posting = require('../services/accounting-posting');
@@ -367,7 +367,7 @@ MUTATION_TOOLS.approve_bill = {
   },
   execute(args, ctx) {
     const bill = db.get('SELECT * FROM bills WHERE id = ?', [args.bill_id]);
-    db.run(`UPDATE bills SET status='approved', approved_by_user_id=?, approved_at=datetime('now'), updated_at=datetime('now') WHERE id=?`, [ctx.userId, bill.id]);
+    db.run(`UPDATE bills SET status='approved', approved_by_user_id=?, approved_at=now(), updated_at=now() WHERE id=?`, [ctx.userId, bill.id]);
     try {
       const lines = db.all('SELECT * FROM bill_lines WHERE bill_id = ?', [bill.id]);
       const posting = require('../services/accounting-posting');
@@ -391,7 +391,7 @@ MUTATION_TOOLS.add_wo_note = {
     return { summary_lines: [`WO: ${wo.display_number ? 'WO-' + wo.display_number : '#' + wo.id}`, `Note: ${args.body.trim().slice(0, 100)}`], args_normalized: args };
   },
   execute(args, ctx) {
-    db.run(`INSERT INTO wo_notes (work_order_id, user_id, body, created_at) VALUES (?, ?, ?, datetime('now'))`, [args.wo_id, ctx.userId, args.body.trim()]);
+    db.run(`INSERT INTO wo_notes (work_order_id, user_id, body, created_at) VALUES (?, ?, ?, now())`, [args.wo_id, ctx.userId, args.body.trim()]);
     writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'note_added_by_ai', before: null, after: { note: args.body.trim().slice(0,100) }, source: 'ai', userId: ctx.userId });
     return { id: args.wo_id, href: `/work-orders/${args.wo_id}` };
   }
@@ -465,7 +465,7 @@ MUTATION_TOOLS.schedule_wo = {
     if (args.assignee_user_id) { updateFields.push('assigned_to_user_id = ?'); updateParams.push(args.assignee_user_id); }
     if (args.assignee_name) { updateFields.push('assigned_to = ?'); updateParams.push(args.assignee_name); }
     updateParams.push(args.wo_id);
-    db.run(`UPDATE work_orders SET ${updateFields.join(', ')}, updated_at = datetime('now') WHERE id = ?`, updateParams);
+    db.run(`UPDATE work_orders SET ${updateFields.join(', ')}, updated_at = now() WHERE id = ?`, updateParams);
     writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'scheduled_by_ai', before: {}, after: { scheduled_date: args.date, scheduled_time: args.time, assigned_to: args.assignee_name }, source: 'ai', userId: ctx.userId });
     return { id: args.wo_id, href: `/work-orders/${args.wo_id}` };
   }
@@ -517,7 +517,7 @@ MUTATION_TOOLS.reschedule_wo = {
     if (args.new_date) { updateFields.push('scheduled_date = ?'); updateParams.push(args.new_date); }
     if (args.new_time) { updateFields.push('scheduled_time = ?'); updateParams.push(args.new_time); }
     updateParams.push(args.wo_id);
-    db.run(`UPDATE work_orders SET ${updateFields.join(', ')}, updated_at = datetime('now') WHERE id = ?`, updateParams);
+    db.run(`UPDATE work_orders SET ${updateFields.join(', ')}, updated_at = now() WHERE id = ?`, updateParams);
     writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'rescheduled_by_ai', before: {}, after: { scheduled_date: args.new_date, scheduled_time: args.new_time }, source: 'ai', userId: ctx.userId });
     return { id: args.wo_id, href: `/work-orders/${args.wo_id}` };
   }
@@ -580,7 +580,7 @@ MUTATION_TOOLS.assign_wo = {
     if (args.assignee_user_id) { updateFields.push('assigned_to_user_id = ?'); updateParams.push(args.assignee_user_id); }
     if (args.assignee_name) { updateFields.push('assigned_to = ?'); updateParams.push(args.assignee_name); }
     updateParams.push(args.wo_id);
-    db.run(`UPDATE work_orders SET ${updateFields.join(', ')}, updated_at = datetime('now') WHERE id = ?`, updateParams);
+    db.run(`UPDATE work_orders SET ${updateFields.join(', ')}, updated_at = now() WHERE id = ?`, updateParams);
     writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'assigned_by_ai', before: {}, after: { assigned_to: args.assignee_name }, source: 'ai', userId: ctx.userId });
     return { id: args.wo_id, href: `/work-orders/${args.wo_id}` };
   }

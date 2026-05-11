@@ -256,7 +256,7 @@ router.post('/:id', (req, res) => {
   db.transaction(() => {
     db.run(
       `UPDATE bills SET vendor_id=?, bill_number=?, bill_date=?, due_date=?, job_id=?, work_order_id=?,
-                        subtotal=?, tax_amount=?, total=?, notes=?, updated_at=datetime('now')
+                        subtotal=?, tax_amount=?, total=?, notes=?, updated_at=now()
        WHERE id=?`,
       [data.vendor_id, data.bill_number, data.bill_date, data.due_date, data.job_id, data.work_order_id,
        data.subtotal, data.tax_amount, data.total, data.notes, existing.id]
@@ -284,7 +284,7 @@ router.post('/:id/approve', (req, res) => {
     return res.redirect(`/bills/${bill.id}`);
   }
   db.run(
-    `UPDATE bills SET status='approved', approved_by_user_id=?, approved_at=datetime('now'), updated_at=datetime('now') WHERE id=?`,
+    `UPDATE bills SET status='approved', approved_by_user_id=?, approved_at=now(), updated_at=now() WHERE id=?`,
     [req.session.userId, bill.id]
   );
   writeAudit({ entityType: 'bill', entityId: bill.id, action: 'approve', before: { status: 'draft' }, after: { status: 'approved' }, source: 'user', userId: req.session.userId });
@@ -309,7 +309,7 @@ router.post('/:id/pay', (req, res) => {
   if (amount > Number(bill.total)) amount = Number(bill.total);
   const newPaymentAmt = amount - (Number(bill.amount_paid) || 0);
   const newStatus = (amount >= Number(bill.total)) ? 'paid' : 'approved';
-  const sets = ['amount_paid=?', `updated_at=datetime('now')`];
+  const sets = ['amount_paid=?', `updated_at=now()`];
   const params = [amount];
   if (newStatus === 'paid') { sets.push('status=?'); params.push('paid'); }
   db.run(`UPDATE bills SET ${sets.join(', ')} WHERE id=?`, [...params, bill.id]);
@@ -331,7 +331,7 @@ router.post('/:id/void', (req, res) => {
     setFlash(req, 'error', `Cannot void a paid bill.`);
     return res.redirect(`/bills/${bill.id}`);
   }
-  db.run(`UPDATE bills SET status='void', updated_at=datetime('now') WHERE id=?`, [bill.id]);
+  db.run(`UPDATE bills SET status='void', updated_at=now() WHERE id=?`, [bill.id]);
   writeAudit({ entityType: 'bill', entityId: bill.id, action: 'void', before: { status: bill.status }, after: { status: 'void' }, source: 'user', userId: req.session.userId });
   // TODO Round 8: post a reversing JE if the bill was previously approved
   setFlash(req, 'success', `Bill voided.`);

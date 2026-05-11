@@ -108,7 +108,7 @@ function doubleData() {
     const expenseAccounts = db.all('SELECT id FROM accounts WHERE type IN (\'expense\',\'cogs\') AND active=1');
     vendorNames.forEach((name, i) => {
       db.run(`INSERT INTO vendors (name, email, phone, address, city, state, zip, default_expense_account_id, notes, created_at, mock)
-        VALUES (?, ?, ?, ?, ?, 'MA', ?, ?, ?, datetime('now'), 1)`,
+        VALUES (?, ?, ?, ?, ?, 'MA', ?, ?, ?, now(), 1)`,
         [name, `orders@${name.toLowerCase().replace(/[^a-z0-9]/g,'')}.com`,
          `(617) ${String(randInt(300,699)).padStart(3,'0')}-${String(randInt(1000,9999))}`,
          `${randInt(1,500)} ${pick(['Industrial','Commerce','Trade','Supply','Factory','Warehouse','Distribution','Logistics'])} Dr`,
@@ -177,7 +177,7 @@ function doubleData() {
       const schedTime = `${String(randInt(7,16)).padStart(2,'0')}:00`;
       const endTime = (function(t){var p=t.split(':');var h=Math.min(parseInt(p[0],10)+2+Math.floor(Math.random()*3),18);return String(h).padStart(2,'0')+':'+p[1];})(schedTime);
       const woId = db.run(`INSERT INTO work_orders (job_id, wo_number_main, wo_number_sub, display_number, status, scheduled_date, scheduled_time, scheduled_end_time, assigned_to, assigned_to_user_id, created_at, updated_at, mock)
-        VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), 1)`,
+        VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?, now(), now(), 1)`,
         [job.id, main, `${main}-0000`, status, sched,
          schedTime, endTime,
          user.name, user.id]).lastInsertRowid;
@@ -201,7 +201,7 @@ function doubleData() {
       const subSchedTime = `${String(randInt(7,16)).padStart(2,'0')}:00`;
       const subEndTime = (function(t){var p=t.split(':');var h=Math.min(parseInt(p[0],10)+2+Math.floor(Math.random()*3),18);return String(h).padStart(2,'0')+':'+p[1];})(subSchedTime);
       db.run(`INSERT INTO work_orders (job_id, parent_wo_id, wo_number_main, wo_number_sub, display_number, status, scheduled_date, scheduled_time, scheduled_end_time, assigned_to, assigned_to_user_id, created_at, updated_at, mock)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), 1)`,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now(), now(), 1)`,
         [db.get('SELECT job_id FROM work_orders WHERE id=?', [parent.id]).job_id, parent.id,
          parent.wo_number_main, sub, `${parent.wo_number_main}-${sub}`, pick(['scheduled','in_progress']),
          subSched, subSchedTime, subEndTime, user.name, user.id]);
@@ -283,7 +283,7 @@ function doubleData() {
       const total = sub + tax;
       const paid = s === 'paid' ? total : 0;
       const billId = db.run(`INSERT INTO bills (vendor_id, bill_number, status, bill_date, due_date, subtotal, tax_amount, total, amount_paid, created_at, updated_at, mock)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), 1)`,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, now(), now(), 1)`,
         [v.id, `MOCK-BILL-${100 + i}`, s, `2026-0${randInt(4,5)}-${String(randInt(1,28)).padStart(2,'0')}`,
          `2026-0${randInt(5,6)}-${String(randInt(1,28)).padStart(2,'0')}`, sub, tax, total, paid]).lastInsertRowid;
       // Line items
@@ -321,7 +321,7 @@ function doubleData() {
     ];
     newItems.forEach(desc => {
       db.run(`INSERT INTO items_library (description, quantity, unit, unit_price, cost, category, created_at, mock)
-        VALUES (?, 1, ?, ?, ?, ?, datetime('now'), 1)`,
+        VALUES (?, 1, ?, ?, ?, ?, now(), 1)`,
         [desc, pick(['ea','hr','day','week','SF','LF','CY','ton']), rprice(25, 500), rprice(10, 250),
          pick(['Rental','Demolition','Temp','Equipment'])]);
     });

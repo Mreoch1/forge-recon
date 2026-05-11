@@ -121,7 +121,7 @@ router.get('/', (req, res) => {
   const conds = [];
   const params = [];
   if (q) {
-    conds.push('(w.display_number LIKE ? OR j.title LIKE ? OR c.name LIKE ?)');
+    conds.push('(w.display_number ILIKE ? OR j.title ILIKE ? OR c.name ILIKE ?)');
     const like = `%${q}%`;
     params.push(like, like, like);
   }
@@ -204,7 +204,7 @@ router.post('/:id', (req, res) => {
   db.transaction(() => {
     db.run(
       `UPDATE estimates SET subtotal=?, tax_rate=?, tax_amount=?, total=?, cost_total=?, valid_until=?, notes=?,
-                            updated_at=datetime('now')
+                            updated_at=now()
        WHERE id=?`,
       [t.subtotal, data.tax_rate, t.taxAmount, t.total, costTotal, data.valid_until, data.notes, existing.id]
     );
@@ -230,9 +230,9 @@ function statusTransition(req, res, fromStatus, toStatus, timestampField) {
     setFlash(req, 'error', `Cannot move ${est.display_number} from "${est.status}" to "${toStatus}".`);
     return res.redirect(`/estimates/${est.id}`);
   }
-  const sets = ['status = ?', `updated_at = datetime('now')`];
+  const sets = ['status = ?', `updated_at = now()`];
   const params = [toStatus];
-  if (timestampField) sets.push(`${timestampField} = datetime('now')`);
+  if (timestampField) sets.push(`${timestampField} = now()`);
   db.run(`UPDATE estimates SET ${sets.join(', ')} WHERE id = ?`, [...params, est.id]);
   try {
     const { writeAudit } = require('../services/audit');
@@ -255,7 +255,7 @@ router.post('/:id/send', async (req, res, next) => {
     const result = await emailService.sendEstimateEmail(estimate.id);
     const sentToEmail = estimate.customer_email || 'unknown@recon.local';
     const sentToName = estimate.customer_name || 'Unknown';
-    db.run(`UPDATE estimates SET status='sent', sent_at=datetime('now'), sent_by_user_id=?, sent_to_email=?, sent_to_name=?, updated_at=datetime('now') WHERE id=?`,
+    db.run(`UPDATE estimates SET status='sent', sent_at=now(), sent_by_user_id=?, sent_to_email=?, sent_to_name=?, updated_at=now() WHERE id=?`,
       [req.session.userId, sentToEmail, sentToName, estimate.id]);
     try {
       const { writeAudit } = require('../services/audit');

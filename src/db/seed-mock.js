@@ -219,7 +219,7 @@ async function seedMock() {
     const existing = db.get('SELECT id FROM items_library WHERE description = ? AND archived = 0', [item.desc]);
     if (!existing) {
       db.run(`INSERT INTO items_library (description, quantity, unit, unit_price, cost, category, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
+              VALUES (?, ?, ?, ?, ?, ?, now())`,
         [item.desc, item.qty, item.unit, item.price, item.cost, item.category]);
       itemsInserted++;
     }
@@ -235,7 +235,7 @@ async function seedMock() {
     if (!existing) {
       const hash = bcrypt.hashSync('changeme123', 10);
       db.run(`INSERT INTO users (email, password_hash, name, role, phone, active, created_at)
-              VALUES (?, ?, ?, ?, ?, 1, datetime('now'))`,
+              VALUES (?, ?, ?, ?, ?, 1, now())`,
         [u.name.toLowerCase().replace(' ','.')+'@recon.local', hash, u.name, u.role, u.phone]);
       userCount++;
     }

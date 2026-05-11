@@ -53,7 +53,7 @@ router.get('/', (req, res) => {
   const offset = (page - 1) * PAGE_SIZE;
   let where = '', params = [];
   if (q) {
-    where = 'WHERE name LIKE ? OR email LIKE ? OR phone LIKE ?';
+    where = 'WHERE name ILIKE ? OR email ILIKE ? OR phone ILIKE ?';
     const like = '%' + q + '%';
     params = [like, like, like];
   }
@@ -110,7 +110,7 @@ router.post('/:id', (req, res) => {
     return res.status(400).render('vendors/edit', { title: 'Edit ' + (data.name || vendor.name), activeNav: 'vendors', vendor: vendor_merged, errors, accounts });
   }
   db.run(
-    "UPDATE vendors SET name=?, email=?, phone=?, address=?, city=?, state=?, zip=?, ein=?, default_expense_account_id=?, notes=?, updated_at=datetime('now') WHERE id=?",
+    "UPDATE vendors SET name=?, email=?, phone=?, address=?, city=?, state=?, zip=?, ein=?, default_expense_account_id=?, notes=?, updated_at=now() WHERE id=?",
     [data.name, data.email, data.phone, data.address, data.city, data.state, data.zip, data.ein, data.default_expense_account_id, data.notes, req.params.id]
   );
   setFlash(req, 'success', 'Vendor "' + data.name + '" updated.');

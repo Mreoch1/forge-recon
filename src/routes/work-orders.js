@@ -179,7 +179,7 @@ router.get('/', (req, res) => {
   const conds = [];
   const params = [];
   if (q) {
-    conds.push('(w.display_number LIKE ? OR j.title LIKE ? OR c.name LIKE ?)');
+    conds.push('(w.display_number ILIKE ? OR j.title ILIKE ? OR c.name ILIKE ?)');
     const like = `%${q}%`;
     params.push(like, like, like);
   }
@@ -390,7 +390,7 @@ router.post('/ai-finalize', (req, res) => {
       return res.redirect('/work-orders/ai-create');
     }
     resolvedCustomerId = db.run(
-      `INSERT INTO customers (name, email, created_at) VALUES (?, ?, datetime('now'))`,
+      `INSERT INTO customers (name, email, created_at) VALUES (?, ?, now())`,
       [name, customer_email || null]
     ).lastInsertRowid;
   }
@@ -398,7 +398,7 @@ router.post('/ai-finalize', (req, res) => {
   // Create job
   const jobId = db.run(
     `INSERT INTO jobs (customer_id, title, address, city, state, zip, description, status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'estimating', datetime('now'))`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'estimating', now())`,
     [resolvedCustomerId, jobTitle, jobAddress, jobCity, jobState, jobZip, jobDescription]
   ).lastInsertRowid;
 
@@ -436,7 +436,7 @@ router.post('/ai-finalize', (req, res) => {
       `INSERT INTO work_orders
        (job_id, parent_wo_id, wo_number_main, wo_number_sub, display_number, status,
         scheduled_date, scheduled_time, assigned_to_user_id, assigned_to, notes, created_at)
-       VALUES (?, NULL, ?, ?, ?, 'scheduled', ?, ?, ?, ?, ?, datetime('now'))`,
+       VALUES (?, NULL, ?, ?, ?, 'scheduled', ?, ?, ?, ?, ?, now())`,
       [jobId, next.main, next.sub, display, scheduledDate, scheduledTime, assignedUserId, assignedToText, notes]
     );
     const wid = r.lastInsertRowid;
@@ -650,7 +650,7 @@ router.post('/:id', (req, res) => {
       `UPDATE work_orders SET
          wo_number_main=?, wo_number_sub=?, display_number=?,
          scheduled_date=?, scheduled_time=?, assigned_to_user_id=?, assigned_to=?, notes=?,
-         updated_at=datetime('now')
+         updated_at=now()
        WHERE id=?`,
       [newMain, newSub, newDisplay,
        data.scheduled_date, data.scheduled_time, data.assigned_to_user_id, data.assigned_to, data.notes,
@@ -663,7 +663,7 @@ router.post('/:id', (req, res) => {
       // Check if this line was previously NOT completed (new completion)
       const oldLine = oldLines[idx] || oldLines.find(o => String(o.description).trim() === String(li.description || '').trim());
       const wasAlreadyCompleted = oldLine && oldLine.completed === 1 && oldLine.completed_at;
-      const completedAt = isCompleted && !wasAlreadyCompleted ? "datetime('now')" : (oldLine && oldLine.completed_at ? `'${oldLine.completed_at}'` : 'NULL');
+      const completedAt = isCompleted && !wasAlreadyCompleted ? "now()" : (oldLine && oldLine.completed_at ? `'${oldLine.completed_at}'` : 'NULL');
       db.run(
         `INSERT INTO work_order_line_items
          (work_order_id, description, quantity, unit, unit_price, cost, line_total, completed, completed_at, sort_order)
@@ -701,9 +701,9 @@ function statusTransition(req, res, fromStatus, toStatus, timestampField) {
     setFlash(req, 'error', `Cannot move WO-${wo.display_number} from "${wo.status}" to "${toStatus}".`);
     return res.redirect(`/work-orders/${wo.id}`);
   }
-  const sets = ['status = ?', `updated_at = datetime('now')`];
+  const sets = ['status = ?', `updated_at = now()`];
   const params = [toStatus];
-  if (timestampField) sets.push(`${timestampField} = datetime('now')`);
+  if (timestampField) sets.push(`${timestampField} = now()`);
   db.run(`UPDATE work_orders SET ${sets.join(', ')} WHERE id = ?`, [...params, wo.id]);
   // Audit log
   try {
@@ -740,7 +740,7 @@ router.post('/:id/notes', (req, res) => {
     setFlash(req, 'error', 'Note must be at least 2 characters.');
     return res.redirect(`/work-orders/${wo.id}`);
   }
-  db.run(`INSERT INTO wo_notes (work_order_id, user_id, body, created_at) VALUES (?, ?, ?, datetime('now'))`,
+  db.run(`INSERT INTO wo_notes (work_order_id, user_id, body, created_at) VALUES (?, ?, ?, now())`,
     [wo.id, req.session.userId, body]);
   setFlash(req, 'success', 'Note posted.');
   res.redirect(`/work-orders/${wo.id}`);
@@ -762,7 +762,7 @@ router.post('/:id/photos', (req, res) => {
     const caption = (req.body.caption || '').trim();
     db.transaction(() => {
       files.forEach(f => {
-        db.run(`INSERT INTO wo_photos (work_order_id, user_id, filename, caption, created_at) VALUES (?, ?, ?, ?, datetime('now'))`,
+        db.run(`INSERT INTO wo_photos (work_order_id, user_id, filename, caption, created_at) VALUES (?, ?, ?, ?, now())`,
           [wo.id, req.session.userId, f.filename, caption || null]);
       });
       // Single audit row for the batch

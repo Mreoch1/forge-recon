@@ -86,7 +86,7 @@ router.get('/', (req, res) => {
   const conds = [];
   const params = [];
   if (q) {
-    conds.push('(j.title LIKE ? OR j.address LIKE ? OR j.city LIKE ? OR c.name LIKE ?)');
+    conds.push('(j.title ILIKE ? OR j.address ILIKE ? OR j.city ILIKE ? OR c.name ILIKE ?)');
     const like = `%${q}%`;
     params.push(like, like, like, like);
   }
@@ -218,7 +218,7 @@ router.post('/:id', (req, res) => {
   }
   db.run(
     `UPDATE jobs SET customer_id=?, title=?, address=?, city=?, state=?, zip=?, description=?, status=?,
-       scheduled_date=?, scheduled_time=?, assigned_to_user_id=?, updated_at=datetime('now')
+       scheduled_date=?, scheduled_time=?, assigned_to_user_id=?, updated_at=now()
      WHERE id=?`,
     [data.customer_id, data.title, data.address, data.city, data.state, data.zip, data.description, data.status,
      data.scheduled_date, data.scheduled_time, data.assigned_to_user_id, req.params.id]

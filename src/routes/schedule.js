@@ -150,7 +150,7 @@ router.get('/', (req, res) => {
   let params = [weekStart, weekEnd];
   let assigneeClause = '';
   if (assigneeFilter) {
-    assigneeClause = ' AND (w.assigned_to_user_id = ? OR w.assigned_to LIKE ?)';
+    assigneeClause = ' AND (w.assigned_to_user_id = ? OR w.assigned_to ILIKE ?)';
     const uname = (db.get('SELECT name FROM users WHERE id = ?', [assigneeFilter]) || {}).name || '';
     params.push(assigneeFilter, `%${uname}%`);
   }
@@ -328,7 +328,7 @@ router.post('/:id/reschedule', (req, res) => {
       source: 'user', userId: req.session.userId,
     });
   } catch(e) { /* audit best effort */ }
-  db.run(`UPDATE work_orders SET scheduled_date=?, scheduled_time=?, scheduled_end_time=?, updated_at=datetime('now') WHERE id=?`,
+  db.run(`UPDATE work_orders SET scheduled_date=?, scheduled_time=?, scheduled_end_time=?, updated_at=now() WHERE id=?`,
     [date, time || null, endTime || null, wo.id]);
   res.json({ ok: true, scheduled_date: date, scheduled_time: time || null, scheduled_end_time: endTime || null });
 });
