@@ -324,3 +324,42 @@ router.get('/ai-usage', (req, res) => {
 });
 
 module.exports = router;
+
+// --- admin index (not under /users namespace) ---
+router.get('/', (req, res) => {
+  const userCount = (db.get('SELECT COUNT(*) AS n FROM users WHERE active = 1') || {}).n || 0;
+  const closureCount = (db.get('SELECT COUNT(*) AS n FROM closures') || {}).n || 0;
+  const holidayCount = (db.get("SELECT COUNT(*) AS n FROM closures WHERE type = 'holiday'") || {}).n || 0;
+  const customCount = closureCount - holidayCount;
+  const closures = db.all('SELECT * FROM closures ORDER BY date_start ASC');
+  res.render('admin/index', {
+    title: 'Admin',
+    activeNav: 'admin',
+    userCount, closureCount, holidayCount, customCount, closures,
+  });
+});
+
+// --- closures CRUD moved inline ---
+router.post('/closures/create', (req, res) => {
+  const name = (req.body.name || '').trim();
+  const date_start = (req.body.date_start || '').trim();
+  const type = req.body.type || 'holiday';
+  if (!name || !date_start) {
+    setFlash(req, 'error', 'Name and date required.');
+    return res.redirect('/admin');
+  }
+  db.run(`INSERT INTO closures (date_start, date_end, name, type, notes, created_by_user_id, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
+    [date_start, req.body.date_end || null, name, type, req.body.notes || null, req.session.userId]);
+  setFlash(req, 'success', `Closure "${name}" created.`);
+  res.redirect('/admin');
+});
+
+router.post('/closures/delete', (req, res) => {
+  const id = parseInt(req.body.closure_id, 10);
+  const c = db.get('SELECT * FROM closures WHERE id = ?', [id]);
+  if (!c) { setFlash(req, 'error', 'Closure not found.'); return res.redirect('/admin'); }
+  db.run('DELETE FROM closures WHERE id = ?', [id]);
+  setFlash(req, 'success', `Closure "${c.name}" deleted.`);
+  res.redirect('/admin');
+});
