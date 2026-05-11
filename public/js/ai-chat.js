@@ -94,6 +94,15 @@
         align-self: flex-start; color: #999; font-style: italic; font-size: .8rem;
         background: transparent; border: none; padding: .25rem 0;
       }
+      .recon-aic-thinking-dots { display: inline-flex; gap: 3px; align-items: center; margin-left: 2px; }
+      .recon-aic-thinking-dots span { width: 5px; height: 5px; border-radius: 50%; background: #999; animation: recon-aic-bounce 1.4s ease-in-out infinite both; }
+      .recon-aic-thinking-dots span:nth-child(1) { animation-delay: 0s; }
+      .recon-aic-thinking-dots span:nth-child(2) { animation-delay: .2s; }
+      .recon-aic-thinking-dots span:nth-child(3) { animation-delay: .4s; }
+      @keyframes recon-aic-bounce {
+        0%, 80%, 100% { opacity: .3; transform: scale(.8); }
+        40% { opacity: 1; transform: scale(1); }
+      }
       .recon-aic-chips {
         display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .45rem;
       }
@@ -254,7 +263,7 @@
         </div>
         <div class="recon-aic-msgs" id="recon-aic-msgs">
           ${empty ? renderEmpty() : state.history.map(renderMsg).join('')}
-          ${state.sending ? '<div class="recon-aic-msg thinking">thinking…</div>' : ''}
+          ${state.sending ? '<div class="recon-aic-msg thinking">Recon assistant is thinking<div class="recon-aic-thinking-dots"><span></span><span></span><span></span></div></div>' : ''}
         </div>
         <form class="recon-aic-input" data-action="send">
           <textarea id="recon-aic-input"

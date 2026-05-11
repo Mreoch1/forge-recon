@@ -36,6 +36,9 @@ router.post('/chat', chatLimiter, async (req, res) => {
     return res.status(404).json({ error: 'AI chat disabled' });
   }
 
+  // 60s timeout for slow LLM responses
+  req.setTimeout(60000);
+
   const { message, history } = req.body;
 
   if (!message || typeof message !== 'string' || !message.trim()) {
