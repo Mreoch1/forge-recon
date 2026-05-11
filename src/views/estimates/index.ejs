@@ -61,7 +61,7 @@ const showPrices = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
         <tbody>
           <% estimates.forEach(function(e){ %>
             <tr>
-              <td class="font-medium"><a href="/estimates/<%= e.id %>" class="hover:text-recon-red"><%= e.estimate_number %></a></td>
+              <td class="font-medium"><a href="/estimates/<%= e.id %>" class="hover:text-recon-red">EST-<%= e.wo_display_number %></a></td>
               <td><a href="/jobs/<%= e.job_id %>" class="hover:text-recon-red"><%= e.job_title %></a></td>
               <td><a href="/customers/<%= e.customer_id %>" class="hover:text-recon-red"><%= e.customer_name %></a></td>
               <td><span class="badge badge-<%= e.status %>"><%= e.status %></span></td>

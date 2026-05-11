@@ -48,7 +48,7 @@ function isOverdue(inv) {
             <% const balance = (Number(i.total)||0) - (Number(i.amount_paid)||0); %>
             <% const showStatus = isOverdue(i) ? 'overdue' : i.status; %>
             <tr>
-              <td class="font-medium"><a href="/invoices/<%= i.id %>" class="hover:text-recon-red"><%= i.invoice_number %></a></td>
+              <td class="font-medium"><a href="/invoices/<%= i.id %>" class="hover:text-recon-red">INV-<%= i.wo_display_number %></a></td>
               <td><a href="/jobs/<%= i.job_id %>" class="hover:text-recon-red"><%= i.job_title %></a></td>
               <td><a href="/customers/<%= i.customer_id %>" class="hover:text-recon-red"><%= i.customer_name %></a></td>
               <td><span class="badge badge-<%= showStatus %>"><%= showStatus %></span></td>

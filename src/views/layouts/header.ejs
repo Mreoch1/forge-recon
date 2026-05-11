@@ -92,14 +92,41 @@
             <span class="text-[.55rem] uppercase tracking-[.18em] text-recon-fog mt-0.5">by Recon Enterprises</span>
           </span>
         </a>
-        <div class="hidden md:flex items-center gap-1">
+        <!-- Desktop nav -->
+        <div class="hidden md:flex items-center gap-1" id="desktop-nav">
           <a href="/" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'dashboard' ? ' active' : '' %>">Dashboard</a>
           <a href="/schedule" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'schedule' ? ' active' : '' %>">Schedule</a>
-          <a href="/customers" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'customers' ? ' active' : '' %>">Customers</a>
           <a href="/jobs" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'jobs' ? ' active' : '' %>">Jobs</a>
+          <a href="/customers" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'customers' ? ' active' : '' %>">Customers</a>
           <a href="/estimates" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'estimates' ? ' active' : '' %>">Estimates</a>
           <a href="/work-orders" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'work-orders' ? ' active' : '' %>">Work Orders</a>
           <a href="/invoices" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'invoices' ? ' active' : '' %>">Invoices</a>
+          <!-- More dropdown -->
+          <div class="relative" id="more-dropdown">
+            <%
+              var moreActive = activeNav === 'vendors' || activeNav === 'bills' || activeNav === 'accounting' || activeNav === 'admin';
+            %>
+            <button class="navlink more-toggle<%= moreActive ? ' active' : '' %>">More ▾</button>
+            <div class="more-menu hidden absolute top-full right-0 mt-1 bg-recon-steel border border-recon-ash rounded-lg shadow-xl py-1 min-w-[160px] z-50">
+              <a href="/vendors" class="block px-4 py-2 text-sm text-recon-mist hover:bg-recon-ash transition<%= typeof activeNav !== 'undefined' && activeNav === 'vendors' ? ' bg-recon-red text-white hover:bg-recon-red' : '' %>">Vendors</a>
+              <a href="/bills" class="block px-4 py-2 text-sm text-recon-mist hover:bg-recon-ash transition<%= typeof activeNav !== 'undefined' && activeNav === 'bills' ? ' bg-recon-red text-white hover:bg-recon-red' : '' %>">Bills</a>
+              <a href="/accounting" class="block px-4 py-2 text-sm text-recon-mist hover:bg-recon-ash transition<%= typeof activeNav !== 'undefined' && activeNav === 'accounting' ? ' bg-recon-red text-white hover:bg-recon-red' : '' %>">Accounting</a>
+              <% if (currentUser.role === 'admin') { %>
+                <div class="border-t border-recon-ash my-1"></div>
+                <a href="/admin/users" class="block px-4 py-2 text-sm text-recon-mist hover:bg-recon-ash transition<%= typeof activeNav !== 'undefined' && activeNav === 'admin' ? ' bg-recon-red text-white hover:bg-recon-red' : '' %>">Admin</a>
+              <% } %>
+            </div>
+          </div>
+        </div>
+        <!-- Mobile nav -->
+        <div class="md:hidden flex items-center gap-1 flex-wrap" id="mobile-nav">
+          <a href="/" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'dashboard' ? ' active' : '' %>">Dashboard</a>
+          <a href="/schedule" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'schedule' ? ' active' : '' %>">Schedule</a>
+          <a href="/jobs" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'jobs' ? ' active' : '' %>">Jobs</a>
+          <a href="/customers" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'customers' ? ' active' : '' %>">Customers</a>
+          <a href="/estimates" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'estimates' ? ' active' : '' %>">Estimates</a>
+          <a href="/invoices" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'invoices' ? ' active' : '' %>">Invoices</a>
+          <a href="/work-orders" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'work-orders' ? ' active' : '' %>">Work Orders</a>
           <a href="/vendors" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'vendors' ? ' active' : '' %>">Vendors</a>
           <a href="/bills" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'bills' ? ' active' : '' %>">Bills</a>
           <a href="/accounting" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'accounting' ? ' active' : '' %>">Accounting</a>
@@ -117,6 +144,24 @@
       </div>
     </div>
   </nav>
+<script>
+(function(){
+  var moreBtn = document.querySelector('.more-toggle');
+  var moreMenu = document.querySelector('.more-menu');
+  if (!moreBtn || !moreMenu) return;
+  function toggle(e) {
+    e.stopPropagation();
+    var isOpen = !moreMenu.classList.contains('hidden');
+    moreMenu.classList.toggle('hidden', isOpen);
+  }
+  moreBtn.addEventListener('click', toggle);
+  document.addEventListener('click', function(e) {
+    if (!moreMenu.classList.contains('hidden') && !moreBtn.contains(e.target) && !moreMenu.contains(e.target)) {
+      moreMenu.classList.add('hidden');
+    }
+  });
+})();
+</script>
 <% } %>
 
 <% if (typeof flash !== 'undefined' && flash) { %>
