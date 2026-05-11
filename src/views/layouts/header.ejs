@@ -35,35 +35,48 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     body { background: #f5f5f5; color: #1a1a1a; font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif; }
-    .forge-wordmark {
+        .forge-wordmark {
       font-family: 'Inter', system-ui, sans-serif;
       font-weight: 900;
       letter-spacing: 0.08em;
-      background: linear-gradient(
-        100deg,
-        #4a4a4a 0%,
-        #8a8a8a 20%,
-        #cfcfcf 35%,
-        #ffffff 48%,
-        #cfcfcf 60%,
-        #8a8a8a 75%,
-        #4a4a4a 100%
-      );
-      background-size: 250% 100%;
-      background-position: 100% center;
+      background-image:
+        linear-gradient(
+          105deg,
+          transparent 0%,
+          transparent 35%,
+          rgba(255, 255, 255, 0.5) 44%,
+          rgba(255, 255, 255, 0.95) 50%,
+          rgba(255, 255, 255, 0.5) 56%,
+          transparent 65%,
+          transparent 100%
+        ),
+        linear-gradient(
+          105deg,
+          #6b1212 0%,
+          #951818 15%,
+          #b51e1e 28%,
+          #c84444 42%,
+          #b07878 55%,
+          #888888 70%,
+          #5a5a5a 86%,
+          #3a3a3a 100%
+        );
+      background-size: 250% 100%, 100% 100%;
+      background-position: 100% center, 0 0;
+      background-repeat: no-repeat;
       -webkit-background-clip: text;
       background-clip: text;
       -webkit-text-fill-color: transparent;
       color: transparent;
-      animation: forge-shine 3.5s linear infinite;
-      text-shadow: 0 1px 0 rgba(0,0,0,0.15), 0 2px 4px rgba(0,0,0,0.08);
+      animation: forge-shine 4s linear infinite;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.2), 0 2px 6px rgba(0,0,0,0.08);
     }
     @keyframes forge-shine {
-      0%   { background-position: 100% center; }
-      100% { background-position: -150% center; }
+      0%   { background-position: 100% center, 0 0; }
+      100% { background-position: -150% center, 0 0; }
     }
-    @media (prefers-reduced-motion: reduce) {
-      .forge-wordmark { animation: none; background-position: 50% center; }
+@media (prefers-reduced-motion: reduce) {
+      .forge-wordmark { animation: none; background-position: 50% center, 0 0; }
     }
     .group:hover .forge-wordmark {
       filter: drop-shadow(0 0 6px rgba(230,57,70,.55)) drop-shadow(0 1px 0 rgba(0,0,0,.25));
