@@ -5,7 +5,7 @@
  */
 require('dotenv').config();
 const path = require('path');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const db = require('./db');
 
 async function main() {

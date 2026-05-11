@@ -2,6 +2,7 @@
   "name": "recon-construction-wo",
   "version": "0.1.0",
   "description": "In-house construction work order system: estimates -> work orders -> invoices.",
+  "engines": { "node": "20.x" },
   "main": "src/server.js",
   "type": "commonjs",
   "scripts": {
@@ -19,7 +20,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.4",
-    "bcrypt": "^5.1.1",
+    "bcryptjs": "^3.0.3",
     "connect-pg-simple": "^10.0.0",
     "deasync": "^0.1.31",
     "dotenv": "^16.4.5",

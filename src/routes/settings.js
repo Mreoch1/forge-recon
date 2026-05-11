@@ -8,7 +8,7 @@
  * Admin-specific mutations stay at /admin/* (users, company settings, closures).
  */
 const express = require('express');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const db = require('../db/db');
 const { setFlash } = require('../middleware/auth');
 

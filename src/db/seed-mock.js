@@ -228,7 +228,7 @@ async function seedMock() {
   const allItems = db.all('SELECT * FROM items_library WHERE archived = 0');
 
   // ── 2. Users (add 1 manager + 4 workers) ──
-  const bcrypt = require('bcrypt');
+  const bcrypt = require('bcryptjs');
   let userCount = 0;
   WORKER_NAMES.forEach(u => {
     const existing = db.get('SELECT id FROM users WHERE email = ?', [u.name.toLowerCase().replace(' ','.')+'@recon.local']);

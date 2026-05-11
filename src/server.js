@@ -61,6 +61,8 @@ if (process.env.NODE_ENV === 'production') {
 
 if (!fs.existsSync(SESSIONS_DIR)) fs.mkdirSync(SESSIONS_DIR, { recursive: true });
 
+let app;
+
 async function main() {
   await db.init();
 
@@ -118,7 +120,7 @@ async function main() {
     } catch(e) { console.error('Boot migration failed:', e.message); }
   }
 
-  const app = express();
+  app = express();
 
   // EJS
   app.set('view engine', 'ejs');
@@ -235,3 +237,6 @@ main().catch(err => {
   console.error('Server failed to start:', err);
   process.exit(1);
 });
+
+// Vercel: export the app for @vercel/node
+module.exports = app;
