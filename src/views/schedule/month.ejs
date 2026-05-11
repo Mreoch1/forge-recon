@@ -27,6 +27,23 @@
   .sc-more-link { display: block; font-size: .6rem; color: #2563eb; text-decoration: none; text-align: center; padding: .1rem 0; }
   .sc-more-link:hover { text-decoration: underline; }
   .sc-empty { text-align: center; padding: 3rem 1rem; color: #999; grid-column: 1 / -1; }
+
+  /* ── Custom hover card ── */
+  .wo-hover-card { display: none; position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%); background: #1a1a1a; color: #fff; border-radius: 8px; padding: .6rem .75rem; min-width: 200px; box-shadow: 0 6px 20px rgba(0,0,0,.3); font-size: .75rem; line-height: 1.5; z-index: 100; pointer-events: none; white-space: nowrap; }
+  .wo-hover-card::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: #1a1a1a; }
+  .sc-wo-pill-wrap { position: relative; display: block; }
+  .sc-wo-pill-wrap:hover { z-index: 20; }
+  .sc-wo-pill-wrap:hover .wo-hover-card { display: block; }
+  .wo-hc-num { font-family: ui-monospace, monospace; font-size: .7rem; color: #e63946; font-weight: 700; }
+  .wo-hc-customer { font-weight: 700; font-size: .85rem; color: #fff; }
+  .wo-hc-job { color: #aaa; font-size: .72rem; }
+  .wo-hc-row { margin-top: .15rem; font-size: .7rem; color: #ccc; }
+  .wo-hc-row .wo-hc-label { color: #888; }
+  .wo-hc-badge { display: inline-block; padding: .1rem .45rem; border-radius: 9999px; font-size: .6rem; font-weight: 600; margin-top: .2rem; text-transform: capitalize; }
+  .wo-hc-badge-scheduled  { background: #ede9fe; color: #5b21b6; }
+  .wo-hc-badge-in_progress { background: #fed7aa; color: #9a3412; }
+  .wo-hc-badge-complete   { background: #d1fae5; color: #065f46; }
+  .wo-hc-badge-cancelled  { background: #fee2e2; color: #991b1b; }
 </style>
 
 <div class="sc-layout">
@@ -77,17 +94,36 @@
           var remaining = dayWos.length - 3;
           shown.forEach(function(wo){
             var color = colorForUser(wo.assigned_to_user_id);
+            function fmtTime(t) {
+              if (!t) return '—';
+              var p = String(t).split(':');
+              var h = parseInt(p[0], 10);
+              if (isNaN(h)) return t;
+              var ampm = h >= 12 ? 'PM' : 'AM';
+              var h12 = h % 12 || 12;
+              return h12 + ':' + (p[1] || '00') + ' ' + ampm;
+            }
           %>
-            <a href="/work-orders/<%= wo.id %>" class="sc-wo-pill" style="background:<%= color || '#eee' %>"
-               data-wo-id="<%= wo.id %>"
-               data-wo-display="<%= wo.display_number %>"
-               data-current-date="<%= wo.scheduled_date %>"
-               data-current-time="<%= wo.scheduled_time || '' %>"
-               data-end-time="<%= wo.scheduled_end_time || '' %>"
-               data-assignee-id="<%= wo.assigned_to_user_id || '' %>">
-              <span class="sc-pill-num">WO-<%= wo.display_number %></span>
-              <span class="sc-pill-init"><%= (wo.assigned_user_name||wo.assigned_to||'?').slice(0,1) %></span>
-            </a>
+            <div class="sc-wo-pill-wrap">
+              <a href="/work-orders/<%= wo.id %>" class="sc-wo-pill" style="background:<%= color || '#eee' %>"
+                 data-wo-id="<%= wo.id %>"
+                 data-wo-display="<%= wo.display_number %>"
+                 data-current-date="<%= wo.scheduled_date %>"
+                 data-current-time="<%= wo.scheduled_time || '' %>"
+                 data-end-time="<%= wo.scheduled_end_time || '' %>"
+                 data-assignee-id="<%= wo.assigned_to_user_id || '' %>">
+                <span class="sc-pill-num">WO-<%= wo.display_number %></span>
+                <span class="sc-pill-init"><%= (wo.assigned_user_name||wo.assigned_to||'?').slice(0,1) %></span>
+              </a>
+              <div class="wo-hover-card">
+                <div class="wo-hc-num">WO-<%= wo.display_number %></div>
+                <div class="wo-hc-customer"><%= (wo.customer_name || '') %></div>
+                <div class="wo-hc-job"><%= (wo.job_title || '') %></div>
+                <div class="wo-hc-row"><span class="wo-hc-label">Time:</span> <%= fmtTime(wo.scheduled_time) %><% if (wo.scheduled_end_time) { %> – <%= fmtTime(wo.scheduled_end_time) %><% } %></div>
+                <div class="wo-hc-row"><span class="wo-hc-label">Assignee:</span> <%= wo.assigned_user_name || wo.assigned_to || 'Unassigned' %></div>
+                <span class="wo-hc-badge wo-hc-badge-<%= wo.status %>"><%= (wo.status || '').replace('_', ' ') %></span>
+              </div>
+            </div>
           <% });
           if (remaining > 0) { %>
             <a href="/schedule?view=week&date=<%= day.date %>" class="sc-more-link">+<%= remaining %> more</a>

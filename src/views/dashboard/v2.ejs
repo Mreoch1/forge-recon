@@ -472,7 +472,22 @@ const actionSections = [
 
 <script>
   (function () {
-    // Expandable timeline events
+    // Expandable timeline events — restore expanded state from sessionStorage
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('.dv2-events').forEach(function(container) {
+        var woId = container.getAttribute('data-wo-id');
+        if (!woId) return;
+        var stored = sessionStorage.getItem('wo_events_expanded_' + woId);
+        if (stored === '1') {
+          container.querySelectorAll('.hidden-event').forEach(function(el) {
+            el.classList.remove('hidden-event');
+          });
+          var link = container.querySelector('.expand-events');
+          if (link) link.textContent = 'Hide updates';
+        }
+      });
+    });
+
     document.addEventListener('click', function(e) {
       var link = e.target.closest('.expand-events');
       if (!link) return;
@@ -482,27 +497,17 @@ const actionSections = [
       var container = document.querySelector('.dv2-events[data-wo-id="' + woId + '"]');
       if (!container || !total) return;
       var isExpanded = link.textContent.indexOf('Hide') === 0;
+      var hidden = container.querySelectorAll('.hidden-event');
       if (isExpanded) {
-        // Collapse: show only the initial display, restore link
-        var allRows = container.querySelectorAll('.dv2-event-row');
-        var hiddenRows = container.querySelectorAll('.dv2-event-row.hidden-event');
-        hiddenRows.forEach(function(r) { r.remove(); });
-        var expandLink = container.querySelector('.expand-events');
-        if (expandLink) expandLink.textContent = '+' + (total - 3) + ' more updates';
+        // Collapse
+        hidden.forEach(function(el) { el.classList.add('hidden-event'); });
+        link.textContent = '+' + total + ' more updates';
         sessionStorage.removeItem('wo_events_expanded_' + woId);
       } else {
-        // Expand: show all events from the original data
-        var currentCount = container.querySelectorAll('.dv2-event-row').length;
-        var remaining = total - currentCount;
-        // fetch all events — we stored them in data attribute or re-render from EJS
-        // Since we have no JS data store, use a simpler approach: toggle a CSS class
-        var expandLink = container.querySelector('.expand-events');
-        // For now, just toggle the link text — the full expansion needs the events data
-        // Simpler: show/hide via sessionStorage reload
+        // Expand
+        hidden.forEach(function(el) { el.classList.remove('hidden-event'); });
+        link.textContent = 'Hide updates';
         sessionStorage.setItem('wo_events_expanded_' + woId, '1');
-        if (expandLink) expandLink.textContent = 'Hide updates';
-        // Reload page to show all events
-        location.reload();
       }
     });
 

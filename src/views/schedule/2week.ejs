@@ -61,6 +61,23 @@
   .sc-confirm-card .scc-confirm { padding: .35rem 1rem; background: #c0202b; color: #fff; border: none; border-radius: 4px; font-size: .78rem; cursor: pointer; }
   .sc-confirm-card .scc-cancel { padding: .35rem 1rem; background: transparent; border: 1px solid #ccc; border-radius: 4px; font-size: .78rem; cursor: pointer; }
   .sc-confirm-card .scc-cancel:hover { background: #f5f5f5; }
+
+  /* ── Custom hover card ── */
+  .wo-hover-card { display: none; position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%); background: #1a1a1a; color: #fff; border-radius: 8px; padding: .6rem .75rem; min-width: 200px; box-shadow: 0 6px 20px rgba(0,0,0,.3); font-size: .75rem; line-height: 1.5; z-index: 100; pointer-events: none; white-space: nowrap; }
+  .wo-hover-card::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: #1a1a1a; }
+  .sc-wo-wrap { position: absolute; left: 2px; right: 2px; z-index: 1; }
+  .sc-wo-wrap:hover { z-index: 20; }
+  .sc-wo-wrap:hover .wo-hover-card { display: block; }
+  .wo-hc-num { font-family: ui-monospace, monospace; font-size: .65rem; color: #e63946; font-weight: 700; }
+  .wo-hc-customer { font-weight: 700; font-size: .8rem; color: #fff; }
+  .wo-hc-job { color: #aaa; font-size: .68rem; }
+  .wo-hc-row { margin-top: .12rem; font-size: .65rem; color: #ccc; }
+  .wo-hc-row .wo-hc-label { color: #888; }
+  .wo-hc-badge { display: inline-block; padding: .08rem .4rem; border-radius: 9999px; font-size: .55rem; font-weight: 600; margin-top: .15rem; text-transform: capitalize; }
+  .wo-hc-badge-scheduled  { background: #ede9fe; color: #5b21b6; }
+  .wo-hc-badge-in_progress { background: #fed7aa; color: #9a3412; }
+  .wo-hc-badge-complete   { background: #d1fae5; color: #065f46; }
+  .wo-hc-badge-cancelled  { background: #fee2e2; color: #991b1b; }
 </style>
 
 <div class="sc-layout">
@@ -122,6 +139,15 @@
           <%
           var dayWos = wos.filter(function(w){ return w.scheduled_date === day.date; });
           dayWos.forEach(function(wo){
+            function fmtTime(t) {
+              if (!t) return '—';
+              var p = String(t).split(':');
+              var h = parseInt(p[0], 10);
+              if (isNaN(h)) return t;
+              var ampm = h >= 12 ? 'PM' : 'AM';
+              var h12 = h % 12 || 12;
+              return h12 + ':' + (p[1] || '00') + ' ' + ampm;
+            }
             var parts = (wo.scheduled_time||'08:00').split(':');
             var startMin = (parseInt(parts[0],10)-HOURS_START)*60+parseInt(parts[1],10);
             var topPct = (startMin/TOTAL_MINUTES)*100;
@@ -131,19 +157,29 @@
             var isUnassigned = !wo.assigned_to_user_id && !wo.assigned_to;
             var hasConflict = !!woConflicts[wo.id];
           %>
-            <a href="/work-orders/<%= wo.id %>" class="sc-wo-block<%= isUnassigned ? ' sc-unassigned' : '' %>"
-               style="top:<%= topPct.toFixed(1) %>%<%= color ? ';background:'+color : '' %>;height:<%= hPct.toFixed(1) %>%"
-               data-wo-id="<%= wo.id %>" data-current-date="<%= wo.scheduled_date %>" data-current-time="<%= wo.scheduled_time||'' %>"
-               data-wo-display="<%= wo.display_number %>" data-end-time="<%= wo.scheduled_end_time||'' %>" data-assignee-id="<%= wo.assigned_to_user_id||'' %>">
-              <% if (hasConflict) { %>
-                <span class="sc-conflict-badge">
-                  &#9888;<span class="sc-conflict-tip"><% woConflicts[wo.id].forEach(function(c){ %>WO-<%= c.display_number %>: <%= c.overlap_minutes %>min<br><% }); %></span>
-                </span>
-              <% } %>
-              <div class="sc-wo-num">WO-<%= wo.display_number %></div>
-              <div class="sc-wo-customer"><%= (wo.customer_name||'').slice(0,25) %></div>
-              <div class="sc-wo-assignee"><%= wo.assigned_user_name||wo.assigned_to||'' %></div>
-            </a>
+            <div class="sc-wo-wrap" style="top:<%= topPct.toFixed(1) %>%">
+              <a href="/work-orders/<%= wo.id %>" class="sc-wo-block<%= isUnassigned ? ' sc-unassigned' : '' %>"
+                 style="<%= color ? 'background:'+color : '' %>;height:<%= hPct.toFixed(1) %>%"
+                 data-wo-id="<%= wo.id %>" data-current-date="<%= wo.scheduled_date %>" data-current-time="<%= wo.scheduled_time||'' %>"
+                 data-wo-display="<%= wo.display_number %>" data-end-time="<%= wo.scheduled_end_time||'' %>" data-assignee-id="<%= wo.assigned_to_user_id||'' %>">
+                <% if (hasConflict) { %>
+                  <span class="sc-conflict-badge">
+                    &#9888;<span class="sc-conflict-tip"><% woConflicts[wo.id].forEach(function(c){ %>WO-<%= c.display_number %>: <%= c.overlap_minutes %>min overlap<% }); %></span>
+                  </span>
+                <% } %>
+                <div class="sc-wo-num">WO-<%= wo.display_number %></div>
+                <div class="sc-wo-customer"><%= (wo.customer_name||'').slice(0,25) %></div>
+                <div class="sc-wo-assignee"><%= wo.assigned_user_name||wo.assigned_to||'' %></div>
+              </a>
+              <div class="wo-hover-card">
+                <div class="wo-hc-num">WO-<%= wo.display_number %></div>
+                <div class="wo-hc-customer"><%= (wo.customer_name || '') %></div>
+                <div class="wo-hc-job"><%= (wo.job_title || '') %></div>
+                <div class="wo-hc-row"><span class="wo-hc-label">Time:</span> <%= fmtTime(wo.scheduled_time) %><% if (wo.scheduled_end_time) { %> – <%= fmtTime(wo.scheduled_end_time) %><% } %></div>
+                <div class="wo-hc-row"><span class="wo-hc-label">Assignee:</span> <%= wo.assigned_user_name || wo.assigned_to || 'Unassigned' %></div>
+                <span class="wo-hc-badge wo-hc-badge-<%= wo.status %>"><%= (wo.status || '').replace('_', ' ') %></span>
+              </div>
+            </div>
           <% }); %>
         </div>
       <% }); %>
