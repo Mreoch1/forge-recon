@@ -92,29 +92,31 @@ async function main() {
     )`);
   } catch(e) { console.error("Failed to create closures table:", e.message); }
 
-  // Column migrations for existing databases
-  try {
-    const bootMigrations = [
-      {table: 'users', col: 'phone', type: 'TEXT'},
-      {table: 'users', col: 'mock', type: 'INTEGER NOT NULL DEFAULT 0'},
-      {table: 'work_order_line_items', col: 'completed_at', type: 'TEXT'},
-      {table: 'work_orders', col: 'scheduled_end_time', type: 'TEXT'},
-      {table: 'estimates', col: 'sent_by_user_id', type: 'INTEGER'},
-      {table: 'estimates', col: 'sent_to_email', type: 'TEXT'},
-      {table: 'estimates', col: 'sent_to_name', type: 'TEXT'},
-      {table: 'invoices', col: 'sent_by_user_id', type: 'INTEGER'},
-      {table: 'invoices', col: 'sent_to_email', type: 'TEXT'},
-      {table: 'invoices', col: 'sent_to_name', type: 'TEXT'},
-      {table: 'estimates', col: 'archived_at', type: 'TEXT'},
-    ];
-    for (const m of bootMigrations) {
-      const existing = await db.all('PRAGMA table_info(' + m.table + ')');
-      if (!existing.find(c => c.name === m.col)) {
-        await db.run('ALTER TABLE ' + m.table + ' ADD COLUMN ' + m.col + ' ' + m.type);
-        console.log('  Boot migration: added ' + m.table + '.' + m.col);
+  // Column migrations for existing databases (sqlite only)
+  if (db.getMode() !== 'pg') {
+    try {
+      const bootMigrations = [
+        {table: 'users', col: 'phone', type: 'TEXT'},
+        {table: 'users', col: 'mock', type: 'INTEGER NOT NULL DEFAULT 0'},
+        {table: 'work_order_line_items', col: 'completed_at', type: 'TEXT'},
+        {table: 'work_orders', col: 'scheduled_end_time', type: 'TEXT'},
+        {table: 'estimates', col: 'sent_by_user_id', type: 'INTEGER'},
+        {table: 'estimates', col: 'sent_to_email', type: 'TEXT'},
+        {table: 'estimates', col: 'sent_to_name', type: 'TEXT'},
+        {table: 'invoices', col: 'sent_by_user_id', type: 'INTEGER'},
+        {table: 'invoices', col: 'sent_to_email', type: 'TEXT'},
+        {table: 'invoices', col: 'sent_to_name', type: 'TEXT'},
+        {table: 'estimates', col: 'archived_at', type: 'TEXT'},
+      ];
+      for (const m of bootMigrations) {
+        const existing = await db.all('PRAGMA table_info(' + m.table + ')');
+        if (!existing.find(c => c.name === m.col)) {
+          await db.run('ALTER TABLE ' + m.table + ' ADD COLUMN ' + m.col + ' ' + m.type);
+          console.log('  Boot migration: added ' + m.table + '.' + m.col);
+        }
       }
-    }
-  } catch(e) { console.error('Boot migration failed:', e.message); }
+    } catch(e) { console.error('Boot migration failed:', e.message); }
+  }
 
   const app = express();
 
