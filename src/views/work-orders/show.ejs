@@ -294,6 +294,10 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
         <% }); %>
       <% } %>
 
+      <!-- Files -->
+      <h2 class="ws-h-secondary mt-8">Files</h2>
+      <p class="text-sm mb-3"><a href="/files/project/<%= wo.id %>" class="text-recon-red hover:underline">📁 Files (<%= typeof fileCount !== 'undefined' ? fileCount : 0 %>) →</a></p>
+
       <!-- Photo gallery -->
       <h2 class="ws-h-secondary mt-8">Photos</h2>
       <form action="/work-orders/<%= wo.id %>/photos" method="post" enctype="multipart/form-data" class="mb-4">

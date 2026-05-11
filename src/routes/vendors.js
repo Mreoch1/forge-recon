@@ -89,7 +89,8 @@ router.get('/:id', (req, res) => {
   const vendor = db.get('SELECT * FROM vendors WHERE id = ?', [req.params.id]);
   if (!vendor) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Vendor not found.' });
   const bills = db.all("SELECT id, bill_number, status, created_at FROM bills WHERE vendor_id = ? ORDER BY created_at DESC", [req.params.id]);
-  res.render('vendors/show', { title: vendor.name, activeNav: 'vendors', vendor, bills });
+  const fileCountVend = (db.get('SELECT COUNT(f.id) AS n FROM files f JOIN folders fl ON fl.id = f.folder_id WHERE fl.entity_type = ? AND fl.entity_id = ?', ['vendor', vendor.id]) || {}).n || 0;
+  res.render('vendors/show', { title: vendor.name, activeNav: 'vendors', vendor, bills, fileCount: fileCountVend });
 });
 
 router.get('/:id/edit', (req, res) => {

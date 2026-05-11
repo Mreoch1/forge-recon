@@ -117,13 +117,14 @@ router.get('/:id', (req, res) => {
   const customer = db.get('SELECT * FROM customers WHERE id = ?', [req.params.id]);
   if (!customer) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Customer not found.' });
   const jobs = db.all(
-    `SELECT id, title, status, address, city, state, scheduled_date, created_at
+  const jobs = db.all(`SELECT id, title, status, address, city, state, created_at
      FROM jobs WHERE customer_id = ? ORDER BY created_at DESC`,
     [req.params.id]
   );
+  const fileCountCust = (db.get('SELECT COUNT(f.id) AS n FROM files f JOIN folders fl ON fl.id = f.folder_id WHERE fl.entity_type = ? AND fl.entity_id = ?', ['customer', customer.id]) || {}).n || 0;
   res.render('customers/show', {
     title: customer.name, activeNav: 'customers',
-    customer, jobs
+    customer, jobs, fileCount: fileCountCust
   });
 });
 

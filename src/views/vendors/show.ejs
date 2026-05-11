@@ -22,4 +22,9 @@
     </tbody></table><% } %>
   </div>
 </div>
-<%- include('../layouts/footer') %>
+  <div class="card p-5">
+    <h2 class="font-semibold mb-2">Files</h2>
+    <a href="/files/vendor/<%= vendor.id %>" class="text-sm text-recon-red hover:underline">📁 Files (<%= typeof fileCount !== 'undefined' ? fileCount : 0 %>) →</a>
+  </div>
+</div>
+<%- include("../layouts/footer") %>

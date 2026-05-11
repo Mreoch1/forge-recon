@@ -586,9 +586,10 @@ router.get('/:id', (req, res) => {
     );
   } catch (e) {}
 
+  const fileCountWO = (db.get('SELECT COUNT(f.id) AS n FROM files f JOIN folders fl ON fl.id = f.folder_id WHERE fl.entity_type = ? AND fl.entity_id = ?', ['work_order', wo.id]) || {}).n || 0;
   res.render('work-orders/show', {
     title: `WO-${wo.display_number}`, activeNav: 'work-orders',
-    wo, subs, estimate, invoice, notes, photos
+    wo, subs, estimate, invoice, notes, photos, fileCount: fileCountWO
   });
 });
 
