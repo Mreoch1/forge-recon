@@ -22,6 +22,7 @@
   .sc-day-num { font-size: .75rem; font-weight: 600; color: #333; margin-bottom: .15rem; }
   .sc-wo-pill { display: block; font-size: .6rem; padding: .1rem .25rem; margin-bottom: .1rem; border-radius: 3px; color: #fff; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: 1px solid rgba(0,0,0,.06); }
   .sc-wo-pill.sc-unassigned { color: #444 !important; background: repeating-linear-gradient(45deg, #f3f4f6 0 6px, #e5e7eb 6px 12px) !important; border-color: #d1d5db; }
+  .sc-closure-overlay { position: absolute; left: 0; right: 0; top: 0; bottom: 0; background: repeating-linear-gradient(45deg, transparent, transparent 6px, rgba(0,0,0,.03) 6px, rgba(0,0,0,.03) 12px); background-color: #f0f0f0; z-index: 0; pointer-events: none; display: flex; align-items: center; justify-content: center; font-size: .6rem; color: #999; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
   .sc-wo-pill:hover { opacity: .8; }
   .sc-wo-pill .sc-pill-num { font-family: ui-monospace,monospace; font-weight: 600; }
   .sc-wo-pill .sc-pill-init { font-size: .55rem; opacity: .7; }
@@ -126,6 +127,8 @@
         var isOther = !day.isThisMonth && !day.isToday;
       %>
         <div class="sc-month-day<%= isOther ? ' other-month' : '' %><%= day.isToday ? ' is-today' : '' %>" data-day-date="<%= day.date %>">
+          <% var dayClosures = closures.filter(function(c){ return c.date_start <= day.date && (!c.date_end || c.date_end >= day.date); }); %>
+          <% dayClosures.forEach(function(c){ %><div class="sc-closure-overlay"><%= c.name %></div><% }); %>
           <div class="sc-day-num"><%= day.num %></div>
           <%
           var dayWos = wos.filter(function(w){ return w.scheduled_date === day.date; });

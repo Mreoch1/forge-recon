@@ -38,6 +38,7 @@ const dashboardRoutes = require('./routes/dashboard');
 const accountingRoutes = require('./routes/accounting');
 const vendorsRoutes = require('./routes/vendors');
 const aiChatRoutes = require('./routes/ai-chat');
+const closuresRoutes = require('./routes/closures');
 
 const PORT = parseInt(process.env.PORT, 10) || 3001;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
@@ -73,7 +74,21 @@ async function main() {
       expires_at TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'pending'
     )`);
-  } catch(e) { console.error('Failed to create pending_confirmations table:', e.message); }
+  } catch(e) { console.error("Failed to create pending_confirmations table:", e.message); }
+
+  // Ensure closures table exists
+  try {
+    db.run(`CREATE TABLE IF NOT EXISTS closures (
+      id INTEGER PRIMARY KEY,
+      date_start TEXT NOT NULL,
+      date_end TEXT,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'holiday',
+      notes TEXT,
+      created_by_user_id INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`);
+  } catch(e) { console.error("Failed to create closures table:", e.message); }
 
   // Column migrations for existing databases
   try {
@@ -145,6 +160,7 @@ async function main() {
   app.use('/invoices', requireAuth, requireManager, invoicesRoutes);
   app.use('/bills', requireAuth, requireManager, billsRoutes);
   app.use('/admin', requireAuth, requireAdmin, adminRoutes);
+  app.use('/admin/closures', requireAuth, requireAdmin, closuresRoutes);
   // Work orders are worker-accessible (Round 4 will scope to assigned WOs only)
   app.use('/work-orders', requireAuth, workOrdersRoutes);
   app.use('/schedule', requireAuth, scheduleRoutes);

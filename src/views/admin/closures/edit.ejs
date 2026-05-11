@@ -1,0 +1,42 @@
+<%- include('../../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<div class="max-w-7xl mx-auto px-4 py-6">
+  <h1 class="page-h1 mb-4">Edit closure</h1>
+  <form method="post" action="/admin/closures/<%= closure.id %>" class="card p-6 max-w-lg space-y-4" style="display:flex;flex-direction:column;gap:1rem;">
+    <div>
+      <label class="label">Name</label>
+      <input type="text" name="name" value="<%= closure.name %>" class="input" required>
+      <% if (errors.name) { %><p class="text-red-500 text-sm mt-1"><%= errors.name %></p><% } %>
+    </div>
+    <div>
+      <label class="label">Type</label>
+      <select name="type" class="input">
+        <option value="holiday" <%= closure.type === 'holiday' ? 'selected' : '' %>>Holiday</option>
+        <option value="closure" <%= closure.type === 'closure' ? 'selected' : '' %>>Closure</option>
+        <option value="company_event" <%= closure.type === 'company_event' ? 'selected' : '' %>>Company event</option>
+      </select>
+    </div>
+    <div class="flex gap-4">
+      <div class="flex-1">
+        <label class="label">Start date</label>
+        <input type="date" name="date_start" value="<%= closure.date_start %>" class="input" required>
+        <% if (errors.date_start) { %><p class="text-red-500 text-sm mt-1"><%= errors.date_start %></p><% } %>
+      </div>
+      <div class="flex-1">
+        <label class="label">End date <span class="text-recon-fog">(optional)</span></label>
+        <input type="date" name="date_end" value="<%= closure.date_end || '' %>" class="input">
+      </div>
+    </div>
+    <div>
+      <label class="label">Notes</label>
+      <textarea name="notes" class="input" rows="2"><%= closure.notes || '' %></textarea>
+    </div>
+    <div class="flex gap-2">
+      <button type="submit" class="btn btn-primary">Save</button>
+      <a href="/admin/closures" class="btn btn-ghost">Cancel</a>
+    </div>
+  </form>
+  <form method="post" action="/admin/closures/<%= closure.id %>/delete" class="mt-4" onsubmit="return confirm('Delete <%= closure.name %>?')">
+    <button type="submit" class="btn btn-danger text-sm">Delete</button>
+  </form>
+</div>
+<%- include('../../layouts/footer') %>

@@ -184,6 +184,10 @@ router.get('/', (req, res) => {
     ORDER BY w.created_at DESC LIMIT 25
   `);
 
+  // Query closures intersecting the visible range
+  const closures = db.all(`SELECT * FROM closures WHERE date_start <= ? AND (date_end IS NULL OR date_end >= ?) ORDER BY date_start ASC`,
+    [weekEnd, weekStart]);
+
   // Compute conflicts
   const woConflicts = {};
   wos.forEach(wo => {
@@ -248,7 +252,7 @@ router.get('/', (req, res) => {
     today, nowOffset: nowOffset > 0 && nowOffset < 100 ? nowOffset : null,
     assigneeFilter, users, colorForStatus, getInitials, fmtDate, fmtMonth,
     HOURS_START, HOURS_END, HOUR_COUNT, TOTAL_MINUTES,
-    rawDate, woOverlaps, unscheduled,
+    rawDate, woOverlaps, unscheduled, closures,
   });
 });
 

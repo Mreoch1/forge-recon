@@ -1,0 +1,31 @@
+<%- include('../../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<div class="max-w-7xl mx-auto px-4 py-6">
+  <div class="flex items-baseline justify-between mb-4">
+    <div><h1 class="page-h1">Closures</h1><p class="page-sub"><%= closures.length %> total</p></div>
+    <a href="/admin/closures/new" class="btn btn-primary">+ New closure</a>
+  </div>
+  <div class="card overflow-hidden">
+    <% if (closures.length === 0) { %>
+      <div class="p-8 text-center text-recon-fog">No closures yet.</div>
+    <% } else { %>
+      <table class="data">
+        <thead><tr><th>Name</th><th>Type</th><th>Start</th><th>End</th><th>Notes</th><th></th></tr></thead>
+        <tbody>
+          <% closures.forEach(function(c){ %>
+            <tr>
+              <td class="font-medium"><%= c.name %></td>
+              <td><span class="badge badge-<%= c.type %>"><%= c.type %></span></td>
+              <td><%= (c.date_start || '').slice(0,10) %></td>
+              <td><%= (c.date_end || '—').slice(0,10) %></td>
+              <td class="text-sm text-recon-fog"><%= c.notes || '—' %></td>
+              <td class="text-right">
+                <a href="/admin/closures/<%= c.id %>/edit" class="text-sm text-recon-fog hover:text-recon-red">Edit</a>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+</div>
+<%- include('../../layouts/footer') %>

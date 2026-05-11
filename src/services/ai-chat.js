@@ -15,6 +15,18 @@ const db = require('../db/db');
 
 const MAX_HISTORY = 20;
 
+const FALSE_PROMISE_PATTERNS = [
+  /let me (check|look|search|find|see)/i,
+  /one moment/i,
+  /hold on/i,
+  /i('ll| will) (check|look up|search|find|see)/i,
+  /(checking|searching|looking|fetching) (now|that|for you)/i,
+];
+
+function hasFalsePromise(reply) {
+  return FALSE_PROMISE_PATTERNS.some(function(re) { return re.test(reply || ''); });
+}
+
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -222,8 +234,40 @@ async function chat({ message, history, ctx }) {
       finalChips = parsed2.chips || parsed1.chips || [];
     }
   } else {
-    finalReply = parsed1.reply || 'I understood your request but I\'m not sure how to help with that.';
-    finalChips = parsed1.chips || [];
+    // Auto-chain: detect false promises and re-feed LLM
+    let chainCount = 0;
+    let currentReply2 = parsed1.reply || '';
+    let currentToolCalls = parsed1.tool_calls || [];
+    while (chainCount < 3 && hasFalsePromise(currentReply2) && currentToolCalls.length === 0) {
+      messages.push({ role: 'assistant', content: JSON.stringify({ reply: currentReply2, tool_calls: currentToolCalls, chips: parsed1.chips || [] }) });
+      messages.push({ role: 'user', content: 'You said you would check. Please call the appropriate tool NOW and give me the actual data, not another promise.' });
+      const chainResp = await callLLM(messages, ctx.userId);
+      tokensUsed += chainResp.tokens || 0;
+      const chainParsed = parseResponse(chainResp.text);
+      currentReply2 = chainParsed.reply || currentReply2;
+      currentToolCalls = chainParsed.tool_calls || [];
+      if (currentToolCalls.length > 0) break;
+      chainCount++;
+    }
+    if (currentToolCalls.length > 0) {
+      // Execute tools from auto-chain
+      const toolResults2 = [];
+      for (const tc of currentToolCalls) {
+        const result = tools.call(tc.tool, tc.args || {}, ctx);
+        allToolCalls.push({ tool: tc.tool, args: tc.args, result: result.ok ? result.result : { error: result.error } });
+        toolResults2.push({ tool: tc.tool, args: tc.args, result: result.ok ? result.result : null, error: result.ok ? null : result.error });
+      }
+      messages.push({ role: 'assistant', content: JSON.stringify({ reply: currentReply2, tool_calls: currentToolCalls }) });
+      messages.push({ role: 'user', content: 'Tool results:\n' + JSON.stringify(toolResults2, null, 2) + '\n\nNow write your final answer. Remember to include navigation chips where appropriate.' });
+      const chainResp2 = await callLLM(messages, ctx.userId);
+      tokensUsed += chainResp2.tokens || 0;
+      const chainParsed2 = parseResponse(chainResp2.text);
+      finalReply = chainParsed2.reply || currentReply2;
+      finalChips = chainParsed2.chips || [];
+    } else {
+      finalReply = currentReply2;
+      finalChips = parsed1.chips || [];
+    }
   }
 
   const latencyMs = Date.now() - startTime;

@@ -103,6 +103,9 @@
   .sc-view-toggle a:hover { color: #555; }
   .sc-view-toggle a.active { color: #c0202b; border-bottom-color: #c0202b; }
   .sc-view-toggle .sc-toggle-sep { width: 1px; height: 16px; background: #d0d0d0; flex-shrink: 0; }
+  /* Closures overlay */
+  .sc-closure-overlay { position: absolute; left: 0; right: 0; top: 0; bottom: 0; background: repeating-linear-gradient(45deg, transparent, transparent 6px, rgba(0,0,0,.03) 6px, rgba(0,0,0,.03) 12px); background-color: #f0f0f0; z-index: 0; pointer-events: none; display: flex; align-items: center; justify-content: center; font-size: .7rem; color: #999; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; }
+
   /* Initial chip */
   .sc-init-chip { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; background: rgba(255,255,255,.3); color: #fff; font-size: .5rem; font-weight: 700; display: flex; align-items: center; justify-content: center; line-height: 1; pointer-events: none; }
   .sc-init-chip:hover { display: none; }
@@ -180,6 +183,8 @@
       <!-- Day columns -->
       <% days.forEach(function(day){ %>
         <div class="sc-day-col<%= day.isToday ? ' is-today' : '' %>" data-day-date="<%= day.date %>">
+          <% var dayClosures = closures.filter(function(c){ return c.date_start <= day.date && (!c.date_end || c.date_end >= day.date); }); %>
+          <% dayClosures.forEach(function(c){ %><div class="sc-closure-overlay"><%= c.name %></div><% }); %>
           <div class="sc-day-header<%= day.isToday ? ' is-today' : '' %>">
             <%= day.label %>
             <span class="sc-day-num"><%= day.num %></span>

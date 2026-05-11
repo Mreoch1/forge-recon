@@ -123,7 +123,8 @@
               <a href="/accounting" class="block px-4 py-2 text-sm text-recon-mist hover:bg-recon-ash transition<%= typeof activeNav !== 'undefined' && activeNav === 'accounting' ? ' bg-recon-red text-white hover:bg-recon-red' : '' %>">Accounting</a>
               <% if (currentUser.role === 'admin') { %>
                 <div class="border-t border-recon-ash my-1"></div>
-                <a href="/admin/users" class="block px-4 py-2 text-sm text-recon-mist hover:bg-recon-ash transition<%= typeof activeNav !== 'undefined' && activeNav === 'admin' ? ' bg-recon-red text-white hover:bg-recon-red' : '' %>">Admin</a>
+                <a href="/admin/users" class="block px-4 py-2 text-sm text-recon-mist hover:bg-recon-ash transition">Users</a>
+                <a href="/admin/closures" class="block px-4 py-2 text-sm text-recon-mist hover:bg-recon-ash transition">Closures</a>
               <% } %>
             </div>
           </div>
