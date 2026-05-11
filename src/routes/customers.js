@@ -116,7 +116,6 @@ router.post('/', (req, res) => {
 router.get('/:id', (req, res) => {
   const customer = db.get('SELECT * FROM customers WHERE id = ?', [req.params.id]);
   if (!customer) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Customer not found.' });
-  const jobs = db.all(
   const jobs = db.all(`SELECT id, title, status, address, city, state, created_at
      FROM jobs WHERE customer_id = ? ORDER BY created_at DESC`,
     [req.params.id]
