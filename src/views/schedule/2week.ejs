@@ -169,8 +169,7 @@
       </div>
       <% weekDays.forEach(function(day){ %>
         <div class="sc-day-col<%= day.isToday ? ' is-today' : '' %>" data-day-date="<%= day.date %>">
-          <% var dayClosures = closures.filter(function(c){ return c.date_start <= day.date && (!c.date_end || c.date_end >= day.date); }); %>
-          <% dayClosures.forEach(function(c){ %><div class="sc-closure-overlay"><%= c.name %></div><% }); %>
+          <% if (typeof closureByDate !== 'undefined' && closureByDate[day.date]) { %><div class="sc-closure-overlay"><%= closureByDate[day.date] %></div><% } %>
           <div class="sc-day-header<%= day.isToday ? ' is-today' : '' %>">
             <%= day.label %> <span class="sc-day-num"><%= day.num %></span>
           </div>

@@ -185,8 +185,20 @@ router.get('/', (req, res) => {
   `);
 
   // Query closures intersecting the visible range
-  const closures = db.all(`SELECT * FROM closures WHERE date_start <= ? AND (date_end IS NULL OR date_end >= ?) ORDER BY date_start ASC`,
+  const closures = db.all(`SELECT * FROM closures WHERE date(date_start) <= date(?) AND date(COALESCE(date_end, date_start)) >= date(?) ORDER BY date_start ASC`,
     [weekEnd, weekStart]);
+
+  // Build date->name map (expands multi-day closures)
+  const closureByDate = {};
+  closures.forEach(function(c) {
+    var end = c.date_end || c.date_start;
+    var d = new Date(c.date_start);
+    var stop = new Date(end);
+    while (d <= stop) {
+      closureByDate[d.toISOString().slice(0, 10)] = c.name;
+      d.setDate(d.getDate() + 1);
+    }
+  });
 
   // Compute conflicts
   const woConflicts = {};
@@ -252,7 +264,7 @@ router.get('/', (req, res) => {
     today, nowOffset: nowOffset > 0 && nowOffset < 100 ? nowOffset : null,
     assigneeFilter, users, colorForStatus, getInitials, fmtDate, fmtMonth,
     HOURS_START, HOURS_END, HOUR_COUNT, TOTAL_MINUTES,
-    rawDate, woOverlaps, unscheduled, closures,
+    rawDate, woOverlaps, unscheduled, closures, closureByDate,
   });
 });
 

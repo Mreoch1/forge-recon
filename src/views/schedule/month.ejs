@@ -127,8 +127,7 @@
         var isOther = !day.isThisMonth && !day.isToday;
       %>
         <div class="sc-month-day<%= isOther ? ' other-month' : '' %><%= day.isToday ? ' is-today' : '' %>" data-day-date="<%= day.date %>">
-          <% var dayClosures = closures.filter(function(c){ return c.date_start <= day.date && (!c.date_end || c.date_end >= day.date); }); %>
-          <% dayClosures.forEach(function(c){ %><div class="sc-closure-overlay"><%= c.name %></div><% }); %>
+          <% if (typeof closureByDate !== 'undefined' && closureByDate[day.date]) { %><div class="sc-closure-overlay"><%= closureByDate[day.date] %></div><% } %>
           <div class="sc-day-num"><%= day.num %></div>
           <%
           var dayWos = wos.filter(function(w){ return w.scheduled_date === day.date; });
