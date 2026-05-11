@@ -33,6 +33,18 @@
     .btn-primary:hover { background: #8a0e16; }
     .btn-ghost { background: transparent; color: #1a1a1a; }
     .btn-ghost:hover { background: #e5e5e5; }
+    .pw-check { font-size: 0.8rem; transition: color 0.2s; color: #9ca3af; }
+    .pw-check.met { color: #16a34a; }
+    .pw-check::before { content: '○ '; }
+    .pw-check.met::before { content: '✓ '; }
+    .pw-wrapper { position: relative; }
+    .pw-wrapper input { padding-right: 2.5rem; }
+    .pw-toggle {
+      position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%);
+      background: none; border: none; cursor: pointer; color: #9ca3af; font-size: 1.1rem;
+      padding: 0.25rem; line-height: 1;
+    }
+    .pw-toggle:hover { color: #1a1a1a; }
   </style>
 </head>
 <body class="flex items-center justify-center min-h-screen p-4">
@@ -62,12 +74,24 @@
       </div>
       <div>
         <label for="password" class="label">Password</label>
-        <input id="password" name="password" type="password" class="input" required autocomplete="new-password">
-        <p class="text-xs text-gray-400 mt-1">Min 8 chars, uppercase, lowercase, number, special char.</p>
+        <div class="pw-wrapper">
+          <input id="password" name="password" type="password" class="input" required autocomplete="new-password" oninput="checkPassword(this.value)">
+          <button type="button" class="pw-toggle" onclick="togglePW('password', this)" tabindex="-1" aria-label="Show password">👁</button>
+        </div>
+        <div class="mt-2 space-y-0.5">
+          <div class="pw-check" id="pw-length">At least 8 characters</div>
+          <div class="pw-check" id="pw-upper">One uppercase letter</div>
+          <div class="pw-check" id="pw-lower">One lowercase letter</div>
+          <div class="pw-check" id="pw-number">One number</div>
+          <div class="pw-check" id="pw-special">One special character</div>
+        </div>
       </div>
       <div>
         <label for="password_confirm" class="label">Confirm password</label>
-        <input id="password_confirm" name="password_confirm" type="password" class="input" required autocomplete="new-password">
+        <div class="pw-wrapper">
+          <input id="password_confirm" name="password_confirm" type="password" class="input" required autocomplete="new-password">
+          <button type="button" class="pw-toggle" onclick="togglePW('password_confirm', this)" tabindex="-1" aria-label="Show password">👁</button>
+        </div>
       </div>
       <button type="submit" class="btn btn-primary w-full justify-center">Create account</button>
     </form>
@@ -77,5 +101,25 @@
       <a href="/login" class="text-[#c0202b] hover:underline font-medium">Sign in</a>
     </p>
   </div>
+
+  <script>
+    function checkPassword(pw) {
+      document.getElementById('pw-length').classList.toggle('met', pw.length >= 8);
+      document.getElementById('pw-upper').classList.toggle('met', /[A-Z]/.test(pw));
+      document.getElementById('pw-lower').classList.toggle('met', /[a-z]/.test(pw));
+      document.getElementById('pw-number').classList.toggle('met', /[0-9]/.test(pw));
+      document.getElementById('pw-special').classList.toggle('met', /[^A-Za-z0-9]/.test(pw));
+    }
+    function togglePW(id, btn) {
+      const inp = document.getElementById(id);
+      if (inp.type === 'password') {
+        inp.type = 'text';
+        btn.textContent = '🙈';
+      } else {
+        inp.type = 'password';
+        btn.textContent = '👁';
+      }
+    }
+  </script>
 </body>
 </html>
