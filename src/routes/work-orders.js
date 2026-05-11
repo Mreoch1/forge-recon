@@ -587,6 +587,7 @@ router.get('/:id', async (req, res) => {
       const url = await storage.getPublicUrl('wo-photos', p.filename);
       return { ...p, url };
     } catch {
+      console.warn('[wo-photos] failed to resolve public URL for', p.filename);
       return { ...p, url: '#' };
     }
   }));
