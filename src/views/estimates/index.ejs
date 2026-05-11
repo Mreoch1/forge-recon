@@ -22,6 +22,14 @@ const showPrices = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
   </div>
 
   <form method="get" action="/estimates" class="list-utility-bar">
+    <div class="flex items-center gap-1">
+      <a href="/estimates?archived=0<%= q ? '&q='+encodeURIComponent(q) : '' %><%= status ? '&status='+encodeURIComponent(status) : '' %>"
+         class="btn <%= archiveFilter === '0' ? 'btn-primary' : 'btn-ghost' %>">Active</a>
+      <a href="/estimates?archived=1<%= q ? '&q='+encodeURIComponent(q) : '' %><%= status ? '&status='+encodeURIComponent(status) : '' %>"
+         class="btn <%= archiveFilter === '1' ? 'btn-primary' : 'btn-ghost' %>">Archived</a>
+      <a href="/estimates?archived=all<%= q ? '&q='+encodeURIComponent(q) : '' %><%= status ? '&status='+encodeURIComponent(status) : '' %>"
+         class="btn <%= archiveFilter === 'all' ? 'btn-primary' : 'btn-ghost' %>">All</a>
+    </div>
     <input type="text" name="q" value="<%= q %>" placeholder="Search number, job, customer..." class="list-search">
     <select name="status" class="list-filter">
       <option value="">All statuses</option>
@@ -57,6 +65,7 @@ const showPrices = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
             <% if (showPrices) { %><th class="text-right">Margin</th><% } %>
             <th>Valid until</th>
             <th>Created</th>
+            <% if (archiveFilter !== '0') { %><th></th><% } %>
           </tr>
         </thead>
         <tbody>
@@ -70,6 +79,9 @@ const showPrices = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
               <% if (showPrices) { %><td class="text-right" style="color:<%= (Number(e.cost_total)||0) > 0 && (Number(e.subtotal)||0) > (Number(e.cost_total)||0) ? '#065f46' : '#991b1b' %>"><%= calcMargin(e) %></td><% } %>
               <td><%= (e.valid_until || '&mdash;').slice(0,10) %></td>
               <td><%= (e.created_at || '').slice(0,10) %></td>
+              <% if (archiveFilter !== '0') { %>
+                <td><% if (e.archived_at) { %><span class="badge badge-archived">archived</span><% } %></td>
+              <% } %>
             </tr>
           <% }); %>
         </tbody>

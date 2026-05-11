@@ -54,6 +54,17 @@ const roi = costTotal > 0 ? ((margin / costTotal) * 100).toFixed(1) : '&mdash;';
           <button class="btn btn-primary">Generate invoice</button>
         </form>
       <% } %>
+      <% if (!estimate.archived_at) { %>
+        <form action="/estimates/<%= estimate.id %>/archive" method="post" class="m-0 inline"
+              onsubmit="return confirm('Close <%= estimate.display_number %>?');">
+          <button class="btn btn-danger">Close estimate</button>
+        </form>
+      <% } else if (currentUser.role === 'admin') { %>
+        <form action="/estimates/<%= estimate.id %>/unarchive" method="post" class="m-0 inline"
+              onsubmit="return confirm('Unarchive <%= estimate.display_number %>?');">
+          <button class="btn btn-ghost">Unarchive</button>
+        </form>
+      <% } %>
     </div>
   </div>
 
@@ -139,6 +150,9 @@ const roi = costTotal > 0 ? ((margin / costTotal) * 100).toFixed(1) : '&mdash;';
         <% } %>
         <% if (estimate.accepted_at) { %>
           <div><dt class="text-recon-fog text-xs inline">Accepted:</dt> <dd class="inline"><%= estimate.accepted_at %></dd></div>
+        <% } %>
+        <% if (estimate.archived_at) { %>
+          <div><dt class="text-recon-fog text-xs inline">Archived:</dt> <dd class="inline"><%= estimate.archived_at %></dd></div>
         <% } %>
       </dl>
     </div>

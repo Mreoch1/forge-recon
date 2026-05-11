@@ -115,6 +115,7 @@ function loadEstimate(id) {
 router.get('/', (req, res) => {
   const q = (req.query.q || '').trim();
   const status = (req.query.status || '').trim();
+  const archiveFilter = (req.query.archived || '0'); // 0=active, 1=archived, all=both
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
 
@@ -128,6 +129,11 @@ router.get('/', (req, res) => {
   if (status && VALID_STATUSES.includes(status)) {
     conds.push('e.status = ?');
     params.push(status);
+  }
+  if (archiveFilter === '0') {
+    conds.push('e.archived_at IS NULL');
+  } else if (archiveFilter === '1') {
+    conds.push('e.archived_at IS NOT NULL');
   }
   const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
 
@@ -158,7 +164,8 @@ router.get('/', (req, res) => {
     title: 'Estimates', activeNav: 'estimates',
     estimates, q, status, page,
     totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
-    total, statuses: VALID_STATUSES, canSeePrices: true
+    total, statuses: VALID_STATUSES, canSeePrices: true,
+    archiveFilter,
   });
 });
 
@@ -269,6 +276,50 @@ router.post('/:id/send', async (req, res, next) => {
 
 router.post('/:id/accept', (req, res) => statusTransition(req, res, 'sent', 'accepted', 'accepted_at'));
 router.post('/:id/reject', (req, res) => statusTransition(req, res, 'sent', 'rejected', null));
+
+// Archive / close
+router.post('/:id/archive', (req, res) => {
+  const est = loadEstimate(req.params.id);
+  if (!est) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
+  if (est.archived_at) {
+    setFlash(req, 'info', `${est.display_number} is already archived.`);
+    return res.redirect(`/estimates/${est.id}`);
+  }
+  let newStatus = est.status;
+  if (est.status === 'draft' || est.status === 'sent') { newStatus = 'expired'; }
+  db.transaction(() => {
+    db.run('UPDATE estimates SET archived_at = now(), status = ?, updated_at = now() WHERE id = ?', [newStatus, est.id]);
+    try {
+      const { writeAudit } = require('../services/audit');
+      writeAudit({ entityType: 'estimate', entityId: est.id, action: 'archived', before: { status: est.status }, after: { status: newStatus, archived_at: 'now' }, source: 'web', userId: req.session.userId });
+    } catch(e) { console.error('audit failed:', e.message); }
+  });
+  setFlash(req, 'success', `${est.display_number} archived.`);
+  res.redirect('/estimates');
+});
+
+// Admin unarchive
+router.post('/:id/unarchive', (req, res) => {
+  if (req.session.role !== 'admin') {
+    setFlash(req, 'error', 'Only admins can unarchive estimates.');
+    return res.redirect(`/estimates/${req.params.id}`);
+  }
+  const est = loadEstimate(req.params.id);
+  if (!est) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
+  if (!est.archived_at) {
+    setFlash(req, 'info', `${est.display_number} is not archived.`);
+    return res.redirect(`/estimates/${est.id}`);
+  }
+  db.transaction(() => {
+    db.run('UPDATE estimates SET archived_at = NULL, updated_at = now() WHERE id = ?', [est.id]);
+    try {
+      const { writeAudit } = require('../services/audit');
+      writeAudit({ entityType: 'estimate', entityId: est.id, action: 'unarchived', before: { archived_at: est.archived_at }, after: { archived_at: null }, source: 'web', userId: req.session.userId });
+    } catch(e) { console.error('audit failed:', e.message); }
+  });
+  setFlash(req, 'success', `${est.display_number} unarchived.`);
+  res.redirect(`/estimates/${est.id}`);
+});
 
 // Generate invoice from accepted estimate — first redirects to line-selection page
 router.post('/:id/generate-invoice', (req, res) => {

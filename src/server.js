@@ -103,6 +103,7 @@ async function main() {
       {table: 'invoices', col: 'sent_by_user_id', type: 'INTEGER'},
       {table: 'invoices', col: 'sent_to_email', type: 'TEXT'},
       {table: 'invoices', col: 'sent_to_name', type: 'TEXT'},
+      {table: 'estimates', col: 'archived_at', type: 'TEXT'},
     ];
     bootMigrations.forEach(m => {
       const existing = db.all('PRAGMA table_info(' + m.table + ')');
