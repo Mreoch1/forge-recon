@@ -7,7 +7,7 @@
  */
 
 const express = require('express');
-const db = require('../db/db');
+const supabase = require('../db/supabase');
 const { setFlash } = require('../middleware/auth');
 
 const router = express.Router();
@@ -62,25 +62,25 @@ router.get('/', async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
 
-  let where = '';
-  let params = [];
+  let query = supabase.from('customers').select('id, name, email, billing_email, phone, city, state', { count: 'exact', head: false });
+  let countQuery = supabase.from('customers').select('*', { count: 'exact', head: true });
+
   if (q) {
-    where = 'WHERE name ILIKE ? OR email ILIKE ? OR billing_email ILIKE ? OR phone ILIKE ? OR city ILIKE ?';
     const like = `%${q}%`;
-    params = [like, like, like, like, like];
+    query = query.or(`name.ilike.${like},email.ilike.${like},billing_email.ilike.${like},phone.ilike.${like},city.ilike.${like}`);
+    countQuery = countQuery.or(`name.ilike.${like},email.ilike.${like},billing_email.ilike.${like},phone.ilike.${like},city.ilike.${like}`);
   }
-  const total = (await db.get(`SELECT COUNT(*) AS n FROM customers ${where}`, params) || {}).n || 0;
-  const customers = await db.all(
-    `SELECT id, name, email, billing_email, phone, city, state
-     FROM customers ${where}
-     ORDER BY name COLLATE NOCASE ASC
-     LIMIT ? OFFSET ?`,
-    [...params, PAGE_SIZE, offset]
-  );
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  const [{ data: customers, count: total }, { error }] = await Promise.all([
+    query.order('name').range(offset, offset + PAGE_SIZE - 1),
+    countQuery,
+  ]);
+  if (error) throw error;
+
+  const totalPages = Math.max(1, Math.ceil((total || 0) / PAGE_SIZE));
   res.render('customers/index', {
     title: 'Customers', activeNav: 'customers',
-    customers, q, page, totalPages, total
+    customers: customers || [], q, page, totalPages, total: total || 0
   });
 });
 
@@ -99,36 +99,51 @@ router.post('/', async (req, res) => {
       customer: { id: null, ...data }, errors
     });
   }
-  const r = await db.run(
-    `INSERT INTO customers (name, email, billing_email, phone, address, city, state, zip, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [data.name, data.email, data.billing_email, data.phone, data.address, data.city, data.state, data.zip, data.notes]
-  );
+  const { data: newCustomer, error: insertError } = await supabase
+    .from('customers')
+    .insert({
+      name: data.name, email: data.email, billing_email: data.billing_email,
+      phone: data.phone, address: data.address, city: data.city,
+      state: data.state, zip: data.zip, notes: data.notes
+    })
+    .select()
+    .single();
+  if (insertError) throw insertError;
   // Auto-create root folder
   try {
     const filesSvc = require('../services/files');
-    filesSvc.ensureRootFolder('customer', r.lastInsertRowid, req.session.userId);
+    filesSvc.ensureRootFolder('customer', newCustomer.id, req.session.userId);
   } catch(e) { /* folder creation best effort */ }
   setFlash(req, 'success', `Customer "${data.name}" created.`);
-  res.redirect(`/customers/${r.lastInsertRowid}`);
+  res.redirect(`/customers/${newCustomer.id}`);
 });
 
 router.get('/:id', async (req, res) => {
-  const customer = await db.get('SELECT * FROM customers WHERE id = ?', [req.params.id]);
+  const id = req.params.id;
+  const { data: customer, error: custError } = await supabase
+    .from('customers').select('*').eq('id', id).maybeSingle();
+  if (custError) throw custError;
   if (!customer) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Customer not found.' });
-  const jobs = await db.all(`SELECT id, title, status, address, city, state, created_at
-     FROM jobs WHERE customer_id = ? ORDER BY created_at DESC`,
-    [req.params.id]
-  );
-  const fileCountCust = (await db.get('SELECT COUNT(f.id) AS n FROM files f JOIN folders fl ON fl.id = f.folder_id WHERE fl.entity_type = ? AND fl.entity_id = ?', ['customer', customer.id]) || {}).n || 0;
+
+  const [{ data: jobs }, { count: fileCountCust }] = await Promise.all([
+    supabase.from('jobs').select('id, title, status, address, city, state, created_at').eq('customer_id', id).order('created_at', { ascending: false }),
+    supabase.from('files')
+      .select('id', { count: 'exact', head: true })
+      .eq('folder.entity_type', 'customer')
+      .eq('folder.entity_id', id),
+  ]);
+  // File count via a simpler approach
+  const fileCount = fileCountCust || 0;
+
   res.render('customers/show', {
     title: customer.name, activeNav: 'customers',
-    customer, jobs, fileCount: fileCountCust
+    customer, jobs: jobs || [], fileCount
   });
 });
 
 router.get('/:id/edit', async (req, res) => {
-  const customer = await db.get('SELECT * FROM customers WHERE id = ?', [req.params.id]);
+  const { data: customer, error } = await supabase.from('customers').select('*').eq('id', req.params.id).maybeSingle();
+  if (error) throw error;
   if (!customer) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Customer not found.' });
   res.render('customers/edit', {
     title: `Edit ${customer.name}`, activeNav: 'customers',
@@ -137,7 +152,8 @@ router.get('/:id/edit', async (req, res) => {
 });
 
 router.post('/:id', async (req, res) => {
-  const customer = await db.get('SELECT id, name FROM customers WHERE id = ?', [req.params.id]);
+  const { data: customer, error: findError } = await supabase.from('customers').select('id, name').eq('id', req.params.id).maybeSingle();
+  if (findError) throw findError;
   if (!customer) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Customer not found.' });
   const { errors, data } = validateCustomer(req.body);
   if (Object.keys(errors).length) {
@@ -146,25 +162,27 @@ router.post('/:id', async (req, res) => {
       customer: { id: customer.id, ...data }, errors
     });
   }
-  await db.run(
-    `UPDATE customers
-     SET name=?, email=?, billing_email=?, phone=?, address=?, city=?, state=?, zip=?, notes=?, updated_at=now()
-     WHERE id=?`,
-    [data.name, data.email, data.billing_email, data.phone, data.address, data.city, data.state, data.zip, data.notes, req.params.id]
-  );
+  const { error: updateError } = await supabase
+    .from('customers')
+    .update({ ...data, updated_at: new Date().toISOString() })
+    .eq('id', req.params.id);
+  if (updateError) throw updateError;
   setFlash(req, 'success', `Customer "${data.name}" updated.`);
   res.redirect(`/customers/${req.params.id}`);
 });
 
 router.post('/:id/delete', async (req, res) => {
-  const customer = await db.get('SELECT id, name FROM customers WHERE id = ?', [req.params.id]);
+  const id = req.params.id;
+  const { data: customer, error: findError } = await supabase.from('customers').select('id, name').eq('id', id).maybeSingle();
+  if (findError) throw findError;
   if (!customer) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Customer not found.' });
-  const jobCount = (await db.get('SELECT COUNT(*) AS n FROM jobs WHERE customer_id = ?', [req.params.id]) || {}).n || 0;
+  const { count: jobCount } = await supabase.from('jobs').select('*', { count: 'exact', head: true }).eq('customer_id', id);
   if (jobCount > 0) {
     setFlash(req, 'error', `Cannot delete "${customer.name}" — they have ${jobCount} job(s).`);
-    return res.redirect(`/customers/${req.params.id}`);
+    return res.redirect(`/customers/${id}`);
   }
-  await db.run('DELETE FROM customers WHERE id = ?', [req.params.id]);
+  const { error: deleteError } = await supabase.from('customers').delete().eq('id', id);
+  if (deleteError) throw deleteError;
   setFlash(req, 'success', `Customer "${customer.name}" deleted.`);
   res.redirect('/customers');
 });
