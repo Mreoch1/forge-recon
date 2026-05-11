@@ -9,10 +9,11 @@
  *   bills        — private, signed URLs (bill attachments)
  */
 const { createClient } = require('@supabase/supabase-js');
+const WebSocket = require('ws');
 
 const SUPA_URL = process.env.SUPABASE_URL;
 const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY;
-const supa = SUPA_URL && SUPA_KEY ? createClient(SUPA_URL, SUPA_KEY) : null;
+const supa = SUPA_URL && SUPA_KEY ? createClient(SUPA_URL, SUPA_KEY, { realtime: { transport: WebSocket } }) : null;
 
 async function uploadBuffer(bucket, key, buffer, contentType) {
   if (!supa) throw new Error('Supabase not configured (SUPABASE_URL + key required)');

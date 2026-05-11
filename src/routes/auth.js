@@ -11,6 +11,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const db = require('../db/db');
+const supabase = require('../db/supabase');
 const { setFlash } = require('../middleware/auth');
 const emailService = require('../services/email');
 
@@ -41,10 +42,13 @@ router.post('/login', async (req, res) => {
     });
   }
 
-  const user = await db.get(
-    'SELECT * FROM users WHERE email = ? AND active = 1',
-    [email]
-  );
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('email', email)
+    .eq('active', 1)
+    .maybeSingle();
+  if (error) throw error;
 
   const ok = user ? await bcrypt.compare(password, user.password_hash) : false;
   if (!user || !ok) {
@@ -91,16 +95,22 @@ router.post('/forgot-password', async (req, res) => {
     });
   }
 
-  const user = await db.get('SELECT id, name, email FROM users WHERE email = ? AND active = 1', [email]);
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('id, name, email')
+    .eq('email', email)
+    .eq('active', 1)
+    .maybeSingle();
+  if (error) throw error;
 
   if (user) {
     // Generate reset token
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 3600000).toISOString();
-    await db.run(
-      `INSERT INTO password_reset_tokens (user_id, token, expires_at, created_at) VALUES (?, ?, ?, now())`,
-      [user.id, token, expiresAt]
-    );
+    const { error: insertError } = await supabase
+      .from('password_reset_tokens')
+      .insert({ user_id: user.id, token, expires_at: expiresAt, created_at: new Date().toISOString() });
+    if (insertError) throw insertError;
 
     // Send email
     const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
@@ -129,12 +139,15 @@ router.post('/forgot-password', async (req, res) => {
 router.get('/reset-password/:token', async (req, res) => {
   if (req.session && req.session.userId) return res.redirect('/');
   const token = req.params.token;
-  const isPg = db.getMode() === 'pg';
-  const expiryWhere = isPg ? 'expires_at > now()' : "datetime(expires_at) > datetime('now')";
-  const row = await db.get(
-    `SELECT * FROM password_reset_tokens WHERE token = ? AND used_at IS NULL AND ${expiryWhere}`,
-    [token]
-  );
+  const now = new Date().toISOString();
+  const { data: row, error } = await supabase
+    .from('password_reset_tokens')
+    .select('*')
+    .eq('token', token)
+    .is('used_at', null)
+    .gt('expires_at', now)
+    .maybeSingle();
+  if (error) throw error;
   if (!row) {
     return res.status(400).render('error', {
       title: 'Invalid link',
@@ -149,12 +162,15 @@ router.get('/reset-password/:token', async (req, res) => {
 
 router.post('/reset-password/:token', async (req, res) => {
   const token = req.params.token;
-  const isPg = db.getMode() === 'pg';
-  const expiryWhere = isPg ? 'expires_at > now()' : "datetime(expires_at) > datetime('now')";
-  const row = await db.get(
-    `SELECT * FROM password_reset_tokens WHERE token = ? AND used_at IS NULL AND ${expiryWhere}`,
-    [token]
-  );
+  const now = new Date().toISOString();
+  const { data: row, error } = await supabase
+    .from('password_reset_tokens')
+    .select('*')
+    .eq('token', token)
+    .is('used_at', null)
+    .gt('expires_at', now)
+    .maybeSingle();
+  if (error) throw error;
   if (!row) {
     return res.status(400).render('error', { title: 'Invalid link', code: 400, message: 'This reset link is invalid or expired.', actionLink: '/forgot-password', actionLabel: 'Request a new one' });
   }
@@ -176,8 +192,16 @@ router.post('/reset-password/:token', async (req, res) => {
   }
 
   const hash = await bcrypt.hash(password, 10);
-  await db.run('UPDATE users SET password_hash = ? WHERE id = ?', [hash, row.user_id]);
-  await db.run('UPDATE password_reset_tokens SET used_at = now() WHERE id = ?', [row.id]);
+  const { error: updateUserError } = await supabase
+    .from('users')
+    .update({ password_hash: hash })
+    .eq('id', row.user_id);
+  if (updateUserError) throw updateUserError;
+  const { error: updateTokenError } = await supabase
+    .from('password_reset_tokens')
+    .update({ used_at: new Date().toISOString() })
+    .eq('id', row.id);
+  if (updateTokenError) throw updateTokenError;
 
   try {
     const { writeAudit } = require('../services/audit');

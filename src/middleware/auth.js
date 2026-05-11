@@ -13,6 +13,7 @@
  */
 
 const db = require('../db/db');
+const supabase = require('../db/supabase');
 
 const asyncHandler = require('./async-handler');
 
@@ -49,10 +50,13 @@ const loadCurrentUser = asyncHandler(async (req, res, next) => {
   if (req.session) delete req.session.flash;
 
   if (req.session && req.session.userId) {
-    const user = await db.get(
-      'SELECT id, email, name, role FROM users WHERE id = ? AND active = 1',
-      [req.session.userId]
-    );
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, email, name, role')
+      .eq('id', req.session.userId)
+      .eq('active', 1)
+      .maybeSingle();
+    if (error) throw error;
     if (user) {
       res.locals.currentUser = user;
       res.locals.canSeePrices = ['admin', 'manager'].includes(user.role);
