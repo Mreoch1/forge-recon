@@ -53,6 +53,18 @@
   /* Empty state */
   .sc-empty { text-align: center; padding: 3rem 1rem; color: #999; grid-column: 1 / -1; }
 
+  /* Confirm card */
+  .sc-confirm-card { background: #fff; border: 2px dashed #c0202b; border-radius: 8px; padding: .75rem; width: 280px; z-index: 2000; box-shadow: 0 4px 16px rgba(0,0,0,.15); font-size: .78rem; line-height: 1.5; }
+  .sc-confirm-card .scc-header { font-weight: 700; margin-bottom: .4rem; color: #1a1a1a; }
+  .sc-confirm-card .scc-row { margin-bottom: .15rem; color: #444; }
+  .sc-confirm-card .scc-label { color: #888; display: inline-block; width: 2.8rem; }
+  .sc-confirm-card .scc-conflicts { margin: .4rem 0; padding: .35rem; background: #fef3c7; border-radius: 4px; font-size: .7rem; color: #92400e; }
+  .sc-confirm-card .scc-conflict { margin-bottom: .1rem; }
+  .sc-confirm-card .scc-actions { display: flex; gap: .5rem; margin-top: .5rem; }
+  .sc-confirm-card .scc-confirm { padding: .35rem 1rem; background: #c0202b; color: #fff; border: none; border-radius: 4px; font-size: .78rem; cursor: pointer; }
+  .sc-confirm-card .scc-cancel { padding: .35rem 1rem; background: transparent; border: 1px solid #ccc; border-radius: 4px; font-size: .78rem; cursor: pointer; }
+  .sc-confirm-card .scc-cancel:hover { background: #f5f5f5; }
+
   /* Grid lines for hours */
   .sc-day-col { background-clip: content-box; }
 </style>
@@ -100,7 +112,7 @@
 
       <!-- Day columns -->
       <% days.forEach(function(day){ %>
-        <div class="sc-day-col<%= day.isToday ? ' is-today' : '' %>">
+        <div class="sc-day-col<%= day.isToday ? ' is-today' : '' %>" data-day-date="<%= day.date %>">
           <div class="sc-day-header<%= day.isToday ? ' is-today' : '' %>">
             <%= day.label %>
             <span class="sc-day-num"><%= day.num %></span>
@@ -136,8 +148,10 @@
             <a href="/work-orders/<%= wo.id %>" class="sc-wo-block<%= isUnassigned ? ' sc-unassigned' : '' %>"
                style="top:<%= topPct.toFixed(1) %>%<%= color ? ';background:' + color : '' %>;height:<%= Math.max(heightPct, 3).toFixed(1) %>%"
                data-wo-id="<%= wo.id %>"
+               data-wo-display="<%= wo.display_number %>"
                data-current-date="<%= wo.scheduled_date %>"
-               data-current-time="<%= wo.scheduled_time || '' %>">
+               data-current-time="<%= wo.scheduled_time || '' %>"
+               data-assignee-id="<%= wo.assigned_to_user_id || '' %>">
               <% if (hasConflict) { %>
                 <span class="sc-conflict-badge">
                   &#9888;
@@ -167,4 +181,5 @@
   </div>
 </div>
 
+<script src="/js/schedule-drag.js" defer></script>
 <%- include('../layouts/footer') %>

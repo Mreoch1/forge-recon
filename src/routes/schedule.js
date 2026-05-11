@@ -181,4 +181,53 @@ router.get('/', (req, res) => {
   });
 });
 
+// GET /schedule/conflict-check — check for scheduling conflicts before a drag-drop
+router.get('/conflict-check', (req, res) => {
+  const woId = parseInt(req.query.wo_id, 10);
+  const date = (req.query.date || '').trim();
+  const time = (req.query.time || '').trim();
+  if (!woId || !date) return res.json({ conflicts: [] });
+  const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [woId]);
+  if (!wo) return res.json({ conflicts: [] });
+  const assigneeId = wo.assigned_to_user_id;
+  if (!assigneeId) return res.json({ conflicts: [] });
+  const conflicts = scheduling.findScheduleConflicts({
+    assignee_user_id: assigneeId,
+    date,
+    time: time || wo.scheduled_time,
+    duration_hours: parseInt(process.env.WO_DEFAULT_DURATION_HOURS || '4', 10),
+    exclude_wo_id: woId,
+  });
+  res.json({ conflicts: conflicts.map(c => ({
+    display_number: c.display_number,
+    customer_name: c.customer_name,
+    scheduled_time: c.scheduled_time,
+    overlap_minutes: c.overlap_minutes,
+  })) });
+});
+
+// POST /schedule/:id/reschedule — reschedule a WO from drag-drop
+router.post('/:id/reschedule', (req, res) => {
+  const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
+  if (!wo) return res.status(404).json({ error: 'Work order not found.' });
+  const date = (req.body.scheduled_date || '').trim();
+  const time = (req.body.scheduled_time || '').trim();
+  if (!date) return res.status(400).json({ error: 'scheduled_date is required.' });
+  const today = new Date().toISOString().slice(0, 10);
+  if (date < today) return res.status(400).json({ error: 'Cannot schedule in the past.' });
+  // Audit
+  try {
+    const { writeAudit } = require('../services/audit');
+    writeAudit({
+      entityType: 'work_order', entityId: wo.id, action: 'rescheduled',
+      before: { scheduled_date: wo.scheduled_date, scheduled_time: wo.scheduled_time },
+      after: { scheduled_date: date, scheduled_time: time || null },
+      source: 'user', userId: req.session.userId,
+    });
+  } catch(e) { /* audit best effort */ }
+  db.run(`UPDATE work_orders SET scheduled_date=?, scheduled_time=?, updated_at=datetime('now') WHERE id=?`,
+    [date, time || null, wo.id]);
+  res.json({ ok: true, scheduled_date: date, scheduled_time: time || null });
+});
+
 module.exports = router;
