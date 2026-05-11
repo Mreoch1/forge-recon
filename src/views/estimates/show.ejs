@@ -19,6 +19,13 @@ const roi = costTotal > 0 ? ((margin / costTotal) * 100).toFixed(1) : '&mdash;';
       <div class="flex items-center gap-3">
         <h1 class="page-h1"><%= estimate.display_number %></h1>
         <span class="badge badge-<%= estimate.status %>"><%= estimate.status %></span>
+        <% if (estimate.sent_at && estimate.status !== 'draft') { %>
+          <div class="text-xs text-recon-fog mt-1">
+            Sent <%= (estimate.sent_at || '').slice(0,10) %>
+            <% if (estimate.sent_by_name) { %>by <%= estimate.sent_by_name %><% } %>
+            <% if (estimate.sent_to_email) { %>to <%= estimate.sent_to_email %><% } %>
+          </div>
+        <% } %>
       </div>
       <p class="page-sub">
         <a href="/work-orders/<%= estimate.wo_id %>" class="hover:text-recon-red font-medium">&larr; WO-<%= estimate.wo_display_number %></a>

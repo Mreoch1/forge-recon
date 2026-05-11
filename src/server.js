@@ -96,7 +96,13 @@ async function main() {
       {table: 'users', col: 'phone', type: 'TEXT'},
       {table: 'users', col: 'mock', type: 'INTEGER NOT NULL DEFAULT 0'},
       {table: 'work_order_line_items', col: 'completed_at', type: 'TEXT'},
-      {table: 'work_orders', col: 'scheduled_end_time', type: 'TEXT'}
+      {table: 'work_orders', col: 'scheduled_end_time', type: 'TEXT'},
+      {table: 'estimates', col: 'sent_by_user_id', type: 'INTEGER'},
+      {table: 'estimates', col: 'sent_to_email', type: 'TEXT'},
+      {table: 'estimates', col: 'sent_to_name', type: 'TEXT'},
+      {table: 'invoices', col: 'sent_by_user_id', type: 'INTEGER'},
+      {table: 'invoices', col: 'sent_to_email', type: 'TEXT'},
+      {table: 'invoices', col: 'sent_to_name', type: 'TEXT'},
     ];
     bootMigrations.forEach(m => {
       const existing = db.all('PRAGMA table_info(' + m.table + ')');

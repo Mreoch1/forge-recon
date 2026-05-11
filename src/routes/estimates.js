@@ -93,11 +93,13 @@ function loadEstimate(id) {
             c.id AS customer_id, c.name AS customer_name,
             c.email AS customer_email, c.billing_email AS customer_billing_email,
             c.phone AS customer_phone,
-            c.address AS customer_address, c.city AS customer_city, c.state AS customer_state, c.zip AS customer_zip
+            c.address AS customer_address, c.city AS customer_city, c.state AS customer_state, c.zip AS customer_zip,
+            u.name AS sent_by_name
      FROM estimates e
      JOIN work_orders w ON w.id = e.work_order_id
      JOIN jobs j ON j.id = w.job_id
      JOIN customers c ON c.id = j.customer_id
+     LEFT JOIN users u ON u.id = e.sent_by_user_id
      WHERE e.id = ?`,
     [id]
   );
@@ -251,7 +253,10 @@ router.post('/:id/send', async (req, res, next) => {
   try {
     const emailService = require('../services/estimate-email');
     const result = await emailService.sendEstimateEmail(estimate.id);
-    db.run(`UPDATE estimates SET status='sent', sent_at=datetime('now'), updated_at=datetime('now') WHERE id=?`, [estimate.id]);
+    const sentToEmail = estimate.customer_email || 'unknown@recon.local';
+    const sentToName = estimate.customer_name || 'Unknown';
+    db.run(`UPDATE estimates SET status='sent', sent_at=datetime('now'), sent_by_user_id=?, sent_to_email=?, sent_to_name=?, updated_at=datetime('now') WHERE id=?`,
+      [req.session.userId, sentToEmail, sentToName, estimate.id]);
     try {
       const { writeAudit } = require('../services/audit');
       writeAudit({ entityType: 'estimate', entityId: estimate.id, action: 'sent', before: { status: 'draft' }, after: { status: 'sent' }, source: 'web', userId: req.session.userId });

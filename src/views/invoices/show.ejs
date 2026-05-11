@@ -136,7 +136,7 @@ const margin = (Number(invoice.total) || 0) - (Number(invoice.cost_total) || 0);
           <div><dt class="text-recon-fog text-xs inline">Due:</dt> <dd class="inline"><%= String(invoice.due_date).slice(0,10) %></dd></div>
         <% } %>
         <% if (invoice.sent_at) { %>
-          <div><dt class="text-recon-fog text-xs inline">Sent:</dt> <dd class="inline"><%= invoice.sent_at %></dd></div>
+          <div><dt class="text-recon-fog text-xs inline">Sent:</dt> <dd class="inline"><%= (invoice.sent_at || '').slice(0,10) %><% if (invoice.sent_by_name) { %> by <%= invoice.sent_by_name %><% } %><% if (invoice.sent_to_email) { %> to <%= invoice.sent_to_email %><% } %></dd></div>
         <% } %>
         <% if (invoice.paid_at) { %>
           <div><dt class="text-recon-fog text-xs inline">Paid:</dt> <dd class="inline"><%= invoice.paid_at %></dd></div>

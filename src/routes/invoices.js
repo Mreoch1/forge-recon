@@ -99,11 +99,13 @@ function loadInvoice(id) {
             c.id AS customer_id, c.name AS customer_name,
             c.email AS customer_email, c.billing_email AS customer_billing_email,
             c.phone AS customer_phone,
-            c.address AS customer_address, c.city AS customer_city, c.state AS customer_state, c.zip AS customer_zip
+            c.address AS customer_address, c.city AS customer_city, c.state AS customer_state, c.zip AS customer_zip,
+            u.name AS sent_by_name
      FROM invoices i
      LEFT JOIN work_orders w ON w.id = i.work_order_id
      LEFT JOIN jobs j        ON j.id = w.job_id
      LEFT JOIN customers c   ON c.id = j.customer_id
+     LEFT JOIN users u       ON u.id = i.sent_by_user_id
      WHERE i.id = ?`,
     [id]
   );
@@ -252,7 +254,8 @@ router.post('/:id/send', async (req, res, next) => {
       html: text.split('\n').map(l => `<p>${l}</p>`).join(''),
       attachments: [{ filename: `${invoice.display_number}.pdf`, content: buf, contentType: 'application/pdf' }]
     });
-    db.run(`UPDATE invoices SET status='sent', sent_at=datetime('now'), updated_at=datetime('now') WHERE id=?`, [invoice.id]);
+    db.run(`UPDATE invoices SET status='sent', sent_at=datetime('now'), sent_by_user_id=?, sent_to_email=?, sent_to_name=?, updated_at=datetime('now') WHERE id=?`,
+      [req.session.userId, recipient, invoice.customer_name || 'Unknown', invoice.id]);
 
     // Audit + post journal entry: DR AR / CR Revenue + Sales Tax
     writeAudit({
