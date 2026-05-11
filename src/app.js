@@ -125,6 +125,10 @@ app.use('/files', requireAuth, filesRoutes);
 app.use('/', requireAuth, dashboardRoutes);
 
 app.use((req, res) => { res.status(404).render('error', { title: 'Not found', code: 404, message: 'That page does not exist.' }); });
-app.use((err, req, res, next) => { console.error(err); res.status(500).render('error', { title: 'Server error', code: 500, message: (err && err.message) || 'Server error' }); });
+app.use((err, req, res, next) => {
+  console.error(err);
+  const message = process.env.NODE_ENV === 'production' ? 'Server error' : (err && err.message) || 'Server error';
+  res.status(500).render('error', { title: 'Server error', code: 500, message });
+});
 
 module.exports = app;

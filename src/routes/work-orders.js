@@ -581,6 +581,16 @@ router.get('/:id', async (req, res) => {
     );
   } catch (e) {}
 
+  // Resolve public URLs for photos (stored in Supabase Storage)
+  photos = await Promise.all(photos.map(async (p) => {
+    try {
+      const url = await storage.getPublicUrl('wo-photos', p.filename);
+      return { ...p, url };
+    } catch {
+      return { ...p, url: '#' };
+    }
+  }));
+
   const fileCountWO = (await db.get('SELECT COUNT(f.id) AS n FROM files f JOIN folders fl ON fl.id = f.folder_id WHERE fl.entity_type = ? AND fl.entity_id = ?', ['work_order', wo.id]) || {}).n || 0;
   res.render('work-orders/show', {
     title: `WO-${wo.display_number}`, activeNav: 'work-orders',

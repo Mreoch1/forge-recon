@@ -312,8 +312,8 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
         <div class="grid grid-cols-3 gap-2 mb-4">
           <% photos.forEach(function(p){ %>
             <div class="relative group">
-              <a href="/uploads/wo/<%= wo.id %>/<%= p.filename %>" target="_blank">
-                <img src="/uploads/wo/<%= wo.id %>/<%= p.filename %>"
+              <a href="<%= p.url %>" target="_blank">
+                <img src="<%= p.url %>"
                      class="w-full h-24 object-cover rounded border"
                      loading="lazy"
                      title="<%= (p.user_name || 'Unknown') %> · <%= (p.created_at || '').slice(0,16).replace('T',' ') %><%= p.caption ? ' — ' + p.caption : '' %>">

@@ -70,8 +70,8 @@ async function validateBill(body) {
 
   const rawLines = asArray(body.lines);
   const lines = [];
-  rawLines.forEach(async (li) => {
-    if (!emptyToNull(li.description)) return;
+  for (const li of rawLines) {
+    if (!emptyToNull(li.description)) continue;
     const accountId = li.account_id ? parseInt(li.account_id, 10) : null;
     // Fall back to Miscellaneous (5900) if no account selected
     const resolvedAccountId = accountId || await (async () => {
@@ -86,7 +86,7 @@ async function validateBill(body) {
       quantity: isFinite(quantity) && quantity >= 0 ? quantity : 0,
       unit_price: isFinite(unitPrice) && unitPrice >= 0 ? unitPrice : 0,
     });
-  });
+  }
   if (lines.length === 0) errors.lines = 'At least one line item is required.';
 
   const subtotal = lines.reduce((s, li) => s + lineTotal(li), 0);

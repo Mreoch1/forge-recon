@@ -255,19 +255,19 @@ async function postBillApproved(bill, lines, opts = {}) {
   // Each bill line goes to its own expense account (or Misc if not set)
   const fallback = lookupAccount(CODES.MISC_EXPENSE);
   const jeLines = [];
-  lines.forEach(async li => {
+  for (const li of lines) {
     const amt = Number(li.line_total) || 0;
-    if (amt <= 0) return;
+    if (amt <= 0) continue;
     const acct = li.account_id ? await db.get('SELECT id FROM accounts WHERE id = ?', [li.account_id]) : null;
     const targetAcct = acct || fallback;
-    if (!targetAcct) return;
+    if (!targetAcct) continue;
     jeLines.push({
       accountId: targetAcct.id,
       debit: amt,
       credit: 0,
       description: `${description} — ${li.description || 'expense'}`,
     });
-  });
+  }
   if (jeLines.length === 0) return null;
 
   // Tax paid to vendor: separate debit line to a dedicated expense account.
