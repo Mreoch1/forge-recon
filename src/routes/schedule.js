@@ -9,7 +9,7 @@
 
 const express = require('express');
 const router = express.Router();
-const db = require('../db/db');
+const supabase = require('../db/supabase');
 const scheduling = require('../services/scheduling');
 
 const PALETTE = ['#4A90D9','#8BC34A','#9C76D9','#26A69A','#EF7E6B','#A5D6A7','#78909C','#FFCC80'];
@@ -147,50 +147,61 @@ router.get('/', async (req, res) => {
   }
 
   // Query WOs in range
-  let params = [weekStart, weekEnd];
-  let assigneeClause = '';
+  let woQuery = supabase
+    .from('work_orders')
+    .select('id, display_number, status, scheduled_date, scheduled_time, assigned_to_user_id, assigned_to, scheduled_end_time, jobs!inner(title, customers!inner(name)), assigned_to_user_id, users!left(name)')
+    .gte('scheduled_date', weekStart)
+    .lte('scheduled_date', weekEnd)
+    .in('status', ['scheduled', 'in_progress'])
+    .order('scheduled_date', { ascending: true })
+    .order('scheduled_time', { ascending: true, nullsFirst: false })
+    .order('display_number', { ascending: true });
+
   if (assigneeFilter) {
-    assigneeClause = ' AND (w.assigned_to_user_id = ? OR w.assigned_to ILIKE ?)';
-    const uname = (await db.get('SELECT name FROM users WHERE id = ?', [assigneeFilter]) || {}).name || '';
-    params.push(assigneeFilter, `%${uname}%`);
+    const { data: user } = await supabase.from('users').select('name').eq('id', assigneeFilter).maybeSingle();
+    woQuery = woQuery.or(`assigned_to_user_id.eq.${assigneeFilter},assigned_to.ilike.%${user?.name || ''}%`);
   }
-  const wos = await db.all(`
-    SELECT w.id, w.display_number, w.status, w.scheduled_date, w.scheduled_time,
-           w.assigned_to_user_id, w.assigned_to,
-           w.scheduled_end_time,
-           j.title AS job_title, c.name AS customer_name,
-           u.name AS assignee_user_name
-    FROM work_orders w
-    JOIN jobs j ON j.id = w.job_id
-    JOIN customers c ON c.id = j.customer_id
-    LEFT JOIN users u ON u.id = w.assigned_to_user_id
-    WHERE date(w.scheduled_date) BETWEEN date(?) AND date(?)
-      AND w.status IN ('scheduled', 'in_progress')
-      ${assigneeClause}
-    ORDER BY w.scheduled_date, w.scheduled_time, w.display_number
-  `, params);
+
+  const { data: wos } = await woQuery;
+
+  // Map to flat structure
+  const wosMapped = (wos || []).map(r => ({
+    id: r.id, display_number: r.display_number, status: r.status,
+    scheduled_date: r.scheduled_date, scheduled_time: r.scheduled_time,
+    assigned_to_user_id: r.assigned_to_user_id, assigned_to: r.assigned_to,
+    scheduled_end_time: r.scheduled_end_time,
+    job_title: r.jobs?.title, customer_name: r.jobs?.customers?.name,
+    assignee_user_name: r.users?.name,
+  }));
 
   // Unscheduled WOs for sidebar
-  const unscheduled = await db.all(`
-    SELECT w.id, w.display_number, w.status, w.scheduled_date, w.scheduled_time,
-           w.assigned_to_user_id, w.assigned_to, w.scheduled_end_time,
-           j.title AS job_title, c.name AS customer_name,
-           u.name AS assignee_user_name
-    FROM work_orders w
-    JOIN jobs j ON j.id = w.job_id
-    JOIN customers c ON c.id = j.customer_id
-    LEFT JOIN users u ON u.id = w.assigned_to_user_id
-    WHERE w.scheduled_date IS NULL AND w.status IN ('scheduled', 'in_progress')
-    ORDER BY w.created_at DESC LIMIT 25
-  `);
+  const { data: unscheduled } = await supabase
+    .from('work_orders')
+    .select('id, display_number, status, scheduled_date, scheduled_time, assigned_to_user_id, assigned_to, scheduled_end_time, jobs!inner(title, customers!inner(name)), assigned_to_user_id, users!left(name)')
+    .is('scheduled_date', null)
+    .in('status', ['scheduled', 'in_progress'])
+    .order('created_at', { ascending: false })
+    .limit(25);
+
+  const unschedMapped = (unscheduled || []).map(r => ({
+    id: r.id, display_number: r.display_number, status: r.status,
+    scheduled_date: r.scheduled_date, scheduled_time: r.scheduled_time,
+    assigned_to_user_id: r.assigned_to_user_id, assigned_to: r.assigned_to,
+    scheduled_end_time: r.scheduled_end_time,
+    job_title: r.jobs?.title, customer_name: r.jobs?.customers?.name,
+    assignee_user_name: r.users?.name,
+  }));
 
   // Query closures intersecting the visible range
-  const closures = await db.all(`SELECT * FROM closures WHERE date(date_start) <= date(?) AND date(COALESCE(date_end, date_start)) >= date(?) ORDER BY date_start ASC`,
-    [weekEnd, weekStart]);
+  const { data: closures } = await supabase
+    .from('closures')
+    .select('*')
+    .lte('date_start', weekEnd)
+    .or(`date_end.gte.${weekStart},date_end.is.null`);
 
   // Build date->name map (expands multi-day closures)
   const closureByDate = {};
-  closures.forEach(function(c) {
+  (closures || []).forEach(function(c) {
     var end = c.date_end || c.date_start;
     var d = new Date(c.date_start);
     var stop = new Date(end);
@@ -202,7 +213,7 @@ router.get('/', async (req, res) => {
 
   // Compute conflicts
   const woConflicts = {};
-  wos.forEach(wo => {
+  wosMapped.forEach(wo => {
     if (wo.assigned_to_user_id) {
       const conflicts = scheduling.findScheduleConflicts({
         assignee_user_id: wo.assigned_to_user_id, date: wo.scheduled_date,
@@ -250,7 +261,7 @@ router.get('/', async (req, res) => {
   const nowOffset = ((now.getHours() - HOURS_START) * 60 + now.getMinutes()) / TOTAL_MINUTES * 100;
 
   // Users filter dropdown
-  const users = await db.all("SELECT id, name, role FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
+  const { data: users } = await supabase.from('users').select('id, name, role').eq('active', 1).order('name');
 
   // Determine which view template
   const viewMap = { week: 'schedule/week', '2week': 'schedule/2week', month: 'schedule/month' };
@@ -258,13 +269,13 @@ router.get('/', async (req, res) => {
 
   res.render(template, {
     title: 'Schedule', activeNav: 'schedule',
-    days, wos, woConflicts, hours, view,
+    days, wos: wosMapped, woConflicts, hours, view,
     weekStart, weekEnd,
     prevDate, nextDate, prevLabel, nextLabel,
     today, nowOffset: nowOffset > 0 && nowOffset < 100 ? nowOffset : null,
-    assigneeFilter, users, colorForStatus, getInitials, fmtDate, fmtMonth,
+    assigneeFilter, users: users || [], colorForStatus, getInitials, fmtDate, fmtMonth,
     HOURS_START, HOURS_END, HOUR_COUNT, TOTAL_MINUTES,
-    rawDate, woOverlaps, unscheduled, closures, closureByDate,
+    rawDate, woOverlaps, unscheduled: unschedMapped, closures: closures || [], closureByDate,
   });
 });
 
@@ -275,7 +286,7 @@ router.get('/conflict-check', async (req, res) => {
   const time = (req.query.time || '').trim();
   const endTime = (req.query.end_time || '').trim();
   if (!woId || !date) return res.json({ conflicts: [] });
-  const wo = await db.get('SELECT * FROM work_orders WHERE id = ?', [woId]);
+  const { data: wo } = await supabase.from('work_orders').select('*').eq('id', woId).maybeSingle();
   if (!wo) return res.json({ conflicts: [] });
   const assigneeId = wo.assigned_to_user_id;
   if (!assigneeId) return res.json({ conflicts: [] });
@@ -308,7 +319,8 @@ function computeDefaultEndTime(timeStr) {
 
 // POST /schedule/:id/reschedule — reschedule a WO from drag-drop
 router.post('/:id/reschedule', async (req, res) => {
-  const wo = await db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
+  const { data: wo, error: findError } = await supabase.from('work_orders').select('*').eq('id', req.params.id).maybeSingle();
+  if (findError) throw findError;
   if (!wo) return res.status(404).json({ error: 'Work order not found.' });
   const date = (req.body.scheduled_date || '').trim();
   const time = (req.body.scheduled_time || '').trim();
@@ -328,8 +340,11 @@ router.post('/:id/reschedule', async (req, res) => {
       source: 'user', userId: req.session.userId,
     });
   } catch(e) { /* audit best effort */ }
-  await db.run(`UPDATE work_orders SET scheduled_date=?, scheduled_time=?, scheduled_end_time=?, updated_at=now() WHERE id=?`,
-    [date, time || null, endTime || null, wo.id]);
+  const { error: updateError } = await supabase
+    .from('work_orders')
+    .update({ scheduled_date: date, scheduled_time: time || null, scheduled_end_time: endTime || null, updated_at: new Date().toISOString() })
+    .eq('id', wo.id);
+  if (updateError) throw updateError;
   res.json({ ok: true, scheduled_date: date, scheduled_time: time || null, scheduled_end_time: endTime || null });
 });
 
