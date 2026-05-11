@@ -187,25 +187,38 @@ router.get('/conflict-check', (req, res) => {
   const woId = parseInt(req.query.wo_id, 10);
   const date = (req.query.date || '').trim();
   const time = (req.query.time || '').trim();
+  const endTime = (req.query.end_time || '').trim();
   if (!woId || !date) return res.json({ conflicts: [] });
   const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [woId]);
   if (!wo) return res.json({ conflicts: [] });
   const assigneeId = wo.assigned_to_user_id;
   if (!assigneeId) return res.json({ conflicts: [] });
+  // Compute end time from provided end_time, or default to time + 4h
+  const effectiveEndTime = endTime || computeDefaultEndTime(time || wo.scheduled_time);
   const conflicts = scheduling.findScheduleConflicts({
     assignee_user_id: assigneeId,
     date,
     time: time || wo.scheduled_time,
-    duration_hours: parseInt(process.env.WO_DEFAULT_DURATION_HOURS || '4', 10),
+    end_time: effectiveEndTime,
+    duration_hours: null, // end_time takes priority
     exclude_wo_id: woId,
   });
   res.json({ conflicts: conflicts.map(c => ({
     display_number: c.display_number,
     customer_name: c.customer_name,
     scheduled_time: c.scheduled_time,
+    end_time: c.end_time,
     overlap_minutes: c.overlap_minutes,
   })) });
 });
+
+function computeDefaultEndTime(timeStr) {
+  if (!timeStr) return '12:00';
+  const p = timeStr.split(':');
+  let h = parseInt(p[0], 10) + 4;
+  if (h > 20) h = 20;
+  return String(h).padStart(2, '0') + ':' + (p[1] || '00');
+}
 
 // POST /schedule/:id/reschedule — reschedule a WO from drag-drop
 router.post('/:id/reschedule', (req, res) => {

@@ -27,9 +27,15 @@
   .sc-day-header .sc-day-num { display: block; font-size: .9rem; font-weight: 700; color: #1a1a1a; }
   .sc-day-header.is-today { background: #f0f4ff; }
   .sc-day-header.is-today .sc-day-num { color: #2563eb; }
-  .sc-hour-line { position: absolute; left: 0; right: 0; border-top: 1px solid #f0f0f0; pointer-events: none; }
+  .sc-hour-line { position: absolute; left: 0; right: 0; border-top: 1px solid #ececec; pointer-events: none; }
+  .sc-hour-line.anchor-hour { border-top-color: #cfcfcf; border-top-width: 1.5px; }
   .sc-now-line { position: absolute; left: 0; right: 0; border-top: 1px solid #ef4444; z-index: 3; pointer-events: none; }
   .sc-now-dot { position: absolute; left: -3px; top: -3px; width: 7px; height: 7px; border-radius: 50%; background: #ef4444; }
+
+  /* Day column separators */
+  .sc-day-col { position: relative; border-right: 1px solid #e5e5e5; }
+  .sc-day-col:last-child { border-right: none; }
+  .sc-day-col.is-today { background: #fafbfe; }
   .sc-wo-block { position: absolute; left: 2px; right: 2px; border-radius: 3px; padding: .15rem .3rem; font-size: .58rem; line-height: 1.2; overflow: hidden; cursor: pointer; z-index: 1; border: 1px solid rgba(0,0,0,.08); }
   .sc-wo-block:hover { box-shadow: 0 2px 6px rgba(0,0,0,.15); z-index: 4; }
   .sc-wo-block .sc-wo-num { font-family: ui-monospace,monospace; font-size: .52rem; opacity: .8; }
@@ -40,13 +46,17 @@
   .sc-conflict-badge:hover .sc-conflict-tip { display: block; }
   .sc-empty { text-align: center; padding: 3rem 1rem; color: #999; }
 
-  /* Confirm card */
+  /* Confirm card — from-to with editable time inputs */
   .sc-confirm-card { background: #fff; border: 2px dashed #c0202b; border-radius: 8px; padding: .75rem; width: 280px; z-index: 2000; box-shadow: 0 4px 16px rgba(0,0,0,.15); font-size: .78rem; line-height: 1.5; }
-  .sc-confirm-card .scc-header { font-weight: 700; margin-bottom: .4rem; color: #1a1a1a; }
+  .sc-confirm-card .scc-header { font-weight: 700; margin-bottom: .5rem; color: #1a1a1a; }
   .sc-confirm-card .scc-row { margin-bottom: .15rem; color: #444; }
   .sc-confirm-card .scc-label { color: #888; display: inline-block; width: 2.8rem; }
+  .sc-confirm-card .scc-from-to-row { display: flex; align-items: center; gap: .5rem; margin-bottom: .35rem; }
+  .sc-confirm-card .scc-from-to-row .scc-label { color: #888; width: 2.8rem; flex-shrink: 0; }
+  .sc-confirm-card .scc-date-display { font-size: .78rem; color: #1a1a1a; }
+  .sc-confirm-card .scc-time-input { font-size: .78rem; padding: .2rem .35rem; border: 1px solid #ccc; border-radius: 4px; width: 6rem; font-family: ui-monospace, monospace; }
+  .sc-confirm-card .scc-time-input:focus { outline: none; border-color: #c0202b; box-shadow: 0 0 0 2px rgba(192,32,43,.15); }
   .sc-confirm-card .scc-conflicts { margin: .4rem 0; padding: .35rem; background: #fef3c7; border-radius: 4px; font-size: .7rem; color: #92400e; }
-  .sc-confirm-card .scc-conflict { margin-bottom: .1rem; }
   .sc-confirm-card .scc-actions { display: flex; gap: .5rem; margin-top: .5rem; }
   .sc-confirm-card .scc-confirm { padding: .35rem 1rem; background: #c0202b; color: #fff; border: none; border-radius: 4px; font-size: .78rem; cursor: pointer; }
   .sc-confirm-card .scc-cancel { padding: .35rem 1rem; background: transparent; border: 1px solid #ccc; border-radius: 4px; font-size: .78rem; cursor: pointer; }
@@ -95,7 +105,7 @@
       <div class="sc-hour-gutter">
         <% hours.forEach(function(h){ %>
           <div class="sc-hour-label" style="top:<%= ((h - HOURS_START) / HOUR_COUNT * 100) %>%"><%= h %></div>
-          <div class="sc-hour-line" style="top:<%= ((h - HOURS_START) / HOUR_COUNT * 100) %>%"></div>
+          <div class="sc-hour-line<%= (h === 8 || h === 12 || h === 17) ? ' anchor-hour' : '' %>" style="top:<%= ((h - HOURS_START) / HOUR_COUNT * 100) %>%"></div>
         <% }); %>
       </div>
       <% weekDays.forEach(function(day){ %>
@@ -104,7 +114,7 @@
             <%= day.label %> <span class="sc-day-num"><%= day.num %></span>
           </div>
           <% hours.forEach(function(h){ %>
-            <div class="sc-hour-line" style="top:<%= ((h - HOURS_START) / HOUR_COUNT * 100) %>%"></div>
+            <div class="sc-hour-line<%= (h === 8 || h === 12 || h === 17) ? ' anchor-hour' : '' %>" style="top:<%= ((h - HOURS_START) / HOUR_COUNT * 100) %>%"></div>
           <% }); %>
           <% if (day.isToday && nowOffset !== null) { %>
             <div class="sc-now-line" style="top:<%= nowOffset %>%"><div class="sc-now-dot"></div></div>
@@ -124,7 +134,7 @@
             <a href="/work-orders/<%= wo.id %>" class="sc-wo-block<%= isUnassigned ? ' sc-unassigned' : '' %>"
                style="top:<%= topPct.toFixed(1) %>%<%= color ? ';background:'+color : '' %>;height:<%= hPct.toFixed(1) %>%"
                data-wo-id="<%= wo.id %>" data-current-date="<%= wo.scheduled_date %>" data-current-time="<%= wo.scheduled_time||'' %>"
-               data-wo-display="<%= wo.display_number %>" data-assignee-id="<%= wo.assigned_to_user_id||'' %>">
+               data-wo-display="<%= wo.display_number %>" data-end-time="<%= wo.scheduled_end_time||'' %>" data-assignee-id="<%= wo.assigned_to_user_id||'' %>">
               <% if (hasConflict) { %>
                 <span class="sc-conflict-badge">
                   &#9888;<span class="sc-conflict-tip"><% woConflicts[wo.id].forEach(function(c){ %>WO-<%= c.display_number %>: <%= c.overlap_minutes %>min<br><% }); %></span>

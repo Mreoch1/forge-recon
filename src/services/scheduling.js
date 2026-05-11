@@ -14,12 +14,13 @@ const db = require('../db/db');
  * @param {number}  opts.assignee_user_id — DB user id of the assignee (null/0 = no conflict check)
  * @param {string}  opts.date — ISO date string (YYYY-MM-DD)
  * @param {string}  [opts.time] — HH:MM time string (optional, treated as all-day if omitted)
- * @param {number}  [opts.duration_hours=4] — Duration of the proposed block
+ * @param {string}  [opts.end_time] — HH:MM end time string (if provided, used for overlap calculation instead of duration_hours)
+ * @param {number}  [opts.duration_hours=4] — Duration of the proposed block (only used if end_time not provided)
  * @param {number}  [opts.exclude_wo_id] — WO id to exclude (for reschedule — don't conflict-check against self)
  * @returns {Array<Object>} Array of conflict objects:
- *   { wo_id, display_number, customer_name, scheduled_time, duration_hours, overlap_minutes }
+ *   { wo_id, display_number, customer_name, scheduled_time, end_time, duration_hours, overlap_minutes }
  */
-function findScheduleConflicts({ assignee_user_id, date, time, duration_hours = 4, exclude_wo_id = null }) {
+function findScheduleConflicts({ assignee_user_id, date, time, end_time, duration_hours = 4, exclude_wo_id = null }) {
   if (!assignee_user_id || assignee_user_id <= 0) {
     return [];
   }
@@ -32,7 +33,7 @@ function findScheduleConflicts({ assignee_user_id, date, time, duration_hours = 
   }
 
   const conflicts = db.all(`
-    SELECT w.id, w.display_number, w.scheduled_date, w.scheduled_time, w.assigned_to,
+    SELECT w.id, w.display_number, w.scheduled_date, w.scheduled_time, w.scheduled_end_time, w.assigned_to,
            j.title AS job_title, c.name AS customer_name
     FROM work_orders w
     JOIN jobs j ON j.id = w.job_id
@@ -48,11 +49,13 @@ function findScheduleConflicts({ assignee_user_id, date, time, duration_hours = 
 
   return conflicts.map(wo => {
     const woTime = wo.scheduled_time || '08:00';
-    const woDuration = 4; // default 4h per WO
+    const woEndTime = wo.scheduled_end_time || addHours(woTime, 4);
     const proposedStart = timeToMinutes(time || '08:00');
-    const proposedEnd = proposedStart + (duration_hours || 4) * 60;
+    const proposedEnd = end_time
+      ? timeToMinutes(end_time)
+      : proposedStart + (duration_hours || 4) * 60;
     const conflictStart = timeToMinutes(woTime);
-    const conflictEnd = conflictStart + woDuration * 60;
+    const conflictEnd = timeToMinutes(woEndTime);
 
     const overlap = Math.min(proposedEnd, conflictEnd) - Math.max(proposedStart, conflictStart);
     const overlapMinutes = Math.max(0, overlap);
@@ -64,7 +67,8 @@ function findScheduleConflicts({ assignee_user_id, date, time, duration_hours = 
       display_number: wo.display_number,
       customer_name: wo.customer_name || '',
       scheduled_time: woTime,
-      duration_hours: woDuration,
+      end_time: woEndTime,
+      duration_hours: Math.round((timeToMinutes(woEndTime) - timeToMinutes(woTime)) / 60),
       overlap_minutes: overlapMinutes
     };
   }).filter(Boolean);
@@ -311,6 +315,14 @@ function resolveWorkOrder(identifier) {
   }
   // Try display number
   return db.get('SELECT * FROM work_orders WHERE display_number = ?', [String(identifier)]);
+}
+
+function addHours(timeStr, hours) {
+  if (!timeStr) return '12:00';
+  const p = timeStr.split(':');
+  let h = parseInt(p[0], 10) + hours;
+  if (h > 20) h = 20;
+  return String(h).padStart(2, '0') + ':' + (p[1] || '00');
 }
 
 function toISODate(d) {

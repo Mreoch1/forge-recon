@@ -17,6 +17,7 @@ async function main() {
   migrateColumn('users', 'phone', 'TEXT');
   migrateColumn('users', 'mock', 'INTEGER NOT NULL DEFAULT 0');
   migrateColumn('work_order_line_items', 'completed_at', 'TEXT');
+  migrateColumn('work_orders', 'scheduled_end_time', 'TEXT');
   db.persist();
   console.log('DB initialized at', path.join(__dirname, '..', '..', 'data', 'app.db'));
   process.exit(0);

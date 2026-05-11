@@ -318,10 +318,10 @@ async function seedMock() {
 
     const r = db.run(`INSERT INTO work_orders
       (job_id, parent_wo_id, wo_number_main, wo_number_sub, display_number, status,
-       scheduled_date, scheduled_time, assigned_to, notes, completed_date, mock, created_at, updated_at)
-      VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+       scheduled_date, scheduled_time, scheduled_end_time, assigned_to, notes, completed_date, mock, created_at, updated_at)
+      VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
       [jid, next.main, next.sub, next.display, status,
-       sched, schedTime, assignedTo, null, completedDate,
+       sched, schedTime, schedTime ? (function(t){var p=t.split(':');var h=Math.min(parseInt(p[0],10)+2+Math.floor(Math.random()*3),18);return String(h).padStart(2,'0')+':'+p[1];})(schedTime) : null, assignedTo, null, completedDate,
        ago(rng(10,30)), ago(rng(5,15))]);
     const wid = r.lastInsertRowid;
     woIds.push(wid);
@@ -426,10 +426,10 @@ async function seedMock() {
     const subStatus = idx < 2 ? 'scheduled' : 'in_progress';
     const r = db.run(`INSERT INTO work_orders
       (job_id, parent_wo_id, wo_number_main, wo_number_sub, display_number, status,
-       scheduled_date, scheduled_time, assigned_to, notes, mock, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+       scheduled_date, scheduled_time, scheduled_end_time, assigned_to, notes, mock, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
       [parent.job_id, pid, next.main, next.sub, next.display, subStatus,
-       future(rng(2,10)), TODAY_TIMES[idx+4 % 8], ASSIGNEE_NAMES[idx+2 % 8], null,
+       future(rng(2,10)), TODAY_TIMES[idx+4 % 8], (function(t){var p=t.split(':');var h=Math.min(parseInt(p[0],10)+2+Math.floor(Math.random()*3),18);return String(h).padStart(2,'0')+':'+p[1];})(TODAY_TIMES[idx+4 % 8]), ASSIGNEE_NAMES[idx+2 % 8], null,
        ago(rng(3,8)), ago(rng(1,5))]);
     const swid = r.lastInsertRowid;
     const subItems = pickN(allItems, 2);

@@ -78,7 +78,13 @@
           shown.forEach(function(wo){
             var color = colorForUser(wo.assigned_to_user_id);
           %>
-            <a href="/work-orders/<%= wo.id %>" class="sc-wo-pill" style="background:<%= color || '#eee' %>">
+            <a href="/work-orders/<%= wo.id %>" class="sc-wo-pill" style="background:<%= color || '#eee' %>"
+               data-wo-id="<%= wo.id %>"
+               data-wo-display="<%= wo.display_number %>"
+               data-current-date="<%= wo.scheduled_date %>"
+               data-current-time="<%= wo.scheduled_time || '' %>"
+               data-end-time="<%= wo.scheduled_end_time || '' %>"
+               data-assignee-id="<%= wo.assigned_to_user_id || '' %>">
               <span class="sc-pill-num">WO-<%= wo.display_number %></span>
               <span class="sc-pill-init"><%= (wo.assigned_user_name||wo.assigned_to||'?').slice(0,1) %></span>
             </a>
@@ -95,4 +101,5 @@
     </div>
   </div>
 </div>
+<script src="/js/schedule-drag.js" defer></script>
 <%- include('../layouts/footer') %>

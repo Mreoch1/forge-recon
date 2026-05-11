@@ -174,10 +174,12 @@ function doubleData() {
       const user = pick(users);
       const status = pick(woStatuses);
       const sched = `2026-05-${String(randInt(10,24)).padStart(2,'0')}`;
-      const woId = db.run(`INSERT INTO work_orders (job_id, wo_number_main, wo_number_sub, display_number, status, scheduled_date, scheduled_time, assigned_to, assigned_to_user_id, created_at, updated_at, mock)
-        VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), 1)`,
+      const schedTime = `${String(randInt(7,16)).padStart(2,'0')}:00`;
+      const endTime = (function(t){var p=t.split(':');var h=Math.min(parseInt(p[0],10)+2+Math.floor(Math.random()*3),18);return String(h).padStart(2,'0')+':'+p[1];})(schedTime);
+      const woId = db.run(`INSERT INTO work_orders (job_id, wo_number_main, wo_number_sub, display_number, status, scheduled_date, scheduled_time, scheduled_end_time, assigned_to, assigned_to_user_id, created_at, updated_at, mock)
+        VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), 1)`,
         [job.id, main, `${main}-0000`, status, sched,
-         `${String(randInt(7,16)).padStart(2,'0')}:00`,
+         schedTime, endTime,
          user.name, user.id]).lastInsertRowid;
 
       // Line items (2-5)
@@ -195,11 +197,14 @@ function doubleData() {
       if (!parent) continue;
       const user = pick(users);
       const sub = String(5 + i).padStart(4, '0');
-      db.run(`INSERT INTO work_orders (job_id, parent_wo_id, wo_number_main, wo_number_sub, display_number, status, scheduled_date, assigned_to, assigned_to_user_id, created_at, updated_at, mock)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), 1)`,
+      const subSched = `2026-05-${String(randInt(12,24)).padStart(2,'0')}`;
+      const subSchedTime = `${String(randInt(7,16)).padStart(2,'0')}:00`;
+      const subEndTime = (function(t){var p=t.split(':');var h=Math.min(parseInt(p[0],10)+2+Math.floor(Math.random()*3),18);return String(h).padStart(2,'0')+':'+p[1];})(subSchedTime);
+      db.run(`INSERT INTO work_orders (job_id, parent_wo_id, wo_number_main, wo_number_sub, display_number, status, scheduled_date, scheduled_time, scheduled_end_time, assigned_to, assigned_to_user_id, created_at, updated_at, mock)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), 1)`,
         [db.get('SELECT job_id FROM work_orders WHERE id=?', [parent.id]).job_id, parent.id,
          parent.wo_number_main, sub, `${parent.wo_number_main}-${sub}`, pick(['scheduled','in_progress']),
-         `2026-05-${String(randInt(12,24)).padStart(2,'0')}`, user.name, user.id]);
+         subSched, subSchedTime, subEndTime, user.name, user.id]);
     }
     console.log('  WOs: 44 (36 root + 8 sub)');
   }
