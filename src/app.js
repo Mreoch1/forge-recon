@@ -117,6 +117,6 @@ app.use('/files', requireAuth, filesRoutes);
 app.use('/', requireAuth, dashboardRoutes);
 
 app.use((req, res) => { res.status(404).render('error', { title: 'Not found', code: 404, message: 'That page does not exist.' }); });
-app.use((err, req, res, next) => { console.error(err); res.status(500).render('error', { title: 'Server error', code: 500, message: process.env.NODE_ENV === 'production' ? 'Something broke on our end.' : (err.message || 'Server error') }); });
+app.use((err, req, res, next) => { console.error(err); res.status(500).render('error', { title: 'Server error', code: 500, message: (err && err.message) || 'Server error' }); });
 
 module.exports = app;
