@@ -3,7 +3,8 @@
   <div class="flex items-baseline justify-between mb-4 flex-wrap gap-2">
     <div>
       <div class="mb-2">
-        <a href="/files/<%= entityType %>s" class="text-sm text-recon-fog hover:text-recon-red">&larr; <%= (entityType || '').charAt(0).toUpperCase() + (entityType || '').slice(1) %>s</a>
+<% const bucketKey = entityType === 'work_order' ? 'project' : entityType === 'user' ? 'worker' : entityType; %>
+        <a href="/files/<%= bucketKey %>s" class="text-sm text-recon-fog hover:text-recon-red">&larr; <%= (bucketKey || '').charAt(0).toUpperCase() + (bucketKey || '').slice(1) %>s</a>
         <% if (folder && folder.parent_folder_id) { %>
           &middot; <a href="/files/folders/<%= folder.parent_folder_id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; Parent folder</a>
         <% } %>
