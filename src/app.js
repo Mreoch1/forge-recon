@@ -39,8 +39,6 @@ const SESSIONS_DIR = path.join(__dirname, '..', 'sessions');
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const VIEWS_DIR = path.join(__dirname, 'views');
 
-if (!fs.existsSync(SESSIONS_DIR)) fs.mkdirSync(SESSIONS_DIR, { recursive: true });
-
 // Production safety: SESSION_SECRET must be set
 if (process.env.NODE_ENV === 'production') {
   const secret = process.env.SESSION_SECRET;
@@ -98,7 +96,7 @@ app.use(async (req, res, next) => {
     const FileStore = require('session-file-store')(session);
     const store = db.getMode() === 'pg'
       ? new pgSession({ pool: db.getPool(), tableName: 'session', createTableIfMissing: true })
-      : new FileStore({ path: SESSIONS_DIR, retries: 1, logFn: () => {} });
+      : (fs.mkdirSync(SESSIONS_DIR, { recursive: true }), new FileStore({ path: SESSIONS_DIR, retries: 1, logFn: () => {} }));
     sessionMiddleware = session({ store, secret: SESSION_SECRET, resave: false, saveUninitialized: false, cookie: { secure: process.env.NODE_ENV === 'production', httpOnly: true, sameSite: 'lax', maxAge: 8 * 3600 * 1000 } });
   }
   sessionMiddleware(req, res, next);

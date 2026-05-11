@@ -50,8 +50,9 @@ router.get('/', requireAuth, async (req, res) => {
 });
 
 // GET /:entityType — list entities of that type with root folders
+// Normalizes plural paths (e.g. /files/customers → entityType='customer')
 router.get('/:entityType', requireAuth, async (req, res) => {
-  const entityType = req.params.entityType;
+  const entityType = req.params.entityType.replace(/s$/, '');
   const bucket = ENTITY_TYPES.find(b => b.key === entityType);
   if (!bucket) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Unknown entity type.' });
 

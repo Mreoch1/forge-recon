@@ -144,8 +144,8 @@ router.get('/ai-usage', async (req, res) => {
   const topUsersQuery = isPg
     ? `SELECT al.user_id, u.name, COUNT(*) AS count,
        COALESCE(SUM(
-         CASE WHEN al.after_json IS NOT NULL AND al.after_json <> ''
-         THEN (al.after_json::jsonb ->> 'tokens_used')::int
+         CASE WHEN al.after_json ? 'tokens_used'
+         THEN (al.after_json ->> 'tokens_used')::int
          ELSE 0 END
        ), 0) AS tokens
        FROM audit_logs al LEFT JOIN users u ON u.id = al.user_id
