@@ -7,7 +7,7 @@
  */
 
 const express = require('express');
-const db = require('../db/db');
+const supabase = require('../db/supabase');
 const { setFlash } = require('../middleware/auth');
 
 const router = express.Router();
@@ -28,8 +28,9 @@ async function validateJob(body) {
 
   const customerId = parseInt(body.customer_id, 10);
   if (!customerId) errors.customer_id = 'Customer is required.';
-  else if (!await db.get('SELECT id FROM customers WHERE id = ?', [customerId])) {
-    errors.customer_id = 'Customer not found.';
+  else {
+    const { data: cust } = await supabase.from('customers').select('id').eq('id', customerId).maybeSingle();
+    if (!cust) errors.customer_id = 'Customer not found.';
   }
 
   const status = emptyToNull(body.status) || 'lead';
@@ -46,7 +47,7 @@ async function validateJob(body) {
 
   const assignedUserId = body.assigned_to_user_id ? parseInt(body.assigned_to_user_id, 10) : null;
   if (assignedUserId) {
-    const u = await db.get('SELECT id FROM users WHERE id = ? AND active = 1', [assignedUserId]);
+    const { data: u } = await supabase.from('users').select('id').eq('id', assignedUserId).eq('active', 1).maybeSingle();
     if (!u) errors.assigned_to_user_id = 'User not found or inactive.';
   }
 
@@ -83,59 +84,49 @@ router.get('/', async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
 
-  const conds = [];
-  const params = [];
+  let query = supabase.from('jobs').select('id, title, status, address, city, state, scheduled_date, created_at, customer_id, customers!inner(name), assigned_to_user_id, users!left(name)', { count: 'exact', head: false });
+  let countQuery = supabase.from('jobs').select('*', { count: 'exact', head: true });
+
   if (q) {
-    conds.push('(j.title ILIKE ? OR j.address ILIKE ? OR j.city ILIKE ? OR c.name ILIKE ?)');
     const like = `%${q}%`;
-    params.push(like, like, like, like);
+    query = query.or(`title.ilike.${like},address.ilike.${like},city.ilike.${like},customers.name.ilike.${like}`);
+    countQuery = countQuery.or(`title.ilike.${like},address.ilike.${like},city.ilike.${like},customers.name.ilike.${like}`);
   }
   if (status && VALID_STATUSES.includes(status)) {
-    conds.push('j.status = ?');
-    params.push(status);
+    query = query.eq('status', status);
+    countQuery = countQuery.eq('status', status);
   }
-  const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
 
-  const total = (await db.get(
-    `SELECT COUNT(*) AS n FROM jobs j JOIN customers c ON c.id = j.customer_id ${where}`,
-    params
-  ) || {}).n || 0;
-
-  const jobs = await db.all(
-    `SELECT j.id, j.title, j.status, j.address, j.city, j.state, j.scheduled_date, j.created_at,
-            c.id AS customer_id, c.name AS customer_name,
-            u.name AS assigned_name
-     FROM jobs j
-     JOIN customers c ON c.id = j.customer_id
-     LEFT JOIN users u ON u.id = j.assigned_to_user_id
-     ${where}
-     ORDER BY j.created_at DESC
-     LIMIT ? OFFSET ?`,
-    [...params, PAGE_SIZE, offset]
-  );
+  const [{ data: jobs, count: total }, { error }] = await Promise.all([
+    query.order('created_at', { ascending: false }).range(offset, offset + PAGE_SIZE - 1),
+    countQuery,
+  ]);
+  if (error) throw error;
 
   res.render('jobs/index', {
     title: 'Jobs', activeNav: 'jobs',
-    jobs, q, status, page,
-    totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
-    total, statuses: VALID_STATUSES
+    jobs: (jobs || []).map(j => ({ ...j, customer_name: j.customers?.name, customer_id: j.customer_id, assigned_name: j.users?.name })),
+    q, status, page,
+    totalPages: Math.max(1, Math.ceil((total || 0) / PAGE_SIZE)),
+    total: total || 0, statuses: VALID_STATUSES
   });
 });
 
 router.get('/new', async (req, res) => {
-  const customers = await db.all('SELECT id, name, address, city, state, zip FROM customers ORDER BY name COLLATE NOCASE ASC');
-  if (customers.length === 0) {
+  const [{ data: customers }, { data: users }] = await Promise.all([
+    supabase.from('customers').select('id, name, address, city, state, zip').order('name'),
+    supabase.from('users').select('id, name').eq('active', 1).order('name'),
+  ]);
+  if (!customers || customers.length === 0) {
     setFlash(req, 'error', 'You need a customer before you can create a job.');
     return res.redirect('/customers/new');
   }
-  const users = await db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
   const job = blankJob();
   const presetCustomerId = parseInt(req.query.customer_id, 10);
   if (presetCustomerId) {
     const c = customers.find(x => x.id === presetCustomerId);
     if (c) {
       job.customer_id = c.id;
-      // Auto-fill site address from customer
       job.address = c.address || '';
       job.city = c.city || '';
       job.state = c.state || '';
@@ -144,98 +135,125 @@ router.get('/new', async (req, res) => {
   }
   res.render('jobs/new', {
     title: 'New job', activeNav: 'jobs',
-    job, customers, users, errors: {}, statuses: VALID_STATUSES
+    job, customers: customers || [], users: users || [], errors: {}, statuses: VALID_STATUSES
   });
 });
 
 router.post('/', async (req, res) => {
-  const customers = await db.all('SELECT id, name, address, city, state, zip FROM customers ORDER BY name COLLATE NOCASE ASC');
-  const users = await db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
+  const [{ data: customers }, { data: users }] = await Promise.all([
+    supabase.from('customers').select('id, name, address, city, state, zip').order('name'),
+    supabase.from('users').select('id, name').eq('active', 1).order('name'),
+  ]);
   const { errors, data } = validateJob(req.body);
   if (Object.keys(errors).length) {
     return res.status(400).render('jobs/new', {
       title: 'New job', activeNav: 'jobs',
-      job: { id: null, ...data }, customers, users, errors, statuses: VALID_STATUSES
+      job: { id: null, ...data }, customers: customers || [], users: users || [], errors, statuses: VALID_STATUSES
     });
   }
-  const r = await db.run(
-    `INSERT INTO jobs (customer_id, title, address, city, state, zip, description, status, scheduled_date, scheduled_time, assigned_to_user_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [data.customer_id, data.title, data.address, data.city, data.state, data.zip, data.description, data.status, data.scheduled_date, data.scheduled_time, data.assigned_to_user_id]
-  );
+  const { data: newJob, error: insertError } = await supabase
+    .from('jobs')
+    .insert({
+      customer_id: data.customer_id, title: data.title,
+      address: data.address, city: data.city, state: data.state, zip: data.zip,
+      description: data.description, status: data.status,
+      scheduled_date: data.scheduled_date, scheduled_time: data.scheduled_time,
+      assigned_to_user_id: data.assigned_to_user_id
+    })
+    .select()
+    .single();
+  if (insertError) throw insertError;
   setFlash(req, 'success', `Job "${data.title}" created.`);
-  res.redirect(`/jobs/${r.lastInsertRowid}`);
+  res.redirect(`/jobs/${newJob.id}`);
 });
 
 router.get('/:id', async (req, res) => {
-  const job = await db.get(
-    `SELECT j.*, c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone,
-            u.name AS assigned_name
-     FROM jobs j
-     JOIN customers c ON c.id = j.customer_id
-     LEFT JOIN users u ON u.id = j.assigned_to_user_id
-     WHERE j.id = ?`,
-    [req.params.id]
-  );
+  const id = req.params.id;
+  const { data: job, error: jError } = await supabase
+    .from('jobs')
+    .select('*, customers!inner(id, name, email, phone), users!left(name)')
+    .eq('id', id)
+    .maybeSingle();
+  if (jError) throw jError;
   if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Job not found.' });
 
-  // Pull related work orders (root WOs only — sub-WOs nest under parents)
-  const workOrders = await db.all(
-    `SELECT id, display_number, wo_number_main, wo_number_sub, parent_wo_id, status, scheduled_date, created_at
-     FROM work_orders WHERE job_id = ?
-     ORDER BY wo_number_main ASC, wo_number_sub ASC`,
-    [req.params.id]
-  );
+  // Flatten nested data to match view expectations
+  job.customer_name = job.customers?.name;
+  job.customer_email = job.customers?.email;
+  job.customer_phone = job.customers?.phone;
+  job.assigned_name = job.users?.name;
+
+  const { data: workOrders } = await supabase
+    .from('work_orders')
+    .select('id, display_number, wo_number_main, wo_number_sub, parent_wo_id, status, scheduled_date, created_at')
+    .eq('job_id', id)
+    .order('wo_number_main', { ascending: true })
+    .order('wo_number_sub', { ascending: true });
 
   res.render('jobs/show', {
     title: job.title, activeNav: 'jobs',
-    job, workOrders
+    job, workOrders: workOrders || []
   });
 });
 
 router.get('/:id/edit', async (req, res) => {
-  const job = await db.get('SELECT * FROM jobs WHERE id = ?', [req.params.id]);
+  const id = req.params.id;
+  const [{ data: job }, { data: customers }, { data: users }] = await Promise.all([
+    supabase.from('jobs').select('*').eq('id', id).maybeSingle(),
+    supabase.from('customers').select('id, name').order('name'),
+    supabase.from('users').select('id, name').eq('active', 1).order('name'),
+  ]);
   if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Job not found.' });
-  const customers = await db.all('SELECT id, name FROM customers ORDER BY name COLLATE NOCASE ASC');
-  const users = await db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
   res.render('jobs/edit', {
     title: `Edit ${job.title}`, activeNav: 'jobs',
-    job, customers, users, errors: {}, statuses: VALID_STATUSES
+    job, customers: customers || [], users: users || [], errors: {}, statuses: VALID_STATUSES
   });
 });
 
 router.post('/:id', async (req, res) => {
-  const job = await db.get('SELECT id, title FROM jobs WHERE id = ?', [req.params.id]);
+  const id = req.params.id;
+  const { data: job, error: findError } = await supabase.from('jobs').select('id, title').eq('id', id).maybeSingle();
+  if (findError) throw findError;
   if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Job not found.' });
-  const customers = await db.all('SELECT id, name FROM customers ORDER BY name COLLATE NOCASE ASC');
-  const users = await db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
+  const [{ data: customers }, { data: users }] = await Promise.all([
+    supabase.from('customers').select('id, name').order('name'),
+    supabase.from('users').select('id, name').eq('active', 1).order('name'),
+  ]);
   const { errors, data } = validateJob(req.body);
   if (Object.keys(errors).length) {
     return res.status(400).render('jobs/edit', {
       title: `Edit ${job.title}`, activeNav: 'jobs',
-      job: { id: job.id, ...data }, customers, users, errors, statuses: VALID_STATUSES
+      job: { id: job.id, ...data }, customers: customers || [], users: users || [], errors, statuses: VALID_STATUSES
     });
   }
-  await db.run(
-    `UPDATE jobs SET customer_id=?, title=?, address=?, city=?, state=?, zip=?, description=?, status=?,
-       scheduled_date=?, scheduled_time=?, assigned_to_user_id=?, updated_at=now()
-     WHERE id=?`,
-    [data.customer_id, data.title, data.address, data.city, data.state, data.zip, data.description, data.status,
-     data.scheduled_date, data.scheduled_time, data.assigned_to_user_id, req.params.id]
-  );
+  const { error: updateError } = await supabase
+    .from('jobs')
+    .update({
+      customer_id: data.customer_id, title: data.title,
+      address: data.address, city: data.city, state: data.state, zip: data.zip,
+      description: data.description, status: data.status,
+      scheduled_date: data.scheduled_date, scheduled_time: data.scheduled_time,
+      assigned_to_user_id: data.assigned_to_user_id,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', id);
+  if (updateError) throw updateError;
   setFlash(req, 'success', `Job "${data.title}" updated.`);
-  res.redirect(`/jobs/${req.params.id}`);
+  res.redirect(`/jobs/${id}`);
 });
 
 router.post('/:id/delete', async (req, res) => {
-  const job = await db.get('SELECT id, title FROM jobs WHERE id = ?', [req.params.id]);
+  const id = req.params.id;
+  const { data: job, error: findError } = await supabase.from('jobs').select('id, title').eq('id', id).maybeSingle();
+  if (findError) throw findError;
   if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Job not found.' });
-  const woCount = (await db.get('SELECT COUNT(*) AS n FROM work_orders WHERE job_id = ?', [req.params.id]) || {}).n || 0;
+  const { count: woCount } = await supabase.from('work_orders').select('*', { count: 'exact', head: true }).eq('job_id', id);
   if (woCount) {
     setFlash(req, 'error', `Cannot delete "${job.title}" — it has ${woCount} work order(s).`);
-    return res.redirect(`/jobs/${req.params.id}`);
+    return res.redirect(`/jobs/${id}`);
   }
-  await db.run('DELETE FROM jobs WHERE id = ?', [req.params.id]);
+  const { error: deleteError } = await supabase.from('jobs').delete().eq('id', id);
+  if (deleteError) throw deleteError;
   setFlash(req, 'success', `Job "${job.title}" deleted.`);
   res.redirect('/jobs');
 });

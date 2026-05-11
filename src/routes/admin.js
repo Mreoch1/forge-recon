@@ -4,7 +4,7 @@
  */
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const db = require('../db/db');
+const supabase = require('../db/supabase');
 const { setFlash } = require('../middleware/auth');
 
 const router = express.Router();
@@ -17,15 +17,15 @@ function emptyToNull(v) {
 }
 
 async function adminCount(excludingUserId) {
-  const params = ['admin'];
-  let where = "WHERE role = ? AND active = 1";
-  if (excludingUserId) { where += " AND id != ?"; params.push(excludingUserId); }
-  return (await db.get(`SELECT COUNT(*) AS n FROM users ${where}`, params) || {}).n || 0;
+  let query = supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'admin').eq('active', 1);
+  if (excludingUserId) query = query.neq('id', excludingUserId);
+  const { count } = await query;
+  return count || 0;
 }
 
 router.get('/users', async (req, res) => {
-  const users = await db.all(`SELECT id, email, name, role, active, created_at FROM users ORDER BY name COLLATE NOCASE ASC`);
-  res.render('admin/users/index', { title: 'Users', activeNav: 'admin', users });
+  const { data: users } = await supabase.from('users').select('id, email, name, role, active, created_at').order('name');
+  res.render('admin/users/index', { title: 'Users', activeNav: 'admin', users: users || [] });
 });
 
 router.get('/users/new', (req, res) => {
@@ -40,7 +40,7 @@ router.post('/users', async (req, res) => {
   const password = req.body.password || '';
   if (!email) errors.email = 'Email required.';
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'Invalid email format.';
-  else { const dup = await db.get('SELECT id FROM users WHERE email = ?', [email]); if (dup) errors.email = 'Email already in use.'; }
+  else { const { data: dup } = await supabase.from('users').select('id').eq('email', email).maybeSingle(); if (dup) errors.email = 'Email already in use.'; }
   if (!name) errors.name = 'Name required.';
   if (!VALID_ROLES.includes(role)) errors.role = 'Invalid role.';
   if (!password) errors.password = 'Password required.';
@@ -57,19 +57,22 @@ router.post('/users', async (req, res) => {
     return res.status(400).render('admin/users/new', { title: 'New user', activeNav: 'admin', user: { id: null, email, name, role, active: 1 }, errors, roles: VALID_ROLES });
   }
   const hash = await bcrypt.hash(password, 10);
-  await db.run(`INSERT INTO users (email, password_hash, name, role, phone, active) VALUES (?, ?, ?, ?, ?, 1)`, [req.body.email, hash, req.body.name, req.body.role, req.body.phone]);
+  await supabase.from('users').insert({ email, password_hash: hash, name, role, phone: req.body.phone || null, active: 1 });
   setFlash(req, 'success', `User "${name}" created.`);
   res.redirect('/admin/users');
 });
 
 router.get('/users/:id/edit', async (req, res) => {
-  const user = await db.get('SELECT id, email, name, role, active FROM users WHERE id = ?', [req.params.id]);
+  const { data: user, error } = await supabase.from('users').select('id, email, name, role, active').eq('id', req.params.id).maybeSingle();
+  if (error) throw error;
   if (!user) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'User not found.' });
   res.render('admin/users/edit', { title: `Edit ${user.name}`, activeNav: 'admin', user, errors: {}, roles: VALID_ROLES, isSelf: req.session.userId === user.id });
 });
 
 router.post('/users/:id', async (req, res) => {
-  const target = await db.get('SELECT * FROM users WHERE id = ?', [req.params.id]);
+  const targetId = req.params.id;
+  const { data: target, error: findError } = await supabase.from('users').select('*').eq('id', targetId).maybeSingle();
+  if (findError) throw findError;
   if (!target) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'User not found.' });
   const errors = {};
   const email = (emptyToNull(req.body.email) || '').toLowerCase();
@@ -78,7 +81,7 @@ router.post('/users/:id', async (req, res) => {
   const active = req.body.active === '1' || req.body.active === 'on' ? 1 : 0;
   if (!email) errors.email = 'Email required.';
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'Invalid email format.';
-  else { const dup = await db.get('SELECT id FROM users WHERE email = ? AND id != ?', [email, target.id]); if (dup) errors.email = 'Email already in use.'; }
+  else { const { data: dup } = await supabase.from('users').select('id').eq('email', email).neq('id', targetId).maybeSingle(); if (dup) errors.email = 'Email already in use.'; }
   if (!name) errors.name = 'Name required.';
   if (!VALID_ROLES.includes(role)) errors.role = 'Invalid role.';
   const wasAdmin = target.role === 'admin' && target.active === 1;
@@ -88,13 +91,15 @@ router.post('/users/:id', async (req, res) => {
   if (Object.keys(errors).length) {
     return res.status(400).render('admin/users/edit', { title: `Edit ${target.name}`, activeNav: 'admin', user: { ...target, email, name, role, active }, errors, roles: VALID_ROLES, isSelf: req.session.userId === target.id });
   }
-  await db.run(`UPDATE users SET name=?, email=?, role=?, active=?, phone=?, updated_at=now() WHERE id=?`, [req.body.name, req.body.email, req.body.role, active, req.body.phone, target.id]);
+  const { error: updateError } = await supabase.from('users').update({ name, email, role, active, phone: req.body.phone || null, updated_at: new Date().toISOString() }).eq('id', targetId);
+  if (updateError) throw updateError;
   setFlash(req, 'success', `User "${name}" updated.`);
   res.redirect('/admin/users');
 });
 
 router.post('/users/:id/password', async (req, res) => {
-  const target = await db.get('SELECT id, name FROM users WHERE id = ?', [req.params.id]);
+  const { data: target, error: findError } = await supabase.from('users').select('id, name').eq('id', req.params.id).maybeSingle();
+  if (findError) throw findError;
   if (!target) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'User not found.' });
   const password = req.body.password || '';
   const confirm = req.body.confirm_password || '';
@@ -110,25 +115,29 @@ router.post('/users/:id/password', async (req, res) => {
     return res.redirect(`/admin/users/${target.id}/edit`);
   }
   const hash = await bcrypt.hash(password, 10);
-  await db.run("UPDATE users SET password_hash=?, updated_at=now() WHERE id=?", [hash, target.id]);
+  const { error: updateError } = await supabase.from('users').update({ password_hash: hash, updated_at: new Date().toISOString() }).eq('id', target.id);
+  if (updateError) throw updateError;
   setFlash(req, 'success', `Password reset for ${target.name}.`);
   res.redirect(`/admin/users/${target.id}/edit`);
 });
 
 router.post('/users/:id/delete', async (req, res) => {
-  const target = await db.get('SELECT id, name, role, active FROM users WHERE id = ?', [req.params.id]);
+  const targetId = req.params.id;
+  const { data: target, error: findError } = await supabase.from('users').select('id, name, role, active').eq('id', targetId).maybeSingle();
+  if (findError) throw findError;
   if (!target) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'User not found.' });
   if (req.session.userId === target.id) { setFlash(req, 'error', 'You cannot delete yourself.'); return res.redirect('/admin/users'); }
   if (target.role === 'admin' && target.active === 1 && (await adminCount(target.id)) === 0) { setFlash(req, 'error', 'Cannot delete the last active admin.'); return res.redirect('/admin/users'); }
-  await db.run('DELETE FROM users WHERE id = ?', [target.id]);
+  const { error: deleteError } = await supabase.from('users').delete().eq('id', targetId);
+  if (deleteError) throw deleteError;
   setFlash(req, 'success', `User "${target.name}" deleted.`);
   res.redirect('/admin/users');
 });
 
 // Settings
 router.get('/settings', async (req, res) => {
-  const settings = await db.get('SELECT * FROM company_settings WHERE id = 1') || {};
-  res.render('admin/settings', { title: 'Company settings', activeNav: 'admin', settings, errors: {} });
+  const { data: settings } = await supabase.from('company_settings').select('*').eq('id', 1).maybeSingle();
+  res.render('admin/settings', { title: 'Company settings', activeNav: 'admin', settings: settings || {}, errors: {} });
 });
 
 router.post('/settings', async (req, res) => {
@@ -140,49 +149,86 @@ router.post('/settings', async (req, res) => {
   const validTerms = ['Due on receipt', 'Net 15', 'Net 30', 'Net 45', 'Net 60', 'Custom'];
   const default_payment_terms = validTerms.includes(req.body.default_payment_terms) ? req.body.default_payment_terms : 'Net 30';
   if (Object.keys(errors).length) return res.status(400).render('admin/settings', { title: 'Company settings', activeNav: 'admin', settings: { company_name, address: emptyToNull(req.body.address), city: emptyToNull(req.body.city), state: emptyToNull(req.body.state), zip: emptyToNull(req.body.zip), phone: emptyToNull(req.body.phone), email: emptyToNull(req.body.email), ein: emptyToNull(req.body.ein), default_tax_rate: taxRateNum, default_payment_terms }, errors });
-  await db.run(`UPDATE company_settings SET company_name=?, address=?, city=?, state=?, zip=?, phone=?, email=?, ein=?, default_tax_rate=?, default_payment_terms=? WHERE id=1`,
-    [company_name, emptyToNull(req.body.address), emptyToNull(req.body.city), emptyToNull(req.body.state), emptyToNull(req.body.zip), emptyToNull(req.body.phone), emptyToNull(req.body.email), emptyToNull(req.body.ein), taxRateNum, default_payment_terms]);
+  const { error: updateError } = await supabase.from('company_settings').update({
+    company_name, address: emptyToNull(req.body.address), city: emptyToNull(req.body.city),
+    state: emptyToNull(req.body.state), zip: emptyToNull(req.body.zip),
+    phone: emptyToNull(req.body.phone), email: emptyToNull(req.body.email),
+    ein: emptyToNull(req.body.ein), default_tax_rate: taxRateNum,
+    default_payment_terms
+  }).eq('id', 1);
+  if (updateError) throw updateError;
   setFlash(req, 'success', 'Company settings saved.');
   res.redirect('/admin/settings');
 });
 
 // AI Usage
 router.get('/ai-usage', async (req, res) => {
-  const d = require('../db/db');
   const today = new Date().toISOString().slice(0, 10);
-  const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const totalCalls = (await d.get("SELECT COUNT(*) AS n FROM audit_logs WHERE source = 'ai_chat'") || {}).n || 0;
+  const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+
+  // Total calls
+  const { count: totalCalls } = await supabase.from('audit_logs').select('*', { count: 'exact', head: true }).eq('action', 'ai_chat');
+
+  // Token data — fetch all and aggregate in JS
+  const { data: tokenRows } = await supabase
+    .from('audit_logs')
+    .select('after_json, user_id, created_at, users!left(name)')
+    .eq('action', 'ai_chat')
+    .order('created_at', { ascending: false })
+    .limit(500);
+
   let totalTokens = 0;
-  const tokenRows = await d.all("SELECT after_json FROM audit_logs WHERE source = 'ai_chat' AND after_json IS NOT NULL LIMIT 500");
-  tokenRows.forEach(r => { try { const p = typeof r.after_json === 'string' ? JSON.parse(r.after_json) : r.after_json; if (p && p.tokens_used) totalTokens += Number(p.tokens_used) || 0; } catch(e) {} });
+  const userTokens = {};
+  const dailyCounts = {};
+  const parsedCalls = [];
+
+  (tokenRows || []).forEach(r => {
+    const p = r.after_json || {};
+    const tokens = p.tokens_used || 0;
+    totalTokens += Number(tokens);
+
+    // User aggregation
+    const uid = r.user_id || 0;
+    if (!userTokens[uid]) userTokens[uid] = { name: r.users?.name || `User #${uid}`, count: 0, tokens: 0 };
+    userTokens[uid].count++;
+    userTokens[uid].tokens += Number(tokens);
+
+    // Daily aggregation
+    const d = (r.created_at || '').slice(0, 10);
+    if (d) dailyCounts[d] = (dailyCounts[d] || 0) + 1;
+
+    // Recent calls
+    if (parsedCalls.length < 20) {
+      parsedCalls.push({
+        created_at: r.created_at,
+        name: r.users?.name || `User #${uid}`,
+        message: (p.message || '').slice(0, 100),
+        tokens: Number(tokens),
+        latency: p.latency_ms || 0,
+      });
+    }
+  });
+
   const estimatedCost = totalTokens * 0.0000015;
-  const dailyRows = await d.all(`SELECT date(created_at) AS d, COUNT(*) AS n FROM audit_logs WHERE source = 'ai_chat' AND date(created_at) >= ? AND date(created_at) <= ? GROUP BY d ORDER BY d ASC`, [fourteenDaysAgo, today]);
-  const dailyDataMap = {}; dailyRows.forEach(r => { dailyDataMap[r.d] = r.n; });
-  const dailyData = []; for (let i = 13; i >= 0; i--) { const d2 = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10); dailyData.push({ date: d2, count: dailyDataMap[d2] || 0 }); }
-  const isPg = d.getMode() === 'pg';
-  const topUsersQuery = isPg
-    ? `SELECT al.user_id, u.name, COUNT(*) AS count,
-       COALESCE(SUM(
-         CASE WHEN jsonb_exists(al.after_json, 'tokens_used')
-         THEN (al.after_json ->> 'tokens_used')::int
-         ELSE 0 END
-       ), 0) AS tokens
-       FROM audit_logs al LEFT JOIN users u ON u.id = al.user_id
-       WHERE al.source = 'ai_chat' AND al.user_id IS NOT NULL
-       GROUP BY al.user_id ORDER BY count DESC LIMIT 5`
-    : `SELECT al.user_id, u.name, COUNT(*) AS count,
-       COALESCE(SUM(
-         CASE WHEN json_extract(al.after_json, '$.tokens_used') IS NOT NULL
-         THEN CAST(json_extract(al.after_json, '$.tokens_used') AS INTEGER)
-         ELSE 0 END
-       ), 0) AS tokens
-       FROM audit_logs al LEFT JOIN users u ON u.id = al.user_id
-       WHERE al.source = 'ai_chat' AND al.user_id IS NOT NULL
-       GROUP BY al.user_id ORDER BY count DESC LIMIT 5`;
-  const topUsers = await d.all(topUsersQuery);
-  const recentRows = await d.all(`SELECT al.id, al.user_id, u.name, al.after_json, al.created_at FROM audit_logs al LEFT JOIN users u ON u.id = al.user_id WHERE al.source = 'ai_chat' ORDER BY al.created_at DESC LIMIT 20`);
-  const parsedCalls = recentRows.map(r => { let msg = '', tokens = 0, latency = 0; try { const p = typeof r.after_json === 'string' ? JSON.parse(r.after_json) : (r.after_json || {}); msg = (p.message || '').slice(0, 100); tokens = p.tokens_used || 0; latency = p.latency_ms || 0; } catch(e) {} return { created_at: r.created_at, name: r.name || 'User #' + r.user_id, message: msg, tokens, latency }; });
-  res.render('admin/ai-usage', { title: 'AI Usage', activeNav: 'admin', totalCalls, totalTokens, estimatedCost, dailyData, topUsers, recentCalls: parsedCalls, error: null });
+
+  // Build daily data for last 14 days
+  const dailyData = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    dailyData.push({ date: d, count: dailyCounts[d] || 0 });
+  }
+
+  // Top users sorted by count
+  const topUsers = Object.entries(userTokens)
+    .map(([uid, v]) => ({ user_id: parseInt(uid), name: v.name, count: v.count, tokens: v.tokens }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
+  res.render('admin/ai-usage', {
+    title: 'AI Usage', activeNav: 'admin',
+    totalCalls: totalCalls || 0, totalTokens, estimatedCost, dailyData, topUsers,
+    recentCalls: parsedCalls, error: null
+  });
 });
 
 // admin index redirect
@@ -190,13 +236,22 @@ router.get('/', async (req, res) => { setFlash(req, 'info', 'Admin panel moved t
 router.post('/closures/create', async (req, res) => {
   const name = (req.body.name || '').trim(); const date_start = (req.body.date_start || '').trim(); const type = req.body.type || 'holiday';
   if (!name || !date_start) { setFlash(req, 'error', 'Name and date required.'); return res.redirect('/admin'); }
-  await db.run(`INSERT INTO closures (date_start, date_end, name, type, notes, created_by_user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, now())`, [date_start, req.body.date_end || null, name, type, req.body.notes || null, req.session.userId]);
+  const { error: insertError } = await supabase.from('closures').insert({
+    date_start, date_end: req.body.date_end || null, name, type,
+    notes: req.body.notes || null, created_by_user_id: req.session.userId,
+    created_at: new Date().toISOString()
+  });
+  if (insertError) throw insertError;
   setFlash(req, 'success', `Closure "${name}" created.`); res.redirect('/admin');
 });
 router.post('/closures/delete', async (req, res) => {
-  const id = parseInt(req.body.closure_id, 10); const c = await db.get('SELECT * FROM closures WHERE id = ?', [id]);
+  const id = parseInt(req.body.closure_id, 10);
+  const { data: c, error: findError } = await supabase.from('closures').select('*').eq('id', id).maybeSingle();
+  if (findError) throw findError;
   if (!c) { setFlash(req, 'error', 'Closure not found.'); return res.redirect('/admin'); }
-  await db.run('DELETE FROM closures WHERE id = ?', [id]); setFlash(req, 'success', `Closure "${c.name}" deleted.`); res.redirect('/admin');
+  const { error: deleteError } = await supabase.from('closures').delete().eq('id', id);
+  if (deleteError) throw deleteError;
+  setFlash(req, 'success', `Closure "${c.name}" deleted.`); res.redirect('/admin');
 });
 
 module.exports = router;
