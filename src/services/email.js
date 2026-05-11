@@ -77,12 +77,28 @@ async function sendEmail({ to, subject, text, html, attachments }) {
 
 /**
  * Send a password reset email.
+ * Renders branded HTML template through views/emails/layout.ejs.
  * Falls back to console.log if Resend is not configured.
  */
 async function sendPasswordResetEmail(toEmail, toName, resetUrl) {
   const subject = 'Reset your FORGE password';
+
+  // Render the branded HTML body
+  const ejs = require('ejs');
+  const bodyHtml = ejs.render(
+    `<p>Hi <%= name %>,</p>
+<p>Someone requested a password reset for your FORGE account. Click below to set a new password. The link expires in 1 hour.</p>
+<p style="text-align:center;margin:24px 0">
+  <a href="<%= resetUrl %>" style="display:inline-block;background:#c0202b;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">Reset password</a>
+</p>
+<p>If you didn't request this, you can safely ignore this email — no changes will be made to your account.</p>`,
+    { name: toName, resetUrl }
+  );
+  const html = ejs.render(
+    fs.readFileSync(path.join(__dirname, '..', 'views', 'emails', 'layout.ejs'), 'utf8'),
+    { body: bodyHtml }
+  );
   const text = `Hi ${toName},\n\nSomeone requested a password reset for your FORGE account. Click the link below to set a new password. The link expires in 1 hour.\n\n${resetUrl}\n\nIf you didn't request this, you can safely ignore this email — no changes will be made to your account.\n\n— FORGE by Recon Enterprises`;
-  const html = `<p>Hi ${toName},</p><p>Someone requested a password reset for your FORGE account. Click below to set a new password. The link expires in 1 hour.</p><p style="text-align:center;margin:24px 0"><a href="${resetUrl}" style="display:inline-block;background:#c0202b;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">Reset password</a></p><p>If you didn't request this, you can safely ignore this email — no changes will be made to your account.</p><p style="color:#888;font-size:12px">— FORGE by Recon Enterprises</p>`;
 
   // Try Resend first if configured
   const resend = getResend();

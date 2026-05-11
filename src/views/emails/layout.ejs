@@ -1,0 +1,56 @@
+<%# emails/layout.ejs — Reusable branded HTML email wrapper.
+  Inline CSS only (most email clients strip <style> tags).
+  Usage:
+    <%- include('emails/layout', { body: '<p>Email content here</p>' }) %>
+%>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background-color:#f5f5f5;font-family:Inter,'Segoe UI',system-ui,-apple-system,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f5;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:8px;overflow:hidden;">
+          <!-- Header -->
+          <tr>
+            <td style="padding:32px 32px 16px 32px;border-bottom:1px solid #eee;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="vertical-align:middle;">
+                    <img src="https://construction-app-khaki.vercel.app/logos/recon.png"
+                         alt="Recon Enterprises" width="48" height="48" style="display:block;">
+                  </td>
+                  <td style="text-align:right;vertical-align:middle;">
+                    <span style="font-size:22px;font-weight:800;letter-spacing:.12em;
+                      background:linear-gradient(95deg,#e63946 0%,#ff6b75 35%,#ffffff 100%);
+                      -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+                      background-clip:text;color:transparent;
+                      filter:drop-shadow(0 1px 0 rgba(0,0,0,.15));">FORGE</span>
+                    <br><small style="color:#888;font-size:11px;">by Recon Enterprises</small>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <!-- Body -->
+          <tr>
+            <td style="padding:32px;font-size:15px;line-height:1.6;color:#1a1a1a;">
+              <%- body %>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="padding:16px 32px;border-top:1px solid #eee;font-size:12px;color:#888;text-align:center;">
+              Recon Enterprises &middot; <a href="mailto:support@reconenterprises.net" style="color:#888;text-decoration:none;">support@reconenterprises.net</a>
+              <br>If you didn't expect this email, you can ignore it.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

@@ -1,6 +1,9 @@
 /**
  * estimate-email.js — Generate and "send" (write .eml) an estimate email.
  *
+ * TODO(R30): Retrofit to use views/emails/layout.ejs branded wrapper
+ * for the HTML body instead of plain text → <p> conversion.
+ *
  * Used by both the manual /estimates/:id/send route and the AI send_estimate mutation.
  */
 
