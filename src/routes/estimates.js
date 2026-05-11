@@ -20,7 +20,7 @@
  */
 
 const express = require('express');
-const db = require('../db/db');
+const supabase = require('../db/supabase');
 const { setFlash } = require('../middleware/auth');
 const calc = require('../services/calculations');
 const pdf = require('../services/pdf');
@@ -84,30 +84,46 @@ function validateEstimate(body) {
 }
 
 async function loadEstimate(id) {
-  const est = await db.get(
-    `SELECT e.*,
-            w.id AS wo_id, w.display_number AS wo_display_number,
-            w.wo_number_main, w.wo_number_sub,
-            j.id AS job_id, j.title AS job_title,
-            j.address AS job_address, j.city AS job_city, j.state AS job_state, j.zip AS job_zip,
-            c.id AS customer_id, c.name AS customer_name,
-            c.email AS customer_email, c.billing_email AS customer_billing_email,
-            c.phone AS customer_phone,
-            c.address AS customer_address, c.city AS customer_city, c.state AS customer_state, c.zip AS customer_zip,
-            u.name AS sent_by_name
-     FROM estimates e
-     JOIN work_orders w ON w.id = e.work_order_id
-     JOIN jobs j ON j.id = w.job_id
-     JOIN customers c ON c.id = j.customer_id
-     LEFT JOIN users u ON u.id = e.sent_by_user_id
-     WHERE e.id = ?`,
-    [id]
-  );
+  const { data: est } = await supabase
+    .from('estimates')
+    .select('*, work_orders!inner(id, display_number, wo_number_main, wo_number_sub, jobs!inner(id, title, address, city, state, zip, customers!inner(id, name, email, billing_email, phone, address, city, state, zip))), sent_by_user_id, users!left(name)')
+    .eq('id', id)
+    .maybeSingle();
   if (!est) return null;
-  est.lines = await db.all(
-    `SELECT * FROM estimate_line_items WHERE estimate_id = ? ORDER BY sort_order ASC, id ASC`,
-    [id]
-  );
+  // Flatten nested data
+  const w = est.work_orders;
+  const j = w?.jobs;
+  const c = j?.customers;
+  est.wo_id = w?.id;
+  est.wo_display_number = w?.display_number;
+  est.wo_number_main = w?.wo_number_main;
+  est.wo_number_sub = w?.wo_number_sub;
+  est.job_id = j?.id;
+  est.job_title = j?.title;
+  est.job_address = j?.address;
+  est.job_city = j?.city;
+  est.job_state = j?.state;
+  est.job_zip = j?.zip;
+  est.customer_id = c?.id;
+  est.customer_name = c?.name;
+  est.customer_email = c?.email;
+  est.customer_billing_email = c?.billing_email;
+  est.customer_phone = c?.phone;
+  est.customer_address = c?.address;
+  est.customer_city = c?.city;
+  est.customer_state = c?.state;
+  est.customer_zip = c?.zip;
+  est.sent_by_name = est.users?.name;
+  delete est.work_orders;
+  delete est.users;
+  // Load line items
+  const { data: lines } = await supabase
+    .from('estimate_line_items')
+    .select('*')
+    .eq('estimate_id', id)
+    .order('sort_order', { ascending: true })
+    .order('id', { ascending: true });
+  est.lines = lines || [];
   est.display_number = `EST-${est.wo_display_number}`;
   return est;
 }
@@ -115,64 +131,60 @@ async function loadEstimate(id) {
 router.get('/', async (req, res) => {
   const q = (req.query.q || '').trim();
   const status = (req.query.status || '').trim();
-  const archiveFilter = (req.query.archived || '0'); // 0=active, 1=archived, all=both
+  const archiveFilter = (req.query.archived || '0');
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
 
-  const conds = [];
-  const params = [];
+  let query = supabase.from('estimates').select('id, status, total, cost_total, valid_until, created_at, work_orders!inner(display_number, id, jobs!inner(id, title, customers!inner(id, name)))', { count: 'exact', head: false });
+  let countQuery = supabase.from('estimates').select('*', { count: 'exact', head: true });
+
   if (q) {
-    conds.push('(w.display_number ILIKE ? OR j.title ILIKE ? OR c.name ILIKE ?)');
     const like = `%${q}%`;
-    params.push(like, like, like);
+    query = query.or(`work_orders.display_number.ilike.${like},work_orders.jobs.title.ilike.${like},work_orders.jobs.customers.name.ilike.${like}`);
+    countQuery = countQuery.or(`work_orders.display_number.ilike.${like},work_orders.jobs.title.ilike.${like},work_orders.jobs.customers.name.ilike.${like}`);
   }
   if (status && VALID_STATUSES.includes(status)) {
-    conds.push('e.status = ?');
-    params.push(status);
+    query = query.eq('status', status);
+    countQuery = countQuery.eq('status', status);
   }
   if (archiveFilter === '0') {
-    conds.push('e.archived_at IS NULL');
+    query = query.is('archived_at', null);
+    countQuery = countQuery.is('archived_at', null);
   } else if (archiveFilter === '1') {
-    conds.push('e.archived_at IS NOT NULL');
+    query = query.not('archived_at', 'is', null);
+    countQuery = countQuery.not('archived_at', 'is', null);
   }
-  const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
 
-  const total = (await db.get(
-    `SELECT COUNT(*) AS n FROM estimates e
-     JOIN work_orders w ON w.id = e.work_order_id
-     JOIN jobs j ON j.id = w.job_id
-     JOIN customers c ON c.id = j.customer_id ${where}`,
-    params
-  ) || {}).n || 0;
+  const [{ data: estimates, count: total }, { error }] = await Promise.all([
+    query.order('created_at', { ascending: false }).range(offset, offset + PAGE_SIZE - 1),
+    countQuery,
+  ]);
+  if (error) throw error;
 
-  const estimates = await db.all(
-    `SELECT e.id, e.status, e.total, e.cost_total, e.valid_until, e.created_at,
-            w.display_number AS wo_display_number, w.id AS wo_id,
-            j.id AS job_id, j.title AS job_title,
-            c.id AS customer_id, c.name AS customer_name
-     FROM estimates e
-     JOIN work_orders w ON w.id = e.work_order_id
-     JOIN jobs j ON j.id = w.job_id
-     JOIN customers c ON c.id = j.customer_id
-     ${where}
-     ORDER BY e.created_at DESC
-     LIMIT ? OFFSET ?`,
-    [...params, PAGE_SIZE, offset]
-  );
+  const mapped = (estimates || []).map(r => ({
+    id: r.id, status: r.status, total: r.total, cost_total: r.cost_total,
+    valid_until: r.valid_until, created_at: r.created_at,
+    wo_display_number: r.work_orders?.display_number,
+    wo_id: r.work_orders?.id,
+    job_id: r.work_orders?.jobs?.id,
+    job_title: r.work_orders?.jobs?.title,
+    customer_id: r.work_orders?.jobs?.customers?.id,
+    customer_name: r.work_orders?.jobs?.customers?.name,
+  }));
 
   res.render('estimates/index', {
     title: 'Estimates', activeNav: 'estimates',
-    estimates, q, status, page,
-    totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
-    total, statuses: VALID_STATUSES, canSeePrices: true,
+    estimates: mapped, q, status, page,
+    totalPages: Math.max(1, Math.ceil((total || 0) / PAGE_SIZE)),
+    total: total || 0, statuses: VALID_STATUSES, canSeePrices: true,
     archiveFilter,
   });
 });
 
 router.get('/:id', async (req, res) => {
-  const estimate = loadEstimate(req.params.id);
+  const estimate = await loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
-  const invoice = await db.get('SELECT id, status FROM invoices WHERE estimate_id = ?', [estimate.id]);
+  const { data: invoice } = await supabase.from('invoices').select('id, status').eq('estimate_id', estimate.id).maybeSingle();
   res.render('estimates/show', {
     title: estimate.display_number, activeNav: 'estimates',
     estimate, invoice, canSeePrices: true
@@ -208,23 +220,18 @@ router.post('/:id', async (req, res) => {
   }
   const t = calc.totals(data.lines, data.tax_rate);
   const costTotal = data.lines.reduce((s, li) => s + (Number(li.cost) || 0) * (Number(li.quantity) || 0), 0);
-  await db.transaction(async (tx) => {
-    tx.run(
-      `UPDATE estimates SET subtotal=?, tax_rate=?, tax_amount=?, total=?, cost_total=?, valid_until=?, notes=?,
-                            updated_at=now()
-       WHERE id=?`,
-      [t.subtotal, data.tax_rate, t.taxAmount, t.total, costTotal, data.valid_until, data.notes, existing.id]
-    );
-    tx.run('DELETE FROM estimate_line_items WHERE estimate_id = ?', [existing.id]);
-    data.lines.forEach((li, idx) => {
-      const lt = calc.lineTotal(li);
-      tx.run(
-        `INSERT INTO estimate_line_items (estimate_id, description, quantity, unit, unit_price, cost, line_total, selected, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [existing.id, li.description, li.quantity, li.unit, li.unit_price, li.cost, lt, li.selected, idx]
-      );
-    });
+  const { error: rpcError } = await supabase.rpc('update_estimate_with_lines', {
+    estimate_id: existing.id,
+    estimate_data: {
+      work_order_id: existing.wo_id,
+      subtotal: t.subtotal, tax_rate: data.tax_rate, tax_amount: t.taxAmount,
+      total: t.total, cost_total: costTotal, status: 'draft',
+    },
+    lines: data.lines.map((li, idx) => ({
+      ...li, line_total: calc.lineTotal(li), sort_order: idx, selected: 1,
+    })),
   });
+  if (rpcError) throw rpcError;
   setFlash(req, 'success', `${existing.display_number} updated.`);
   res.redirect(`/estimates/${existing.id}`);
 });
