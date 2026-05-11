@@ -1,17 +1,45 @@
 <%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
 <div class="max-w-7xl mx-auto px-4 py-6">
-  <div class="mb-4">
-    <a href="/files/<%= entityType %>s" class="text-sm text-recon-fog hover:text-recon-red">&larr; <%= entityType.charAt(0).toUpperCase() + entityType.slice(1) %>s</a>
+  <div class="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+    <div>
+      <div class="mb-2">
+        <a href="/files/<%= entityType %>s" class="text-sm text-recon-fog hover:text-recon-red">&larr; <%= (entityType || '').charAt(0).toUpperCase() + (entityType || '').slice(1) %>s</a>
+        <% if (folder && folder.parent_folder_id) { %>
+          &middot; <a href="/files/folders/<%= folder.parent_folder_id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; Parent folder</a>
+        <% } %>
+      </div>
+      <h1 class="page-h1 mb-1"><%= entityName %></h1>
+      <p class="page-sub">Folder contents</p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <% if (currentUser.role === 'admin' || currentUser.role === 'manager') { %>
+        <form method="post" action="/files/folders/<%= folder.id %>/subfolder" class="inline-flex gap-1 items-center">
+          <input type="text" name="name" placeholder="Subfolder name" class="input text-sm" style="width:140px;padding:.3rem .5rem;" required>
+          <button type="submit" class="btn btn-secondary text-sm">+ Folder</button>
+        </form>
+        <form method="post" action="/files/folders/<%= folder.id %>/upload" enctype="multipart/form-data" class="inline-flex gap-1 items-center">
+          <input type="file" name="files" multiple class="text-sm" required>
+          <button type="submit" class="btn btn-primary text-sm">Upload</button>
+        </form>
+      <% } %>
+      <% if (currentUser.role === 'admin') { %>
+        <form method="post" action="/files/folders/<%= folder.id %>/rename" class="inline-flex gap-1 items-center">
+          <input type="text" name="name" value="<%= folder.name %>" class="input text-sm" style="width:120px;padding:.3rem .5rem;" required>
+          <button type="submit" class="btn btn-ghost text-sm">Rename</button>
+        </form>
+        <form method="post" action="/files/folders/<%= folder.id %>/delete" class="inline" onsubmit="return confirm('Delete empty folder?')">
+          <button type="submit" class="btn btn-danger text-sm">Delete</button>
+        </form>
+      <% } %>
+    </div>
   </div>
-  <h1 class="page-h1 mb-1"><%= entityName %></h1>
-  <p class="page-sub mb-6">Folder contents</p>
 
   <% if (contents.subfolders.length === 0 && contents.files.length === 0) { %>
-    <div class="card p-8 text-center text-recon-fog">This folder is empty.</div>
+    <div class="card p-8 text-center text-recon-fog">This folder is empty. Use the buttons above to add files or subfolders.</div>
   <% } else { %>
     <% if (contents.subfolders.length > 0) { %>
       <h2 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-2">Subfolders</h2>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
         <% contents.subfolders.forEach(function(sf){ %>
           <a href="/files/folders/<%= sf.id %>" class="card p-4 hover:shadow-md transition block">
             <div class="font-medium text-recon-charcoal">📁 <%= sf.name %></div>
@@ -24,7 +52,7 @@
       <h2 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-2">Files</h2>
       <div class="card overflow-hidden">
         <table class="data">
-          <thead><tr><th>Name</th><th>Type</th><th>Size</th><th>Uploaded</th></tr></thead>
+          <thead><tr><th>Name</th><th>Type</th><th>Size</th><th>Uploaded</th><th></th></tr></thead>
           <tbody>
             <% contents.files.forEach(function(f){ %>
               <tr>
@@ -32,6 +60,13 @@
                 <td class="text-sm text-recon-fog"><%= f.mime_type || '—' %></td>
                 <td class="text-sm text-recon-fog"><%= f.size_bytes ? (f.size_bytes / 1024).toFixed(1) + ' KB' : '—' %></td>
                 <td class="text-sm text-recon-fog"><%= (f.created_at || '').slice(0,10) %></td>
+                <td class="text-right">
+                  <% if (currentUser.role === 'admin' || f.uploaded_by_user_id === currentUser.id) { %>
+                    <form method="post" action="/files/<%= f.id %>/delete" class="inline" onsubmit="return confirm('Delete <%= f.original_filename %>?')">
+                      <button type="submit" class="text-xs text-recon-fog hover:text-recon-red">Delete</button>
+                    </form>
+                  <% } %>
+                </td>
               </tr>
             <% }); %>
           </tbody>

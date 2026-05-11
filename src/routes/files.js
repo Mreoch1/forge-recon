@@ -6,8 +6,38 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db/db');
-const { requireAuth, requireAdmin, setFlash } = require('../middleware/auth');
+const { requireAuth, requireAdmin, requireManager, setFlash } = require('../middleware/auth');
 const filesService = require('../services/files');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
+
+const UPLOADS_DIR = path.join(__dirname, '..', '..', 'public', 'uploads', 'files');
+const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+const MAX_FILES = 6;
+const ALLOWED_MIMES = ['image/jpeg','image/png','image/webp','application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','text/plain'];
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const entityType = req.body.entity_type || 'global';
+      const entityId = req.body.entity_id || '0';
+      const dir = path.join(UPLOADS_DIR, entityType, String(entityId));
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname);
+      cb(null, crypto.randomUUID() + '-' + file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_'));
+    }
+  }),
+  limits: { fileSize: MAX_FILE_SIZE, files: MAX_FILES },
+  fileFilter: (req, file, cb) => {
+    if (ALLOWED_MIMES.includes(file.mimetype)) cb(null, true);
+    else cb(new Error('File type not allowed: ' + file.mimetype));
+  }
+});
 
 const ENTITY_TYPES = [
   { key: 'customer', label: 'Customers', icon: '🏢', path: '/files/customers' },
@@ -109,5 +139,107 @@ router.get('/folders/:folderId', requireAuth, (req, res) => {
     entityId: folder.entity_id,
   });
 });
+
+// POST /files/folders/:folderId/upload — upload files
+router.post('/folders/:folderId/upload', requireAuth, requireManager, upload.array('files', MAX_FILES), (req, res, next) => {
+  const folder = db.get('SELECT * FROM folders WHERE id = ?', [req.params.folderId]);
+  if (!folder) return res.status(404).json({ error: 'Folder not found.' });
+  if (!req.files || req.files.length === 0) {
+    setFlash(req, 'error', 'No files selected.');
+    return res.redirect('/files/folders/' + folder.id);
+  }
+  req.files.forEach(file => {
+    db.run(`INSERT INTO files (folder_id, name, original_filename, storage_path, mime_type, size_bytes, uploaded_by_user_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      [folder.id, file.filename, file.originalname, file.path, file.mimetype, file.size, req.session.userId]);
+    try {
+      const { writeAudit } = require('../services/audit');
+      writeAudit({ entityType: 'file', entityId: folder.id, action: 'uploaded', before: null, after: { filename: file.originalname }, source: 'user', userId: req.session.userId });
+    } catch(e) { /* audit best effort */ }
+  });
+  setFlash(req, 'success', req.files.length + ' file(s) uploaded.');
+  res.redirect('/files/folders/' + folder.id);
+});
+
+// POST /files/folders/:folderId/subfolder — create subfolder
+router.post('/folders/:folderId/subfolder', requireAuth, requireManager, (req, res) => {
+  const folder = db.get('SELECT * FROM folders WHERE id = ?', [req.params.folderId]);
+  if (!folder) return res.status(404).json({ error: 'Folder not found.' });
+  const name = (req.body.name || '').trim();
+  if (!name) { setFlash(req, 'error', 'Folder name required.'); return res.redirect('/files/folders/' + folder.id); }
+  const r = db.run(`INSERT INTO folders (parent_folder_id, name, entity_type, entity_id, created_by_user_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+    [folder.id, name, folder.entity_type, folder.entity_id, req.session.userId]);
+  setFlash(req, 'success', 'Folder "' + name + '" created.');
+  res.redirect('/files/folders/' + folder.id);
+});
+
+// POST /files/folders/:folderId/rename — rename folder (admin+)
+router.post('/folders/:folderId/rename', requireAuth, requireAdmin, (req, res) => {
+  const folder = db.get('SELECT * FROM folders WHERE id = ?', [req.params.folderId]);
+  if (!folder) return res.status(404).json({ error: 'Folder not found.' });
+  const name = (req.body.name || '').trim();
+  if (!name) { setFlash(req, 'error', 'Folder name required.'); return res.redirect('/files/folders/' + folder.id); }
+  db.run('UPDATE folders SET name=?, updated_at=datetime(\'now\') WHERE id=?', [name, folder.id]);
+  setFlash(req, 'success', 'Folder renamed.');
+  res.redirect('/files/folders/' + folder.id);
+});
+
+// POST /files/folders/:folderId/delete — delete folder (admin+, empty only)
+router.post('/folders/:folderId/delete', requireAuth, requireAdmin, (req, res) => {
+  const folder = db.get('SELECT * FROM folders WHERE id = ?', [req.params.folderId]);
+  if (!folder) return res.status(404).json({ error: 'Folder not found.' });
+  const contents = filesService.getFolderContents(folder.id);
+  if (contents.subfolders.length > 0 || contents.files.length > 0) {
+    setFlash(req, 'error', 'Cannot delete non-empty folder.');
+    return res.redirect('/files/folders/' + folder.id);
+  }
+  db.run('DELETE FROM folders WHERE id=?', [folder.id]);
+  setFlash(req, 'success', 'Folder deleted.');
+  const parent = folder.parent_folder_id ? '/files/folders/' + folder.parent_folder_id : '/files';
+  res.redirect(parent);
+});
+
+// POST /files/:id/delete — delete file (uploader or admin+)
+router.post('/:id/delete', requireAuth, (req, res) => {
+  const file = db.get('SELECT * FROM files WHERE id = ?', [req.params.id]);
+  if (!file) return res.status(404).json({ error: 'File not found.' });
+  const isAdmin = req.session.userRole === 'admin';
+  const isUploader = file.uploaded_by_user_id === req.session.userId;
+  if (!isAdmin && !isUploader) return res.status(403).json({ error: 'Permission denied.' });
+  try { if (fs.existsSync(file.storage_path)) fs.unlinkSync(file.storage_path); } catch(e) { /* best effort */ }
+  db.run('DELETE FROM files WHERE id=?', [file.id]);
+  try {
+    const { writeAudit } = require('../services/audit');
+    writeAudit({ entityType: 'file', entityId: file.id, action: 'deleted', before: { filename: file.original_filename }, after: null, source: 'user', userId: req.session.userId });
+  } catch(e) { /* audit best effort */ }
+  setFlash(req, 'success', 'File deleted.');
+  res.redirect('/files/folders/' + file.folder_id);
+});
+
+// GET /files/:id/view — inline preview
+router.get('/:id/view', requireAuth, (req, res) => {
+  const file = db.get('SELECT * FROM files WHERE id = ?', [req.params.id]);
+  if (!file) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'File not found.' });
+  if (!fs.existsSync(file.storage_path)) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'File not found on disk.' });
+  const isImage = file.mime_type && file.mime_type.startsWith('image/');
+  const isPdf = file.mime_type === 'application/pdf';
+  const isText = file.mime_type === 'text/plain';
+  if (isImage || isPdf) {
+    res.setHeader('Content-Type', file.mime_type);
+    res.setHeader('Content-Disposition', 'inline; filename="' + file.original_filename + '"');
+    return fs.createReadStream(file.storage_path).pipe(res);
+  }
+  if (isText) {
+    const content = fs.readFileSync(file.storage_path, 'utf8');
+    const esc = String(content).replace(/[&<>"']/g, function(c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; });
+    return res.send('<pre style="padding:2rem;font-family:monospace;font-size:.9rem;white-space:pre-wrap;word-wrap:break-word;">' + esc + '</pre>');
+  }
+  // Default: download
+  res.download(file.storage_path, file.original_filename);
+});
+
+// GET /files/:entityType/:entityId — show root folder contents
+// (already defined above — route ordering ensures static routes run first)
 
 module.exports = router;
