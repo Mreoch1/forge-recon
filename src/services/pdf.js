@@ -584,7 +584,7 @@ function generateInvoicePDF(invoice, company, stream) {
   doc.end();
 }
 
-// Convenience: render any of the PDFs to a Buffer (for email attachment).
+// Render any of the PDFs to a Buffer (for email attachment).
 function renderToBuffer(generatorFn, ...args) {
   return new Promise((resolve, reject) => {
     const chunks = [];

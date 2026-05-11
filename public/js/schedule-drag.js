@@ -26,6 +26,8 @@
   // ── Drop zone / tooltip elements ──
   let dropHighlight = null;
   let dropTooltip = null;
+  let conflictWarningEl = null;
+  let conflictDebounceTimer = null;
 
   function createDropHighlight() {
     const el = document.createElement('div');
@@ -73,6 +75,26 @@
 
   function hideDropTooltip() {
     if (dropTooltip) dropTooltip.style.display = 'none';
+  }
+
+  function showConflictWarning(text, clientX, clientY) {
+    if (!conflictWarningEl) {
+      conflictWarningEl = document.createElement('div');
+      conflictWarningEl.style.cssText = 'position:fixed;padding:3px 8px;background:#fef2f2;color:#991b1b;font-size:.7rem;border-radius:4px;border:1px solid #fca5a5;pointer-events:none;z-index:2002;white-space:nowrap;max-width:300px;font-family:ui-monospace,monospace;';
+      document.body.appendChild(conflictWarningEl);
+    }
+    conflictWarningEl.textContent = '\u26A0 ' + text;
+    let left = clientX + 12;
+    let top = clientY - 40;
+    if (left + 300 > window.innerWidth) left = clientX - 290;
+    if (top < 4) top = clientY + 12;
+    conflictWarningEl.style.display = 'block';
+    conflictWarningEl.style.left = left + 'px';
+    conflictWarningEl.style.top = top + 'px';
+  }
+
+  function hideConflictWarning() {
+    if (conflictWarningEl) conflictWarningEl.style.display = 'none';
   }
 
   // ── Start drag ──
@@ -144,11 +166,30 @@
           const d = new Date(dateStr + 'T12:00:00');
           const label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
           showDropTooltip('Drop on ' + label, pt.x, pt.y);
+
+          // Debounced conflict check — month defaults to 08:00-12:00
+          if (dragState.woId && dateStr) {
+            if (conflictDebounceTimer) clearTimeout(conflictDebounceTimer);
+            conflictDebounceTimer = setTimeout(function() {
+              fetch('/schedule/conflict-check?wo_id=' + dragState.woId + '&date=' + dateStr + '&time=08:00&end_time=12:00')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                  if (data.conflicts && data.conflicts.length > 0) {
+                    var c = data.conflicts[0];
+                    showConflictWarning(c.customer_name + ' already on WO-' + c.display_number + ' ' + c.scheduled_time + '\u2013' + c.end_time, pt.x, pt.y);
+                  } else {
+                    hideConflictWarning();
+                  }
+                })
+                .catch(function() { hideConflictWarning(); });
+            }, 150);
+          }
         } else {
           showDropTooltip('Drop to reschedule', pt.x, pt.y);
         }
       } else {
         hideDropTooltip();
+        hideConflictWarning();
       }
       return;
     }
@@ -167,9 +208,32 @@
       const ampm = hour >= 12 ? 'PM' : 'AM';
       const h12 = hour % 12 || 12;
       showDropTooltip(dayLabel + ' \u00b7 ' + h12 + ':00 ' + ampm, pt.x, pt.y);
+
+      // Debounced conflict check
+      if (dragState.woId && dateStr) {
+        if (conflictDebounceTimer) clearTimeout(conflictDebounceTimer);
+        conflictDebounceTimer = setTimeout(function() {
+          var timeStr = String(hour).padStart(2,'0') + ':00';
+          var endStr = addHours(timeStr, 4);
+          fetch('/schedule/conflict-check?wo_id=' + dragState.woId + '&date=' + dateStr + '&time=' + timeStr + '&end_time=' + endStr)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              if (data.conflicts && data.conflicts.length > 0) {
+                var c = data.conflicts[0];
+                showConflictWarning(c.customer_name + ' already on WO-' + c.display_number + ' ' + c.scheduled_time + '\u2013' + c.end_time, pt.x, pt.y);
+                if (dropHighlight) dropHighlight.style.background = 'rgba(192,32,43,.18)';
+              } else {
+                hideConflictWarning();
+                if (dropHighlight) dropHighlight.style.background = 'rgba(192,32,43,.12)';
+              }
+            })
+            .catch(function() { hideConflictWarning(); });
+        }, 150);
+      }
     } else {
       hideDropHighlight();
       hideDropTooltip();
+      hideConflictWarning();
     }
   }
 
@@ -179,6 +243,8 @@
     document.removeEventListener('pointerup', endDrag);
     hideDropHighlight();
     hideDropTooltip();
+    hideConflictWarning();
+    if (conflictDebounceTimer) { clearTimeout(conflictDebounceTimer); conflictDebounceTimer = null; }
     if (!dragState) return;
 
     const pt = e.changedTouches ? { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY } : { x: e.clientX, y: e.clientY };
