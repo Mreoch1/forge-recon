@@ -107,7 +107,7 @@ async function chat({ message, history, ctx }) {
   if (mutationIntent) {
     allToolCalls.push({ tool: mutationIntent.tool, args: mutationIntent.args });
 
-    const proposeResult = tools.propose(mutationIntent.tool, mutationIntent.args, ctx);
+    const proposeResult = await tools.propose(mutationIntent.tool, mutationIntent.args, ctx);
     if (proposeResult.error) {
       return {
         reply: proposeResult.error,
@@ -134,7 +134,7 @@ async function chat({ message, history, ctx }) {
     }
 
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-    const r = db.run(`INSERT INTO pending_confirmations (user_id, tool, args, summary, created_at, expires_at)
+    const r = await db.run(`INSERT INTO pending_confirmations (user_id, tool, args, summary, created_at, expires_at)
       VALUES (?, ?, ?, ?, now(), ?)`,
       [ctx.userId, mutationIntent.tool, JSON.stringify(proposeResult.args_normalized || mutationIntent.args),
        JSON.stringify(proposeResult.summary_lines), expiresAt]);
@@ -165,7 +165,7 @@ async function chat({ message, history, ctx }) {
 
   if (parsed1.tool_calls && parsed1.tool_calls.length > 0) {
     // Check if any tool call is a write/mutation tool
-    const mutationCalls = parsed1.tool_calls.filter(tc => {
+    const mutationCalls = parsed1.tool_calls.filter((tc) => {
       const toolInfo = tools.list().find(t => t.name === tc.tool);
       return toolInfo && toolInfo.needs_user === 'write';
     });
@@ -177,7 +177,7 @@ async function chat({ message, history, ctx }) {
       allToolCalls.push({ tool: mc.tool, args: mc.args });
 
       // Validate via propose function
-      const proposeResult = tools.propose(mc.tool, mc.args || {}, ctx);
+      const proposeResult = await tools.propose(mc.tool, mc.args || {}, ctx);
       if (proposeResult.error) {
         finalReply = proposeResult.error;
         // The reply should guide the user
@@ -196,7 +196,7 @@ async function chat({ message, history, ctx }) {
       } else {
         // Create pending confirmation
         const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-        const r = db.run(`INSERT INTO pending_confirmations (user_id, tool, args, summary, created_at, expires_at)
+        const r = await db.run(`INSERT INTO pending_confirmations (user_id, tool, args, summary, created_at, expires_at)
           VALUES (?, ?, ?, ?, now(), ?)`,
           [ctx.userId, mc.tool, JSON.stringify(proposeResult.args_normalized || mc.args),
            JSON.stringify(proposeResult.summary_lines), expiresAt]);
@@ -217,7 +217,7 @@ async function chat({ message, history, ctx }) {
       // All read/navigate tools — execute normally
       const toolResults = [];
       for (const tc of parsed1.tool_calls) {
-        const result = tools.call(tc.tool, tc.args || {}, ctx);
+        const result = await tools.call(tc.tool, tc.args || {}, ctx);
         allToolCalls.push({ tool: tc.tool, args: tc.args, result: result.ok ? result.result : { error: result.error } });
         toolResults.push({ tool: tc.tool, args: tc.args, result: result.ok ? result.result : null, error: result.ok ? null : result.error });
       }
@@ -253,7 +253,7 @@ async function chat({ message, history, ctx }) {
       // Execute tools from auto-chain
       const toolResults2 = [];
       for (const tc of currentToolCalls) {
-        const result = tools.call(tc.tool, tc.args || {}, ctx);
+        const result = await tools.call(tc.tool, tc.args || {}, ctx);
         allToolCalls.push({ tool: tc.tool, args: tc.args, result: result.ok ? result.result : { error: result.error } });
         toolResults2.push({ tool: tc.tool, args: tc.args, result: result.ok ? result.result : null, error: result.ok ? null : result.error });
       }
@@ -273,7 +273,7 @@ async function chat({ message, history, ctx }) {
   const latencyMs = Date.now() - startTime;
 
   // Audit
-  writeAudit({
+  await writeAudit({
     entityType: 'ai_chat',
     entityId: ctx.userId || 0,
     action: 'chat',

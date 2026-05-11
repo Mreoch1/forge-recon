@@ -14,20 +14,20 @@ function pad2(n) { return String(n).padStart(2, '0'); }
  * @param {boolean} workerOnly — if true, only return WOs assigned to this user
  * @returns {Array} [{ wo_id, display_number, scheduled_time, status, customer_name, job_title, address, assignee_name, events: [...] }]
  */
-function buildDayTimeline({ date, userId = null, workerOnly = false }) {
+async function buildDayTimeline({ date, userId = null, workerOnly = false }) {
   // ── Step 1: Get WOs scheduled for this day ──
   const woConds = ['w.scheduled_date = ?'];
   const woParams = [date];
 
   if (workerOnly && userId) {
     woConds.push('(w.assigned_to_user_id = ? OR w.assigned_to LIKE ?)');
-    const userName = (() => {
-      try { const u = db.get('SELECT name FROM users WHERE id = ?', [userId]); return u ? u.name : ''; } catch(e) { return ''; }
+    const userName = await (async () => {
+      try { const u = await db.get('SELECT name FROM users WHERE id = ?', [userId]); return u ? u.name : ''; } catch(e) { return ''; }
     })();
     woParams.push(userId, `%${userName}%`);
   }
 
-  const wos = db.all(`
+  const wos = await db.all(`
     SELECT w.id, w.display_number, w.scheduled_time, w.status,
            w.assigned_to_user_id, w.assigned_to,
            j.id AS job_id, j.title AS job_title,
@@ -49,7 +49,7 @@ function buildDayTimeline({ date, userId = null, workerOnly = false }) {
   const woIds = wos.map(w => w.id);
 
   // 2a. wo_notes today
-  const notes = db.all(`
+  const notes = await db.all(`
     SELECT wn.work_order_id, wn.body, wn.created_at, u.name AS actor_name
     FROM wo_notes wn
     LEFT JOIN users u ON u.id = wn.user_id
@@ -59,7 +59,7 @@ function buildDayTimeline({ date, userId = null, workerOnly = false }) {
   `, [...woIds, date]);
 
   // 2b. Audit logs for work order status changes today
-  const auditEvents = db.all(`
+  const auditEvents = await db.all(`
     SELECT al.entity_id, al.action, al.after_json, al.created_at, u.name AS actor_name
     FROM audit_logs al
     LEFT JOIN users u ON u.id = al.user_id
@@ -71,7 +71,7 @@ function buildDayTimeline({ date, userId = null, workerOnly = false }) {
   `, [...woIds, date]);
 
   // 2b2. Item-completion audit events (work_order_line_item)
-  const itemEvents = db.all(`
+  const itemEvents = await db.all(`
     SELECT al.entity_id, al.action, al.after_json, al.created_at, u.name AS actor_name
     FROM audit_logs al
     LEFT JOIN users u ON u.id = al.user_id
@@ -82,7 +82,7 @@ function buildDayTimeline({ date, userId = null, workerOnly = false }) {
   `, [date]);
 
   // 2c. Audit logs for linked estimates/invoices today
-  const woToEstInv = db.all(`
+  const woToEstInv = await db.all(`
     SELECT e.id AS est_id, e.work_order_id,
            i.id AS inv_id
     FROM estimates e
@@ -96,7 +96,7 @@ function buildDayTimeline({ date, userId = null, workerOnly = false }) {
   let estAuditEvents = [];
   let invAuditEvents = [];
   if (estIds.length > 0) {
-    estAuditEvents = db.all(`
+    estAuditEvents = await db.all(`
       SELECT al.entity_id, al.action, al.after_json, al.created_at
       FROM audit_logs al
       WHERE al.entity_type = 'estimate'
@@ -107,7 +107,7 @@ function buildDayTimeline({ date, userId = null, workerOnly = false }) {
     `, [...estIds, date]);
   }
   if (invIds.length > 0) {
-    invAuditEvents = db.all(`
+    invAuditEvents = await db.all(`
       SELECT al.entity_id, al.action, al.after_json, al.created_at
       FROM audit_logs al
       WHERE al.entity_type = 'invoice'

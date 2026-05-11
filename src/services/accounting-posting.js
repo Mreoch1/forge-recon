@@ -47,14 +47,14 @@ const CODES = {
   SALES_TAX_BILLS:    '5950',  // tax we paid on vendor bills (purchase-side)
 };
 
-function lookupAccount(code) {
-  return db.get('SELECT id, code, name FROM accounts WHERE code = ? AND active = 1', [code]);
+async function lookupAccount(code) {
+  return await db.get('SELECT id, code, name FROM accounts WHERE code = ? AND active = 1', [code]);
 }
 
-function isAccountingReady() {
+async function isAccountingReady() {
   // Cheap probe: does the accounts table even exist + have rows?
   try {
-    const r = db.get("SELECT COUNT(*) AS n FROM accounts");
+    const r = await db.get("SELECT COUNT(*) AS n FROM accounts");
     return r && r.n > 0;
   } catch (e) {
     return false;
@@ -70,7 +70,7 @@ function todayDate() {
  * { accountId, debit, credit, description }. Validates that debits == credits.
  * Returns the created entry id.
  */
-function postJournalEntry({ entryDate, description, sourceType, sourceId, userId, lines }) {
+async function postJournalEntry({ entryDate, description, sourceType, sourceId, userId, lines }) {
   if (!Array.isArray(lines) || lines.length < 2) {
     throw new Error('Journal entry needs at least 2 lines.');
   }
@@ -84,15 +84,15 @@ function postJournalEntry({ entryDate, description, sourceType, sourceId, userId
     throw new Error(`JE imbalance: debits ${totalDr.toFixed(2)} != credits ${totalCr.toFixed(2)}`);
   }
 
-  return db.transaction(() => {
-    const r = db.run(
+  return await db.transaction(async (tx) => {
+    const r = tx.run(
       `INSERT INTO journal_entries (entry_date, description, source_type, source_id, created_by_user_id)
        VALUES (?, ?, ?, ?, ?)`,
       [entryDate || todayDate(), description || '', sourceType || null, sourceId || null, userId || null]
     );
     const jeId = r.lastInsertRowid;
     lines.forEach(l => {
-      db.run(
+      tx.run(
         `INSERT INTO journal_lines (journal_entry_id, account_id, debit, credit, description)
          VALUES (?, ?, ?, ?, ?)`,
         [jeId, l.accountId, Number(l.debit) || 0, Number(l.credit) || 0, l.description || '']
@@ -112,7 +112,7 @@ function postJournalEntry({ entryDate, description, sourceType, sourceId, userId
 }
 
 /** Post the JE for an invoice transitioning draft → sent. */
-function postInvoiceSent(invoice, opts = {}) {
+async function postInvoiceSent(invoice, opts = {}) {
   const userId = opts.userId || null;
   if (!isAccountingReady()) {
     console.warn(`[accounting] skipping invoice send post — chart of accounts not seeded`);
@@ -126,7 +126,7 @@ function postInvoiceSent(invoice, opts = {}) {
     return null;
   }
   // Skip duplicate posting if a JE already exists for this invoice send
-  const existing = db.get(
+  const existing = await db.get(
     `SELECT id FROM journal_entries WHERE source_type='invoice' AND source_id=?`,
     [invoice.id]
   );
@@ -189,10 +189,10 @@ function postPaymentReceived(invoice, amount, opts = {}) {
 }
 
 /** Post a reversing JE when an invoice is voided. */
-function postInvoiceVoid(invoice, opts = {}) {
+async function postInvoiceVoid(invoice, opts = {}) {
   const userId = opts.userId || null;
   if (!isAccountingReady()) return null;
-  const original = db.get(
+  const original = await db.get(
     `SELECT id FROM journal_entries WHERE source_type='invoice' AND source_id=? AND reversed_by_entry_id IS NULL`,
     [invoice.id]
   );
@@ -225,12 +225,12 @@ function postInvoiceVoid(invoice, opts = {}) {
     lines,
   });
   // Link the original to the reversing entry
-  db.run('UPDATE journal_entries SET reversed_by_entry_id = ? WHERE id = ?', [reversingId, original.id]);
+  await db.run('UPDATE journal_entries SET reversed_by_entry_id = ? WHERE id = ?', [reversingId, original.id]);
   return reversingId;
 }
 
 /** Post the JE for a vendor bill being approved (draft -> approved). */
-function postBillApproved(bill, lines, opts = {}) {
+async function postBillApproved(bill, lines, opts = {}) {
   const userId = opts.userId || null;
   if (!isAccountingReady()) {
     console.warn('[accounting] skipping bill post — chart of accounts not seeded');
@@ -242,7 +242,7 @@ function postBillApproved(bill, lines, opts = {}) {
     return null;
   }
   // Skip duplicate posting
-  const existing = db.get(
+  const existing = await db.get(
     `SELECT id FROM journal_entries WHERE source_type='bill' AND source_id=?`,
     [bill.id]
   );
@@ -255,10 +255,10 @@ function postBillApproved(bill, lines, opts = {}) {
   // Each bill line goes to its own expense account (or Misc if not set)
   const fallback = lookupAccount(CODES.MISC_EXPENSE);
   const jeLines = [];
-  lines.forEach(li => {
+  lines.forEach(async li => {
     const amt = Number(li.line_total) || 0;
     if (amt <= 0) return;
-    const acct = li.account_id ? db.get('SELECT id FROM accounts WHERE id = ?', [li.account_id]) : null;
+    const acct = li.account_id ? await db.get('SELECT id FROM accounts WHERE id = ?', [li.account_id]) : null;
     const targetAcct = acct || fallback;
     if (!targetAcct) return;
     jeLines.push({

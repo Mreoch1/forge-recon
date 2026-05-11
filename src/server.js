@@ -17,6 +17,7 @@
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
+require('express-async-errors');
 const express = require('express');
 const session = require('express-session');
 const helmet = require('helmet');
@@ -65,7 +66,7 @@ async function main() {
 
   // Ensure pending_confirmations table exists
   try {
-    db.run(`CREATE TABLE IF NOT EXISTS pending_confirmations (
+    await db.run(`CREATE TABLE IF NOT EXISTS pending_confirmations (
       id INTEGER PRIMARY KEY,
       user_id INTEGER NOT NULL,
       tool TEXT NOT NULL,
@@ -79,7 +80,7 @@ async function main() {
 
   // Ensure closures table exists
   try {
-    db.run(`CREATE TABLE IF NOT EXISTS closures (
+    await db.run(`CREATE TABLE IF NOT EXISTS closures (
       id INTEGER PRIMARY KEY,
       date_start TEXT NOT NULL,
       date_end TEXT,
@@ -106,13 +107,13 @@ async function main() {
       {table: 'invoices', col: 'sent_to_name', type: 'TEXT'},
       {table: 'estimates', col: 'archived_at', type: 'TEXT'},
     ];
-    bootMigrations.forEach(m => {
-      const existing = db.all('PRAGMA table_info(' + m.table + ')');
+    for (const m of bootMigrations) {
+      const existing = await db.all('PRAGMA table_info(' + m.table + ')');
       if (!existing.find(c => c.name === m.col)) {
-        db.run('ALTER TABLE ' + m.table + ' ADD COLUMN ' + m.col + ' ' + m.type);
+        await db.run('ALTER TABLE ' + m.table + ' ADD COLUMN ' + m.col + ' ' + m.type);
         console.log('  Boot migration: added ' + m.table + '.' + m.col);
       }
-    });
+    }
   } catch(e) { console.error('Boot migration failed:', e.message); }
 
   const app = express();
@@ -166,7 +167,7 @@ async function main() {
   app.use(loadCurrentUser);
 
   // Health (no auth)
-  app.get('/ping', (req, res) => {
+  app.get('/ping', async (req, res) => {
     res.json({ ok: true, ts: new Date().toISOString() });
   });
 
@@ -191,7 +192,7 @@ async function main() {
   app.use('/accounting', requireAuth, requireManager, accountingRoutes);
   app.use('/vendors', requireAuth, requireManager, vendorsRoutes);
   // Public AI health check (no auth needed — must be before the gated /ai mount)
-  app.get('/ai/chat/health', (req, res) => {
+  app.get('/ai/chat/health', async (req, res) => {
     const enabled = process.env.AI_CHAT_ENABLED === undefined || process.env.AI_CHAT_ENABLED === '' || process.env.AI_CHAT_ENABLED === '1' || process.env.AI_CHAT_ENABLED === 'true';
     res.json({ enabled, model: 'deepseek-chat', provider: process.env.AI_PROVIDER || 'deepseek' });
   });

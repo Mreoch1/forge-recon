@@ -14,6 +14,8 @@
 
 const db = require('../db/db');
 
+const asyncHandler = require('./async-handler');
+
 function requireAuth(req, res, next) {
   if (!req.session || !req.session.userId) return res.redirect('/login');
   next();
@@ -41,19 +43,18 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-function loadCurrentUser(req, res, next) {
+const loadCurrentUser = asyncHandler(async (req, res, next) => {
   res.locals.currentUser = null;
   res.locals.flash = (req.session && req.session.flash) || {};
   if (req.session) delete req.session.flash;
 
   if (req.session && req.session.userId) {
-    const user = db.get(
+    const user = await db.get(
       'SELECT id, email, name, role FROM users WHERE id = ? AND active = 1',
       [req.session.userId]
     );
     if (user) {
       res.locals.currentUser = user;
-      // Convenience helpers for views
       res.locals.canSeePrices = ['admin', 'manager'].includes(user.role);
       res.locals.isWorker = user.role === 'worker';
     } else {
@@ -61,7 +62,7 @@ function loadCurrentUser(req, res, next) {
     }
   }
   next();
-}
+});
 
 function setFlash(req, kind, message) {
   if (!req.session) return;

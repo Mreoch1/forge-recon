@@ -20,7 +20,7 @@ function emptyToNull(v) {
   return t === '' ? null : t;
 }
 
-function validateJob(body) {
+async function validateJob(body) {
   const errors = {};
   const title = emptyToNull(body.title);
   if (!title) errors.title = 'Title is required.';
@@ -28,7 +28,7 @@ function validateJob(body) {
 
   const customerId = parseInt(body.customer_id, 10);
   if (!customerId) errors.customer_id = 'Customer is required.';
-  else if (!db.get('SELECT id FROM customers WHERE id = ?', [customerId])) {
+  else if (!await db.get('SELECT id FROM customers WHERE id = ?', [customerId])) {
     errors.customer_id = 'Customer not found.';
   }
 
@@ -46,7 +46,7 @@ function validateJob(body) {
 
   const assignedUserId = body.assigned_to_user_id ? parseInt(body.assigned_to_user_id, 10) : null;
   if (assignedUserId) {
-    const u = db.get('SELECT id FROM users WHERE id = ? AND active = 1', [assignedUserId]);
+    const u = await db.get('SELECT id FROM users WHERE id = ? AND active = 1', [assignedUserId]);
     if (!u) errors.assigned_to_user_id = 'User not found or inactive.';
   }
 
@@ -77,7 +77,7 @@ function blankJob() {
   };
 }
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const q = (req.query.q || '').trim();
   const status = (req.query.status || '').trim();
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
@@ -96,12 +96,12 @@ router.get('/', (req, res) => {
   }
   const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
 
-  const total = (db.get(
+  const total = (await db.get(
     `SELECT COUNT(*) AS n FROM jobs j JOIN customers c ON c.id = j.customer_id ${where}`,
     params
   ) || {}).n || 0;
 
-  const jobs = db.all(
+  const jobs = await db.all(
     `SELECT j.id, j.title, j.status, j.address, j.city, j.state, j.scheduled_date, j.created_at,
             c.id AS customer_id, c.name AS customer_name,
             u.name AS assigned_name
@@ -122,13 +122,13 @@ router.get('/', (req, res) => {
   });
 });
 
-router.get('/new', (req, res) => {
-  const customers = db.all('SELECT id, name, address, city, state, zip FROM customers ORDER BY name COLLATE NOCASE ASC');
+router.get('/new', async (req, res) => {
+  const customers = await db.all('SELECT id, name, address, city, state, zip FROM customers ORDER BY name COLLATE NOCASE ASC');
   if (customers.length === 0) {
     setFlash(req, 'error', 'You need a customer before you can create a job.');
     return res.redirect('/customers/new');
   }
-  const users = db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
+  const users = await db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
   const job = blankJob();
   const presetCustomerId = parseInt(req.query.customer_id, 10);
   if (presetCustomerId) {
@@ -148,9 +148,9 @@ router.get('/new', (req, res) => {
   });
 });
 
-router.post('/', (req, res) => {
-  const customers = db.all('SELECT id, name, address, city, state, zip FROM customers ORDER BY name COLLATE NOCASE ASC');
-  const users = db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
+router.post('/', async (req, res) => {
+  const customers = await db.all('SELECT id, name, address, city, state, zip FROM customers ORDER BY name COLLATE NOCASE ASC');
+  const users = await db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
   const { errors, data } = validateJob(req.body);
   if (Object.keys(errors).length) {
     return res.status(400).render('jobs/new', {
@@ -158,7 +158,7 @@ router.post('/', (req, res) => {
       job: { id: null, ...data }, customers, users, errors, statuses: VALID_STATUSES
     });
   }
-  const r = db.run(
+  const r = await db.run(
     `INSERT INTO jobs (customer_id, title, address, city, state, zip, description, status, scheduled_date, scheduled_time, assigned_to_user_id)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [data.customer_id, data.title, data.address, data.city, data.state, data.zip, data.description, data.status, data.scheduled_date, data.scheduled_time, data.assigned_to_user_id]
@@ -167,8 +167,8 @@ router.post('/', (req, res) => {
   res.redirect(`/jobs/${r.lastInsertRowid}`);
 });
 
-router.get('/:id', (req, res) => {
-  const job = db.get(
+router.get('/:id', async (req, res) => {
+  const job = await db.get(
     `SELECT j.*, c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone,
             u.name AS assigned_name
      FROM jobs j
@@ -180,7 +180,7 @@ router.get('/:id', (req, res) => {
   if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Job not found.' });
 
   // Pull related work orders (root WOs only — sub-WOs nest under parents)
-  const workOrders = db.all(
+  const workOrders = await db.all(
     `SELECT id, display_number, wo_number_main, wo_number_sub, parent_wo_id, status, scheduled_date, created_at
      FROM work_orders WHERE job_id = ?
      ORDER BY wo_number_main ASC, wo_number_sub ASC`,
@@ -193,22 +193,22 @@ router.get('/:id', (req, res) => {
   });
 });
 
-router.get('/:id/edit', (req, res) => {
-  const job = db.get('SELECT * FROM jobs WHERE id = ?', [req.params.id]);
+router.get('/:id/edit', async (req, res) => {
+  const job = await db.get('SELECT * FROM jobs WHERE id = ?', [req.params.id]);
   if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Job not found.' });
-  const customers = db.all('SELECT id, name FROM customers ORDER BY name COLLATE NOCASE ASC');
-  const users = db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
+  const customers = await db.all('SELECT id, name FROM customers ORDER BY name COLLATE NOCASE ASC');
+  const users = await db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
   res.render('jobs/edit', {
     title: `Edit ${job.title}`, activeNav: 'jobs',
     job, customers, users, errors: {}, statuses: VALID_STATUSES
   });
 });
 
-router.post('/:id', (req, res) => {
-  const job = db.get('SELECT id, title FROM jobs WHERE id = ?', [req.params.id]);
+router.post('/:id', async (req, res) => {
+  const job = await db.get('SELECT id, title FROM jobs WHERE id = ?', [req.params.id]);
   if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Job not found.' });
-  const customers = db.all('SELECT id, name FROM customers ORDER BY name COLLATE NOCASE ASC');
-  const users = db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
+  const customers = await db.all('SELECT id, name FROM customers ORDER BY name COLLATE NOCASE ASC');
+  const users = await db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
   const { errors, data } = validateJob(req.body);
   if (Object.keys(errors).length) {
     return res.status(400).render('jobs/edit', {
@@ -216,7 +216,7 @@ router.post('/:id', (req, res) => {
       job: { id: job.id, ...data }, customers, users, errors, statuses: VALID_STATUSES
     });
   }
-  db.run(
+  await db.run(
     `UPDATE jobs SET customer_id=?, title=?, address=?, city=?, state=?, zip=?, description=?, status=?,
        scheduled_date=?, scheduled_time=?, assigned_to_user_id=?, updated_at=now()
      WHERE id=?`,
@@ -227,15 +227,15 @@ router.post('/:id', (req, res) => {
   res.redirect(`/jobs/${req.params.id}`);
 });
 
-router.post('/:id/delete', (req, res) => {
-  const job = db.get('SELECT id, title FROM jobs WHERE id = ?', [req.params.id]);
+router.post('/:id/delete', async (req, res) => {
+  const job = await db.get('SELECT id, title FROM jobs WHERE id = ?', [req.params.id]);
   if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Job not found.' });
-  const woCount = (db.get('SELECT COUNT(*) AS n FROM work_orders WHERE job_id = ?', [req.params.id]) || {}).n || 0;
+  const woCount = (await db.get('SELECT COUNT(*) AS n FROM work_orders WHERE job_id = ?', [req.params.id]) || {}).n || 0;
   if (woCount) {
     setFlash(req, 'error', `Cannot delete "${job.title}" — it has ${woCount} work order(s).`);
     return res.redirect(`/jobs/${req.params.id}`);
   }
-  db.run('DELETE FROM jobs WHERE id = ?', [req.params.id]);
+  await db.run('DELETE FROM jobs WHERE id = ?', [req.params.id]);
   setFlash(req, 'success', `Job "${job.title}" deleted.`);
   res.redirect('/jobs');
 });

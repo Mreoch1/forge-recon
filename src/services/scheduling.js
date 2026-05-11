@@ -20,7 +20,7 @@ const db = require('../db/db');
  * @returns {Array<Object>} Array of conflict objects:
  *   { wo_id, display_number, customer_name, scheduled_time, end_time, duration_hours, overlap_minutes }
  */
-function findScheduleConflicts({ assignee_user_id, date, time, end_time, duration_hours = 4, exclude_wo_id = null }) {
+async function findScheduleConflicts({ assignee_user_id, date, time, end_time, duration_hours = 4, exclude_wo_id = null }) {
   if (!assignee_user_id || assignee_user_id <= 0) {
     return [];
   }
@@ -32,7 +32,7 @@ function findScheduleConflicts({ assignee_user_id, date, time, end_time, duratio
     params.push(exclude_wo_id);
   }
 
-  const conflicts = db.all(`
+  const conflicts = await db.all(`
     SELECT w.id, w.display_number, w.scheduled_date, w.scheduled_time, w.scheduled_end_time, w.assigned_to,
            j.title AS job_title, c.name AS customer_name
     FROM work_orders w
@@ -278,19 +278,19 @@ function formatTime(timeStr) {
  *   - { matches: [...] } if multiple matches
  *   - { error: 'msg' } if no match
  */
-function resolveUserName(nameText) {
+async function resolveUserName(nameText) {
   if (!nameText || !nameText.trim()) {
     return { error: 'No name provided.' };
   }
   const clean = nameText.trim();
 
   // Try exact match first (full name or email prefix)
-  let user = db.get('SELECT id, name, email, role FROM users WHERE active = 1 AND (LOWER(name) = LOWER(?) OR LOWER(email) = LOWER(?) )', [clean, clean]);
+  let user = await db.get('SELECT id, name, email, role FROM users WHERE active = 1 AND (LOWER(name) = LOWER(?) OR LOWER(email) = LOWER(?) )', [clean, clean]);
   if (user) return { user };
 
   // Try partial match
   const like = `%${clean}%`;
-  const matches = db.all('SELECT id, name, email, role FROM users WHERE active = 1 AND (LOWER(name) LIKE LOWER(?) OR LOWER(email) LIKE LOWER(?))', [like, like]);
+  const matches = await db.all('SELECT id, name, email, role FROM users WHERE active = 1 AND (LOWER(name) LIKE LOWER(?) OR LOWER(email) LIKE LOWER(?))', [like, like]);
 
   if (!matches || matches.length === 0) {
     return { error: `I couldn't find a user matching "${clean}". Try a full name or check /admin/users.` };
@@ -306,15 +306,15 @@ function resolveUserName(nameText) {
  * Also accepts a raw id number.
  * Returns the WO row or null.
  */
-function resolveWorkOrder(identifier) {
+async function resolveWorkOrder(identifier) {
   if (!identifier) return null;
   // Try DB id first
   if (typeof identifier === 'number' || /^\d+$/.test(String(identifier))) {
-    const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [Number(identifier)]);
+    const wo = await db.get('SELECT * FROM work_orders WHERE id = ?', [Number(identifier)]);
     if (wo) return wo;
   }
   // Try display number
-  return db.get('SELECT * FROM work_orders WHERE display_number = ?', [String(identifier)]);
+  return await db.get('SELECT * FROM work_orders WHERE display_number = ?', [String(identifier)]);
 }
 
 function addHours(timeStr, hours) {

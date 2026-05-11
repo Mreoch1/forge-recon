@@ -84,7 +84,7 @@ function buildDays(startDate, endDate, today) {
   return days;
 }
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const today = new Date().toISOString().slice(0, 10);
   const view = (req.query.view || 'week').trim();
   const rawDate = (req.query.date || '').trim() || today;
@@ -151,10 +151,10 @@ router.get('/', (req, res) => {
   let assigneeClause = '';
   if (assigneeFilter) {
     assigneeClause = ' AND (w.assigned_to_user_id = ? OR w.assigned_to ILIKE ?)';
-    const uname = (db.get('SELECT name FROM users WHERE id = ?', [assigneeFilter]) || {}).name || '';
+    const uname = (await db.get('SELECT name FROM users WHERE id = ?', [assigneeFilter]) || {}).name || '';
     params.push(assigneeFilter, `%${uname}%`);
   }
-  const wos = db.all(`
+  const wos = await db.all(`
     SELECT w.id, w.display_number, w.status, w.scheduled_date, w.scheduled_time,
            w.assigned_to_user_id, w.assigned_to,
            w.scheduled_end_time,
@@ -171,7 +171,7 @@ router.get('/', (req, res) => {
   `, params);
 
   // Unscheduled WOs for sidebar
-  const unscheduled = db.all(`
+  const unscheduled = await db.all(`
     SELECT w.id, w.display_number, w.status, w.scheduled_date, w.scheduled_time,
            w.assigned_to_user_id, w.assigned_to, w.scheduled_end_time,
            j.title AS job_title, c.name AS customer_name,
@@ -185,7 +185,7 @@ router.get('/', (req, res) => {
   `);
 
   // Query closures intersecting the visible range
-  const closures = db.all(`SELECT * FROM closures WHERE date(date_start) <= date(?) AND date(COALESCE(date_end, date_start)) >= date(?) ORDER BY date_start ASC`,
+  const closures = await db.all(`SELECT * FROM closures WHERE date(date_start) <= date(?) AND date(COALESCE(date_end, date_start)) >= date(?) ORDER BY date_start ASC`,
     [weekEnd, weekStart]);
 
   // Build date->name map (expands multi-day closures)
@@ -250,7 +250,7 @@ router.get('/', (req, res) => {
   const nowOffset = ((now.getHours() - HOURS_START) * 60 + now.getMinutes()) / TOTAL_MINUTES * 100;
 
   // Users filter dropdown
-  const users = db.all("SELECT id, name, role FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
+  const users = await db.all("SELECT id, name, role FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
 
   // Determine which view template
   const viewMap = { week: 'schedule/week', '2week': 'schedule/2week', month: 'schedule/month' };
@@ -269,13 +269,13 @@ router.get('/', (req, res) => {
 });
 
 // GET /schedule/conflict-check — check for scheduling conflicts before a drag-drop
-router.get('/conflict-check', (req, res) => {
+router.get('/conflict-check', async (req, res) => {
   const woId = parseInt(req.query.wo_id, 10);
   const date = (req.query.date || '').trim();
   const time = (req.query.time || '').trim();
   const endTime = (req.query.end_time || '').trim();
   if (!woId || !date) return res.json({ conflicts: [] });
-  const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [woId]);
+  const wo = await db.get('SELECT * FROM work_orders WHERE id = ?', [woId]);
   if (!wo) return res.json({ conflicts: [] });
   const assigneeId = wo.assigned_to_user_id;
   if (!assigneeId) return res.json({ conflicts: [] });
@@ -307,8 +307,8 @@ function computeDefaultEndTime(timeStr) {
 }
 
 // POST /schedule/:id/reschedule — reschedule a WO from drag-drop
-router.post('/:id/reschedule', (req, res) => {
-  const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
+router.post('/:id/reschedule', async (req, res) => {
+  const wo = await db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
   if (!wo) return res.status(404).json({ error: 'Work order not found.' });
   const date = (req.body.scheduled_date || '').trim();
   const time = (req.body.scheduled_time || '').trim();
@@ -328,7 +328,7 @@ router.post('/:id/reschedule', (req, res) => {
       source: 'user', userId: req.session.userId,
     });
   } catch(e) { /* audit best effort */ }
-  db.run(`UPDATE work_orders SET scheduled_date=?, scheduled_time=?, scheduled_end_time=?, updated_at=now() WHERE id=?`,
+  await db.run(`UPDATE work_orders SET scheduled_date=?, scheduled_time=?, scheduled_end_time=?, updated_at=now() WHERE id=?`,
     [date, time || null, endTime || null, wo.id]);
   res.json({ ok: true, scheduled_date: date, scheduled_time: time || null, scheduled_end_time: endTime || null });
 });

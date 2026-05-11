@@ -41,7 +41,7 @@ tools.search_customers = {
   description: 'Search customers by name, email, or phone.',
   args: { query: 'string (required) — partial name, email, or phone' },
   needs_user: 'read',
-  handler: ({ query }, ctx) => {
+  handler: async ({ query }, ctx) => {
     const like = resolveQuery(query);
     if (!like) return [];
     // Workers: only customers whose jobs have a WO assigned to them
@@ -51,7 +51,7 @@ tools.search_customers = {
       cond += ' AND c.id IN (SELECT DISTINCT j.customer_id FROM jobs j JOIN work_orders w ON w.job_id = j.id WHERE (w.assigned_to_user_id = ? OR w.assigned_to ILIKE ?) AND w.status IN (\'scheduled\',\'in_progress\',\'complete\'))';
       params.push(ctx.userId, `%${ctx.userName}%`);
     }
-    const rows = db.all(`SELECT c.id, c.name, c.email, c.phone, c.city, c.state FROM customers c WHERE ${cond} LIMIT 10`, params);
+    const rows = await db.all(`SELECT c.id, c.name, c.email, c.phone, c.city, c.state FROM customers c WHERE ${cond} LIMIT 10`, params);
     return rows.map(r => ({ id: r.id, name: r.name, email: r.email || '', phone: r.phone || '', city: r.city || '', state: r.state || '' }));
   }
 };
@@ -60,12 +60,12 @@ tools.search_estimates = {
   description: 'Search estimates by number, job title, customer name, or filter by status.',
   args: { query: 'string (optional) — partial number, job, or customer name', status: 'string (optional) — draft|sent|accepted|rejected|expired' },
   needs_user: 'read',
-  handler: ({ query, status }, ctx) => {
+  handler: async ({ query, status }, ctx) => {
     const conds = ['e.id IS NOT NULL'];
     const params = [];
     if (query) { const like = resolveQuery(query); conds.push('(e.id ILIKE ? OR j.title ILIKE ? OR c.name ILIKE ?)'); params.push(like, like, like); }
     if (status) { conds.push('e.status = ?'); params.push(status); }
-    const rows = db.all(`SELECT e.id, e.status, e.total, e.created_at,
+    const rows = await db.all(`SELECT e.id, e.status, e.total, e.created_at,
       w.display_number AS wo_display,
       j.title AS job_title, c.name AS customer_name
       FROM estimates e
@@ -86,12 +86,12 @@ tools.search_invoices = {
   description: 'Search invoices by number, customer, job, or filter by status. Returns balance info.',
   args: { query: 'string (optional) — partial number, customer, or job', status: 'string (optional) — draft|sent|paid|overdue|void' },
   needs_user: 'read',
-  handler: ({ query, status }, ctx) => {
+  handler: async ({ query, status }, ctx) => {
     const conds = ['i.id IS NOT NULL'];
     const params = [];
     if (query) { const like = resolveQuery(query); conds.push('(i.id ILIKE ? OR c.name ILIKE ? OR j.title ILIKE ?)'); params.push(like, like, like); }
     if (status) { conds.push('i.status = ?'); params.push(status); }
-    const rows = db.all(`SELECT i.id, i.status, i.total, i.amount_paid, i.due_date, i.created_at,
+    const rows = await db.all(`SELECT i.id, i.status, i.total, i.amount_paid, i.due_date, i.created_at,
       w.display_number AS wo_display,
       j.title AS job_title, c.name AS customer_name
       FROM invoices i
@@ -119,7 +119,7 @@ tools.search_work_orders = {
   description: 'Search work orders by number, customer, job, or filter by status/scheduled_date.',
   args: { query: 'string (optional)', status: 'string (optional)', scheduled_date: 'string (optional)' },
   needs_user: 'read',
-  handler: ({ query, status, scheduled_date }, ctx) => {
+  handler: async ({ query, status, scheduled_date }, ctx) => {
     const conds = ['w.id IS NOT NULL'];
     const params = [];
     if (query) { const like = resolveQuery(query); conds.push('(w.display_number ILIKE ? OR c.name ILIKE ? OR j.title ILIKE ?)'); params.push(like, like, like); }
@@ -129,7 +129,7 @@ tools.search_work_orders = {
       conds.push('(w.assigned_to_user_id = ? OR w.assigned_to ILIKE ?)');
       params.push(ctx.userId, `%${ctx.userName}%`);
     }
-    const rows = db.all(`SELECT w.id, w.display_number, w.status, w.scheduled_date, w.scheduled_time,
+    const rows = await db.all(`SELECT w.id, w.display_number, w.status, w.scheduled_date, w.scheduled_time,
       w.assigned_to, u.name AS assigned_user_name,
       j.title AS job_title, c.name AS customer_name
       FROM work_orders w
@@ -152,13 +152,13 @@ tools.search_bills = {
   description: 'Search bills by number, vendor name, or filter by status.',
   args: { query: 'string (optional)', status: 'string (optional)', vendor_name: 'string (optional)' },
   needs_user: 'read',
-  handler: ({ query, status, vendor_name }, ctx) => {
+  handler: async ({ query, status, vendor_name }, ctx) => {
     const conds = ['b.id IS NOT NULL'];
     const params = [];
     if (query) { const like = resolveQuery(query); conds.push('(b.bill_number ILIKE ? OR v.name ILIKE ?)'); params.push(like, like); }
     if (status) { conds.push('b.status = ?'); params.push(status); }
     if (vendor_name) { conds.push('v.name ILIKE ?'); params.push(`%${vendor_name}%`); }
-    const rows = db.all(`SELECT b.id, b.bill_number, b.status, b.total, b.amount_paid, b.bill_date, b.due_date,
+    const rows = await db.all(`SELECT b.id, b.bill_number, b.status, b.total, b.amount_paid, b.bill_date, b.due_date,
       v.name AS vendor_name
       FROM bills b LEFT JOIN vendors v ON v.id = b.vendor_id
       WHERE ${conds.join(' AND ')}
@@ -175,14 +175,14 @@ tools.get_schedule = {
   description: 'Get work orders scheduled within a date range, grouped by date.',
   args: { date_start: 'string (required) — YYYY-MM-DD', date_end: 'string (required) — YYYY-MM-DD' },
   needs_user: 'read',
-  handler: ({ date_start, date_end }, ctx) => {
+  handler: async ({ date_start, date_end }, ctx) => {
     const conds = ['w.scheduled_date >= ? AND w.scheduled_date <= ?'];
     const params = [date_start || '2026-01-01', date_end || '2027-01-01'];
     if (ctx.role === 'worker' && ctx.userId) {
       conds.push('(w.assigned_to_user_id = ? OR w.assigned_to ILIKE ?)');
       params.push(ctx.userId, `%${ctx.userName}%`);
     }
-    const rows = db.all(`SELECT w.id, w.display_number, w.status, w.scheduled_date, w.scheduled_time,
+    const rows = await db.all(`SELECT w.id, w.display_number, w.status, w.scheduled_date, w.scheduled_time,
       w.assigned_to, u.name AS assigned_user_name,
       j.title AS job_title, c.name AS customer_name
       FROM work_orders w
@@ -211,12 +211,12 @@ tools.get_dashboard_summary = {
   description: 'Get a summary of key metrics: counts of open estimates, active WOs, unpaid invoices, A/R balance.',
   args: {},
   needs_user: 'read',
-  handler: (args, ctx) => {
-    const openEst = (db.get("SELECT COUNT(*) AS n FROM estimates WHERE status IN ('draft','sent')") || {}).n || 0;
-    const activeWO = (db.get("SELECT COUNT(*) AS n FROM work_orders WHERE status IN ('scheduled','in_progress')") || {}).n || 0;
-    const unpaid = (db.all("SELECT total, amount_paid FROM invoices WHERE status IN ('draft','sent','overdue')"));
+  handler: async (args, ctx) => {
+    const openEst = (await db.get("SELECT COUNT(*) AS n FROM estimates WHERE status IN ('draft','sent')") || {}).n || 0;
+    const activeWO = (await db.get("SELECT COUNT(*) AS n FROM work_orders WHERE status IN ('scheduled','in_progress')") || {}).n || 0;
+    const unpaid = (await db.all("SELECT total, amount_paid FROM invoices WHERE status IN ('draft','sent','overdue')"));
     const arBalance = unpaid.reduce((s, inv) => s + (Number(inv.total) || 0) - (Number(inv.amount_paid) || 0), 0);
-    const overdueCount = (db.get("SELECT COUNT(*) AS n FROM invoices WHERE status='overdue'") || {}).n || 0;
+    const overdueCount = (await db.get("SELECT COUNT(*) AS n FROM invoices WHERE status='overdue'") || {}).n || 0;
     return {
       open_estimates: openEst,
       active_work_orders: activeWO,
@@ -243,7 +243,7 @@ tools.navigate = {
 };
 
 // ── Worker post-filter ──────────────────────────────────────────────
-function filterForWorker(result, role) {
+async function filterForWorker(result, role) {
   if (role !== 'worker') return result;
   // Workers only get WO-based data; redact costs/prices/financial metrics
   if (result && typeof result === 'object') {
@@ -273,7 +273,7 @@ const MUTATION_TOOLS = {};
 
 MUTATION_TOOLS.create_customer = {
   needs_user: 'write',
-  propose(args, ctx) {
+  async propose(args, ctx) {
     if (!args.name || args.name.trim().length < 2) return { error: 'Customer name is required (min 2 chars).' };
     const lines = [];
     lines.push(`Name: ${args.name.trim()}`);
@@ -286,102 +286,102 @@ MUTATION_TOOLS.create_customer = {
     if (args.notes) lines.push(`Notes: ${args.notes.trim()}`);
     return { summary_lines: lines, args_normalized: args };
   },
-  execute(args, ctx) {
-    const r = db.run(`INSERT INTO customers (name, email, phone, address, city, state, zip, billing_email, notes, created_at)
+  async execute(args, ctx) {
+    const r = await db.run(`INSERT INTO customers (name, email, phone, address, city, state, zip, billing_email, notes, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, now())`,
       [args.name.trim(), (args.email || '').trim() || null, (args.phone || '').trim() || null,
        (args.address || '').trim() || null, (args.city || '').trim() || null, (args.state || '').trim() || null,
        (args.zip || '').trim() || null, (args.billing_email || '').trim() || null, (args.notes || '').trim() || null]);
-    writeAudit({ entityType: 'customer', entityId: r.lastInsertRowid, action: 'created_by_ai', before: null, after: { name: args.name.trim() }, source: 'ai', userId: ctx.userId });
+    await writeAudit({ entityType: 'customer', entityId: r.lastInsertRowid, action: 'created_by_ai', before: null, after: { name: args.name.trim() }, source: 'ai', userId: ctx.userId });
     return { id: r.lastInsertRowid, name: args.name.trim(), href: `/customers/${r.lastInsertRowid}` };
   }
 };
 
 MUTATION_TOOLS.send_estimate = {
   needs_user: 'write',
-  propose(args, ctx) {
-    const est = db.get('SELECT * FROM estimates WHERE id = ?', [args.estimate_id]);
+  async propose(args, ctx) {
+    const est = await db.get('SELECT * FROM estimates WHERE id = ?', [args.estimate_id]);
     if (!est) return { error: 'Estimate not found.' };
     if (est.status !== 'draft') return { error: `Estimate is "${est.status}" — must be draft to send.` };
-    const wo = db.get('SELECT display_number FROM work_orders WHERE id = ?', [est.work_order_id]);
+    const wo = await db.get('SELECT display_number FROM work_orders WHERE id = ?', [est.work_order_id]);
     const number = `EST-${wo ? wo.display_number : ''}`;
     return { summary_lines: [`Estimate: ${number}`, `Amount: $${Number(est.total).toFixed(2)}`, `Status: draft → sent`], args_normalized: args };
   },
-  execute(args, ctx) {
-    const est = db.get('SELECT * FROM estimates WHERE id = ?', [args.estimate_id]);
+  async execute(args, ctx) {
+    const est = await db.get('SELECT * FROM estimates WHERE id = ?', [args.estimate_id]);
     if (!est) return { error: 'Estimate not found.' };
     if (est.status !== 'draft') return { error: `Estimate is "${est.status}" — must be draft to send.` };
     // Generate .eml via the shared service (async — wrap in promise)
     try {
       const emailService = require('./estimate-email');
-      emailService.sendEstimateEmail(est.id).then(result => {
+      emailService.sendEstimateEmail(est.id).then(async (result) => {
         if (result.filepath) console.log('[ai-send-estimate] .eml saved:', result.filepath);
       }).catch(e => console.error('[ai-send-estimate] .eml failed:', e.message));
     } catch(e) { console.error('[ai-send-estimate] service error:', e.message); }
-    db.run(`UPDATE estimates SET status='sent', sent_at=now(), updated_at=now() WHERE id=?`, [est.id]);
-    writeAudit({ entityType: 'estimate', entityId: est.id, action: 'sent_by_ai', before: { status: 'draft' }, after: { status: 'sent' }, source: 'ai', userId: ctx.userId });
+    await db.run(`UPDATE estimates SET status='sent', sent_at=now(), updated_at=now() WHERE id=?`, [est.id]);
+    await writeAudit({ entityType: 'estimate', entityId: est.id, action: 'sent_by_ai', before: { status: 'draft' }, after: { status: 'sent' }, source: 'ai', userId: ctx.userId });
     return { id: est.id, href: `/estimates/${est.id}` };
   }
 };
 
 MUTATION_TOOLS.mark_invoice_paid = {
   needs_user: 'write',
-  propose(args, ctx) {
-    const inv = db.get('SELECT * FROM invoices WHERE id = ?', [args.invoice_id]);
+  async propose(args, ctx) {
+    const inv = await db.get('SELECT * FROM invoices WHERE id = ?', [args.invoice_id]);
     if (!inv) return { error: 'Invoice not found.' };
     if (inv.status === 'paid') return { error: 'Invoice is already paid.' };
     const balance = Math.round((Number(inv.total) - Number(inv.amount_paid)) * 100) / 100;
     let amount = Number(args.amount) || balance;
     if (amount > balance) { amount = balance; }
-    const wo = db.get('SELECT display_number FROM work_orders WHERE id = ?', [inv.work_order_id]);
+    const wo = await db.get('SELECT display_number FROM work_orders WHERE id = ?', [inv.work_order_id]);
     const number = `INV-${wo ? wo.display_number : ''}`;
     const lines = [`Invoice: ${number}`, `Amount: $${amount.toFixed(2)}`, `Balance before: $${balance.toFixed(2)}`];
     if (amount !== (Number(args.amount) || balance)) lines.push('(adjusted to outstanding balance)');
     const today = new Date().toISOString().slice(0,10);
     return { summary_lines: lines, args_normalized: { ...args, amount, payment_date: args.payment_date || today } };
   },
-  execute(args, ctx) {
-    const inv = db.get('SELECT * FROM invoices WHERE id = ?', [args.invoice_id]);
+  async execute(args, ctx) {
+    const inv = await db.get('SELECT * FROM invoices WHERE id = ?', [args.invoice_id]);
     const amount = Number(args.amount);
     const newAmt = (Number(inv.amount_paid) || 0) + amount;
     const newStatus = newAmt >= Number(inv.total) ? 'paid' : 'sent';
-    db.run(`UPDATE invoices SET amount_paid=?, status=?, paid_at=now(), updated_at=now() WHERE id=?`, [newAmt, newStatus, inv.id]);
+    await db.run(`UPDATE invoices SET amount_paid=?, status=?, paid_at=now(), updated_at=now() WHERE id=?`, [newAmt, newStatus, inv.id]);
     // Post JE via accounting-posting
     try {
       const posting = require('../services/accounting-posting');
-      posting.postPaymentReceived(inv, amount, { userId: ctx.userId });
+      await posting.postPaymentReceived(inv, amount, { userId: ctx.userId });
     } catch(e) { console.warn('JE post for payment failed:', e.message); }
-    writeAudit({ entityType: 'invoice', entityId: inv.id, action: 'paid_by_ai', before: { status: inv.status, amount_paid: inv.amount_paid }, after: { status: newStatus, amount_paid: newAmt }, source: 'ai', userId: ctx.userId });
+    await writeAudit({ entityType: 'invoice', entityId: inv.id, action: 'paid_by_ai', before: { status: inv.status, amount_paid: inv.amount_paid }, after: { status: newStatus, amount_paid: newAmt }, source: 'ai', userId: ctx.userId });
     return { id: inv.id, href: `/invoices/${inv.id}` };
   }
 };
 
 MUTATION_TOOLS.approve_bill = {
   needs_user: 'write',
-  propose(args, ctx) {
-    const bill = db.get('SELECT * FROM bills WHERE id = ?', [args.bill_id]);
+  async propose(args, ctx) {
+    const bill = await db.get('SELECT * FROM bills WHERE id = ?', [args.bill_id]);
     if (!bill) return { error: 'Bill not found.' };
     if (bill.status !== 'draft') return { error: `Bill is "${bill.status}" — must be draft to approve.` };
-    const vendor = db.get('SELECT name FROM vendors WHERE id = ?', [bill.vendor_id]);
+    const vendor = await db.get('SELECT name FROM vendors WHERE id = ?', [bill.vendor_id]);
     return { summary_lines: [`Bill: ${bill.bill_number || '#' + bill.id}`, `Vendor: ${vendor ? vendor.name : 'Unknown'}`, `Total: $${Number(bill.total).toFixed(2)}`, `Status: draft → approved`], args_normalized: args };
   },
-  execute(args, ctx) {
-    const bill = db.get('SELECT * FROM bills WHERE id = ?', [args.bill_id]);
-    db.run(`UPDATE bills SET status='approved', approved_by_user_id=?, approved_at=now(), updated_at=now() WHERE id=?`, [ctx.userId, bill.id]);
+  async execute(args, ctx) {
+    const bill = await db.get('SELECT * FROM bills WHERE id = ?', [args.bill_id]);
+    await db.run(`UPDATE bills SET status='approved', approved_by_user_id=?, approved_at=now(), updated_at=now() WHERE id=?`, [ctx.userId, bill.id]);
     try {
-      const lines = db.all('SELECT * FROM bill_lines WHERE bill_id = ?', [bill.id]);
+      const lines = await db.all('SELECT * FROM bill_lines WHERE bill_id = ?', [bill.id]);
       const posting = require('../services/accounting-posting');
-      posting.postBillApproved(bill, lines, { userId: ctx.userId });
+      await posting.postBillApproved(bill, lines, { userId: ctx.userId });
     } catch(e) { console.warn('JE post for bill approve failed:', e.message); }
-    writeAudit({ entityType: 'bill', entityId: bill.id, action: 'approved_by_ai', before: { status: 'draft' }, after: { status: 'approved' }, source: 'ai', userId: ctx.userId });
+    await writeAudit({ entityType: 'bill', entityId: bill.id, action: 'approved_by_ai', before: { status: 'draft' }, after: { status: 'approved' }, source: 'ai', userId: ctx.userId });
     return { id: bill.id, href: `/bills/${bill.id}` };
   }
 };
 
 MUTATION_TOOLS.add_wo_note = {
   needs_user: 'write',
-  propose(args, ctx) {
-    const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [args.wo_id]);
+  async propose(args, ctx) {
+    const wo = await db.get('SELECT * FROM work_orders WHERE id = ?', [args.wo_id]);
     if (!wo) return { error: 'Work order not found.' };
     if (ctx.role === 'worker') {
       const isAssigned = wo.assigned_to_user_id == ctx.userId || (wo.assigned_to && wo.assigned_to.includes(ctx.userName));
@@ -390,17 +390,17 @@ MUTATION_TOOLS.add_wo_note = {
     if (!args.body || args.body.trim().length < 2) return { error: 'Note body is required (min 2 chars).' };
     return { summary_lines: [`WO: ${wo.display_number ? 'WO-' + wo.display_number : '#' + wo.id}`, `Note: ${args.body.trim().slice(0, 100)}`], args_normalized: args };
   },
-  execute(args, ctx) {
-    db.run(`INSERT INTO wo_notes (work_order_id, user_id, body, created_at) VALUES (?, ?, ?, now())`, [args.wo_id, ctx.userId, args.body.trim()]);
-    writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'note_added_by_ai', before: null, after: { note: args.body.trim().slice(0,100) }, source: 'ai', userId: ctx.userId });
+  async execute(args, ctx) {
+    await db.run(`INSERT INTO wo_notes (work_order_id, user_id, body, created_at) VALUES (?, ?, ?, now())`, [args.wo_id, ctx.userId, args.body.trim()]);
+    await writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'note_added_by_ai', before: null, after: { note: args.body.trim().slice(0,100) }, source: 'ai', userId: ctx.userId });
     return { id: args.wo_id, href: `/work-orders/${args.wo_id}` };
   }
 };
 
 MUTATION_TOOLS.schedule_wo = {
   needs_user: 'write',
-  propose(args, ctx) {
-    const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [args.wo_id]);
+  async propose(args, ctx) {
+    const wo = await db.get('SELECT * FROM work_orders WHERE id = ?', [args.wo_id]);
     if (!wo) return { error: 'Work order not found.' };
 
     const date = args.date;
@@ -419,14 +419,14 @@ MUTATION_TOOLS.schedule_wo = {
 
     // If assignee_user_id provided, look up name
     if (assigneeUserId) {
-      const u = db.get('SELECT name FROM users WHERE id = ?', [assigneeUserId]);
+      const u = await db.get('SELECT name FROM users WHERE id = ?', [assigneeUserId]);
       if (u) assigneeName = u.name;
     }
 
     // If only name provided, try to resolve to user_id for conflict check
     let resolvedUserId = assigneeUserId;
     if (!assigneeUserId && assigneeName) {
-      const resolved = scheduling.resolveUserName(assigneeName);
+      const resolved = await scheduling.resolveUserName(assigneeName);
       if (resolved.user) {
         resolvedUserId = resolved.user.id;
         assigneeName = resolved.user.name;
@@ -436,7 +436,7 @@ MUTATION_TOOLS.schedule_wo = {
     }
 
     // Conflict check
-    const conflicts = scheduling.findScheduleConflicts({
+    const conflicts = await scheduling.findScheduleConflicts({
       assignee_user_id: resolvedUserId,
       date,
       time,
@@ -457,7 +457,7 @@ MUTATION_TOOLS.schedule_wo = {
 
     return { summary_lines: summary, args_normalized: { ...args, date, time, assignee_user_id: assigneeUserId, assignee_name: assigneeName }, warnings };
   },
-  execute(args, ctx) {
+  async execute(args, ctx) {
     const updateFields = [];
     const updateParams = [];
     if (args.date) { updateFields.push('scheduled_date = ?'); updateParams.push(args.date); }
@@ -465,16 +465,16 @@ MUTATION_TOOLS.schedule_wo = {
     if (args.assignee_user_id) { updateFields.push('assigned_to_user_id = ?'); updateParams.push(args.assignee_user_id); }
     if (args.assignee_name) { updateFields.push('assigned_to = ?'); updateParams.push(args.assignee_name); }
     updateParams.push(args.wo_id);
-    db.run(`UPDATE work_orders SET ${updateFields.join(', ')}, updated_at = now() WHERE id = ?`, updateParams);
-    writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'scheduled_by_ai', before: {}, after: { scheduled_date: args.date, scheduled_time: args.time, assigned_to: args.assignee_name }, source: 'ai', userId: ctx.userId });
+    await db.run(`UPDATE work_orders SET ${updateFields.join(', ')}, updated_at = now() WHERE id = ?`, updateParams);
+    await writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'scheduled_by_ai', before: {}, after: { scheduled_date: args.date, scheduled_time: args.time, assigned_to: args.assignee_name }, source: 'ai', userId: ctx.userId });
     return { id: args.wo_id, href: `/work-orders/${args.wo_id}` };
   }
 };
 
 MUTATION_TOOLS.reschedule_wo = {
   needs_user: 'write',
-  propose(args, ctx) {
-    const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [args.wo_id]);
+  async propose(args, ctx) {
+    const wo = await db.get('SELECT * FROM work_orders WHERE id = ?', [args.wo_id]);
     if (!wo) return { error: 'Work order not found.' };
 
     const date = args.new_date;
@@ -489,7 +489,7 @@ MUTATION_TOOLS.reschedule_wo = {
 
     // Conflict check — exclude current WO
     const assigneeUserId = wo.assigned_to_user_id || null;
-    const conflicts = scheduling.findScheduleConflicts({
+    const conflicts = await scheduling.findScheduleConflicts({
       assignee_user_id: assigneeUserId,
       date,
       time,
@@ -511,22 +511,22 @@ MUTATION_TOOLS.reschedule_wo = {
 
     return { summary_lines: summary, args_normalized: { ...args, date, time }, warnings };
   },
-  execute(args, ctx) {
+  async execute(args, ctx) {
     const updateFields = [];
     const updateParams = [];
     if (args.new_date) { updateFields.push('scheduled_date = ?'); updateParams.push(args.new_date); }
     if (args.new_time) { updateFields.push('scheduled_time = ?'); updateParams.push(args.new_time); }
     updateParams.push(args.wo_id);
-    db.run(`UPDATE work_orders SET ${updateFields.join(', ')}, updated_at = now() WHERE id = ?`, updateParams);
-    writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'rescheduled_by_ai', before: {}, after: { scheduled_date: args.new_date, scheduled_time: args.new_time }, source: 'ai', userId: ctx.userId });
+    await db.run(`UPDATE work_orders SET ${updateFields.join(', ')}, updated_at = now() WHERE id = ?`, updateParams);
+    await writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'rescheduled_by_ai', before: {}, after: { scheduled_date: args.new_date, scheduled_time: args.new_time }, source: 'ai', userId: ctx.userId });
     return { id: args.wo_id, href: `/work-orders/${args.wo_id}` };
   }
 };
 
 MUTATION_TOOLS.assign_wo = {
   needs_user: 'write',
-  propose(args, ctx) {
-    const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [args.wo_id]);
+  async propose(args, ctx) {
+    const wo = await db.get('SELECT * FROM work_orders WHERE id = ?', [args.wo_id]);
     if (!wo) return { error: 'Work order not found.' };
 
     let assigneeUserId = args.assignee_user_id;
@@ -534,7 +534,7 @@ MUTATION_TOOLS.assign_wo = {
 
     // Resolve by name if only assignee_name provided
     if (!assigneeUserId && assigneeName) {
-      const resolved = scheduling.resolveUserName(assigneeName);
+      const resolved = await scheduling.resolveUserName(assigneeName);
       if (resolved.error) return { error: resolved.error };
       if (resolved.matches) {
         return { suggest_disambiguation: true, matches: resolved.matches.map(m => ({ id: m.id, name: m.name, email: m.email })) };
@@ -549,12 +549,12 @@ MUTATION_TOOLS.assign_wo = {
 
     // If we have a user_id but no name, look it up
     if (assigneeUserId && !assigneeName) {
-      const u = db.get('SELECT name FROM users WHERE id = ?', [assigneeUserId]);
+      const u = await db.get('SELECT name FROM users WHERE id = ?', [assigneeUserId]);
       if (u) assigneeName = u.name;
     }
 
     // Conflict check if assigned to a user
-    const conflicts = wo.scheduled_date ? scheduling.findScheduleConflicts({
+    const conflicts = wo.scheduled_date ? await scheduling.findScheduleConflicts({
       assignee_user_id: assigneeUserId,
       date: wo.scheduled_date,
       time: wo.scheduled_time,
@@ -574,14 +574,14 @@ MUTATION_TOOLS.assign_wo = {
 
     return { summary_lines: summary, args_normalized: { ...args, assignee_user_id: assigneeUserId, assignee_name: assigneeName }, warnings };
   },
-  execute(args, ctx) {
+  async execute(args, ctx) {
     const updateFields = [];
     const updateParams = [];
     if (args.assignee_user_id) { updateFields.push('assigned_to_user_id = ?'); updateParams.push(args.assignee_user_id); }
     if (args.assignee_name) { updateFields.push('assigned_to = ?'); updateParams.push(args.assignee_name); }
     updateParams.push(args.wo_id);
-    db.run(`UPDATE work_orders SET ${updateFields.join(', ')}, updated_at = now() WHERE id = ?`, updateParams);
-    writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'assigned_by_ai', before: {}, after: { assigned_to: args.assignee_name }, source: 'ai', userId: ctx.userId });
+    await db.run(`UPDATE work_orders SET ${updateFields.join(', ')}, updated_at = now() WHERE id = ?`, updateParams);
+    await writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'assigned_by_ai', before: {}, after: { assigned_to: args.assignee_name }, source: 'ai', userId: ctx.userId });
     return { id: args.wo_id, href: `/work-orders/${args.wo_id}` };
   }
 };
@@ -638,7 +638,7 @@ module.exports = {
       needs_user: t.needs_user || 'read'
     }));
   },
-  call(name, args, ctx) {
+  async call(name, args, ctx) {
     const tool = tools[name];
     if (!tool) return { ok: false, error: `Unknown tool: ${name}` };
     // Worker permission check
@@ -651,7 +651,7 @@ module.exports = {
       }
     }
     try {
-      let result = tool.handler(args || {}, ctx);
+      let result = await tool.handler(args || {}, ctx);
       result = filterForWorker(result, ctx.role);
       return { ok: true, result };
     } catch (e) {
@@ -659,20 +659,20 @@ module.exports = {
     }
   },
   // Tier 3: propose a mutation (validate + generate summary)
-  propose(name, args, ctx) {
+  async propose(name, args, ctx) {
     if (!MUTATION_TOOLS[name]) return { error: `Unknown mutation tool: ${name}` };
     const tool = MUTATION_TOOLS[name];
     // Manager+admin only for most mutations
     if (ctx.role === 'worker' && name !== 'add_wo_note') {
       return { error: 'Only managers and admins can perform this action.' };
     }
-    return tool.propose(args, ctx);
+    return await tool.propose(args, ctx);
   },
   // Tier 3: execute a confirmed mutation
-  executeMutation(name, args, ctx) {
+  async executeMutation(name, args, ctx) {
     if (!MUTATION_TOOLS[name]) return { ok: false, error: `Unknown mutation tool: ${name}` };
     try {
-      const result = MUTATION_TOOLS[name].execute(args, ctx);
+      const result = await MUTATION_TOOLS[name].execute(args, ctx);
       return { ok: true, result };
     } catch (e) {
       return { ok: false, error: e.message };

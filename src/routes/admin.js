@@ -326,13 +326,13 @@ router.get('/ai-usage', (req, res) => {
 module.exports = router;
 
 // --- admin index → redirect to /settings ---
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   setFlash(req, 'info', 'Admin panel moved to Settings.');
   res.redirect('/settings');
 });
 
 // --- closures CRUD moved inline ---
-router.post('/closures/create', (req, res) => {
+router.post('/closures/create', async (req, res) => {
   const name = (req.body.name || '').trim();
   const date_start = (req.body.date_start || '').trim();
   const type = req.body.type || 'holiday';
@@ -340,18 +340,18 @@ router.post('/closures/create', (req, res) => {
     setFlash(req, 'error', 'Name and date required.');
     return res.redirect('/admin');
   }
-  db.run(`INSERT INTO closures (date_start, date_end, name, type, notes, created_by_user_id, created_at)
+  await db.run(`INSERT INTO closures (date_start, date_end, name, type, notes, created_by_user_id, created_at)
           VALUES (?, ?, ?, ?, ?, ?, now())`,
     [date_start, req.body.date_end || null, name, type, req.body.notes || null, req.session.userId]);
   setFlash(req, 'success', `Closure "${name}" created.`);
   res.redirect('/admin');
 });
 
-router.post('/closures/delete', (req, res) => {
+router.post('/closures/delete', async (req, res) => {
   const id = parseInt(req.body.closure_id, 10);
-  const c = db.get('SELECT * FROM closures WHERE id = ?', [id]);
+  const c = await db.get('SELECT * FROM closures WHERE id = ?', [id]);
   if (!c) { setFlash(req, 'error', 'Closure not found.'); return res.redirect('/admin'); }
-  db.run('DELETE FROM closures WHERE id = ?', [id]);
+  await db.run('DELETE FROM closures WHERE id = ?', [id]);
   setFlash(req, 'success', `Closure "${c.name}" deleted.`);
   res.redirect('/admin');
 });

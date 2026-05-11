@@ -20,7 +20,7 @@ async function sendEstimateEmail(estimateId) {
   if (!est) throw new Error(`Estimate #${estimateId} not found.`);
   if (est.status !== 'draft') throw new Error(`Estimate ${est.display_number} is "${est.status}" — must be draft to send.`);
 
-  const company = db.get('SELECT * FROM company_settings WHERE id = 1') || {};
+  const company = await db.get('SELECT * FROM company_settings WHERE id = 1') || {};
   const buf = await pdf.renderToBuffer(pdf.generateEstimatePDF, { ...est, estimate_number: est.display_number }, company);
   const recipient = est.customer_email || 'unknown@recon.local';
   const subject = `Estimate ${est.display_number} from ${company.company_name || 'Recon Construction'}`;
@@ -56,8 +56,8 @@ async function sendEstimateEmail(estimateId) {
 /**
  * Load estimate with joined data needed for email.
  */
-function loadEstimateForEmail(id) {
-  const est = db.get(
+async function loadEstimateForEmail(id) {
+  const est = await db.get(
     `SELECT e.*,
             w.display_number AS wo_display_number,
             w.wo_number_main, w.wo_number_sub,
@@ -72,7 +72,7 @@ function loadEstimateForEmail(id) {
     [id]
   );
   if (!est) return null;
-  est.lines = db.all(
+  est.lines = await db.all(
     `SELECT * FROM estimate_line_items WHERE estimate_id = ? ORDER BY sort_order ASC, id ASC`,
     [id]
   );

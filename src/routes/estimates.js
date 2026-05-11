@@ -83,8 +83,8 @@ function validateEstimate(body) {
   return { errors, data: { valid_until: validUntil, tax_rate: taxRateNum, notes, lines: items } };
 }
 
-function loadEstimate(id) {
-  const est = db.get(
+async function loadEstimate(id) {
+  const est = await db.get(
     `SELECT e.*,
             w.id AS wo_id, w.display_number AS wo_display_number,
             w.wo_number_main, w.wo_number_sub,
@@ -104,7 +104,7 @@ function loadEstimate(id) {
     [id]
   );
   if (!est) return null;
-  est.lines = db.all(
+  est.lines = await db.all(
     `SELECT * FROM estimate_line_items WHERE estimate_id = ? ORDER BY sort_order ASC, id ASC`,
     [id]
   );
@@ -112,7 +112,7 @@ function loadEstimate(id) {
   return est;
 }
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const q = (req.query.q || '').trim();
   const status = (req.query.status || '').trim();
   const archiveFilter = (req.query.archived || '0'); // 0=active, 1=archived, all=both
@@ -137,7 +137,7 @@ router.get('/', (req, res) => {
   }
   const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
 
-  const total = (db.get(
+  const total = (await db.get(
     `SELECT COUNT(*) AS n FROM estimates e
      JOIN work_orders w ON w.id = e.work_order_id
      JOIN jobs j ON j.id = w.job_id
@@ -145,7 +145,7 @@ router.get('/', (req, res) => {
     params
   ) || {}).n || 0;
 
-  const estimates = db.all(
+  const estimates = await db.all(
     `SELECT e.id, e.status, e.total, e.cost_total, e.valid_until, e.created_at,
             w.display_number AS wo_display_number, w.id AS wo_id,
             j.id AS job_id, j.title AS job_title,
@@ -169,17 +169,17 @@ router.get('/', (req, res) => {
   });
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   const estimate = loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
-  const invoice = db.get('SELECT id, status FROM invoices WHERE estimate_id = ?', [estimate.id]);
+  const invoice = await db.get('SELECT id, status FROM invoices WHERE estimate_id = ?', [estimate.id]);
   res.render('estimates/show', {
     title: estimate.display_number, activeNav: 'estimates',
     estimate, invoice, canSeePrices: true
   });
 });
 
-router.get('/:id/edit', (req, res) => {
+router.get('/:id/edit', async (req, res) => {
   const estimate = loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
   if (estimate.status !== 'draft') {
@@ -192,7 +192,7 @@ router.get('/:id/edit', (req, res) => {
   });
 });
 
-router.post('/:id', (req, res) => {
+router.post('/:id', async (req, res) => {
   const existing = loadEstimate(req.params.id);
   if (!existing) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
   if (existing.status !== 'draft') {
@@ -208,17 +208,17 @@ router.post('/:id', (req, res) => {
   }
   const t = calc.totals(data.lines, data.tax_rate);
   const costTotal = data.lines.reduce((s, li) => s + (Number(li.cost) || 0) * (Number(li.quantity) || 0), 0);
-  db.transaction(() => {
-    db.run(
+  await db.transaction(async (tx) => {
+    tx.run(
       `UPDATE estimates SET subtotal=?, tax_rate=?, tax_amount=?, total=?, cost_total=?, valid_until=?, notes=?,
                             updated_at=now()
        WHERE id=?`,
       [t.subtotal, data.tax_rate, t.taxAmount, t.total, costTotal, data.valid_until, data.notes, existing.id]
     );
-    db.run('DELETE FROM estimate_line_items WHERE estimate_id = ?', [existing.id]);
+    tx.run('DELETE FROM estimate_line_items WHERE estimate_id = ?', [existing.id]);
     data.lines.forEach((li, idx) => {
       const lt = calc.lineTotal(li);
-      db.run(
+      tx.run(
         `INSERT INTO estimate_line_items (estimate_id, description, quantity, unit, unit_price, cost, line_total, selected, sort_order)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [existing.id, li.description, li.quantity, li.unit, li.unit_price, li.cost, lt, li.selected, idx]
@@ -229,7 +229,7 @@ router.post('/:id', (req, res) => {
   res.redirect(`/estimates/${existing.id}`);
 });
 
-function statusTransition(req, res, fromStatus, toStatus, timestampField) {
+async function statusTransition(req, res, fromStatus, toStatus, timestampField) {
   const est = loadEstimate(req.params.id);
   if (!est) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
   const allowedFrom = Array.isArray(fromStatus) ? fromStatus : [fromStatus];
@@ -240,7 +240,7 @@ function statusTransition(req, res, fromStatus, toStatus, timestampField) {
   const sets = ['status = ?', `updated_at = now()`];
   const params = [toStatus];
   if (timestampField) sets.push(`${timestampField} = now()`);
-  db.run(`UPDATE estimates SET ${sets.join(', ')} WHERE id = ?`, [...params, est.id]);
+  await db.run(`UPDATE estimates SET ${sets.join(', ')} WHERE id = ?`, [...params, est.id]);
   try {
     const { writeAudit } = require('../services/audit');
     writeAudit({ entityType: 'estimate', entityId: est.id, action: toStatus, before: { status: est.status }, after: { status: toStatus }, source: 'web', userId: req.session.userId });
@@ -262,7 +262,7 @@ router.post('/:id/send', async (req, res, next) => {
     const result = await emailService.sendEstimateEmail(estimate.id);
     const sentToEmail = estimate.customer_email || 'unknown@recon.local';
     const sentToName = estimate.customer_name || 'Unknown';
-    db.run(`UPDATE estimates SET status='sent', sent_at=now(), sent_by_user_id=?, sent_to_email=?, sent_to_name=?, updated_at=now() WHERE id=?`,
+    await db.run(`UPDATE estimates SET status='sent', sent_at=now(), sent_by_user_id=?, sent_to_email=?, sent_to_name=?, updated_at=now() WHERE id=?`,
       [req.session.userId, sentToEmail, sentToName, estimate.id]);
     try {
       const { writeAudit } = require('../services/audit');
@@ -278,7 +278,7 @@ router.post('/:id/accept', (req, res) => statusTransition(req, res, 'sent', 'acc
 router.post('/:id/reject', (req, res) => statusTransition(req, res, 'sent', 'rejected', null));
 
 // Archive / close
-router.post('/:id/archive', (req, res) => {
+router.post('/:id/archive', async (req, res) => {
   const est = loadEstimate(req.params.id);
   if (!est) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
   if (est.archived_at) {
@@ -287,8 +287,8 @@ router.post('/:id/archive', (req, res) => {
   }
   let newStatus = est.status;
   if (est.status === 'draft' || est.status === 'sent') { newStatus = 'expired'; }
-  db.transaction(() => {
-    db.run('UPDATE estimates SET archived_at = now(), status = ?, updated_at = now() WHERE id = ?', [newStatus, est.id]);
+  await db.transaction(async (tx) => {
+    tx.run('UPDATE estimates SET archived_at = now(), status = ?, updated_at = now() WHERE id = ?', [newStatus, est.id]);
     try {
       const { writeAudit } = require('../services/audit');
       writeAudit({ entityType: 'estimate', entityId: est.id, action: 'archived', before: { status: est.status }, after: { status: newStatus, archived_at: 'now' }, source: 'web', userId: req.session.userId });
@@ -299,7 +299,7 @@ router.post('/:id/archive', (req, res) => {
 });
 
 // Admin unarchive
-router.post('/:id/unarchive', (req, res) => {
+router.post('/:id/unarchive', async (req, res) => {
   if (req.session.role !== 'admin') {
     setFlash(req, 'error', 'Only admins can unarchive estimates.');
     return res.redirect(`/estimates/${req.params.id}`);
@@ -310,8 +310,8 @@ router.post('/:id/unarchive', (req, res) => {
     setFlash(req, 'info', `${est.display_number} is not archived.`);
     return res.redirect(`/estimates/${est.id}`);
   }
-  db.transaction(() => {
-    db.run('UPDATE estimates SET archived_at = NULL, updated_at = now() WHERE id = ?', [est.id]);
+  await db.transaction(async (tx) => {
+    tx.run('UPDATE estimates SET archived_at = NULL, updated_at = now() WHERE id = ?', [est.id]);
     try {
       const { writeAudit } = require('../services/audit');
       writeAudit({ entityType: 'estimate', entityId: est.id, action: 'unarchived', before: { archived_at: est.archived_at }, after: { archived_at: null }, source: 'web', userId: req.session.userId });
@@ -322,14 +322,14 @@ router.post('/:id/unarchive', (req, res) => {
 });
 
 // Generate invoice from accepted estimate — first redirects to line-selection page
-router.post('/:id/generate-invoice', (req, res) => {
+router.post('/:id/generate-invoice', async (req, res) => {
   const estimate = loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
   if (!['sent', 'accepted'].includes(estimate.status)) {
     setFlash(req, 'error', `Estimate must be sent or accepted before invoicing. Current: ${estimate.status}.`);
     return res.redirect(`/estimates/${estimate.id}`);
   }
-  const existingInv = db.get('SELECT id FROM invoices WHERE estimate_id = ?', [estimate.id]);
+  const existingInv = await db.get('SELECT id FROM invoices WHERE estimate_id = ?', [estimate.id]);
   if (existingInv) {
     setFlash(req, 'info', `Invoice already exists for ${estimate.display_number}.`);
     return res.redirect(`/invoices/${existingInv.id}`);
@@ -354,7 +354,7 @@ router.post('/:id/generate-invoice', (req, res) => {
       return res.redirect(`/estimates/${estimate.id}/select-for-invoice`);
     }
 
-    const settings = db.get('SELECT default_payment_terms FROM company_settings WHERE id = 1') || {};
+    const settings = await db.get('SELECT default_payment_terms FROM company_settings WHERE id = 1') || {};
     const paymentTerms = settings.default_payment_terms || 'Net 30';
     const due = new Date();
     const termsMatch = String(paymentTerms).match(/Net (\d+)/i);
@@ -366,8 +366,8 @@ router.post('/:id/generate-invoice', (req, res) => {
     const totals = calc.totals(selectedLines, estimate.tax_rate);
     const costTotal = selectedLines.reduce((s, li) => s + (Number(li.cost) || 0) * (Number(li.quantity) || 0), 0);
 
-    const newId = db.transaction(() => {
-      const r = db.run(
+    const newId = await db.transaction(async (tx) => {
+      const r = tx.run(
         `INSERT INTO invoices
          (estimate_id, work_order_id, status, subtotal, tax_rate, tax_amount, total, cost_total, payment_terms, due_date)
          VALUES (?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?)`,
@@ -376,7 +376,7 @@ router.post('/:id/generate-invoice', (req, res) => {
       const invId = r.lastInsertRowid;
       selectedLines.forEach((li, idx) => {
         const lt = calc.lineTotal(li);
-        db.run(
+        tx.run(
           `INSERT INTO invoice_line_items (invoice_id, description, quantity, unit, unit_price, cost, line_total, sort_order)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [invId, li.description, li.quantity, li.unit, li.unit_price, li.cost, lt, idx]
@@ -394,14 +394,14 @@ router.post('/:id/generate-invoice', (req, res) => {
 });
 
 // Select-for-invoice page — pick which lines to invoice
-router.get('/:id/select-for-invoice', (req, res) => {
+router.get('/:id/select-for-invoice', async (req, res) => {
   const estimate = loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
   if (!['sent', 'accepted'].includes(estimate.status)) {
     setFlash(req, 'error', `Estimate must be sent or accepted. Current: ${estimate.status}.`);
     return res.redirect(`/estimates/${estimate.id}`);
   }
-  const existingInv = db.get('SELECT id FROM invoices WHERE estimate_id = ?', [estimate.id]);
+  const existingInv = await db.get('SELECT id FROM invoices WHERE estimate_id = ?', [estimate.id]);
   if (existingInv) {
     setFlash(req, 'info', `Invoice already exists.`);
     return res.redirect(`/invoices/${existingInv.id}`);
@@ -412,10 +412,10 @@ router.get('/:id/select-for-invoice', (req, res) => {
   });
 });
 
-router.get('/:id/pdf', (req, res) => {
+router.get('/:id/pdf', async (req, res) => {
   const estimate = loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
-  const company = db.get('SELECT * FROM company_settings WHERE id = 1') || {};
+  const company = await db.get('SELECT * FROM company_settings WHERE id = 1') || {};
   const filename = `${estimate.display_number}.pdf`;
   const disposition = req.query.download ? 'attachment' : 'inline';
   res.setHeader('Content-Type', 'application/pdf');
@@ -430,16 +430,16 @@ router.get('/:id/pdf', (req, res) => {
   }
 });
 
-router.post('/:id/delete', (req, res) => {
+router.post('/:id/delete', async (req, res) => {
   const estimate = loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
-  const invCount = (db.get('SELECT COUNT(*) AS n FROM invoices WHERE estimate_id = ?', [estimate.id]) || {}).n || 0;
+  const invCount = (await db.get('SELECT COUNT(*) AS n FROM invoices WHERE estimate_id = ?', [estimate.id]) || {}).n || 0;
   if (invCount) {
     setFlash(req, 'error', `Cannot delete ${estimate.display_number} — an invoice references it.`);
     return res.redirect(`/estimates/${estimate.id}`);
   }
-  db.run('DELETE FROM estimate_line_items WHERE estimate_id = ?', [estimate.id]);
-  db.run('DELETE FROM estimates WHERE id = ?', [estimate.id]);
+  await db.run('DELETE FROM estimate_line_items WHERE estimate_id = ?', [estimate.id]);
+  await db.run('DELETE FROM estimates WHERE id = ?', [estimate.id]);
   setFlash(req, 'success', `${estimate.display_number} deleted.`);
   res.redirect('/estimates');
 });

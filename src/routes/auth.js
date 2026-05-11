@@ -13,7 +13,7 @@ const { setFlash } = require('../middleware/auth');
 
 const router = express.Router();
 
-router.get('/login', (req, res) => {
+router.get('/login', async (req, res) => {
   if (req.session && req.session.userId) return res.redirect('/');
   res.render('auth/login', {
     title: 'Sign in',
@@ -34,7 +34,7 @@ router.post('/login', async (req, res) => {
     });
   }
 
-  const user = db.get(
+  const user = await db.get(
     'SELECT * FROM users WHERE email = ? AND active = 1',
     [email]
   );
@@ -54,7 +54,7 @@ router.post('/login', async (req, res) => {
   res.redirect('/');
 });
 
-router.post('/logout', (req, res) => {
+router.post('/logout', async (req, res) => {
   if (req.session) {
     req.session.destroy(() => res.redirect('/login'));
   } else {

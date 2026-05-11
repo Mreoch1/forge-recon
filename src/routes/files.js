@@ -48,7 +48,7 @@ const ENTITY_TYPES = [
 ];
 
 // GET /files — index showing 5 buckets
-router.get('/', requireAuth, (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   res.render('files/index', {
     title: 'Files',
     activeNav: 'files',
@@ -57,7 +57,7 @@ router.get('/', requireAuth, (req, res) => {
 });
 
 // GET /files/:entityType — list entities of that type with root folders
-router.get('/:entityType', requireAuth, (req, res) => {
+router.get('/:entityType', requireAuth, async (req, res) => {
   const entityType = req.params.entityType;
   const bucket = ENTITY_TYPES.find(b => b.key === entityType);
   if (!bucket) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Unknown entity type.' });
@@ -83,7 +83,7 @@ router.get('/:entityType', requireAuth, (req, res) => {
 });
 
 // GET /files/:entityType/:entityId — show root folder contents
-router.get('/:entityType/:entityId', requireAuth, (req, res) => {
+router.get('/:entityType/:entityId', requireAuth, async (req, res) => {
   const entityType = req.params.entityType;
   const entityId = parseInt(req.params.entityId, 10);
   const mappedType = entityType === 'project' ? 'work_order' : entityType === 'worker' ? 'user' : entityType;
@@ -98,16 +98,16 @@ router.get('/:entityType/:entityId', requireAuth, (req, res) => {
   // Get entity name for display
   let entityName = '';
   if (entityType === 'customer') {
-    const c = db.get('SELECT name FROM customers WHERE id = ?', [entityId]);
+    const c = await db.get('SELECT name FROM customers WHERE id = ?', [entityId]);
     entityName = c ? c.name : 'Customer #' + entityId;
   } else if (entityType === 'vendor') {
-    const v = db.get('SELECT name FROM vendors WHERE id = ?', [entityId]);
+    const v = await db.get('SELECT name FROM vendors WHERE id = ?', [entityId]);
     entityName = v ? v.name : 'Vendor #' + entityId;
   } else if (entityType === 'worker') {
-    const u = db.get('SELECT name FROM users WHERE id = ?', [entityId]);
+    const u = await db.get('SELECT name FROM users WHERE id = ?', [entityId]);
     entityName = u ? u.name : 'Worker #' + entityId;
   } else if (entityType === 'project') {
-    const wo = db.get('SELECT display_number FROM work_orders WHERE id = ?', [entityId]);
+    const wo = await db.get('SELECT display_number FROM work_orders WHERE id = ?', [entityId]);
     entityName = wo ? 'WO-' + wo.display_number : 'Project #' + entityId;
   } else if (entityType === 'global') {
     entityName = 'Global files';
@@ -125,8 +125,8 @@ router.get('/:entityType/:entityId', requireAuth, (req, res) => {
 });
 
 // GET /files/folders/:folderId — browse subfolder contents
-router.get('/folders/:folderId', requireAuth, (req, res) => {
-  const folder = db.get('SELECT * FROM folders WHERE id = ?', [req.params.folderId]);
+router.get('/folders/:folderId', requireAuth, async (req, res) => {
+  const folder = await db.get('SELECT * FROM folders WHERE id = ?', [req.params.folderId]);
   if (!folder) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Folder not found.' });
   const contents = filesService.getFolderContents(folder.id);
   res.render('files/folder', {
@@ -141,15 +141,15 @@ router.get('/folders/:folderId', requireAuth, (req, res) => {
 });
 
 // POST /files/folders/:folderId/upload — upload files
-router.post('/folders/:folderId/upload', requireAuth, requireManager, upload.array('files', MAX_FILES), (req, res, next) => {
-  const folder = db.get('SELECT * FROM folders WHERE id = ?', [req.params.folderId]);
+router.post('/folders/:folderId/upload', requireAuth, requireManager, upload.array('files', MAX_FILES), async (req, res, next) => {
+  const folder = await db.get('SELECT * FROM folders WHERE id = ?', [req.params.folderId]);
   if (!folder) return res.status(404).json({ error: 'Folder not found.' });
   if (!req.files || req.files.length === 0) {
     setFlash(req, 'error', 'No files selected.');
     return res.redirect('/files/folders/' + folder.id);
   }
-  req.files.forEach(file => {
-    db.run(`INSERT INTO files (folder_id, name, original_filename, storage_path, mime_type, size_bytes, uploaded_by_user_id, created_at, updated_at)
+  req.files.forEach(async (file) => {
+    await db.run(`INSERT INTO files (folder_id, name, original_filename, storage_path, mime_type, size_bytes, uploaded_by_user_id, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, now(), now())`,
       [folder.id, file.filename, file.originalname, file.path, file.mimetype, file.size, req.session.userId]);
     try {
@@ -162,12 +162,12 @@ router.post('/folders/:folderId/upload', requireAuth, requireManager, upload.arr
 });
 
 // POST /files/folders/:folderId/subfolder — create subfolder
-router.post('/folders/:folderId/subfolder', requireAuth, requireManager, (req, res) => {
-  const folder = db.get('SELECT * FROM folders WHERE id = ?', [req.params.folderId]);
+router.post('/folders/:folderId/subfolder', requireAuth, requireManager, async (req, res) => {
+  const folder = await db.get('SELECT * FROM folders WHERE id = ?', [req.params.folderId]);
   if (!folder) return res.status(404).json({ error: 'Folder not found.' });
   const name = (req.body.name || '').trim();
   if (!name) { setFlash(req, 'error', 'Folder name required.'); return res.redirect('/files/folders/' + folder.id); }
-  const r = db.run(`INSERT INTO folders (parent_folder_id, name, entity_type, entity_id, created_by_user_id, created_at, updated_at)
+  const r = await db.run(`INSERT INTO folders (parent_folder_id, name, entity_type, entity_id, created_by_user_id, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, now(), now())`,
     [folder.id, name, folder.entity_type, folder.entity_id, req.session.userId]);
   setFlash(req, 'success', 'Folder "' + name + '" created.');
@@ -175,40 +175,40 @@ router.post('/folders/:folderId/subfolder', requireAuth, requireManager, (req, r
 });
 
 // POST /files/folders/:folderId/rename — rename folder (admin+)
-router.post('/folders/:folderId/rename', requireAuth, requireAdmin, (req, res) => {
-  const folder = db.get('SELECT * FROM folders WHERE id = ?', [req.params.folderId]);
+router.post('/folders/:folderId/rename', requireAuth, requireAdmin, async (req, res) => {
+  const folder = await db.get('SELECT * FROM folders WHERE id = ?', [req.params.folderId]);
   if (!folder) return res.status(404).json({ error: 'Folder not found.' });
   const name = (req.body.name || '').trim();
   if (!name) { setFlash(req, 'error', 'Folder name required.'); return res.redirect('/files/folders/' + folder.id); }
-  db.run('UPDATE folders SET name=?, updated_at=datetime(\'now\') WHERE id=?', [name, folder.id]);
+  await db.run('UPDATE folders SET name=?, updated_at=datetime(\'now\') WHERE id=?', [name, folder.id]);
   setFlash(req, 'success', 'Folder renamed.');
   res.redirect('/files/folders/' + folder.id);
 });
 
 // POST /files/folders/:folderId/delete — delete folder (admin+, empty only)
-router.post('/folders/:folderId/delete', requireAuth, requireAdmin, (req, res) => {
-  const folder = db.get('SELECT * FROM folders WHERE id = ?', [req.params.folderId]);
+router.post('/folders/:folderId/delete', requireAuth, requireAdmin, async (req, res) => {
+  const folder = await db.get('SELECT * FROM folders WHERE id = ?', [req.params.folderId]);
   if (!folder) return res.status(404).json({ error: 'Folder not found.' });
   const contents = filesService.getFolderContents(folder.id);
   if (contents.subfolders.length > 0 || contents.files.length > 0) {
     setFlash(req, 'error', 'Cannot delete non-empty folder.');
     return res.redirect('/files/folders/' + folder.id);
   }
-  db.run('DELETE FROM folders WHERE id=?', [folder.id]);
+  await db.run('DELETE FROM folders WHERE id=?', [folder.id]);
   setFlash(req, 'success', 'Folder deleted.');
   const parent = folder.parent_folder_id ? '/files/folders/' + folder.parent_folder_id : '/files';
   res.redirect(parent);
 });
 
 // POST /files/:id/delete — delete file (uploader or admin+)
-router.post('/:id/delete', requireAuth, (req, res) => {
-  const file = db.get('SELECT * FROM files WHERE id = ?', [req.params.id]);
+router.post('/:id/delete', requireAuth, async (req, res) => {
+  const file = await db.get('SELECT * FROM files WHERE id = ?', [req.params.id]);
   if (!file) return res.status(404).json({ error: 'File not found.' });
   const isAdmin = req.session.userRole === 'admin';
   const isUploader = file.uploaded_by_user_id === req.session.userId;
   if (!isAdmin && !isUploader) return res.status(403).json({ error: 'Permission denied.' });
   try { if (fs.existsSync(file.storage_path)) fs.unlinkSync(file.storage_path); } catch(e) { /* best effort */ }
-  db.run('DELETE FROM files WHERE id=?', [file.id]);
+  await db.run('DELETE FROM files WHERE id=?', [file.id]);
   try {
     const { writeAudit } = require('../services/audit');
     writeAudit({ entityType: 'file', entityId: file.id, action: 'deleted', before: { filename: file.original_filename }, after: null, source: 'user', userId: req.session.userId });
@@ -218,8 +218,8 @@ router.post('/:id/delete', requireAuth, (req, res) => {
 });
 
 // GET /files/:id/view — inline preview
-router.get('/:id/view', requireAuth, (req, res) => {
-  const file = db.get('SELECT * FROM files WHERE id = ?', [req.params.id]);
+router.get('/:id/view', requireAuth, async (req, res) => {
+  const file = await db.get('SELECT * FROM files WHERE id = ?', [req.params.id]);
   if (!file) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'File not found.' });
   if (!fs.existsSync(file.storage_path)) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'File not found on disk.' });
   const isImage = file.mime_type && file.mime_type.startsWith('image/');

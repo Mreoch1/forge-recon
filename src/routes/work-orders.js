@@ -135,8 +135,8 @@ function validateWorkOrder(body) {
   };
 }
 
-function loadWorkOrder(id) {
-  const wo = db.get(
+async function loadWorkOrder(id) {
+  const wo = await db.get(
     `SELECT w.*,
             j.title   AS job_title,
             j.address AS job_address,
@@ -163,14 +163,14 @@ function loadWorkOrder(id) {
     [id]
   );
   if (!wo) return null;
-  wo.lines = db.all(
+  wo.lines = await db.all(
     `SELECT * FROM work_order_line_items WHERE work_order_id = ? ORDER BY sort_order ASC, id ASC`,
     [id]
   );
   return wo;
 }
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const q = (req.query.q || '').trim();
   const status = (req.query.status || '').trim();
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
@@ -189,14 +189,14 @@ router.get('/', (req, res) => {
   }
   const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
 
-  const total = (db.get(
+  const total = (await db.get(
     `SELECT COUNT(*) AS n FROM work_orders w
      JOIN jobs j ON j.id = w.job_id
      JOIN customers c ON c.id = j.customer_id ${where}`,
     params
   ) || {}).n || 0;
 
-  const workOrders = db.all(
+  const workOrders = await db.all(
     `SELECT w.id, w.display_number, w.wo_number_main, w.wo_number_sub, w.parent_wo_id,
             w.status, w.scheduled_date, w.completed_date, w.created_at,
             j.id AS job_id, j.title AS job_title,
@@ -220,13 +220,13 @@ router.get('/', (req, res) => {
   });
 });
 
-router.get('/new', (req, res) => {
+router.get('/new', async (req, res) => {
   const jobId = parseInt(req.query.job_id, 10);
   if (!jobId) {
     setFlash(req, 'error', 'Pick a job first to create a work order from.');
     return res.redirect('/jobs');
   }
-  const job = db.get(
+  const job = await db.get(
     `SELECT j.*, c.id AS customer_id, c.name AS customer_name
      FROM jobs j JOIN customers c ON c.id = j.customer_id WHERE j.id = ?`,
     [jobId]
@@ -237,7 +237,7 @@ router.get('/new', (req, res) => {
   }
 
   // Suggest the next root WO number (purely for display in the form)
-  const settings = db.get('SELECT next_wo_main_number FROM company_settings WHERE id = 1');
+  const settings = await db.get('SELECT next_wo_main_number FROM company_settings WHERE id = 1');
   const suggestedDisplay = numbering.formatDisplay(settings ? settings.next_wo_main_number : 1, 0);
 
   const wo = {
@@ -249,22 +249,22 @@ router.get('/new', (req, res) => {
     assigned_to_user_id: null, assigned_to: '',
     notes: '', lines: [],
   };
-  const users = db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
+  const users = await db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
   res.render('work-orders/new', {
     title: 'New work order', activeNav: 'work-orders',
     wo, job, users, errors: {}, units: VALID_UNITS, isSubWO: false
   });
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const jobId = parseInt(req.body.job_id, 10);
-  const job = jobId ? db.get(
+  const job = jobId ? await db.get(
     `SELECT j.*, c.id AS customer_id, c.name AS customer_name
      FROM jobs j JOIN customers c ON c.id = j.customer_id WHERE j.id = ?`,
     [jobId]
   ) : null;
 
-  const users = db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
+  const users = await db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
   const { errors, data } = validateWorkOrder(req.body);
   if (!job) errors.job_id = 'Job is required.';
 
@@ -284,7 +284,7 @@ router.post('/', (req, res) => {
     ({ main, sub } = data.display_number_override);
     display = numbering.formatDisplay(main, sub);
     // Reject if already taken
-    const dup = db.get('SELECT id FROM work_orders WHERE display_number = ?', [display]);
+    const dup = await db.get('SELECT id FROM work_orders WHERE display_number = ?', [display]);
     if (dup) {
       errors.display_number = `WO ${display} already exists.`;
       return res.status(400).render('work-orders/new', {
@@ -295,12 +295,12 @@ router.post('/', (req, res) => {
       });
     }
   } else {
-    const next = numbering.nextRootWoNumber();
+    const next = await numbering.nextRootWoNumber();
     main = next.main; sub = next.sub; display = next.display;
   }
 
-  const newId = db.transaction(() => {
-    const r = db.run(
+  const newId = await db.transaction(async (tx) => {
+    const r = await tx.run(
       `INSERT INTO work_orders
        (job_id, parent_wo_id, wo_number_main, wo_number_sub, display_number, status,
         scheduled_date, scheduled_time, assigned_to_user_id, assigned_to, notes)
@@ -309,15 +309,16 @@ router.post('/', (req, res) => {
        data.assigned_to_user_id, data.assigned_to, data.notes]
     );
     const woId = r.lastInsertRowid;
-    data.lines.forEach((li, idx) => {
+    for (let idx = 0; idx < data.lines.length; idx++) {
+      const li = data.lines[idx];
       const lt = calc.lineTotal(li);
-      db.run(
+      await tx.run(
         `INSERT INTO work_order_line_items
          (work_order_id, description, quantity, unit, unit_price, cost, line_total, completed, sort_order)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [woId, li.description, li.quantity, li.unit, li.unit_price, li.cost, lt, li.completed, idx]
       );
-    });
+    }
     return woId;
   });
 
@@ -328,7 +329,7 @@ router.post('/', (req, res) => {
 // ---- AI-assisted WO creation (Round 8) ----
 // These MUST come before /:id routes to avoid Express route collision with /ai-create being caught as :id
 
-router.get('/ai-create', (req, res) => {
+router.get('/ai-create', async (req, res) => {
   res.render('work-orders/ai-create', { title: 'AI-assisted work order', activeNav: 'work-orders', text: '', error: null });
 });
 
@@ -341,8 +342,8 @@ router.post('/ai-create', async (req, res) => {
   if (!ai.isConfigured()) {
     return res.render('work-orders/ai-create', { title: 'AI-assisted WO', activeNav: 'work-orders', text, error: 'AI not configured. Add AI_API_KEY to .env.' });
   }
-  const customers = db.all('SELECT id, name, email FROM customers');
-  const users = db.all("SELECT id, name FROM users WHERE active = 1");
+  const customers = await db.all('SELECT id, name, email FROM customers');
+  const users = await db.all("SELECT id, name FROM users WHERE active = 1");
   try {
     const result = await ai.extractWorkOrder({ text, customers, users, userId: req.session.userId });
     if (!result.ok) {
@@ -362,7 +363,7 @@ router.post('/ai-create', async (req, res) => {
   }
 });
 
-router.post('/ai-finalize', (req, res) => {
+router.post('/ai-finalize', async (req, res) => {
   const { customer_action, customer_name, customer_email, customer_id } = req.body;
   const jobTitle = (req.body.job_title || '').trim();
   const jobAddress = (req.body.job_address || '').trim();
@@ -389,14 +390,14 @@ router.post('/ai-finalize', (req, res) => {
       setFlash(req, 'error', 'Customer name is required for a new customer.');
       return res.redirect('/work-orders/ai-create');
     }
-    resolvedCustomerId = db.run(
+    resolvedCustomerId = await db.run(
       `INSERT INTO customers (name, email, created_at) VALUES (?, ?, now())`,
       [name, customer_email || null]
     ).lastInsertRowid;
   }
 
   // Create job
-  const jobId = db.run(
+  const jobId = await db.run(
     `INSERT INTO jobs (customer_id, title, address, city, state, zip, description, status, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, 'estimating', now())`,
     [resolvedCustomerId, jobTitle, jobAddress, jobCity, jobState, jobZip, jobDescription]
@@ -405,7 +406,7 @@ router.post('/ai-finalize', (req, res) => {
   // Create work order
   const calc = require('../services/calculations');
   const numbering = require('../services/numbering');
-  const next = numbering.nextRootWoNumber();
+  const next = await numbering.nextRootWoNumber();
   const display = next.display;
 
   // Parse assignees from req.body.assignees (array of {name, user_id})
@@ -419,20 +420,20 @@ router.post('/ai-finalize', (req, res) => {
   // The rest are concatenated into assigned_to text
   let assignedUserId = null;
   let assignedToParts = [];
-  rawAssignees.forEach(a => {
+  for (const a of rawAssignees) {
     const uid = a.user_id ? parseInt(a.user_id, 10) : null;
     if (uid && !assignedUserId) assignedUserId = uid;
     else assignedToParts.push(a.name);
-  });
+  }
   // Also include the named user who's the primary assignee
   if (assignedUserId) {
-    const u = db.get('SELECT name FROM users WHERE id = ?', [assignedUserId]);
+    const u = await db.get('SELECT name FROM users WHERE id = ?', [assignedUserId]);
     if (u) assignedToParts.unshift(u.name);
   }
   const assignedToText = assignedToParts.filter(Boolean).join(', ') || null;
 
-  const woId = db.transaction(() => {
-    const r = db.run(
+  const woId = await db.transaction(async (tx) => {
+    const r = await tx.run(
       `INSERT INTO work_orders
        (job_id, parent_wo_id, wo_number_main, wo_number_sub, display_number, status,
         scheduled_date, scheduled_time, assigned_to_user_id, assigned_to, notes, created_at)
@@ -448,19 +449,20 @@ router.post('/ai-finalize', (req, res) => {
       if (Array.isArray(input)) return input;
       return Object.keys(input).sort((a,b)=>parseInt(a,10)-parseInt(b,10)).map(k => input[k]);
     })();
-    rawLines.forEach((li, idx) => {
+    for (let idx = 0; idx < rawLines.length; idx++) {
+      const li = rawLines[idx];
       const desc = (li.description || '').trim();
-      if (!desc) return;
+      if (!desc) continue;
       const qty = parseFloat(li.quantity) || 0;
       const up = parseFloat(li.unit_price) || 0;
       const lt = Math.round(qty * up * 100) / 100;
-      db.run(
+      await tx.run(
         `INSERT INTO work_order_line_items
          (work_order_id, description, quantity, unit, unit_price, line_total, sort_order)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [wid, desc, qty, li.unit || 'ea', up, lt, idx]
       );
-    });
+    }
     return wid;
   });
 
@@ -469,12 +471,12 @@ router.post('/ai-finalize', (req, res) => {
 });
 
 // Sub-WO creation (POST /:id/sub) — opens a new form scoped to this parent
-router.get('/:id/sub/new', (req, res) => {
-  const parent = loadWorkOrder(req.params.id);
+router.get('/:id/sub/new', async (req, res) => {
+  const parent = await loadWorkOrder(req.params.id);
   if (!parent) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Parent WO not found.' });
-  const job = db.get('SELECT id, title FROM jobs WHERE id = ?', [parent.job_id]);
+  const job = await db.get('SELECT id, title FROM jobs WHERE id = ?', [parent.job_id]);
 
-  const next = numbering.nextSubWoNumber(parent.id);
+  const next = await numbering.nextSubWoNumber(parent.id);
   const wo = {
     id: null, job_id: parent.job_id, parent_wo_id: parent.id,
     display_number: '', suggested_display_number: next.display,
@@ -482,15 +484,15 @@ router.get('/:id/sub/new', (req, res) => {
     scheduled_date: '', scheduled_time: '',
     assigned_to_user_id: null, assigned_to: '', notes: '', lines: []
   };
-  const users = db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
+  const users = await db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
   res.render('work-orders/new', {
     title: `Sub-WO under ${parent.display_number}`, activeNav: 'work-orders',
     wo, job, users, errors: {}, units: VALID_UNITS, isSubWO: true, parent
   });
 });
 
-router.post('/:id/sub', (req, res) => {
-  const parent = db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
+router.post('/:id/sub', async (req, res) => {
+  const parent = await db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
   if (!parent) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Parent WO not found.' });
 
   const { errors, data } = validateWorkOrder(req.body);
@@ -501,17 +503,17 @@ router.post('/:id/sub', (req, res) => {
       errors.display_number = `Sub-WO must use main ${numbering.pad(parent.wo_number_main, 4)} (parent's).`;
     } else {
       display = numbering.formatDisplay(main, sub);
-      const dup = db.get('SELECT id FROM work_orders WHERE display_number = ?', [display]);
+      const dup = await db.get('SELECT id FROM work_orders WHERE display_number = ?', [display]);
       if (dup) errors.display_number = `WO ${display} already exists.`;
     }
   } else {
-    const next = numbering.nextSubWoNumber(parent.id);
+    const next = await numbering.nextSubWoNumber(parent.id);
     main = next.main; sub = next.sub; display = next.display;
   }
 
   if (Object.keys(errors).length) {
-    const job = db.get('SELECT id, title FROM jobs WHERE id = ?', [parent.job_id]);
-    const users = db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
+    const job = await db.get('SELECT id, title FROM jobs WHERE id = ?', [parent.job_id]);
+    const users = await db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
     return res.status(400).render('work-orders/new', {
       title: `Sub-WO under ${parent.display_number}`, activeNav: 'work-orders',
       wo: { id: null, job_id: parent.job_id, parent_wo_id: parent.id, ...data,
@@ -520,8 +522,8 @@ router.post('/:id/sub', (req, res) => {
     });
   }
 
-  const newId = db.transaction(() => {
-    const r = db.run(
+  const newId = await db.transaction(async (tx) => {
+    const r = await tx.run(
       `INSERT INTO work_orders
        (job_id, parent_wo_id, wo_number_main, wo_number_sub, display_number, status,
         scheduled_date, scheduled_time, assigned_to_user_id, assigned_to, notes)
@@ -530,15 +532,16 @@ router.post('/:id/sub', (req, res) => {
        data.assigned_to_user_id, data.assigned_to, data.notes]
     );
     const woId = r.lastInsertRowid;
-    data.lines.forEach((li, idx) => {
+    for (let idx = 0; idx < data.lines.length; idx++) {
+      const li = data.lines[idx];
       const lt = calc.lineTotal(li);
-      db.run(
+      await tx.run(
         `INSERT INTO work_order_line_items
          (work_order_id, description, quantity, unit, unit_price, cost, line_total, completed, sort_order)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [woId, li.description, li.quantity, li.unit, li.unit_price, li.cost, lt, li.completed, idx]
       );
-    });
+    }
     return woId;
   });
 
@@ -546,22 +549,22 @@ router.post('/:id/sub', (req, res) => {
   res.redirect(`/work-orders/${newId}`);
 });
 
-router.get('/:id', (req, res) => {
-  const wo = loadWorkOrder(req.params.id);
+router.get('/:id', async (req, res) => {
+  const wo = await loadWorkOrder(req.params.id);
   if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
 
-  const subs = db.all(
+  const subs = await db.all(
     `SELECT id, display_number, wo_number_sub, status, scheduled_date, completed_date, created_at
      FROM work_orders WHERE parent_wo_id = ? ORDER BY wo_number_sub ASC`,
     [wo.id]
   );
-  const estimate = db.get('SELECT id, status FROM estimates WHERE work_order_id = ?', [wo.id]);
-  const invoice = estimate ? db.get('SELECT id, status FROM invoices WHERE estimate_id = ?', [estimate.id]) : null;
+  const estimate = await db.get('SELECT id, status FROM estimates WHERE work_order_id = ?', [wo.id]);
+  const invoice = estimate ? await db.get('SELECT id, status FROM invoices WHERE estimate_id = ?', [estimate.id]) : null;
 
   // Notes feed (newest last so it reads top-down chronologically)
   let notes = [];
   try {
-    notes = db.all(
+    notes = await db.all(
       `SELECT n.id, n.body, n.created_at, u.name AS user_name
        FROM wo_notes n
        LEFT JOIN users u ON u.id = n.user_id
@@ -576,7 +579,7 @@ router.get('/:id', (req, res) => {
   // Fetch photos
   let photos = [];
   try {
-    photos = db.all(
+    photos = await db.all(
       `SELECT p.*, u.name AS user_name
        FROM wo_photos p
        LEFT JOIN users u ON u.id = p.user_id
@@ -586,29 +589,29 @@ router.get('/:id', (req, res) => {
     );
   } catch (e) {}
 
-  const fileCountWO = (db.get('SELECT COUNT(f.id) AS n FROM files f JOIN folders fl ON fl.id = f.folder_id WHERE fl.entity_type = ? AND fl.entity_id = ?', ['work_order', wo.id]) || {}).n || 0;
+  const fileCountWO = (await db.get('SELECT COUNT(f.id) AS n FROM files f JOIN folders fl ON fl.id = f.folder_id WHERE fl.entity_type = ? AND fl.entity_id = ?', ['work_order', wo.id]) || {}).n || 0;
   res.render('work-orders/show', {
     title: `WO-${wo.display_number}`, activeNav: 'work-orders',
     wo, subs, estimate, invoice, notes, photos, fileCount: fileCountWO
   });
 });
 
-router.get('/:id/edit', (req, res) => {
-  const wo = loadWorkOrder(req.params.id);
+router.get('/:id/edit', async (req, res) => {
+  const wo = await loadWorkOrder(req.params.id);
   if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
   if (['complete', 'cancelled'].includes(wo.status)) {
     setFlash(req, 'error', `WO-${wo.display_number} is "${wo.status}" and cannot be edited.`);
     return res.redirect(`/work-orders/${wo.id}`);
   }
-  const users = db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
+  const users = await db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
   res.render('work-orders/edit', {
     title: `Edit WO-${wo.display_number}`, activeNav: 'work-orders',
     wo, users, errors: {}, units: VALID_UNITS
   });
 });
 
-router.post('/:id', (req, res) => {
-  const existing = loadWorkOrder(req.params.id);
+router.post('/:id', async (req, res) => {
+  const existing = await loadWorkOrder(req.params.id);
   if (!existing) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
   if (['complete', 'cancelled'].includes(existing.status)) {
     setFlash(req, 'error', `WO-${existing.display_number} is "${existing.status}" and cannot be edited.`);
@@ -626,7 +629,7 @@ router.post('/:id', (req, res) => {
     } else {
       const candidate = numbering.formatDisplay(main, sub);
       if (candidate !== existing.display_number) {
-        const dup = db.get('SELECT id FROM work_orders WHERE display_number = ? AND id != ?', [candidate, existing.id]);
+        const dup = await db.get('SELECT id FROM work_orders WHERE display_number = ? AND id != ?', [candidate, existing.id]);
         if (dup) errors.display_number = `WO ${candidate} already exists.`;
         else { newDisplay = candidate; newMain = main; newSub = sub; }
       }
@@ -634,7 +637,7 @@ router.post('/:id', (req, res) => {
   }
 
   if (Object.keys(errors).length) {
-    const users = db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
+    const users = await db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
     return res.status(400).render('work-orders/edit', {
       title: `Edit WO-${existing.display_number}`, activeNav: 'work-orders',
       wo: { ...existing, ...data, display_number: req.body.display_number || existing.display_number },
@@ -643,10 +646,10 @@ router.post('/:id', (req, res) => {
   }
 
   // ── Item-completion audit: snapshot old completed states ──
-  const oldLines = db.all('SELECT id, description, completed, completed_at FROM work_order_line_items WHERE work_order_id = ?', [existing.id]);
+  const oldLines = await db.all('SELECT id, description, completed, completed_at FROM work_order_line_items WHERE work_order_id = ?', [existing.id]);
 
-  db.transaction(() => {
-    db.run(
+  await db.transaction(async (tx) => {
+    await tx.run(
       `UPDATE work_orders SET
          wo_number_main=?, wo_number_sub=?, display_number=?,
          scheduled_date=?, scheduled_time=?, assigned_to_user_id=?, assigned_to=?, notes=?,
@@ -656,15 +659,16 @@ router.post('/:id', (req, res) => {
        data.scheduled_date, data.scheduled_time, data.assigned_to_user_id, data.assigned_to, data.notes,
        existing.id]
     );
-    db.run('DELETE FROM work_order_line_items WHERE work_order_id = ?', [existing.id]);
-    data.lines.forEach((li, idx) => {
+    await tx.run('DELETE FROM work_order_line_items WHERE work_order_id = ?', [existing.id]);
+    for (let idx = 0; idx < data.lines.length; idx++) {
+      const li = data.lines[idx];
       const lt = calc.lineTotal(li);
       const isCompleted = li.completed ? 1 : 0;
       // Check if this line was previously NOT completed (new completion)
       const oldLine = oldLines[idx] || oldLines.find(o => String(o.description).trim() === String(li.description || '').trim());
       const wasAlreadyCompleted = oldLine && oldLine.completed === 1 && oldLine.completed_at;
       const completedAt = isCompleted && !wasAlreadyCompleted ? "now()" : (oldLine && oldLine.completed_at ? `'${oldLine.completed_at}'` : 'NULL');
-      db.run(
+      await tx.run(
         `INSERT INTO work_order_line_items
          (work_order_id, description, quantity, unit, unit_price, cost, line_total, completed, completed_at, sort_order)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ${completedAt}, ?)`,
@@ -674,7 +678,7 @@ router.post('/:id', (req, res) => {
       if (isCompleted && !wasAlreadyCompleted) {
         try {
           const { writeAudit } = require('../services/audit');
-          writeAudit({
+          await writeAudit({
             entityType: 'work_order_line_item', entityId: 0,
             action: 'item_completed',
             before: {}, after: { wo_id: existing.id, description: li.description, quantity: li.quantity, unit: li.unit },
@@ -682,7 +686,7 @@ router.post('/:id', (req, res) => {
           });
         } catch(e) { console.error('item-completion audit failed:', e.message); }
       }
-    });
+    }
   });
 
   setFlash(req, 'success', `WO-${newDisplay} updated.`);
@@ -693,8 +697,8 @@ router.post('/:id', (req, res) => {
 // which is incompatible with the delete-then-insert pattern above.
 // TODO Round 16+: use a before/after snapshot for audit.
 
-function statusTransition(req, res, fromStatus, toStatus, timestampField) {
-  const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
+async function statusTransition(req, res, fromStatus, toStatus, timestampField) {
+  const wo = await db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
   if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
   const allowedFrom = Array.isArray(fromStatus) ? fromStatus : [fromStatus];
   if (!allowedFrom.includes(wo.status)) {
@@ -704,12 +708,12 @@ function statusTransition(req, res, fromStatus, toStatus, timestampField) {
   const sets = ['status = ?', `updated_at = now()`];
   const params = [toStatus];
   if (timestampField) sets.push(`${timestampField} = now()`);
-  db.run(`UPDATE work_orders SET ${sets.join(', ')} WHERE id = ?`, [...params, wo.id]);
+  await db.run(`UPDATE work_orders SET ${sets.join(', ')} WHERE id = ?`, [...params, wo.id]);
   // Audit log
   try {
     const { writeAudit } = require('../services/audit');
     const auditAction = toStatus === 'in_progress' ? 'started' : toStatus;
-    writeAudit({ entityType: 'work_order', entityId: wo.id, action: auditAction, before: { status: wo.status }, after: { status: toStatus }, source: 'web', userId: req.session.userId });
+    await writeAudit({ entityType: 'work_order', entityId: wo.id, action: auditAction, before: { status: wo.status }, after: { status: toStatus }, source: 'web', userId: req.session.userId });
   } catch(e) { console.error('audit failed:', e.message); }
   setFlash(req, 'success', `WO-${wo.display_number} marked ${toStatus.replace('_',' ')}.`);
   res.redirect(`/work-orders/${wo.id}`);
@@ -720,8 +724,8 @@ router.post('/:id/complete', (req, res) => statusTransition(req, res, 'in_progre
 router.post('/:id/cancel',   (req, res) => statusTransition(req, res, ['scheduled','in_progress'], 'cancelled', null));
 
 // POST /:id/notes — add a note to a work order
-router.post('/:id/notes', (req, res) => {
-  const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
+router.post('/:id/notes', async (req, res) => {
+  const wo = await db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
   if (!wo) {
     setFlash(req, 'error', 'Work order not found.');
     return res.redirect('/work-orders');
@@ -740,34 +744,40 @@ router.post('/:id/notes', (req, res) => {
     setFlash(req, 'error', 'Note must be at least 2 characters.');
     return res.redirect(`/work-orders/${wo.id}`);
   }
-  db.run(`INSERT INTO wo_notes (work_order_id, user_id, body, created_at) VALUES (?, ?, ?, now())`,
+  await db.run(`INSERT INTO wo_notes (work_order_id, user_id, body, created_at) VALUES (?, ?, ?, now())`,
     [wo.id, req.session.userId, body]);
   setFlash(req, 'success', 'Note posted.');
   res.redirect(`/work-orders/${wo.id}`);
 });
 
 // POST /:id/photos — upload photos
-router.post('/:id/photos', (req, res) => {
-  const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
+router.post('/:id/photos', async (req, res) => {
+  const wo = await db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
   if (!wo) { setFlash(req, 'error', 'Work order not found.'); return res.redirect('/work-orders'); }
   if (req.session.role === 'worker') {
     const isAssigned = wo.assigned_to_user_id === req.session.userId ||
       (wo.assigned_to && wo.assigned_to.includes(req.session.userName || ''));
     if (!isAssigned) { setFlash(req, 'error', 'You can only upload photos to assigned WOs.'); return res.redirect(`/work-orders/${wo.id}`); }
   }
-  woUpload.array('photos', MAX_FILES)(req, res, (err) => {
+  woUpload.array('photos', MAX_FILES)(req, res, async (err) => {
     if (err) { setFlash(req, 'error', err.message); return res.redirect(`/work-orders/${wo.id}`); }
     const files = req.files || [];
     if (files.length === 0) { setFlash(req, 'error', 'No files selected.'); return res.redirect(`/work-orders/${wo.id}`); }
     const caption = (req.body.caption || '').trim();
-    db.transaction(() => {
-      files.forEach(f => {
-        db.run(`INSERT INTO wo_photos (work_order_id, user_id, filename, caption, created_at) VALUES (?, ?, ?, ?, now())`,
-          [wo.id, req.session.userId, f.filename, caption || null]);
+    try {
+      await db.transaction(async (tx) => {
+        for (const f of files) {
+          await tx.run(`INSERT INTO wo_photos (work_order_id, user_id, filename, caption, created_at) VALUES (?, ?, ?, ?, now())`,
+            [wo.id, req.session.userId, f.filename, caption || null]);
+        }
+        // Single audit row for the batch
+        await writeAudit({ entityType: 'work_order', entityId: wo.id, action: 'photo_uploaded', before: {}, after: { count: files.length, filenames: files.map(f => f.filename) }, source: 'user', userId: req.session.userId });
       });
-      // Single audit row for the batch
-      writeAudit({ entityType: 'work_order', entityId: wo.id, action: 'photo_uploaded', before: {}, after: { count: files.length, filenames: files.map(f => f.filename) }, source: 'user', userId: req.session.userId });
-    });
+    } catch (e) {
+      console.error('photo upload tx failed:', e);
+      setFlash(req, 'error', 'Failed to save photos: ' + e.message);
+      return res.redirect(`/work-orders/${wo.id}`);
+    }
     const msg = files.length === 1 ? '1 photo uploaded.' : `${files.length} photos uploaded.`;
     setFlash(req, 'success', msg);
     res.redirect(`/work-orders/${wo.id}`);
@@ -775,10 +785,10 @@ router.post('/:id/photos', (req, res) => {
 });
 
 // POST /:id/photos/:photoId/delete — delete a photo
-router.post('/:id/photos/:photoId/delete', (req, res) => {
-  const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
+router.post('/:id/photos/:photoId/delete', async (req, res) => {
+  const wo = await db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
   if (!wo) { setFlash(req, 'error', 'Work order not found.'); return res.redirect('/work-orders'); }
-  const photo = db.get('SELECT * FROM wo_photos WHERE id = ? AND work_order_id = ?', [req.params.photoId, wo.id]);
+  const photo = await db.get('SELECT * FROM wo_photos WHERE id = ? AND work_order_id = ?', [req.params.photoId, wo.id]);
   if (!photo) { setFlash(req, 'error', 'Photo not found.'); return res.redirect(`/work-orders/${wo.id}`); }
   // Permission: uploader or manager+
   const isOwner = photo.user_id === req.session.userId;
@@ -787,15 +797,15 @@ router.post('/:id/photos/:photoId/delete', (req, res) => {
   // Delete file from disk
   const filepath = path.join(UPLOAD_BASE, String(wo.id), photo.filename);
   try { if (fs.existsSync(filepath)) fs.unlinkSync(filepath); } catch(e) { /* best effort */ }
-  db.run('DELETE FROM wo_photos WHERE id = ?', [photo.id]);
+  await db.run('DELETE FROM wo_photos WHERE id = ?', [photo.id]);
   setFlash(req, 'success', 'Photo deleted.');
   res.redirect(`/work-orders/${wo.id}`);
 });
 
-router.get('/:id/pdf', (req, res) => {
-  const wo = loadWorkOrder(req.params.id);
+router.get('/:id/pdf', async (req, res) => {
+  const wo = await loadWorkOrder(req.params.id);
   if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
-  const company = db.get('SELECT * FROM company_settings WHERE id = 1') || {};
+  const company = await db.get('SELECT * FROM company_settings WHERE id = 1') || {};
   const filename = `WO-${wo.display_number}.pdf`;
   const disposition = req.query.download ? 'attachment' : 'inline';
   res.setHeader('Content-Type', 'application/pdf');
@@ -810,63 +820,64 @@ router.get('/:id/pdf', (req, res) => {
   }
 });
 
-router.post('/:id/delete', (req, res) => {
-  const wo = db.get('SELECT id, display_number FROM work_orders WHERE id = ?', [req.params.id]);
+router.post('/:id/delete', async (req, res) => {
+  const wo = await db.get('SELECT id, display_number FROM work_orders WHERE id = ?', [req.params.id]);
   if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
-  const subCount = (db.get('SELECT COUNT(*) AS n FROM work_orders WHERE parent_wo_id = ?', [wo.id]) || {}).n || 0;
+  const subCount = (await db.get('SELECT COUNT(*) AS n FROM work_orders WHERE parent_wo_id = ?', [wo.id]) || {}).n || 0;
   if (subCount) {
     setFlash(req, 'error', `Cannot delete WO-${wo.display_number} — ${subCount} sub-WO(s) attached.`);
     return res.redirect(`/work-orders/${wo.id}`);
   }
-  const estCount = (db.get('SELECT COUNT(*) AS n FROM estimates WHERE work_order_id = ?', [wo.id]) || {}).n || 0;
+  const estCount = (await db.get('SELECT COUNT(*) AS n FROM estimates WHERE work_order_id = ?', [wo.id]) || {}).n || 0;
   if (estCount) {
     setFlash(req, 'error', `Cannot delete WO-${wo.display_number} — an estimate references it.`);
     return res.redirect(`/work-orders/${wo.id}`);
   }
-  db.run('DELETE FROM work_order_line_items WHERE work_order_id = ?', [wo.id]);
-  db.run('DELETE FROM work_orders WHERE id = ?', [wo.id]);
+  await db.run('DELETE FROM work_order_line_items WHERE work_order_id = ?', [wo.id]);
+  await db.run('DELETE FROM work_orders WHERE id = ?', [wo.id]);
   try {
     const { writeAudit } = require('../services/audit');
-    writeAudit({ entityType: 'work_order', entityId: wo.id, action: 'deleted', before: null, after: null, source: 'web', userId: req.session.userId });
+    await writeAudit({ entityType: 'work_order', entityId: wo.id, action: 'deleted', before: null, after: null, source: 'web', userId: req.session.userId });
   } catch(e) {}
   setFlash(req, 'success', `WO-${wo.display_number} deleted.`);
   res.redirect('/work-orders');
 });
 
 // Create estimate from this WO (1:1)
-router.post('/:id/create-estimate', (req, res) => {
-  const wo = db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
+router.post('/:id/create-estimate', async (req, res) => {
+  const wo = await db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
   if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
-  const existing = db.get('SELECT id FROM estimates WHERE work_order_id = ?', [wo.id]);
+  const existing = await db.get('SELECT id FROM estimates WHERE work_order_id = ?', [wo.id]);
   if (existing) {
     setFlash(req, 'info', `Estimate already exists for WO-${wo.display_number}.`);
     return res.redirect(`/estimates/${existing.id}`);
   }
 
-  const lines = db.all(
+  const lines = await db.all(
     `SELECT * FROM work_order_line_items WHERE work_order_id = ? ORDER BY sort_order ASC, id ASC`,
     [wo.id]
   );
-  const settings = db.get('SELECT default_tax_rate FROM company_settings WHERE id = 1') || { default_tax_rate: 0 };
+  const settings = await db.get('SELECT default_tax_rate FROM company_settings WHERE id = 1') || { default_tax_rate: 0 };
   const taxRate = Number(settings.default_tax_rate) || 0;
   const totals = calc.totals(lines, taxRate);
   const costTotal = lines.reduce((s, li) => s + (Number(li.cost) || 0) * (Number(li.quantity) || 0), 0);
 
-  const newId = db.transaction(() => {
-    const r = db.run(
+  const newId = await db.transaction(async (tx) => {
+    const r = await tx.run(
       `INSERT INTO estimates (work_order_id, status, subtotal, tax_rate, tax_amount, total, cost_total)
        VALUES (?, 'draft', ?, ?, ?, ?, ?)`,
       [wo.id, totals.subtotal, taxRate, totals.taxAmount, totals.total, costTotal]
     );
     const eid = r.lastInsertRowid;
-    lines.forEach((li, idx) => {
+    for (let idx = 0; idx < lines.length; idx++) {
+      const li = lines[idx];
       const lt = calc.lineTotal(li);
-      db.run(
+      await tx.run(
         `INSERT INTO estimate_line_items (estimate_id, description, quantity, unit, unit_price, cost, line_total, selected, sort_order)
          VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)`,
         [eid, li.description, li.quantity, li.unit, li.unit_price, li.cost, lt, idx]
       );
-    });
+    }
     return eid;
   });
 

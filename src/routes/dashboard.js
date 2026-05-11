@@ -13,44 +13,44 @@ const timeline = require('../services/timeline');
 const router = express.Router();
 
 // Classic dashboard handler (was the original "/")
-router.get('/dashboard-classic', (req, res) => {
-  const openEstimates = (db.get(
+router.get('/dashboard-classic', async (req, res) => {
+  const openEstimates = (await db.get(
     "SELECT COUNT(*) AS n FROM estimates WHERE status IN ('draft','sent')"
   ) || {}).n || 0;
 
-  const scheduledWOs = (db.get(
+  const scheduledWOs = (await db.get(
     "SELECT COUNT(*) AS n FROM work_orders WHERE status IN ('scheduled','in_progress')"
   ) || {}).n || 0;
 
-  const unpaidInvoices = (db.get(
+  const unpaidInvoices = (await db.get(
     "SELECT COUNT(*) AS n FROM invoices WHERE status IN ('sent','overdue')"
   ) || {}).n || 0;
 
-  const arBalance = Number((db.get(
+  const arBalance = Number((await db.get(
     "SELECT COALESCE(SUM(total - amount_paid), 0) AS n FROM invoices WHERE status IN ('sent','overdue')"
   ) || {}).n) || 0;
 
   // Revenue this month (sum of paid invoices where paid_at falls in current month)
-  const revenueThisMonth = Number((db.get(
+  const revenueThisMonth = Number((await db.get(
     "SELECT COALESCE(SUM(amount_paid), 0) AS n FROM invoices " +
     "WHERE status='paid' AND paid_at IS NOT NULL " +
     "AND to_char(paid_at, 'YYYY-MM') = to_char(now(), 'YYYY-MM')"
   ) || {}).n) || 0;
 
   // Revenue YTD
-  const revenueYTD = Number((db.get(
+  const revenueYTD = Number((await db.get(
     "SELECT COALESCE(SUM(amount_paid), 0) AS n FROM invoices " +
     "WHERE status='paid' AND paid_at IS NOT NULL " +
     "AND to_char(paid_at, 'YYYY') = to_char(now(), 'YYYY')"
   ) || {}).n) || 0;
 
   // Overdue count (sent past due_date)
-  const overdueCount = (db.get(
+  const overdueCount = (await db.get(
     "SELECT COUNT(*) AS n FROM invoices " +
     "WHERE status='sent' AND due_date IS NOT NULL AND due_date::date < current_date"
   ) || {}).n || 0;
 
-  const overdueBalance = Number((db.get(
+  const overdueBalance = Number((await db.get(
     "SELECT COALESCE(SUM(total - amount_paid), 0) AS n FROM invoices " +
     "WHERE status='sent' AND due_date IS NOT NULL AND due_date::date < current_date"
   ) || {}).n) || 0;
@@ -58,7 +58,7 @@ router.get('/dashboard-classic', (req, res) => {
   // Unified recent activity (latest 10 across estimates/WOs/invoices).
   // v0.5: estimate -> work_orders -> jobs (no direct estimates.job_id).
   // Display number for all three is the WO display_number prefixed.
-  const activity = db.all(`
+  const activity = await db.all(`
     SELECT * FROM (
       SELECT 'work_order' AS type, w.id AS id, ('WO-' || w.display_number) AS number,
              w.status AS status, w.created_at AS created_at, NULL AS total,
@@ -89,8 +89,8 @@ router.get('/dashboard-classic', (req, res) => {
   `);
 
   // Customer + job counts (for "growth" indicators / context)
-  const customerCount = (db.get('SELECT COUNT(*) AS n FROM customers') || {}).n || 0;
-  const jobCount = (db.get('SELECT COUNT(*) AS n FROM jobs') || {}).n || 0;
+  const customerCount = (await db.get('SELECT COUNT(*) AS n FROM customers') || {}).n || 0;
+  const jobCount = (await db.get('SELECT COUNT(*) AS n FROM jobs') || {}).n || 0;
 
   res.render('dashboard/index', {
     title: 'Dashboard',
@@ -107,20 +107,20 @@ router.get('/dashboard-classic', (req, res) => {
 // asymmetric action queues, denser typography, flat right-rail action queue).
 // The earlier KPI-card dashboard is at /dashboard-classic.
 // =============================================================================
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const today = new Date().toISOString().slice(0, 10);
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
   // ---------- Timeline: today's activity feed (Phase 1) ----------
   // Merges schedule + notes + audit events into a single chronological view.
   const userId = req.session?.userId || null;
-  const userRole = (() => {
-    try { const u = db.get('SELECT role FROM users WHERE id = ?', [userId]); return u ? u.role : 'admin'; } catch(e) { return 'admin'; }
+  const userRole = await (async () => {
+    try { const u = await db.get('SELECT role FROM users WHERE id = ?', [userId]); return u ? u.role : 'admin'; } catch(e) { return 'admin'; }
   })();
-  const dayTimeline = timeline.buildDayTimeline({ date: today, userId, workerOnly: userRole === 'worker' });
+  const dayTimeline = await timeline.buildDayTimeline({ date: today, userId, workerOnly: userRole === 'worker' });
 
   // ---------- Schedule: tomorrow preview (count + first 3) ----------
-  const tomorrowWOs = db.all(`
+  const tomorrowWOs = await db.all(`
     SELECT w.id, w.display_number, w.scheduled_time,
            j.title AS job_title,
            c.name AS customer_name,
@@ -138,7 +138,7 @@ router.get('/', (req, res) => {
   const tomorrowPreview = tomorrowWOs.slice(0, 3);
 
   // ---------- Schedule: this week (peek) ----------
-  const upcomingThisWeek = (db.get(`
+  const upcomingThisWeek = (await db.get(`
     SELECT COUNT(*) AS n FROM work_orders
     WHERE scheduled_date::date BETWEEN (?::date + 2) AND (?::date + 7)
       AND status IN ('scheduled','in_progress')
@@ -148,7 +148,7 @@ router.get('/', (req, res) => {
   // Each queue: count, optional total dollar amount, click-through URL, urgency level.
 
   // 1. Estimates ready to send (draft)
-  const estimatesToSend = db.all(`
+  const estimatesToSend = await db.all(`
     SELECT e.id, w.display_number, e.total, c.name AS customer_name, e.created_at
     FROM estimates e
     JOIN work_orders w ON w.id = e.work_order_id
@@ -158,12 +158,12 @@ router.get('/', (req, res) => {
     ORDER BY e.created_at DESC
     LIMIT 5
   `);
-  const estimatesToSendCount = (db.get(
+  const estimatesToSendCount = (await db.get(
     "SELECT COUNT(*) AS n FROM estimates WHERE status='draft'"
   ) || {}).n || 0;
 
   // 2. Invoices overdue (sent + past due_date)
-  const overdueInvoices = db.all(`
+  const overdueInvoices = await db.all(`
     SELECT i.id, w.display_number, i.total, i.amount_paid, i.due_date,
            c.name AS customer_name,
            (current_date - i.due_date::date) AS days_late
@@ -177,13 +177,13 @@ router.get('/', (req, res) => {
     ORDER BY i.due_date ASC
     LIMIT 5
   `);
-  const overdueInvoicesCount = (db.get(`
+  const overdueInvoicesCount = (await db.get(`
     SELECT COUNT(*) AS n FROM invoices
     WHERE status IN ('sent','overdue')
       AND due_date IS NOT NULL
       AND due_date::date < current_date
   `) || {}).n || 0;
-  const overdueTotal = Number((db.get(`
+  const overdueTotal = Number((await db.get(`
     SELECT COALESCE(SUM(total - amount_paid), 0) AS n FROM invoices
     WHERE status IN ('sent','overdue')
       AND due_date IS NOT NULL
@@ -195,13 +195,13 @@ router.get('/', (req, res) => {
   let billsToApproveTotal = 0;
   let billsToApprove = [];
   try {
-    billsToApproveCount = (db.get(
+    billsToApproveCount = (await db.get(
       "SELECT COUNT(*) AS n FROM bills WHERE status='draft'"
     ) || {}).n || 0;
-    billsToApproveTotal = Number((db.get(
+    billsToApproveTotal = Number((await db.get(
       "SELECT COALESCE(SUM(total), 0) AS n FROM bills WHERE status='draft'"
     ) || {}).n) || 0;
-    billsToApprove = db.all(`
+    billsToApprove = await db.all(`
       SELECT b.id, b.bill_number, b.total, b.due_date, v.name AS vendor_name
       FROM bills b
       JOIN vendors v ON v.id = b.vendor_id
@@ -214,7 +214,7 @@ router.get('/', (req, res) => {
   }
 
   // 4. Estimates stale (sent > 7 days ago, no acceptance)
-  const staleEstimates = db.all(`
+  const staleEstimates = await db.all(`
     SELECT e.id, w.display_number, e.total, c.name AS customer_name,
            e.sent_at,
            (current_date - e.sent_at::date) AS days_since_sent
@@ -235,7 +235,7 @@ router.get('/', (req, res) => {
   const excludeTodayClause = todayWoIds.length > 0
     ? `WHERE w.id NOT IN (${todayWoIds.join(',')})`
     : '';
-  const activity = db.all(`
+  const activity = await db.all(`
     SELECT * FROM (
       SELECT 'work_order' AS type, w.id AS id, ('WO-' || w.display_number) AS number,
              w.status AS status, w.created_at AS created_at, NULL AS total,
@@ -268,21 +268,21 @@ router.get('/', (req, res) => {
   `);
 
   // ---------- Bottom metrics (de-emphasized but present) ----------
-  const arBalance = Number((db.get(
+  const arBalance = Number((await db.get(
     "SELECT COALESCE(SUM(total - amount_paid), 0) AS n FROM invoices WHERE status IN ('sent','overdue')"
   ) || {}).n) || 0;
-  const revenueThisMonth = Number((db.get(
+  const revenueThisMonth = Number((await db.get(
     "SELECT COALESCE(SUM(amount_paid), 0) AS n FROM invoices " +
     "WHERE status='paid' AND paid_at IS NOT NULL " +
     "AND to_char(paid_at, 'YYYY-MM') = to_char(now(), 'YYYY-MM')"
   ) || {}).n) || 0;
-  const revenueYTD = Number((db.get(
+  const revenueYTD = Number((await db.get(
     "SELECT COALESCE(SUM(amount_paid), 0) AS n FROM invoices " +
     "WHERE status='paid' AND paid_at IS NOT NULL " +
     "AND to_char(paid_at, 'YYYY') = to_char(now(), 'YYYY')"
   ) || {}).n) || 0;
-  const customerCount = (db.get('SELECT COUNT(*) AS n FROM customers') || {}).n || 0;
-  const jobsActive = (db.get(
+  const customerCount = (await db.get('SELECT COUNT(*) AS n FROM customers') || {}).n || 0;
+  const jobsActive = (await db.get(
     "SELECT COUNT(*) AS n FROM jobs WHERE status IN ('estimating','scheduled','in_progress')"
   ) || {}).n || 0;
 

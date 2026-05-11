@@ -37,22 +37,22 @@ function woDisplay(main, sub)       { return `WO-${formatDisplay(main, sub)}`; }
 function estimateDisplay(main, sub) { return `EST-${formatDisplay(main, sub)}`; }
 function invoiceDisplay(main, sub)  { return `INV-${formatDisplay(main, sub)}`; }
 
-function nextRootWoNumber() {
-  return db.transaction(() => {
-    const row = db.get('SELECT next_wo_main_number FROM company_settings WHERE id = 1');
+async function nextRootWoNumber() {
+  return await db.transaction(async (tx) => {
+    const row = await tx.get('SELECT next_wo_main_number FROM company_settings WHERE id = 1');
     if (!row) throw new Error('company_settings not initialized — run npm run seed');
     const main = row.next_wo_main_number;
-    db.run('UPDATE company_settings SET next_wo_main_number = ? WHERE id = 1', [main + 1]);
+    await tx.run('UPDATE company_settings SET next_wo_main_number = ? WHERE id = 1', [main + 1]);
     return { main, sub: 0, display: formatDisplay(main, 0) };
   });
 }
 
-function nextSubWoNumber(parentWoId) {
-  const parent = db.get('SELECT id, wo_number_main FROM work_orders WHERE id = ?', [parentWoId]);
+async function nextSubWoNumber(parentWoId) {
+  const parent = await db.get('SELECT id, wo_number_main FROM work_orders WHERE id = ?', [parentWoId]);
   if (!parent) throw new Error('Parent WO not found: ' + parentWoId);
   const main = parent.wo_number_main;
   // Highest existing sub (siblings under same parent's main)
-  const row = db.get(
+  const row = await db.get(
     `SELECT COALESCE(MAX(wo_number_sub), 0) AS max_sub
      FROM work_orders WHERE wo_number_main = ?`,
     [main]

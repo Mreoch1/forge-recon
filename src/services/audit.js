@@ -16,9 +16,9 @@
 
 const db = require('../db/db');
 
-function writeAudit({ entityType, entityId, action, before, after, source, userId, reason }) {
+async function writeAudit({ entityType, entityId, action, before, after, source, userId, reason }) {
   try {
-    db.run(
+    await db.run(
       `INSERT INTO audit_logs
        (entity_type, entity_id, action, before_json, after_json, source, user_id, reason)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -41,8 +41,8 @@ function writeAudit({ entityType, entityId, action, before, after, source, userI
 }
 
 /** Convenience: pull recent audit rows for an entity. */
-function listAudit(entityType, entityId, limit = 50) {
-  return db.all(
+async function listAudit(entityType, entityId, limit = 50) {
+  return await db.all(
     `SELECT a.*, u.name AS user_name
      FROM audit_logs a
      LEFT JOIN users u ON u.id = a.user_id

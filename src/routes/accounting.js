@@ -21,14 +21,14 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
 
 // --- hub ---
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   // Top-level KPIs from the GL
-  const accountsCount = (db.get('SELECT COUNT(*) AS n FROM accounts') || {}).n || 0;
-  const jeCount = (db.get('SELECT COUNT(*) AS n FROM journal_entries') || {}).n || 0;
-  const billCount = (db.get('SELECT COUNT(*) AS n FROM bills') || {}).n || 0;
-  const vendorCount = (db.get('SELECT COUNT(*) AS n FROM vendors WHERE archived = 0') || {}).n || 0;
+  const accountsCount = (await db.get('SELECT COUNT(*) AS n FROM accounts') || {}).n || 0;
+  const jeCount = (await db.get('SELECT COUNT(*) AS n FROM journal_entries') || {}).n || 0;
+  const billCount = (await db.get('SELECT COUNT(*) AS n FROM bills') || {}).n || 0;
+  const vendorCount = (await db.get('SELECT COUNT(*) AS n FROM vendors WHERE archived = 0') || {}).n || 0;
 
-  const recentEntries = db.all(
+  const recentEntries = await db.all(
     `SELECT je.id, je.entry_date, je.description, je.source_type, je.created_at,
             (SELECT COALESCE(SUM(debit), 0) FROM journal_lines WHERE journal_entry_id = je.id) AS total
      FROM journal_entries je
@@ -44,8 +44,8 @@ router.get('/', (req, res) => {
 
 // --- chart of accounts ---
 
-router.get('/accounts', (req, res) => {
-  const accounts = db.all('SELECT * FROM accounts ORDER BY code ASC');
+router.get('/accounts', async (req, res) => {
+  const accounts = await db.all('SELECT * FROM accounts ORDER BY code ASC');
 
   // Group by type for display
   const grouped = { asset: [], liability: [], equity: [], revenue: [], expense: [] };
@@ -59,8 +59,8 @@ router.get('/accounts', (req, res) => {
 
 // --- journal ---
 
-router.get('/journal', (req, res) => {
-  const entries = db.all(
+router.get('/journal', async (req, res) => {
+  const entries = await db.all(
     `SELECT je.*, u.name AS created_by_name,
             (SELECT COALESCE(SUM(debit), 0) FROM journal_lines WHERE journal_entry_id = je.id) AS total_debits
      FROM journal_entries je
@@ -74,8 +74,8 @@ router.get('/journal', (req, res) => {
   });
 });
 
-router.get('/journal/:id', (req, res) => {
-  const entry = db.get(
+router.get('/journal/:id', async (req, res) => {
+  const entry = await db.get(
     `SELECT je.*, u.name AS created_by_name
      FROM journal_entries je LEFT JOIN users u ON u.id = je.created_by_user_id
      WHERE je.id = ?`,
@@ -84,7 +84,7 @@ router.get('/journal/:id', (req, res) => {
   if (!entry) {
     return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Journal entry not found.' });
   }
-  const lines = db.all(
+  const lines = await db.all(
     `SELECT jl.*, a.code AS account_code, a.name AS account_name, a.type AS account_type
      FROM journal_lines jl
      JOIN accounts a ON a.id = jl.account_id
@@ -100,9 +100,9 @@ router.get('/journal/:id', (req, res) => {
 
 // --- reports ---
 
-function computeTrialBalance() {
+async function computeTrialBalance() {
   // For each active account: sum of debits and credits from journal_lines.
-  return db.all(`
+  return await db.all(`
     SELECT a.id, a.code, a.name, a.type,
            COALESCE(SUM(jl.debit), 0) AS total_debits,
            COALESCE(SUM(jl.credit), 0) AS total_credits,
@@ -115,7 +115,7 @@ function computeTrialBalance() {
   `);
 }
 
-router.get('/reports/trial-balance', (req, res) => {
+router.get('/reports/trial-balance', async (req, res) => {
   const rows = computeTrialBalance();
   // Sum debit/credit balances
   let totalDr = 0, totalCr = 0;
@@ -129,7 +129,7 @@ router.get('/reports/trial-balance', (req, res) => {
   });
 });
 
-router.get('/reports/profit-loss', (req, res) => {
+router.get('/reports/profit-loss', async (req, res) => {
   const rows = computeTrialBalance();
   const revenue = rows.filter(r => r.type === 'revenue');
   const expenses = rows.filter(r => r.type === 'expense');
@@ -148,7 +148,7 @@ router.get('/reports/profit-loss', (req, res) => {
   });
 });
 
-router.get('/reports/balance-sheet', (req, res) => {
+router.get('/reports/balance-sheet', async (req, res) => {
   const rows = computeTrialBalance();
   const assets = rows.filter(r => r.type === 'asset').map(r => ({ ...r, amount: r.balance }));
   // Liabilities + equity are naturally credit balances; flip for positive display.

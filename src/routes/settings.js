@@ -14,10 +14,10 @@ const { setFlash } = require('../middleware/auth');
 
 const router = express.Router();
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const userId = req.session.userId;
   const role = req.session.role;
-  const user = db.get('SELECT id, name, email, phone, role FROM users WHERE id = ?', [userId]);
+  const user = await db.get('SELECT id, name, email, phone, role FROM users WHERE id = ?', [userId]);
 
   // Common locals
   const locals = {
@@ -28,24 +28,24 @@ router.get('/', (req, res) => {
 
   // Manager sees team list
   if (role === 'admin' || role === 'manager') {
-    locals.team = db.all('SELECT id, name, email, role, active, last_active_at FROM users ORDER BY name COLLATE NOCASE ASC');
+    locals.team = await db.all('SELECT id, name, email, role, active FROM users ORDER BY name COLLATE NOCASE ASC');
   }
 
   // Admin-only sections
   if (role === 'admin') {
-    locals.userCount = (db.get('SELECT COUNT(*) AS n FROM users WHERE active = 1') || {}).n || 0;
-    locals.closureCount = (db.get('SELECT COUNT(*) AS n FROM closures') || {}).n || 0;
-    locals.holidayCount = (db.get("SELECT COUNT(*) AS n FROM closures WHERE type = 'holiday'") || {}).n || 0;
+    locals.userCount = (await db.get('SELECT COUNT(*) AS n FROM users WHERE active = 1') || {}).n || 0;
+    locals.closureCount = (await db.get('SELECT COUNT(*) AS n FROM closures') || {}).n || 0;
+    locals.holidayCount = (await db.get("SELECT COUNT(*) AS n FROM closures WHERE type = 'holiday'") || {}).n || 0;
     locals.customCount = locals.closureCount - locals.holidayCount;
-    locals.closures = db.all('SELECT * FROM closures ORDER BY date_start ASC');
+    locals.closures = await db.all('SELECT * FROM closures ORDER BY date_start ASC');
   }
 
   res.render('settings/index', locals);
 });
 
-router.post('/profile', (req, res) => {
+router.post('/profile', async (req, res) => {
   const userId = req.session.userId;
-  const user = db.get('SELECT id, name, email FROM users WHERE id = ?', [userId]);
+  const user = await db.get('SELECT id, name, email FROM users WHERE id = ?', [userId]);
   if (!user) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'User not found.' });
 
   const name = (req.body.name || '').trim();
@@ -56,11 +56,11 @@ router.post('/profile', (req, res) => {
 
   // Check email uniqueness
   if (email && email !== user.email) {
-    const dup = db.get('SELECT id FROM users WHERE email = ? AND id != ?', [email, userId]);
+    const dup = await db.get('SELECT id FROM users WHERE email = ? AND id != ?', [email, userId]);
     if (dup) { setFlash(req, 'error', 'Email already in use.'); return res.redirect('/settings'); }
   }
 
-  db.run('UPDATE users SET name=?, phone=?, email=?, updated_at=now() WHERE id=?', [name, phone || null, email || user.email, userId]);
+  await db.run('UPDATE users SET name=?, phone=?, email=?, updated_at=now() WHERE id=?', [name, phone || null, email || user.email, userId]);
   try {
     const { writeAudit } = require('../services/audit');
     writeAudit({ entityType: 'user', entityId: userId, action: 'profile_updated', before: { name: user.name, email: user.email }, after: { name, email }, source: 'web', userId });
@@ -72,7 +72,7 @@ router.post('/profile', (req, res) => {
 
 router.post('/password', async (req, res) => {
   const userId = req.session.userId;
-  const user = db.get('SELECT id, password_hash FROM users WHERE id = ?', [userId]);
+  const user = await db.get('SELECT id, password_hash FROM users WHERE id = ?', [userId]);
   if (!user) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'User not found.' });
 
   const currentPassword = req.body.current_password || '';
@@ -94,7 +94,7 @@ router.post('/password', async (req, res) => {
   }
 
   const hash = await bcrypt.hash(newPassword, 10);
-  db.run('UPDATE users SET password_hash=?, updated_at=now() WHERE id=?', [hash, userId]);
+  await db.run('UPDATE users SET password_hash=?, updated_at=now() WHERE id=?', [hash, userId]);
   try {
     const { writeAudit } = require('../services/audit');
     writeAudit({ entityType: 'user', entityId: userId, action: 'password_changed', before: {}, after: {}, source: 'web', userId });

@@ -57,7 +57,7 @@ function blankCustomer() {
   };
 }
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const q = (req.query.q || '').trim();
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
@@ -69,8 +69,8 @@ router.get('/', (req, res) => {
     const like = `%${q}%`;
     params = [like, like, like, like, like];
   }
-  const total = (db.get(`SELECT COUNT(*) AS n FROM customers ${where}`, params) || {}).n || 0;
-  const customers = db.all(
+  const total = (await db.get(`SELECT COUNT(*) AS n FROM customers ${where}`, params) || {}).n || 0;
+  const customers = await db.all(
     `SELECT id, name, email, billing_email, phone, city, state
      FROM customers ${where}
      ORDER BY name COLLATE NOCASE ASC
@@ -84,14 +84,14 @@ router.get('/', (req, res) => {
   });
 });
 
-router.get('/new', (req, res) => {
+router.get('/new', async (req, res) => {
   res.render('customers/new', {
     title: 'New customer', activeNav: 'customers',
     customer: blankCustomer(), errors: {}
   });
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { errors, data } = validateCustomer(req.body);
   if (Object.keys(errors).length) {
     return res.status(400).render('customers/new', {
@@ -99,7 +99,7 @@ router.post('/', (req, res) => {
       customer: { id: null, ...data }, errors
     });
   }
-  const r = db.run(
+  const r = await db.run(
     `INSERT INTO customers (name, email, billing_email, phone, address, city, state, zip, notes)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [data.name, data.email, data.billing_email, data.phone, data.address, data.city, data.state, data.zip, data.notes]
@@ -113,22 +113,22 @@ router.post('/', (req, res) => {
   res.redirect(`/customers/${r.lastInsertRowid}`);
 });
 
-router.get('/:id', (req, res) => {
-  const customer = db.get('SELECT * FROM customers WHERE id = ?', [req.params.id]);
+router.get('/:id', async (req, res) => {
+  const customer = await db.get('SELECT * FROM customers WHERE id = ?', [req.params.id]);
   if (!customer) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Customer not found.' });
-  const jobs = db.all(`SELECT id, title, status, address, city, state, created_at
+  const jobs = await db.all(`SELECT id, title, status, address, city, state, created_at
      FROM jobs WHERE customer_id = ? ORDER BY created_at DESC`,
     [req.params.id]
   );
-  const fileCountCust = (db.get('SELECT COUNT(f.id) AS n FROM files f JOIN folders fl ON fl.id = f.folder_id WHERE fl.entity_type = ? AND fl.entity_id = ?', ['customer', customer.id]) || {}).n || 0;
+  const fileCountCust = (await db.get('SELECT COUNT(f.id) AS n FROM files f JOIN folders fl ON fl.id = f.folder_id WHERE fl.entity_type = ? AND fl.entity_id = ?', ['customer', customer.id]) || {}).n || 0;
   res.render('customers/show', {
     title: customer.name, activeNav: 'customers',
     customer, jobs, fileCount: fileCountCust
   });
 });
 
-router.get('/:id/edit', (req, res) => {
-  const customer = db.get('SELECT * FROM customers WHERE id = ?', [req.params.id]);
+router.get('/:id/edit', async (req, res) => {
+  const customer = await db.get('SELECT * FROM customers WHERE id = ?', [req.params.id]);
   if (!customer) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Customer not found.' });
   res.render('customers/edit', {
     title: `Edit ${customer.name}`, activeNav: 'customers',
@@ -136,8 +136,8 @@ router.get('/:id/edit', (req, res) => {
   });
 });
 
-router.post('/:id', (req, res) => {
-  const customer = db.get('SELECT id, name FROM customers WHERE id = ?', [req.params.id]);
+router.post('/:id', async (req, res) => {
+  const customer = await db.get('SELECT id, name FROM customers WHERE id = ?', [req.params.id]);
   if (!customer) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Customer not found.' });
   const { errors, data } = validateCustomer(req.body);
   if (Object.keys(errors).length) {
@@ -146,7 +146,7 @@ router.post('/:id', (req, res) => {
       customer: { id: customer.id, ...data }, errors
     });
   }
-  db.run(
+  await db.run(
     `UPDATE customers
      SET name=?, email=?, billing_email=?, phone=?, address=?, city=?, state=?, zip=?, notes=?, updated_at=now()
      WHERE id=?`,
@@ -156,15 +156,15 @@ router.post('/:id', (req, res) => {
   res.redirect(`/customers/${req.params.id}`);
 });
 
-router.post('/:id/delete', (req, res) => {
-  const customer = db.get('SELECT id, name FROM customers WHERE id = ?', [req.params.id]);
+router.post('/:id/delete', async (req, res) => {
+  const customer = await db.get('SELECT id, name FROM customers WHERE id = ?', [req.params.id]);
   if (!customer) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Customer not found.' });
-  const jobCount = (db.get('SELECT COUNT(*) AS n FROM jobs WHERE customer_id = ?', [req.params.id]) || {}).n || 0;
+  const jobCount = (await db.get('SELECT COUNT(*) AS n FROM jobs WHERE customer_id = ?', [req.params.id]) || {}).n || 0;
   if (jobCount > 0) {
     setFlash(req, 'error', `Cannot delete "${customer.name}" — they have ${jobCount} job(s).`);
     return res.redirect(`/customers/${req.params.id}`);
   }
-  db.run('DELETE FROM customers WHERE id = ?', [req.params.id]);
+  await db.run('DELETE FROM customers WHERE id = ?', [req.params.id]);
   setFlash(req, 'success', `Customer "${customer.name}" deleted.`);
   res.redirect('/customers');
 });

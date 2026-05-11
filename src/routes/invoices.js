@@ -86,12 +86,12 @@ function validateInvoice(body) {
   };
 }
 
-function loadInvoice(id) {
+async function loadInvoice(id) {
   // LEFT JOINs throughout so a missing reference can't 404 the whole row.
   // The unused `estimates` join is dropped — `i.estimate_id` (from i.*) is
   // already the FK value the view needs; we never aliased anything from
   // the estimates table that wasn't a duplicate.
-  const inv = db.get(
+  const inv = await db.get(
     `SELECT i.*,
             w.id AS wo_id, w.display_number AS wo_display_number,
             j.id AS job_id, j.title AS job_title,
@@ -110,7 +110,7 @@ function loadInvoice(id) {
     [id]
   );
   if (!inv) return null;
-  inv.lines = db.all(
+  inv.lines = await db.all(
     `SELECT * FROM invoice_line_items WHERE invoice_id = ? ORDER BY sort_order ASC, id ASC`,
     [id]
   );
@@ -118,7 +118,7 @@ function loadInvoice(id) {
   return inv;
 }
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const q = (req.query.q || '').trim();
   const status = (req.query.status || '').trim();
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
@@ -137,7 +137,7 @@ router.get('/', (req, res) => {
   }
   const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
 
-  const total = (db.get(
+  const total = (await db.get(
     `SELECT COUNT(*) AS n FROM invoices i
      JOIN work_orders w ON w.id = i.work_order_id
      JOIN jobs j ON j.id = w.job_id
@@ -145,7 +145,7 @@ router.get('/', (req, res) => {
     params
   ) || {}).n || 0;
 
-  const invoices = db.all(
+  const invoices = await db.all(
     `SELECT i.id, i.status, i.total, i.amount_paid, i.due_date, i.created_at, i.payment_terms,
             w.id AS wo_id, w.display_number AS wo_display_number,
             j.id AS job_id, j.title AS job_title,
@@ -168,7 +168,7 @@ router.get('/', (req, res) => {
   });
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   const invoice = loadInvoice(req.params.id);
   if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
   let displayStatus = invoice.status;
@@ -182,7 +182,7 @@ router.get('/:id', (req, res) => {
   });
 });
 
-router.get('/:id/edit', (req, res) => {
+router.get('/:id/edit', async (req, res) => {
   const invoice = loadInvoice(req.params.id);
   if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
   if (invoice.status !== 'draft') {
@@ -195,7 +195,7 @@ router.get('/:id/edit', (req, res) => {
   });
 });
 
-router.post('/:id', (req, res) => {
+router.post('/:id', async (req, res) => {
   const existing = loadInvoice(req.params.id);
   if (!existing) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
   if (existing.status !== 'draft') {
@@ -212,18 +212,18 @@ router.post('/:id', (req, res) => {
   }
   const t = calc.totals(data.lines, data.tax_rate);
   const costTotal = data.lines.reduce((s, li) => s + (Number(li.cost) || 0) * (Number(li.quantity) || 0), 0);
-  db.transaction(() => {
-    db.run(
+  await db.transaction(async (tx) => {
+    tx.run(
       `UPDATE invoices SET subtotal=?, tax_rate=?, tax_amount=?, total=?, cost_total=?,
                             payment_terms=?, due_date=?, notes=?, updated_at=now()
        WHERE id=?`,
       [t.subtotal, data.tax_rate, t.taxAmount, t.total, costTotal,
        data.payment_terms, data.due_date, data.notes, existing.id]
     );
-    db.run('DELETE FROM invoice_line_items WHERE invoice_id = ?', [existing.id]);
+    tx.run('DELETE FROM invoice_line_items WHERE invoice_id = ?', [existing.id]);
     data.lines.forEach((li, idx) => {
       const lt = calc.lineTotal(li);
-      db.run(
+      tx.run(
         `INSERT INTO invoice_line_items (invoice_id, description, quantity, unit, unit_price, cost, line_total, sort_order)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [existing.id, li.description, li.quantity, li.unit, li.unit_price, li.cost, lt, idx]
@@ -242,7 +242,7 @@ router.post('/:id/send', async (req, res, next) => {
     return res.redirect(`/invoices/${invoice.id}`);
   }
   try {
-    const company = db.get('SELECT * FROM company_settings WHERE id = 1') || {};
+    const company = await db.get('SELECT * FROM company_settings WHERE id = 1') || {};
     const buf = await pdf.renderToBuffer(pdf.generateInvoicePDF, { ...invoice, invoice_number: invoice.display_number }, company);
     // Invoice goes to billing_email (falls back to email)
     const recipient = invoice.customer_billing_email || invoice.customer_email || 'unknown@recon.local';
@@ -254,7 +254,7 @@ router.post('/:id/send', async (req, res, next) => {
       html: text.split('\n').map(l => `<p>${l}</p>`).join(''),
       attachments: [{ filename: `${invoice.display_number}.pdf`, content: buf, contentType: 'application/pdf' }]
     });
-    db.run(`UPDATE invoices SET status='sent', sent_at=now(), sent_by_user_id=?, sent_to_email=?, sent_to_name=?, updated_at=now() WHERE id=?`,
+    await db.run(`UPDATE invoices SET status='sent', sent_at=now(), sent_by_user_id=?, sent_to_email=?, sent_to_name=?, updated_at=now() WHERE id=?`,
       [req.session.userId, recipient, invoice.customer_name || 'Unknown', invoice.id]);
 
     // Audit + post journal entry: DR AR / CR Revenue + Sales Tax
@@ -275,8 +275,8 @@ router.post('/:id/send', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/:id/mark-paid', (req, res) => {
-  const invoice = db.get('SELECT * FROM invoices WHERE id = ?', [req.params.id]);
+router.post('/:id/mark-paid', async (req, res) => {
+  const invoice = await db.get('SELECT * FROM invoices WHERE id = ?', [req.params.id]);
   if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
   if (!['sent', 'overdue'].includes(invoice.status)) {
     setFlash(req, 'error', `Cannot mark paid from status "${invoice.status}".`);
@@ -292,7 +292,7 @@ router.post('/:id/mark-paid', (req, res) => {
     sets.push('status=?', `paid_at=now()`);
     params.push(newStatus);
   }
-  db.run(`UPDATE invoices SET ${sets.join(', ')} WHERE id=?`, [...params, invoice.id]);
+  await db.run(`UPDATE invoices SET ${sets.join(', ')} WHERE id=?`, [...params, invoice.id]);
 
   // Audit + post payment JE: DR Cash / CR AR
   const newPaymentAmt = amount - (Number(invoice.amount_paid) || 0);
@@ -318,14 +318,14 @@ router.post('/:id/mark-paid', (req, res) => {
   res.redirect(`/invoices/${invoice.id}`);
 });
 
-router.post('/:id/void', (req, res) => {
-  const invoice = db.get('SELECT id, status FROM invoices WHERE id = ?', [req.params.id]);
+router.post('/:id/void', async (req, res) => {
+  const invoice = await db.get('SELECT id, status FROM invoices WHERE id = ?', [req.params.id]);
   if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
   if (invoice.status === 'paid') {
     setFlash(req, 'error', `Cannot void a paid invoice.`);
     return res.redirect(`/invoices/${invoice.id}`);
   }
-  db.run(`UPDATE invoices SET status='void', updated_at=now() WHERE id=?`, [invoice.id]);
+  await db.run(`UPDATE invoices SET status='void', updated_at=now() WHERE id=?`, [invoice.id]);
 
   writeAudit({
     entityType: 'invoice', entityId: invoice.id, action: 'void',
@@ -334,7 +334,7 @@ router.post('/:id/void', (req, res) => {
   });
   try {
     // Reverse the original send JE if one exists
-    const fullInv = db.get('SELECT * FROM invoices WHERE id = ?', [invoice.id]);
+    const fullInv = await db.get('SELECT * FROM invoices WHERE id = ?', [invoice.id]);
     if (fullInv) posting.postInvoiceVoid(fullInv, { userId: req.session.userId });
   } catch (e) {
     console.error('JE post failed (void) — continuing:', e.message);
@@ -344,10 +344,10 @@ router.post('/:id/void', (req, res) => {
   res.redirect(`/invoices/${invoice.id}`);
 });
 
-router.get('/:id/pdf', (req, res) => {
+router.get('/:id/pdf', async (req, res) => {
   const invoice = loadInvoice(req.params.id);
   if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
-  const company = db.get('SELECT * FROM company_settings WHERE id = 1') || {};
+  const company = await db.get('SELECT * FROM company_settings WHERE id = 1') || {};
   const filename = `${invoice.display_number}.pdf`;
   const disposition = req.query.download ? 'attachment' : 'inline';
   res.setHeader('Content-Type', 'application/pdf');
@@ -362,15 +362,15 @@ router.get('/:id/pdf', (req, res) => {
   }
 });
 
-router.post('/:id/delete', (req, res) => {
-  const invoice = db.get('SELECT id, status FROM invoices WHERE id = ?', [req.params.id]);
+router.post('/:id/delete', async (req, res) => {
+  const invoice = await db.get('SELECT id, status FROM invoices WHERE id = ?', [req.params.id]);
   if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
   if (!['draft', 'void'].includes(invoice.status)) {
     setFlash(req, 'error', `Cannot delete invoice in status "${invoice.status}". Void it first.`);
     return res.redirect(`/invoices/${invoice.id}`);
   }
-  db.run('DELETE FROM invoice_line_items WHERE invoice_id = ?', [invoice.id]);
-  db.run('DELETE FROM invoices WHERE id = ?', [invoice.id]);
+  await db.run('DELETE FROM invoice_line_items WHERE invoice_id = ?', [invoice.id]);
+  await db.run('DELETE FROM invoices WHERE id = ?', [invoice.id]);
   setFlash(req, 'success', `Invoice deleted.`);
   res.redirect('/invoices');
 });
