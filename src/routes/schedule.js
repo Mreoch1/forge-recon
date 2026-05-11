@@ -15,6 +15,34 @@ const scheduling = require('../services/scheduling');
 const PALETTE = ['#4A90D9','#8BC34A','#9C76D9','#26A69A','#EF7E6B','#A5D6A7','#78909C','#FFCC80'];
 function colorForUser(userId) { return userId ? PALETTE[Number(userId) % PALETTE.length] : null; }
 
+const STATUS_COLORS = {
+  scheduled: '#3b82f6',
+  in_progress: '#ea580c',
+  complete: '#10b981',
+  cancelled: '#9ca3af',
+  urgent: '#c0202b',
+};
+function colorForStatus(wo, woConflicts) {
+  if (!wo) return null;
+  if (!wo.assigned_to_user_id && !wo.assigned_to) return null; // unassigned = hatched
+  // Urgent: has conflicts, or in_progress but past scheduled_end_time
+  if (woConflicts && woConflicts[wo.id] && woConflicts[wo.id].length > 0) return STATUS_COLORS.urgent;
+  if (wo.status === 'in_progress' && wo.scheduled_end_time) {
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const ep = wo.scheduled_end_time.split(':');
+    const endMin = parseInt(ep[0], 10) * 60 + parseInt(ep[1], 10);
+    if (endMin < nowMin) return STATUS_COLORS.urgent;
+  }
+  return STATUS_COLORS[wo.status] || '#888';
+}
+function getInitials(name) {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length-1][0]).toUpperCase();
+  return parts[0].slice(0, 2).toUpperCase();
+}
+
 function mondayOfWeek(dateStr) {
   const d = new Date(dateStr + 'T12:00:00');
   const day = d.getDay();
@@ -176,7 +204,7 @@ router.get('/', (req, res) => {
     weekStart, weekEnd,
     prevDate, nextDate, prevLabel, nextLabel,
     today, nowOffset: nowOffset > 0 && nowOffset < 100 ? nowOffset : null,
-    assigneeFilter, users, colorForUser, fmtDate, fmtMonth,
+    assigneeFilter, users, colorForStatus, getInitials, fmtDate, fmtMonth,
     HOURS_START, HOURS_END, HOUR_COUNT, TOTAL_MINUTES,
     rawDate,
   });

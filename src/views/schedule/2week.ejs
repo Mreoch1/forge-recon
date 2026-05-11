@@ -9,10 +9,11 @@
   .sc-today-btn { padding: .3rem .7rem; border: 1px solid #1a1a1a; border-radius: 4px; background: #1a1a1a; color: #fff; font-size: .78rem; cursor: pointer; }
   .sc-today-btn:hover { background: #333; }
   .sc-header select { font-size: .78rem; padding: .25rem .5rem; border: 1px solid #d0d0d0; border-radius: 4px; }
-  .sc-view-toggle { display: flex; gap: 2px; }
-  .sc-view-toggle a { padding: .25rem .6rem; border: 1px solid #d0d0d0; border-radius: 4px; font-size: .72rem; color: #555; text-decoration: none; }
-  .sc-view-toggle a:hover { background: #f0f0f0; }
-  .sc-view-toggle a.active { background: #c0202b; color: #fff; border-color: #c0202b; }
+  .sc-view-toggle { display: flex; align-items: center; height: 28px; }
+  .sc-view-toggle a { display: flex; align-items: center; height: 100%; padding: 0 .6rem; font-size: .82rem; color: #888; text-decoration: none; border-bottom: 2px solid transparent; }
+  .sc-view-toggle a:hover { color: #555; }
+  .sc-view-toggle a.active { color: #c0202b; border-bottom-color: #c0202b; }
+  .sc-view-toggle .sc-toggle-sep { width: 1px; height: 16px; background: #d0d0d0; flex-shrink: 0; }
 
   .sc-grid-wrap { flex: 1; overflow-y: auto; }
   .sc-week-row { display: flex; }
@@ -36,7 +37,7 @@
   .sc-day-col { position: relative; border-right: 1px solid #e5e5e5; }
   .sc-day-col:last-child { border-right: none; }
   .sc-day-col.is-today { background: #fafbfe; }
-  .sc-wo-block { display: block; width: 100%; border-radius: 3px; padding: .15rem .3rem; font-size: .58rem; line-height: 1.2; overflow: hidden; cursor: pointer; border: 1px solid rgba(0,0,0,.08); box-sizing: border-box; height: 100%; }
+  .sc-wo-block { display: block; width: 100%; border-radius: 3px; padding: .15rem .3rem; font-size: .58rem; line-height: 1.2; overflow: hidden; cursor: pointer; border: 1px solid rgba(0,0,0,.08); box-sizing: border-box; height: 100%; position: relative; }
   .sc-wo-block:hover { box-shadow: 0 2px 6px rgba(0,0,0,.15); z-index: 4; }
   .sc-wo-block .sc-wo-num { font-family: ui-monospace,monospace; font-size: .52rem; opacity: .8; }
   .sc-wo-block .sc-wo-customer { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .55rem; }
@@ -78,6 +79,10 @@
   .wo-hc-badge-in_progress { background: #fed7aa; color: #9a3412; }
   .wo-hc-badge-complete   { background: #d1fae5; color: #065f46; }
   .wo-hc-badge-cancelled  { background: #fee2e2; color: #991b1b; }
+  /* Initial chip */
+  .sc-init-chip { position: absolute; top: 1px; right: 1px; width: 16px; height: 16px; border-radius: 50%; background: rgba(255,255,255,.3); color: #fff; font-size: .45rem; font-weight: 700; display: flex; align-items: center; justify-content: center; line-height: 1; pointer-events: none; }
+  .sc-wo-block { color: #fff; }
+  .sc-wo-block.sc-unassigned { color: #555; }
 </style>
 
 <div class="sc-layout">
@@ -91,7 +96,9 @@
 
     <div class="sc-view-toggle">
       <a href="/schedule?view=week&date=<%= rawDate %><%= assigneeFilter ? '&assignee=' + assigneeFilter : '' %>">Week</a>
+      <span class="sc-toggle-sep"></span>
       <a href="/schedule?view=2week&date=<%= rawDate %><%= assigneeFilter ? '&assignee=' + assigneeFilter : '' %>" class="active">2 weeks</a>
+      <span class="sc-toggle-sep"></span>
       <a href="/schedule?view=month&date=<%= rawDate %><%= assigneeFilter ? '&assignee=' + assigneeFilter : '' %>">Month</a>
     </div>
 
@@ -161,7 +168,7 @@
             } else {
               hPct = Math.max(dh*60/TOTAL_MINUTES*100, 3);
             }
-            var color = colorForUser(wo.assigned_to_user_id);
+            var color = colorForStatus(wo, woConflicts);
             var isUnassigned = !wo.assigned_to_user_id && !wo.assigned_to;
             var hasConflict = !!woConflicts[wo.id];
           %>
@@ -175,9 +182,11 @@
                     &#9888;<span class="sc-conflict-tip"><% woConflicts[wo.id].forEach(function(c){ %>WO-<%= c.display_number %>: <%= c.overlap_minutes %>min overlap<% }); %></span>
                   </span>
                 <% } %>
+                <% var assigneeName2 = wo.assigned_user_name||wo.assigned_to||''; %>
+                <% if (assigneeName2) { %><div class="sc-init-chip"><%= getInitials(assigneeName2) %></div><% } %>
                 <div class="sc-wo-num">WO-<%= wo.display_number %></div>
                 <div class="sc-wo-customer"><%= (wo.customer_name||'').slice(0,25) %></div>
-                <div class="sc-wo-assignee"><%= wo.assigned_user_name||wo.assigned_to||'' %></div>
+                <div class="sc-wo-assignee"><%= assigneeName2 %></div>
               </a>
               <div class="wo-hover-card">
                 <div class="wo-hc-num">WO-<%= wo.display_number %></div>

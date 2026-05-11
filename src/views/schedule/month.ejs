@@ -20,13 +20,14 @@
   .sc-month-day.other-month .sc-day-num { color: #bbb; }
   .sc-month-day.is-today { border-top: 3px solid #c0202b; }
   .sc-day-num { font-size: .75rem; font-weight: 600; color: #333; margin-bottom: .15rem; }
-  .sc-wo-pill { display: block; font-size: .6rem; padding: .1rem .25rem; margin-bottom: .1rem; border-radius: 3px; color: #1a1a1a; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: 1px solid rgba(0,0,0,.06); }
+  .sc-wo-pill { display: block; font-size: .6rem; padding: .1rem .25rem; margin-bottom: .1rem; border-radius: 3px; color: #fff; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: 1px solid rgba(0,0,0,.06); }
   .sc-wo-pill:hover { opacity: .8; }
   .sc-wo-pill .sc-pill-num { font-family: ui-monospace,monospace; font-weight: 600; }
   .sc-wo-pill .sc-pill-init { font-size: .55rem; opacity: .7; }
   .sc-more-link { display: block; font-size: .6rem; color: #2563eb; text-decoration: none; text-align: center; padding: .1rem 0; }
   .sc-more-link:hover { text-decoration: underline; }
   .sc-empty { text-align: center; padding: 3rem 1rem; color: #999; grid-column: 1 / -1; }
+  .sc-pill-init { display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: rgba(255,255,255,.35); color: #fff; font-size: .45rem; font-weight: 700; text-align: center; line-height: 14px; margin-left: .2rem; flex-shrink: 0; }
 
   /* ── Custom hover card ── */
   .wo-hover-card { display: none; position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%); background: #1a1a1a; color: #fff; border-radius: 8px; padding: .6rem .75rem; min-width: 200px; box-shadow: 0 6px 20px rgba(0,0,0,.3); font-size: .75rem; line-height: 1.5; z-index: 100; pointer-events: none; white-space: nowrap; }
@@ -93,7 +94,7 @@
           var shown = dayWos.slice(0, 3);
           var remaining = dayWos.length - 3;
           shown.forEach(function(wo){
-            var color = colorForUser(wo.assigned_to_user_id);
+            var color = colorForStatus(wo, woConflicts);
             function fmtTime(t) {
               if (!t) return '—';
               var p = String(t).split(':');
@@ -112,8 +113,9 @@
                  data-current-time="<%= wo.scheduled_time || '' %>"
                  data-end-time="<%= wo.scheduled_end_time || '' %>"
                  data-assignee-id="<%= wo.assigned_to_user_id || '' %>">
+                <% var pillName = wo.assigned_user_name||wo.assigned_to||''; %>
                 <span class="sc-pill-num">WO-<%= wo.display_number %></span>
-                <span class="sc-pill-init"><%= (wo.assigned_user_name||wo.assigned_to||'?').slice(0,1) %></span>
+                <% if (pillName) { %><span class="sc-pill-init"><%= getInitials(pillName) %></span><% } else { %><span class="sc-pill-init">?</span><% } %>
               </a>
               <div class="wo-hover-card">
                 <div class="wo-hc-num">WO-<%= wo.display_number %></div>
