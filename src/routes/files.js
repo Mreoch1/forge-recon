@@ -52,7 +52,7 @@ router.get('/:entityType', requireAuth, async (req, res) => {
   if (!bucket) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Unknown entity type.' });
 
   // Workers: only see themselves
-  if (entityType === 'worker' && req.session.userRole !== 'admin' && req.session.userRole !== 'manager') {
+  if (entityType === 'worker' && req.session.role !== 'admin' && req.session.role !== 'manager') {
     // Redirect to self
     return res.redirect('/files/workers/' + req.session.userId);
   }
@@ -196,7 +196,7 @@ router.post('/folders/:folderId/delete', requireAuth, requireAdmin, async (req, 
 router.post('/:id/delete', requireAuth, async (req, res) => {
   const file = await db.get('SELECT * FROM files WHERE id = ?', [req.params.id]);
   if (!file) return res.status(404).json({ error: 'File not found.' });
-  const isAdmin = req.session.userRole === 'admin';
+  const isAdmin = req.session.role === 'admin';
   const isUploader = file.uploaded_by_user_id === req.session.userId;
   if (!isAdmin && !isUploader) return res.status(403).json({ error: 'Permission denied.' });
   try { await storage.remove('entity-files', file.storage_path || file.name); } catch(e) { /* best effort */ }

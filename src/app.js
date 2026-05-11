@@ -41,6 +41,14 @@ const VIEWS_DIR = path.join(__dirname, 'views');
 
 if (!fs.existsSync(SESSIONS_DIR)) fs.mkdirSync(SESSIONS_DIR, { recursive: true });
 
+// Production safety: SESSION_SECRET must be set
+if (process.env.NODE_ENV === 'production') {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret || secret === 'dev-secret-change-me') {
+    throw new Error('FATAL: SESSION_SECRET must be set in production. Set a strong random value.');
+  }
+}
+
 let dbReady = false;
 
 async function ensureDbInit(req, res, next) {

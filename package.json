@@ -15,9 +15,6 @@
     "seed:double": "node src/db/seed-double.js",
     "test": "node --test test/"
   },
-  "engines": {
-    "node": ">=18"
-  },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.4",
     "bcryptjs": "^3.0.3",
