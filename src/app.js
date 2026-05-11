@@ -35,7 +35,9 @@ const settingsRoutes = require('./routes/settings');
 
 const PORT = parseInt(process.env.PORT, 10) || 3001;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
-const SESSIONS_DIR = path.join(__dirname, '..', 'sessions');
+const SESSIONS_DIR = process.env.NODE_ENV === 'production'
+  ? '/tmp/forge-sessions'
+  : path.join(__dirname, '..', 'sessions');
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const VIEWS_DIR = path.join(__dirname, 'views');
 
@@ -92,17 +94,35 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(PUBLIC_DIR, { maxAge: '1h' }));
 
-// Session store (lazy — depends on db.getMode)
+// Session store — cookie-based on Vercel (no server-side storage needed for serverless),
+// FileStore locally
 let sessionMiddleware;
 app.use(async (req, res, next) => {
   if (!sessionMiddleware) {
-    await ensureDbInit(req, res, () => {});
-    const pgSession = require('connect-pg-simple')(session);
-    const FileStore = require('session-file-store')(session);
-    const store = db.getMode() === 'pg'
-      ? new pgSession({ pool: db.getPool(), tableName: 'session', createTableIfMissing: true })
-      : (fs.mkdirSync(SESSIONS_DIR, { recursive: true }), new FileStore({ path: SESSIONS_DIR, retries: 1, logFn: () => {} }));
-    sessionMiddleware = session({ store, secret: SESSION_SECRET, resave: false, saveUninitialized: false, cookie: { secure: process.env.NODE_ENV === 'production', httpOnly: true, sameSite: 'lax', maxAge: 8 * 3600 * 1000 } });
+    if (process.env.NODE_ENV === 'production') {
+      // Vercel Lambda: cookie-session (signed cookie, no server-side state)
+      const cookieSession = require('cookie-session');
+      sessionMiddleware = cookieSession({
+        name: 'forge_sid',
+        secret: SESSION_SECRET,
+        maxAge: 8 * 3600 * 1000, // 8 hours
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: true,
+        overwrite: true
+      });
+    } else {
+      await ensureDbInit(req, res, () => {});
+      const FileStore = require('session-file-store')(session);
+      fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+      sessionMiddleware = session({
+        store: new FileStore({ path: SESSIONS_DIR, retries: 1, logFn: () => {} }),
+        secret: SESSION_SECRET,
+        resave: false,
+        saveUninitialized: false,
+        cookie: { secure: false, httpOnly: true, sameSite: 'lax', maxAge: 8 * 3600 * 1000 }
+      });
+    }
   }
   sessionMiddleware(req, res, next);
 });

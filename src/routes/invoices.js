@@ -1,5 +1,5 @@
 /**
- * Invoices CRUD (v0.5).
+ * Invoices CRUD (Supabase SDK).
  *
  * Created via POST /estimates/:id/generate-invoice (1:1 with estimate).
  * Display number = WO's display number, prefixed INV-.
@@ -18,7 +18,7 @@
  */
 
 const express = require('express');
-const db = require('../db/db');
+const supabase = require('../db/supabase');
 const { setFlash } = require('../middleware/auth');
 const calc = require('../services/calculations');
 const pdf = require('../services/pdf');
@@ -87,35 +87,67 @@ function validateInvoice(body) {
 }
 
 async function loadInvoice(id) {
-  // LEFT JOINs throughout so a missing reference can't 404 the whole row.
-  // The unused `estimates` join is dropped — `i.estimate_id` (from i.*) is
-  // already the FK value the view needs; we never aliased anything from
-  // the estimates table that wasn't a duplicate.
-  const inv = await db.get(
-    `SELECT i.*,
-            w.id AS wo_id, w.display_number AS wo_display_number,
-            j.id AS job_id, j.title AS job_title,
-            j.address AS job_address, j.city AS job_city, j.state AS job_state, j.zip AS job_zip,
-            c.id AS customer_id, c.name AS customer_name,
-            c.email AS customer_email, c.billing_email AS customer_billing_email,
-            c.phone AS customer_phone,
-            c.address AS customer_address, c.city AS customer_city, c.state AS customer_state, c.zip AS customer_zip,
-            u.name AS sent_by_name
-     FROM invoices i
-     LEFT JOIN work_orders w ON w.id = i.work_order_id
-     LEFT JOIN jobs j        ON j.id = w.job_id
-     LEFT JOIN customers c   ON c.id = j.customer_id
-     LEFT JOIN users u       ON u.id = i.sent_by_user_id
-     WHERE i.id = ?`,
-    [id]
-  );
+  // Nested selects rely on FKs: invoices.work_order_id -> work_orders,
+  // work_orders.job_id -> jobs, jobs.customer_id -> customers,
+  // invoices.sent_by_user_id -> users.
+  const { data: inv, error } = await supabase
+    .from('invoices')
+    .select(`
+      *,
+      work_orders!left(id, display_number, jobs!left(id, title, address, city, state, zip,
+        customers!left(id, name, email, billing_email, phone, address, city, state, zip))),
+      users!left(name)
+    `)
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
   if (!inv) return null;
-  inv.lines = await db.all(
-    `SELECT * FROM invoice_line_items WHERE invoice_id = ? ORDER BY sort_order ASC, id ASC`,
-    [id]
-  );
+
+  // Flatten nested data to match view expectations
+  const w = inv.work_orders;
+  const j = w?.jobs;
+  const c = j?.customers;
+  inv.wo_id = w?.id;
+  inv.wo_display_number = w?.display_number;
+  inv.job_id = j?.id;
+  inv.job_title = j?.title;
+  inv.job_address = j?.address;
+  inv.job_city = j?.city;
+  inv.job_state = j?.state;
+  inv.job_zip = j?.zip;
+  inv.customer_id = c?.id;
+  inv.customer_name = c?.name;
+  inv.customer_email = c?.email;
+  inv.customer_billing_email = c?.billing_email;
+  inv.customer_phone = c?.phone;
+  inv.customer_address = c?.address;
+  inv.customer_city = c?.city;
+  inv.customer_state = c?.state;
+  inv.customer_zip = c?.zip;
+  inv.sent_by_name = inv.users?.name;
+  delete inv.work_orders;
+  delete inv.users;
+
+  const { data: lines, error: lineErr } = await supabase
+    .from('invoice_line_items')
+    .select('*')
+    .eq('invoice_id', id)
+    .order('sort_order', { ascending: true })
+    .order('id', { ascending: true });
+  if (lineErr) throw lineErr;
+  inv.lines = lines || [];
   inv.display_number = `INV-${inv.wo_display_number || '????-????'}`;
   return inv;
+}
+
+async function loadCompanySettings() {
+  const { data, error } = await supabase
+    .from('company_settings')
+    .select('*')
+    .eq('id', 1)
+    .maybeSingle();
+  if (error) throw error;
+  return data || {};
 }
 
 router.get('/', async (req, res) => {
@@ -124,56 +156,53 @@ router.get('/', async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
 
-  const conds = [];
-  const params = [];
+  let query = supabase
+    .from('invoices')
+    .select(`
+      id, status, total, amount_paid, due_date, created_at, payment_terms,
+      work_orders!left(id, display_number, jobs!left(id, title, customers!left(id, name)))
+    `, { count: 'exact', head: false });
+
   if (q) {
-    conds.push('(w.display_number ILIKE ? OR j.title ILIKE ? OR c.name ILIKE ?)');
     const like = `%${q}%`;
-    params.push(like, like, like);
+    query = query.or(
+      `work_orders.display_number.ilike.${like},work_orders.jobs.title.ilike.${like},work_orders.jobs.customers.name.ilike.${like}`
+    );
   }
   if (status && VALID_STATUSES.includes(status)) {
-    conds.push('i.status = ?');
-    params.push(status);
+    query = query.eq('status', status);
   }
-  const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
 
-  const total = (await db.get(
-    `SELECT COUNT(*) AS n FROM invoices i
-     JOIN work_orders w ON w.id = i.work_order_id
-     JOIN jobs j ON j.id = w.job_id
-     JOIN customers c ON c.id = j.customer_id ${where}`,
-    params
-  ) || {}).n || 0;
+  const { data: rows, count: total, error } = await query
+    .order('created_at', { ascending: false })
+    .range(offset, offset + PAGE_SIZE - 1);
+  if (error) throw error;
 
-  const invoices = await db.all(
-    `SELECT i.id, i.status, i.total, i.amount_paid, i.due_date, i.created_at, i.payment_terms,
-            w.id AS wo_id, w.display_number AS wo_display_number,
-            j.id AS job_id, j.title AS job_title,
-            c.id AS customer_id, c.name AS customer_name
-     FROM invoices i
-     JOIN work_orders w ON w.id = i.work_order_id
-     JOIN jobs j ON j.id = w.job_id
-     JOIN customers c ON c.id = j.customer_id
-     ${where}
-     ORDER BY i.created_at DESC
-     LIMIT ? OFFSET ?`,
-    [...params, PAGE_SIZE, offset]
-  );
+  const invoices = (rows || []).map(r => ({
+    id: r.id, status: r.status, total: r.total, amount_paid: r.amount_paid,
+    due_date: r.due_date, created_at: r.created_at, payment_terms: r.payment_terms,
+    wo_id: r.work_orders?.id,
+    wo_display_number: r.work_orders?.display_number,
+    job_id: r.work_orders?.jobs?.id,
+    job_title: r.work_orders?.jobs?.title,
+    customer_id: r.work_orders?.jobs?.customers?.id,
+    customer_name: r.work_orders?.jobs?.customers?.name,
+  }));
 
   res.render('invoices/index', {
     title: 'Invoices', activeNav: 'invoices',
     invoices, q, status, page,
-    totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
-    total, statuses: VALID_STATUSES
+    totalPages: Math.max(1, Math.ceil((total || 0) / PAGE_SIZE)),
+    total: total || 0, statuses: VALID_STATUSES
   });
 });
 
 router.get('/:id', async (req, res) => {
-  const invoice = loadInvoice(req.params.id);
+  const invoice = await loadInvoice(req.params.id);
   if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
   let displayStatus = invoice.status;
   if (invoice.status === 'sent' && invoice.due_date) {
-    const dueAt = new Date(String(invoice.due_date).slice(0,10));
+    const dueAt = new Date(String(invoice.due_date).slice(0, 10));
     if (!isNaN(dueAt.getTime()) && dueAt < new Date()) displayStatus = 'overdue';
   }
   res.render('invoices/show', {
@@ -183,7 +212,7 @@ router.get('/:id', async (req, res) => {
 });
 
 router.get('/:id/edit', async (req, res) => {
-  const invoice = loadInvoice(req.params.id);
+  const invoice = await loadInvoice(req.params.id);
   if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
   if (invoice.status !== 'draft') {
     setFlash(req, 'error', `${invoice.display_number} is "${invoice.status}" — cannot edit.`);
@@ -196,7 +225,7 @@ router.get('/:id/edit', async (req, res) => {
 });
 
 router.post('/:id', async (req, res) => {
-  const existing = loadInvoice(req.params.id);
+  const existing = await loadInvoice(req.params.id);
   if (!existing) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
   if (existing.status !== 'draft') {
     setFlash(req, 'error', `${existing.display_number} is "${existing.status}" — cannot edit.`);
@@ -212,59 +241,99 @@ router.post('/:id', async (req, res) => {
   }
   const t = calc.totals(data.lines, data.tax_rate);
   const costTotal = data.lines.reduce((s, li) => s + (Number(li.cost) || 0) * (Number(li.quantity) || 0), 0);
-  await db.transaction(async (tx) => {
-    tx.run(
-      `UPDATE invoices SET subtotal=?, tax_rate=?, tax_amount=?, total=?, cost_total=?,
-                            payment_terms=?, due_date=?, notes=?, updated_at=now()
-       WHERE id=?`,
-      [t.subtotal, data.tax_rate, t.taxAmount, t.total, costTotal,
-       data.payment_terms, data.due_date, data.notes, existing.id]
-    );
-    tx.run('DELETE FROM invoice_line_items WHERE invoice_id = ?', [existing.id]);
-    data.lines.forEach((li, idx) => {
-      const lt = calc.lineTotal(li);
-      tx.run(
-        `INSERT INTO invoice_line_items (invoice_id, description, quantity, unit, unit_price, cost, line_total, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [existing.id, li.description, li.quantity, li.unit, li.unit_price, li.cost, lt, idx]
-      );
-    });
+
+  // Transactional update via RPC: rewrites header + lines atomically.
+  const lineRows = data.lines.map((li, idx) => ({
+    description: li.description,
+    quantity: li.quantity,
+    unit: li.unit,
+    unit_price: li.unit_price,
+    cost: li.cost,
+    line_total: calc.lineTotal(li),
+    sort_order: idx,
+  }));
+  const { error: rpcErr } = await supabase.rpc('update_invoice_with_lines', {
+    invoice_id: parseInt(existing.id, 10),
+    invoice_data: {
+      subtotal: t.subtotal,
+      tax_rate: data.tax_rate,
+      tax_amount: t.taxAmount,
+      total: t.total,
+      cost_total: costTotal,
+      payment_terms: data.payment_terms,
+      due_date: data.due_date,
+      notes: data.notes,
+    },
+    lines: lineRows,
   });
+  if (rpcErr) throw rpcErr;
+
+  // RPC does not audit updates — write a separate audit row.
+  try {
+    const { error: auditErr } = await supabase.from('audit_logs').insert({
+      entity_type: 'invoice',
+      entity_id: existing.id,
+      action: 'update',
+      before_json: { total: existing.total },
+      after_json: { total: t.total },
+      source: 'web',
+      user_id: req.session.userId,
+    });
+    if (auditErr) throw auditErr;
+  } catch (e) { /* audit best-effort */ }
+
   setFlash(req, 'success', `${existing.display_number} updated.`);
   res.redirect(`/invoices/${existing.id}`);
 });
 
 router.post('/:id/send', async (req, res, next) => {
-  const invoice = loadInvoice(req.params.id);
+  const invoice = await loadInvoice(req.params.id);
   if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
   if (invoice.status !== 'draft') {
     setFlash(req, 'error', `${invoice.display_number} is "${invoice.status}" — already sent.`);
     return res.redirect(`/invoices/${invoice.id}`);
   }
   try {
-    const company = await db.get('SELECT * FROM company_settings WHERE id = 1') || {};
+    const company = await loadCompanySettings();
     const buf = await pdf.renderToBuffer(pdf.generateInvoicePDF, { ...invoice, invoice_number: invoice.display_number }, company);
+
     // Invoice goes to billing_email (falls back to email)
     const recipient = invoice.customer_billing_email || invoice.customer_email || 'unknown@recon.local';
     const subject = `Invoice ${invoice.display_number} from ${company.company_name || 'Recon Construction'}`;
-    const dueLine = invoice.due_date ? `Due: ${String(invoice.due_date).slice(0,10)}` : '';
-    const text = `Hello ${invoice.customer_name || ''},\n\nPlease find attached invoice ${invoice.display_number}.\nAmount: $${(Number(invoice.total)||0).toFixed(2)}\nTerms: ${invoice.payment_terms || 'Net 30'}\n${dueLine}\n\nThanks.\n${company.company_name || 'Recon Construction'}`;
+    const dueLine = invoice.due_date ? `Due: ${String(invoice.due_date).slice(0, 10)}` : '';
+    const text = `Hello ${invoice.customer_name || ''},\n\nPlease find attached invoice ${invoice.display_number}.\nAmount: $${(Number(invoice.total) || 0).toFixed(2)}\nTerms: ${invoice.payment_terms || 'Net 30'}\n${dueLine}\n\nThanks.\n${company.company_name || 'Recon Construction'}`;
     const sent = await email.sendEmail({
       to: recipient, subject, text,
       html: text.split('\n').map(l => `<p>${l}</p>`).join(''),
       attachments: [{ filename: `${invoice.display_number}.pdf`, content: buf, contentType: 'application/pdf' }]
     });
-    await db.run(`UPDATE invoices SET status='sent', sent_at=now(), sent_by_user_id=?, sent_to_email=?, sent_to_name=?, updated_at=now() WHERE id=?`,
-      [req.session.userId, recipient, invoice.customer_name || 'Unknown', invoice.id]);
 
-    // Audit + post journal entry: DR AR / CR Revenue + Sales Tax
-    writeAudit({
-      entityType: 'invoice', entityId: invoice.id, action: 'send',
-      before: { status: 'draft' }, after: { status: 'sent', recipient, sent_at: new Date().toISOString() },
-      source: 'user', userId: req.session.userId,
-    });
+    const { error: updErr } = await supabase
+      .from('invoices')
+      .update({
+        status: 'sent',
+        sent_at: new Date().toISOString(),
+        sent_by_user_id: req.session.userId,
+        sent_to_email: recipient,
+        sent_to_name: invoice.customer_name || 'Unknown',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', invoice.id);
+    if (updErr) throw updErr;
+
+    // Audit
     try {
-      posting.postInvoiceSent(invoice, { userId: req.session.userId });
+      await writeAudit({
+        entityType: 'invoice', entityId: invoice.id, action: 'send',
+        before: { status: 'draft' },
+        after: { status: 'sent', recipient, sent_at: new Date().toISOString() },
+        source: 'user', userId: req.session.userId,
+      });
+    } catch (e) { /* best-effort */ }
+
+    // Post JE: DR AR / CR Revenue + Sales Tax
+    try {
+      await posting.postInvoiceSent(invoice, { userId: req.session.userId });
     } catch (e) {
       console.error('JE post failed (invoice send) — continuing:', e.message);
     }
@@ -276,7 +345,13 @@ router.post('/:id/send', async (req, res, next) => {
 });
 
 router.post('/:id/mark-paid', async (req, res) => {
-  const invoice = await db.get('SELECT * FROM invoices WHERE id = ?', [req.params.id]);
+  const id = parseInt(req.params.id, 10);
+  const { data: invoice, error: findErr } = await supabase
+    .from('invoices')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (findErr) throw findErr;
   if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
   if (!['sent', 'overdue'].includes(invoice.status)) {
     setFlash(req, 'error', `Cannot mark paid from status "${invoice.status}".`);
@@ -284,58 +359,64 @@ router.post('/:id/mark-paid', async (req, res) => {
   }
   let amount = parseFloat(req.body.amount);
   if (!isFinite(amount) || amount <= 0) amount = Number(invoice.total) || 0;
-  if (amount > Number(invoice.total)) amount = Number(invoice.total);
-  const newStatus = (amount >= Number(invoice.total)) ? 'paid' : 'sent';
-  const sets = ['amount_paid=?', `updated_at=now()`];
-  const params = [amount];
-  if (newStatus === 'paid') {
-    sets.push('status=?', `paid_at=now()`);
-    params.push(newStatus);
-  }
-  await db.run(`UPDATE invoices SET ${sets.join(', ')} WHERE id=?`, [...params, invoice.id]);
+  // Cap at remaining balance
+  const remaining = Number(invoice.total) - (Number(invoice.amount_paid) || 0);
+  if (amount > remaining) amount = remaining;
 
-  // Audit + post payment JE: DR Cash / CR AR
-  const newPaymentAmt = amount - (Number(invoice.amount_paid) || 0);
-  writeAudit({
-    entityType: 'invoice', entityId: invoice.id, action: 'payment',
-    before: { status: invoice.status, amount_paid: invoice.amount_paid },
-    after: { status: newStatus, amount_paid: amount, payment_recorded: newPaymentAmt },
-    source: 'user', userId: req.session.userId,
+  // RPC: record_payment handles status flip + paid_at + audit row
+  const paymentDate = new Date().toISOString().slice(0, 10);
+  const { error: rpcErr } = await supabase.rpc('record_payment', {
+    invoice_id: id,
+    amount,
+    payment_date: paymentDate,
+    user_id: req.currentUser?.id ?? req.session?.userId ?? null,
   });
+  if (rpcErr) throw rpcErr;
+
+  // Post payment JE: DR Cash / CR AR
   try {
-    if (newPaymentAmt > 0) {
-      posting.postPaymentReceived(invoice, newPaymentAmt, { userId: req.session.userId });
+    if (amount > 0) {
+      await posting.postPaymentReceived(invoice, amount, { userId: req.session.userId });
     }
   } catch (e) {
     console.error('JE post failed (payment) — continuing:', e.message);
   }
 
-  if (newStatus === 'paid') {
+  const isFullyPaid = amount >= remaining;
+  if (isFullyPaid) {
     setFlash(req, 'success', `Invoice marked paid in full.`);
   } else {
-    setFlash(req, 'success', `Partial payment $${amount.toFixed(2)} recorded. Balance: $${(invoice.total - amount).toFixed(2)}.`);
+    const newBalance = Number(invoice.total) - (Number(invoice.amount_paid) || 0) - amount;
+    setFlash(req, 'success', `Partial payment $${amount.toFixed(2)} recorded. Balance: $${newBalance.toFixed(2)}.`);
   }
   res.redirect(`/invoices/${invoice.id}`);
 });
 
 router.post('/:id/void', async (req, res) => {
-  const invoice = await db.get('SELECT id, status FROM invoices WHERE id = ?', [req.params.id]);
+  const id = parseInt(req.params.id, 10);
+  const { data: invoice, error: findErr } = await supabase
+    .from('invoices')
+    .select('id, status')
+    .eq('id', id)
+    .maybeSingle();
+  if (findErr) throw findErr;
   if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
   if (invoice.status === 'paid') {
     setFlash(req, 'error', `Cannot void a paid invoice.`);
     return res.redirect(`/invoices/${invoice.id}`);
   }
-  await db.run(`UPDATE invoices SET status='void', updated_at=now() WHERE id=?`, [invoice.id]);
 
-  writeAudit({
-    entityType: 'invoice', entityId: invoice.id, action: 'void',
-    before: { status: invoice.status }, after: { status: 'void' },
-    source: 'user', userId: req.session.userId,
+  // RPC: void_invoice handles status + audit row
+  const { error: rpcErr } = await supabase.rpc('void_invoice', {
+    invoice_id: id,
+    user_id: req.currentUser?.id ?? req.session?.userId ?? null,
   });
+  if (rpcErr) throw rpcErr;
+
+  // Reverse the original send JE if one exists
   try {
-    // Reverse the original send JE if one exists
-    const fullInv = await db.get('SELECT * FROM invoices WHERE id = ?', [invoice.id]);
-    if (fullInv) posting.postInvoiceVoid(fullInv, { userId: req.session.userId });
+    const { data: fullInv } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
+    if (fullInv) await posting.postInvoiceVoid(fullInv, { userId: req.session.userId });
   } catch (e) {
     console.error('JE post failed (void) — continuing:', e.message);
   }
@@ -345,9 +426,9 @@ router.post('/:id/void', async (req, res) => {
 });
 
 router.get('/:id/pdf', async (req, res) => {
-  const invoice = loadInvoice(req.params.id);
+  const invoice = await loadInvoice(req.params.id);
   if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
-  const company = await db.get('SELECT * FROM company_settings WHERE id = 1') || {};
+  const company = await loadCompanySettings();
   const filename = `${invoice.display_number}.pdf`;
   const disposition = req.query.download ? 'attachment' : 'inline';
   res.setHeader('Content-Type', 'application/pdf');
@@ -363,14 +444,31 @@ router.get('/:id/pdf', async (req, res) => {
 });
 
 router.post('/:id/delete', async (req, res) => {
-  const invoice = await db.get('SELECT id, status FROM invoices WHERE id = ?', [req.params.id]);
+  const id = parseInt(req.params.id, 10);
+  const { data: invoice, error: findErr } = await supabase
+    .from('invoices')
+    .select('id, status')
+    .eq('id', id)
+    .maybeSingle();
+  if (findErr) throw findErr;
   if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
   if (!['draft', 'void'].includes(invoice.status)) {
     setFlash(req, 'error', `Cannot delete invoice in status "${invoice.status}". Void it first.`);
     return res.redirect(`/invoices/${invoice.id}`);
   }
-  await db.run('DELETE FROM invoice_line_items WHERE invoice_id = ?', [invoice.id]);
-  await db.run('DELETE FROM invoices WHERE id = ?', [invoice.id]);
+  const { error: delLineErr } = await supabase.from('invoice_line_items').delete().eq('invoice_id', id);
+  if (delLineErr) throw delLineErr;
+  const { error: delErr } = await supabase.from('invoices').delete().eq('id', id);
+  if (delErr) throw delErr;
+
+  try {
+    await writeAudit({
+      entityType: 'invoice', entityId: id, action: 'delete',
+      before: { status: invoice.status }, after: null,
+      source: 'user', userId: req.session.userId,
+    });
+  } catch (e) { /* best-effort */ }
+
   setFlash(req, 'success', `Invoice deleted.`);
   res.redirect('/invoices');
 });

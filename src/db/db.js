@@ -10,7 +10,9 @@
  */
 
 const path = require('path');
-const DATA_DIR = path.join(__dirname, '..', '..', 'data');
+const DATA_DIR = process.env.NODE_ENV === 'production'
+  ? '/tmp/forge-data'
+  : path.join(__dirname, '..', '..', 'data');
 
 // ── pg mode ────────────────────────────────────────────────────────────────
 
@@ -93,10 +95,9 @@ function pgPersist() {} // no-op
 
 // ── sql.js mode (wraps sync work in Promise.resolve) ──────────────────────
 
-const initSqlJs = require('sql.js');
+let initSqlJs = null; // lazy-loaded
 const fs = require('fs');
 const DB_PATH = path.join(DATA_DIR, 'app.db');
-
 let SQL = null;
 let _db = null;
 let _dirty = false;
@@ -109,6 +110,7 @@ function ensureDir(p) {
 
 async function initSqlite() {
   if (_db) return _db;
+  if (!initSqlJs) initSqlJs = require('sql.js');
   SQL = await initSqlJs();
   ensureDir(DATA_DIR);
   let buf;
