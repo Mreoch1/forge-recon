@@ -1,184 +1,101 @@
 /**
- * Email service.
+ * Email service — nodemailer via SMTP (support@reconenterprises.net / M365).
  *
- * v0 mode: writes RFC822 .eml files to mail-outbox/ instead of sending
- * via SMTP. The .eml is exactly what nodemailer would have transmitted —
- * Outlook / Thunderbird / any mail client can open it. Once Michael
- * wires real SMTP credentials (TODO_FOR_MICHAEL), flip EMAIL_MODE=smtp
- * and set SMTP_HOST/PORT/USER/PASS in .env.
+ * Exported functions:
+ *   sendVerificationEmail(email, name, token)
+ *   sendPasswordResetEmail(email, name, token)
  *
- * Public:
- *   sendEmail({ to, subject, text, html, attachments }) -> { filepath, messageId }
+ * Env vars:
+ *   SMTP_HOST       — smtp.office365.com
+ *   SMTP_PORT       — 587
+ *   SMTP_SECURE     — false (STARTTLS)
+ *   SMTP_USER       — support@reconenterprises.net
+ *   SMTP_PASS       — mailbox password or app password
+ *   EMAIL_FROM      — "FORGE" <support@reconenterprises.net>
+ *   PUBLIC_BASE_URL — https://forge-recon.vercel.app
  */
-
 const nodemailer = require('nodemailer');
-const fs = require('fs');
 const path = require('path');
+const fs = require('fs');
 
-const MAIL_OUTBOX = path.join(__dirname, '..', '..', 'mail-outbox');
-const MODE = process.env.EMAIL_MODE || 'file'; // 'file' or 'smtp'
+const transporter = nodemailer.createTransport({
+  host:   process.env.SMTP_HOST || 'smtp.office365.com',
+  port:   parseInt(process.env.SMTP_PORT || '587', 10),
+  secure: process.env.SMTP_SECURE === 'true',
+  auth:   {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
 
-function ensureDir(p) {
-  if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
-}
+// Verify on boot
+transporter.verify().then(
+  () => console.log('[email] SMTP transporter ready'),
+  (err) => console.error('[email] SMTP transporter init failed:', err.message)
+).catch((err) => console.error('[email] SMTP verify failed:', err.message));
 
-function defaultFrom() {
-  return process.env.EMAIL_FROM || '"Recon Construction" <noreply@recon.local>';
-}
+const FROM = process.env.EMAIL_FROM || '"FORGE" <support@reconenterprises.net>';
+const BASE = process.env.PUBLIC_BASE_URL || 'https://forge-recon.vercel.app';
+const EJS_LAYOUT = path.join(__dirname, '..', 'views', 'emails', 'layout.ejs');
 
-let _transport = null;
-
-function transporter() {
-  if (_transport) return _transport;
-  if (MODE === 'smtp') {
-    _transport = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || '587', 10),
-      secure: process.env.SMTP_SECURE === '1',
-      auth: process.env.SMTP_USER ? {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      } : undefined,
-    });
-  } else {
-    // streamTransport: returns the formed message as a buffer/stream and
-    // does NOT actually send. We capture the buffer and write to disk.
-    _transport = nodemailer.createTransport({
-      streamTransport: true,
-      newline: 'unix',
-      buffer: true,
-    });
-  }
-  return _transport;
-}
-
-function safeFilenameSlice(s) {
-  return String(s || '').replace(/[^a-z0-9]/gi, '_').slice(0, 60);
-}
-
-async function sendEmail({ to, subject, text, html, attachments }) {
-  const t = transporter();
-  const result = await t.sendMail({
-    from: defaultFrom(),
-    to, subject, text, html,
-    attachments: attachments || [],
-  });
-
-  if (MODE === 'file') {
-    ensureDir(MAIL_OUTBOX);
-    const ts = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `${ts}__${safeFilenameSlice(subject)}.eml`;
-    const filepath = path.join(MAIL_OUTBOX, filename);
-    fs.writeFileSync(filepath, result.message);
-    return { filepath, messageId: result.messageId, mode: 'file' };
-  }
-  return { messageId: result.messageId, mode: 'smtp', accepted: result.accepted, rejected: result.rejected };
-}
-
-/**
- * Send a password reset email.
- * Renders branded HTML template through views/emails/layout.ejs.
- * Falls back to console.log if Resend is not configured.
- */
-async function sendPasswordResetEmail(toEmail, toName, resetUrl) {
-  const subject = 'Reset your FORGE password';
-
-  // Render the branded HTML body
+function renderEmail(bodyHtml) {
   const ejs = require('ejs');
-  const bodyHtml = ejs.render(
-    `<p>Hi <%= name %>,</p>
-<p>Someone requested a password reset for your FORGE account. Click below to set a new password. The link expires in 1 hour.</p>
-<p style="text-align:center;margin:24px 0">
-  <a href="<%= resetUrl %>" style="display:inline-block;background:#c0202b;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">Reset password</a>
-</p>
-<p>If you didn't request this, you can safely ignore this email — no changes will be made to your account.</p>`,
-    { name: toName, resetUrl }
+  return ejs.render(
+    fs.readFileSync(EJS_LAYOUT, 'utf8'),
+    { body: bodyHtml, host: BASE }
   );
-  const html = ejs.render(
-    fs.readFileSync(path.join(__dirname, '..', 'views', 'emails', 'layout.ejs'), 'utf8'),
-    { body: bodyHtml, host: process.env.APP_HOST || resetUrl.replace(/\/reset-password\/.*$/, '') }
-  );
-  const text = `Hi ${toName},\n\nSomeone requested a password reset for your FORGE account. Click the link below to set a new password. The link expires in 1 hour.\n\n${resetUrl}\n\nIf you didn't request this, you can safely ignore this email — no changes will be made to your account.\n\n— FORGE by Recon Enterprises`;
-
-  // Try Resend first if configured
-  const resend = getResend();
-  if (resend) {
-    try {
-      const result = await resend.emails.send({
-        from: 'FORGE <support@reconenterprises.net>',
-        to: [toEmail],
-        subject,
-        html,
-        text,
-      });
-      return { ok: true, id: result.id };
-    } catch (e) {
-      console.error('[email] Resend send failed:', e.message);
-      // Fall through to file/console fallback
-    }
-  }
-
-  // Fallback: log to console (dev/staging convenience)
-  console.log('[email] Password reset link for', toEmail, ':', resetUrl);
-  console.log('[email] Would have sent:', { to: toEmail, subject, text: text.slice(0, 200) });
-  return { ok: true, dev: true };
-}
-
-/**
- * Lazy-init Resend client.
- */
-let resendClient = null;
-function getResend() {
-  if (resendClient) return resendClient;
-  if (!process.env.RESEND_API_KEY) return null;
-  const { Resend } = require('resend');
-  resendClient = new Resend(process.env.RESEND_API_KEY);
-  return resendClient;
 }
 
 /**
  * Send a verification email for new signups.
  */
 async function sendVerificationEmail(toEmail, toName, token) {
+  const link = `${BASE}/verify-email/${token}`;
   const subject = 'Verify your FORGE account';
-  const baseUrl = process.env.PUBLIC_BASE_URL || 'https://forge.vercel.app';
-  const verifyUrl = `${baseUrl}/verify-email/${token}`;
 
-  const ejs = require('ejs');
-  const bodyHtml = ejs.render(
-    `<p>Hi <%= name %>,</p>
+  const bodyHtml = `<p>Hi ${toName},</p>
 <p>Thanks for signing up for FORGE. Click below to verify your email address and activate your account. The link expires in 24 hours.</p>
 <p style="text-align:center;margin:24px 0">
-  <a href="<%= verifyUrl %>" style="display:inline-block;background:#c0202b;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">Verify Email</a>
+  <a href="${link}" style="display:inline-block;background:#c0202b;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">Verify Email</a>
 </p>
-<p>If you didn't create an account, you can safely ignore this email.</p>`,
-    { name: toName, verifyUrl }
-  );
-  const html = ejs.render(
-    fs.readFileSync(path.join(__dirname, '..', 'views', 'emails', 'layout.ejs'), 'utf8'),
-    { body: bodyHtml, host: baseUrl }
-  );
-  const text = `Hi ${toName},\n\nThanks for signing up for FORGE. Click the link below to verify your email address and activate your account. The link expires in 24 hours.\n\n${verifyUrl}\n\nIf you didn't create an account, you can safely ignore this email.\n\n— FORGE by Recon Enterprises`;
+<p>If you didn't create an account, you can safely ignore this email.</p>`;
+  const html = renderEmail(bodyHtml);
+  const text = `Hi ${toName},\n\nThanks for signing up for FORGE. Click the link below to verify your email address and activate your account. The link expires in 24 hours.\n\n${link}\n\nIf you didn't create an account, you can safely ignore this email.\n\n— FORGE by Recon Enterprises`;
 
-  // Try Resend first
-  const resend = getResend();
-  if (resend) {
-    try {
-      const result = await resend.emails.send({
-        from: 'FORGE <support@reconenterprises.net>',
-        to: [toEmail],
-        subject,
-        html,
-        text,
-      });
-      return { ok: true, id: result.id };
-    } catch (e) {
-      console.error('[email] Resend sendVerificationEmail failed:', e.message);
-    }
+  try {
+    const info = await transporter.sendMail({ from: FROM, to: toEmail, subject, html, text });
+    console.log('[email] verification sent to', toEmail, 'messageId:', info.messageId);
+    return info;
+  } catch (err) {
+    console.error('[email] sendVerificationEmail failed for', toEmail, ':', err.message);
+    throw err;
   }
-
-  console.log('[email] Verification link for', toEmail, ':', verifyUrl);
-  return { ok: true, dev: true };
 }
 
-module.exports = { sendEmail, sendPasswordResetEmail, sendVerificationEmail, MAIL_OUTBOX, MODE };
+/**
+ * Send a password reset email.
+ */
+async function sendPasswordResetEmail(toEmail, toName, resetToken) {
+  const link = `${BASE}/reset-password/${resetToken}`;
+  const subject = 'Reset your FORGE password';
+
+  const bodyHtml = `<p>Hi ${toName},</p>
+<p>Someone requested a password reset for your FORGE account. Click below to set a new password. The link expires in 1 hour.</p>
+<p style="text-align:center;margin:24px 0">
+  <a href="${link}" style="display:inline-block;background:#c0202b;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">Reset password</a>
+</p>
+<p>If you didn't request this, you can safely ignore this email.</p>`;
+  const html = renderEmail(bodyHtml);
+  const text = `Hi ${toName},\n\nSomeone requested a password reset for your FORGE account. Click the link below to set a new password. The link expires in 1 hour.\n\n${link}\n\nIf you didn't request this, you can safely ignore this email.\n\n— FORGE by Recon Enterprises`;
+
+  try {
+    const info = await transporter.sendMail({ from: FROM, to: toEmail, subject, html, text });
+    console.log('[email] password reset sent to', toEmail, 'messageId:', info.messageId);
+    return info;
+  } catch (err) {
+    console.error('[email] sendPasswordResetEmail failed for', toEmail, ':', err.message);
+    throw err;
+  }
+}
+
+module.exports = { sendVerificationEmail, sendPasswordResetEmail };
