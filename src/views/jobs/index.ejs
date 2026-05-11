@@ -6,12 +6,11 @@
       <h1 class="page-h1">Jobs</h1>
       <p class="page-sub"><%= total %> total<% if (q) { %> &middot; filter: "<%= q %>"<% } %><% if (status) { %> &middot; status: <%= status.replace('_',' ') %><% } %></p>
     </div>
-    <a href="/jobs/new" class="btn btn-primary">+ New job</a>
   </div>
 
-  <form method="get" action="/jobs" class="flex flex-wrap items-center gap-2 mb-4">
-    <input type="text" name="q" value="<%= q %>" placeholder="Search title, address, customer..." class="input max-w-md">
-    <select name="status" class="input max-w-[12rem]">
+  <form method="get" action="/jobs" class="list-utility-bar">
+    <input type="text" name="q" value="<%= q %>" placeholder="Search title, address, customer..." class="list-search">
+    <select name="status" class="list-filter">
       <option value="">All statuses</option>
       <% statuses.forEach(function(s){ %>
         <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s.replace('_',' ') %></option>
@@ -19,8 +18,9 @@
     </select>
     <button type="submit" class="btn btn-secondary">Filter</button>
     <% if (q || status) { %>
-      <a href="/jobs" class="btn btn-ghost">Clear</a>
+      <a href="/jobs" class="list-clear">Clear</a>
     <% } %>
+    <a href="/jobs/new" class="btn btn-primary">+ New job</a>
   </form>
 
   <div class="card overflow-hidden">
@@ -45,9 +45,9 @@
         </thead>
         <tbody>
           <% jobs.forEach(function(j){ %>
-            <tr>
-              <td class="font-medium"><a href="/jobs/<%= j.id %>" class="text-recon-charcoal hover:text-recon-red"><%= j.title %></a></td>
-              <td><a href="/customers/<%= j.customer_id %>" class="text-recon-charcoal hover:text-recon-red"><%= j.customer_name %></a></td>
+            <tr class="row-link" data-href="/jobs/<%= j.id %>">
+              <td class="font-medium"><%= j.title %></td>
+              <td><%= j.customer_name %></td>
               <td><%= [j.address, j.city, j.state].filter(Boolean).join(', ') || '—' %></td>
               <td><span class="badge badge-<%= j.status %>"><%= j.status.replace('_',' ') %></span></td>
               <td><%= (j.created_at || '').slice(0,10) %></td>

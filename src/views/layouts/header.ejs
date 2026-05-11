@@ -77,6 +77,15 @@
     table.data tr:hover td { background: #fafafa; }
     .page-h1 { font-size: 1.5rem; font-weight: 700; color: #1a1a1a; }
     .page-sub { color: #888; font-size: .9rem; }
+    .list-utility-bar { display: flex; align-items: center; gap: .5rem; margin-bottom: 1rem; min-height: 38px; flex-wrap: wrap; }
+    .list-utility-bar .list-search { flex: 1; min-width: 140px; max-width: 260px; padding: .4rem .65rem; border-radius: .375rem; border: 1px solid #d0d0d0; background: #fff; font-size: .85rem; }
+    .list-utility-bar .list-search:focus { border-color: #c0202b; outline: none; box-shadow: 0 0 0 3px rgba(192,32,43,.15); }
+    .list-utility-bar .list-filter { padding: .4rem .65rem; border-radius: .375rem; border: 1px solid #d0d0d0; background: #fff; font-size: .85rem; min-width: 120px; color: #1a1a1a; }
+    .list-utility-bar .btn { font-size: .85rem; padding: .4rem .75rem; }
+    .list-utility-bar .list-clear { font-size: .8rem; color: #888; text-decoration: none; padding: .3rem .5rem; }
+    .list-utility-bar .list-clear:hover { color: #c0202b; }
+    tr.row-link { cursor: pointer; }
+    tr.row-link:hover { background: #f0f0f0 !important; }
   </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -159,6 +168,13 @@
     if (!moreMenu.classList.contains('hidden') && !moreBtn.contains(e.target) && !moreMenu.contains(e.target)) {
       moreMenu.classList.add('hidden');
     }
+  });
+  // Full-row click for list tables
+  document.addEventListener('click', function(e) {
+    var tr = e.target.closest('tr.row-link');
+    if (!tr) return;
+    var href = tr.getAttribute('data-href');
+    if (href) window.location.href = href;
   });
 })();
 </script>

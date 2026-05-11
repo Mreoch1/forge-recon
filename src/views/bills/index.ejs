@@ -1,26 +1,25 @@
 <%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
 <div class="max-w-7xl mx-auto px-4 py-6">
-  <div class="flex items-baseline justify-between mb-4">
+  <div class="flex items-baseline justify-between mb-2">
     <div><h1 class="page-h1">Bills</h1><p class="page-sub"><%= total %> total</p></div>
-    <a href="/bills/new" class="btn btn-primary">+ New bill</a>
   </div>
-  <form method="get" class="flex flex-wrap gap-3 mb-4 items-end">
-    <div><label class="text-xs text-recon-fog uppercase tracking-wide">Status</label>
-      <select name="status" class="input">
+  <form method="get" class="list-utility-bar">
+    <select name="status" class="list-filter">
         <option value="">All</option>
         <% statuses.forEach(function(s) { %>
           <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s %></option>
         <% }); %>
       </select></div>
     <div><label class="text-xs text-recon-fog uppercase tracking-wide">Vendor</label>
-      <select name="vendor_id" class="input">
+      <select name="vendor_id" class="list-filter">
         <option value="">All</option>
         <% vendors.forEach(function(v) { %>
           <option value="<%= v.id %>" <%= String(vendorId) === String(v.id) ? 'selected' : '' %>><%= v.name %></option>
         <% }); %>
       </select></div>
-    <button class="btn btn-secondary">Filter</button>
-    <% if (status || vendorId) { %><a href="/bills" class="btn btn-ghost">Clear</a><% } %>
+      <button class="btn btn-secondary">Filter</button>
+    <% if (status || vendorId) { %><a href="/bills" class="list-clear">Clear</a><% } %>
+    <a href="/bills/new" class="btn btn-primary">+ New bill</a>
   </form>
   <% if (!bills || bills.length === 0) { %>
     <div class="card p-8 text-center">
@@ -40,8 +39,8 @@
         <tbody>
           <% bills.forEach(function(b) { %>
             <% const bal = (Number(b.total) || 0) - (Number(b.amount_paid) || 0); %>
-            <tr>
-              <td><a href="/bills/<%= b.id %>" class="text-recon-red hover:underline"><%= b.bill_number || '#' + b.id %></a></td>
+            <tr class="row-link" data-href="/bills/<%= b.id %>">
+              <td><%= b.bill_number || '#' + b.id %></td>
               <td><%= b.vendor_name || '-' %></td>
               <td><span class="badge badge-<%= b.status %>"><%= b.status %></span></td>
               <td class="text-right">$<%= Number(b.total).toFixed(2) %></td>

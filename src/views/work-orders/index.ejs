@@ -31,28 +31,25 @@
 </style>
 
 <div class="max-w-7xl mx-auto px-4 py-5">
-  <div class="flex items-end justify-between mb-3 flex-wrap gap-2">
+  <div class="flex items-baseline justify-between mb-2 flex-wrap gap-2">
     <div>
       <h1 class="wol-h1">Work orders</h1>
       <p class="wol-sub mt-1"><%= total %> total<% if (q) { %> &middot; "<%= q %>"<% } %><% if (status) { %> &middot; <%= status.replace('_',' ') %><% } %></p>
     </div>
-    <div class="flex gap-2">
-      <a href="/work-orders/ai-create" class="btn btn-primary text-sm">+ AI work order</a>
-    </div>
   </div>
 
-  <form method="get" action="/work-orders" class="wol-filter-row">
-    <input type="text" name="q" value="<%= q %>" placeholder="Search WO #, job, customer..." class="input max-w-md text-sm">
-    <select name="status" class="input max-w-[12rem] text-sm">
-      <option value="">All statuses</option>
-      <% statuses.forEach(function(s){ %>
-        <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s.replace('_',' ') %></option>
-      <% }); %>
-    </select>
-    <button type="submit" class="btn btn-secondary text-sm">Filter</button>
-    <% if (q || status) { %><a href="/work-orders" class="btn btn-ghost text-sm">Clear</a><% } %>
+  <form method="get" action="/work-orders" class="list-utility-bar" style="margin-bottom:.65rem">
+    <input type="text" name="q" value="<%= q %>" placeholder="Search WO #, job, customer..." class="list-search">
+    <select name="status" class="list-filter">
+        <option value="">All</option>
+        <% (users || []).forEach(function(u){ %>
+          <option value="<%= u.id %>" <%= Number(assigneeFilter) === u.id ? 'selected' : '' %>><%= u.name %></option>
+        <% }); %>
+      </select>
+      <button type="submit" class="btn btn-secondary">Filter</button>
+      <% if (q || status) { %><a href="/work-orders" class="list-clear">Clear</a><% } %>
+      <a href="/work-orders/ai-create" class="btn btn-primary">+ AI work order</a>
   </form>
-
   <% if (workOrders.length === 0) { %>
     <div class="wol-empty">
       <% if (q || status) { %>
@@ -81,14 +78,12 @@
                             : w.status === 'cancelled'   ? 'wol-dot-cancel'
                             :                              'wol-dot-sched';
         %>
-          <tr>
+          <tr class="row-link" data-href="/work-orders/<%= w.id %>">
             <td><span class="wol-dot <%= dotClass %>"></span></td>
-            <td><a href="/work-orders/<%= w.id %>" class="wol-num hover:text-recon-red">WO-<%= w.display_number %></a></td>
+            <td><span class="wol-num">WO-<%= w.display_number %></span></td>
             <td>
-              <a href="/customers/<%= w.customer_id %>" class="wol-customer hover:text-recon-red"><%= w.customer_name %></a>
-              <div class="wol-job-title">
-                <a href="/jobs/<%= w.job_id %>" class="hover:text-recon-red"><%= w.job_title %></a>
-              </div>
+              <span class="wol-customer"><%= w.customer_name %></span>
+              <div class="wol-job-title"><%= w.job_title %></div>
             </td>
             <td><span class="badge badge-<%= w.status %>"><%= w.status.replace('_',' ') %></span></td>
             <td class="wol-meta"><%= (w.scheduled_date || '—').slice(0,10) %></td>

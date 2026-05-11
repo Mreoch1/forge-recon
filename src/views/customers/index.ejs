@@ -6,15 +6,15 @@
       <h1 class="page-h1">Customers</h1>
       <p class="page-sub"><%= total %> total<% if (q) { %> &middot; filter: "<%= q %>"<% } %></p>
     </div>
-    <a href="/customers/new" class="btn btn-primary">+ New customer</a>
   </div>
 
-  <form method="get" action="/customers" class="flex gap-2 mb-4">
-    <input type="text" name="q" value="<%= q %>" placeholder="Search name, email, phone, city..." class="input max-w-md">
+  <form method="get" action="/customers" class="list-utility-bar">
+    <input type="text" name="q" value="<%= q %>" placeholder="Search name, email, phone, city..." class="list-search">
     <button type="submit" class="btn btn-secondary">Search</button>
     <% if (q) { %>
-      <a href="/customers" class="btn btn-ghost">Clear</a>
+      <a href="/customers" class="list-clear">Clear</a>
     <% } %>
+    <a href="/customers/new" class="btn btn-primary">+ New customer</a>
   </form>
 
   <div class="card overflow-hidden">
@@ -39,14 +39,11 @@
         </thead>
         <tbody>
           <% customers.forEach(function(c){ %>
-            <tr>
-              <td class="font-medium"><a href="/customers/<%= c.id %>" class="text-recon-charcoal hover:text-recon-red"><%= c.name %></a></td>
+            <tr class="row-link" data-href="/customers/<%= c.id %>">
+              <td class="font-medium"><%= c.name %></td>
               <td><%= c.email || '—' %></td>
               <td><%= c.phone || '—' %></td>
               <td><%= [c.city, c.state].filter(Boolean).join(', ') || '—' %></td>
-              <td class="text-right">
-                <a href="/customers/<%= c.id %>/edit" class="text-sm text-recon-fog hover:text-recon-red">Edit</a>
-              </td>
             </tr>
           <% }); %>
         </tbody>

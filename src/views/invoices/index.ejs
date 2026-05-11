@@ -10,26 +10,27 @@ function isOverdue(inv) {
 %>
 
 <div class="max-w-7xl mx-auto px-4 py-6">
-  <div class="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+  <div class="flex items-baseline justify-between mb-2 flex-wrap gap-2">
     <div>
       <h1 class="page-h1">Invoices</h1>
       <p class="page-sub"><%= total %> total<% if (q) { %> &middot; "<%= q %>"<% } %><% if (status) { %> &middot; <%= status %><% } %></p>
     </div>
   </div>
 
-  <form method="get" action="/invoices" class="flex flex-wrap items-center gap-2 mb-4">
-    <input type="text" name="q" value="<%= q %>" placeholder="Search number, job, customer..." class="input max-w-md">
-    <select name="status" class="input max-w-[12rem]">
+  <form method="get" action="/invoices" class="list-utility-bar">
+    <input type="text" name="q" value="<%= q %>" placeholder="Search number, job, customer..." class="list-search">
+    <select name="status" class="list-filter">
       <option value="">All statuses</option>
       <% statuses.forEach(function(s){ %>
-        <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s %></option>
+        <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s.replace('_',' ') %></option>
       <% }); %>
     </select>
     <button type="submit" class="btn btn-secondary">Filter</button>
-    <% if (q || status) { %><a href="/invoices" class="btn btn-ghost">Clear</a><% } %>
+    <% if (q || status) { %>
+      <a href="/invoices" class="list-clear">Clear</a>
+    <% } %>
+    <a href="/invoices/new" class="btn btn-primary">+ New invoice</a>
   </form>
-
-  <div class="card overflow-hidden">
     <% if (invoices.length === 0) { %>
       <div class="p-8 text-center text-recon-fog">
         <% if (q || status) { %>
@@ -47,10 +48,10 @@ function isOverdue(inv) {
           <% invoices.forEach(function(i){ %>
             <% const balance = (Number(i.total)||0) - (Number(i.amount_paid)||0); %>
             <% const showStatus = isOverdue(i) ? 'overdue' : i.status; %>
-            <tr>
-              <td class="font-medium"><a href="/invoices/<%= i.id %>" class="hover:text-recon-red">INV-<%= i.wo_display_number %></a></td>
-              <td><a href="/jobs/<%= i.job_id %>" class="hover:text-recon-red"><%= i.job_title %></a></td>
-              <td><a href="/customers/<%= i.customer_id %>" class="hover:text-recon-red"><%= i.customer_name %></a></td>
+            <tr class="row-link" data-href="/invoices/<%= i.id %>">
+              <td class="font-medium">INV-<%= i.wo_display_number %></td>
+              <td><%= i.job_title %></td>
+              <td><%= i.customer_name %></td>
               <td><span class="badge badge-<%= showStatus %>"><%= showStatus %></span></td>
               <td class="text-right">$<%= fmt(i.total) %></td>
               <td class="text-right">$<%= fmt(i.amount_paid) %></td>

@@ -14,25 +14,26 @@ const showPrices = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
 %>
 
 <div class="max-w-7xl mx-auto px-4 py-6">
-  <div class="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+  <div class="flex items-baseline justify-between mb-2 flex-wrap gap-2">
     <div>
       <h1 class="page-h1">Estimates</h1>
       <p class="page-sub"><%= total %> total<% if (q) { %> &middot; "<%= q %>"<% } %><% if (status) { %> &middot; <%= status %><% } %></p>
     </div>
   </div>
 
-  <form method="get" action="/estimates" class="flex flex-wrap items-center gap-2 mb-4">
-    <input type="text" name="q" value="<%= q %>" placeholder="Search number, job, customer..." class="input max-w-md">
-    <select name="status" class="input max-w-[12rem]">
+  <form method="get" action="/estimates" class="list-utility-bar">
+    <input type="text" name="q" value="<%= q %>" placeholder="Search number, job, customer..." class="list-search">
+    <select name="status" class="list-filter">
       <option value="">All statuses</option>
       <% statuses.forEach(function(s){ %>
-        <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s %></option>
+        <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s.replace('_',' ') %></option>
       <% }); %>
     </select>
     <button type="submit" class="btn btn-secondary">Filter</button>
     <% if (q || status) { %>
-      <a href="/estimates" class="btn btn-ghost">Clear</a>
+      <a href="/estimates" class="list-clear">Clear</a>
     <% } %>
+    <a href="/estimates/new" class="btn btn-primary">+ New estimate</a>
   </form>
 
   <div class="card overflow-hidden">
@@ -60,10 +61,10 @@ const showPrices = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
         </thead>
         <tbody>
           <% estimates.forEach(function(e){ %>
-            <tr>
-              <td class="font-medium"><a href="/estimates/<%= e.id %>" class="hover:text-recon-red">EST-<%= e.wo_display_number %></a></td>
-              <td><a href="/jobs/<%= e.job_id %>" class="hover:text-recon-red"><%= e.job_title %></a></td>
-              <td><a href="/customers/<%= e.customer_id %>" class="hover:text-recon-red"><%= e.customer_name %></a></td>
+<tr class="row-link" data-href="/estimates/<%= e.id %>">
+            <td class="font-medium">EST-<%= e.wo_display_number %></td>
+              <td><%= e.job_title %></td>
+              <td><%= e.customer_name %></td>
               <td><span class="badge badge-<%= e.status %>"><%= e.status %></span></td>
               <td class="text-right">$<%= fmt(e.total) %></td>
               <% if (showPrices) { %><td class="text-right" style="color:<%= (Number(e.cost_total)||0) > 0 && (Number(e.subtotal)||0) > (Number(e.cost_total)||0) ? '#065f46' : '#991b1b' %>"><%= calcMargin(e) %></td><% } %>
