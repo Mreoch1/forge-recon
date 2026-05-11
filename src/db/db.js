@@ -13,120 +13,43 @@
 const path = require('path');
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 
-// ── pg mode ────────────────────────────────────────────────────────────────
+// ── pg mode (deferred — see Round 27) ─────────────────────────────────
 const DATABASE_URL = process.env.DATABASE_URL;
 const USE_SQLITE = process.env.USE_SQLITE === '1';
 
-let pgPool = null;
-
 async function initPg() {
-  const { Pool } = require('pg');
-  const types = require('pg').types;
-  // NUMERIC → Number (OID 1700)
-  types.setTypeParser(1700, val => parseFloat(val));
-  pgPool = new Pool({
-    connectionString: DATABASE_URL,
-    max: 10,
-    idleTimeoutMillis: 30000,
-    ssl: { rejectUnauthorized: false },  // Supabase requires SSL
-  });
-  // Test connection
-  await pgPool.query('SELECT 1');
-  console.log('[db] pg connected');
-  return pgPool;
+  throw new Error(
+    'Postgres deployment deferred to Round 27. ' +
+    'Set USE_SQLITE=1 in .env or remove DATABASE_URL to use sql.js.'
+  );
 }
 
-function rewriteSql(sql) {
-  let i = 0;
-  return sql.replace(/\?/g, () => `$${++i}`);
+function pgGet() { throw new Error('pg mode disabled — Round 27'); }
+function pgAll() { throw new Error('pg mode disabled — Round 27'); }
+function pgRun() { throw new Error('pg mode disabled — Round 27'); }
+function pgExecMulti() { throw new Error('pg mode disabled — Round 27'); }
+function pgTransaction() { throw new Error('pg mode disabled — Round 27'); }
+
+function pgPersist() {
+  // no-op — Postgres persists itself
 }
 
 /**
  * Reverse-translate pg-native SQL syntax back to sql.js-compatible SQLite.
- * Source files now use pg syntax after 22a migration. This lets USE_SQLITE=1
- * fallback still work without reverting source files.
+ * Source files now use pg syntax after 22a migration. This translateForSqlite
+ * lets sql.js mode work without reverting the source files.
  */
 function translateForSqlite(sql) {
   return sql
-    // ILIKE → LIKE (pg case-insensitive → sqlite case-insensitive)
     .replace(/\bILIKE\b/gi, 'LIKE')
-    // now() → datetime('now')
     .replace(/\bnow\(\)/gi, "datetime('now')")
-    // current_date → date('now')
     .replace(/\bcurrent_date\b/gi, "date('now')")
-    // ::date cast → date() function
     .replace(/::date/gi, '')
-    // ::timestamp cast → no-op for sql.js TEXT storage
     .replace(/::timestamp/gi, '')
-    // to_char(x, 'YYYY-MM') → strftime('%Y-%m', x)
     .replace(/to_char\((\S+),\s*'YYYY-MM'\)/gi, "strftime('%Y-%m', $1)")
-    // to_char(x, 'YYYY') → strftime('%Y', x)
     .replace(/to_char\((\S+),\s*'YYYY'\)/gi, "strftime('%Y', $1)")
-    // (?::date + N) → date(?, '+N days')
     .replace(/\(\?::date\s*\+\s*(\d+)\)/g, "date(?, '+$1 days')")
-    // current_date - N → date('now', '-N days')
     .replace(/current_date\s*-\s*(\d+)/gi, "date('now', '-$1 days')");
-}
-
-function needsReturning(sql) {
-  const s = sql.trim().toLowerCase();
-  // Only add RETURNING id for INSERT statements that don't already have it
-  return s.startsWith('insert') && !/returning\b/i.test(sql);
-}
-
-async function pgGet(sql, params = []) {
-  const { rows } = await pgPool.query(rewriteSql(sql), params);
-  return rows[0] || null;
-}
-
-async function pgAll(sql, params = []) {
-  const { rows } = await pgPool.query(rewriteSql(sql), params);
-  return rows;
-}
-
-async function pgRun(sql, params = []) {
-  let query = rewriteSql(sql);
-  if (needsReturning(sql)) query += ' RETURNING id';
-  const { rowCount, rows } = await pgPool.query(query, params);
-  return { changes: rowCount, lastInsertRowid: rows && rows[0] ? rows[0].id : null };
-}
-
-async function pgExec(sql) {
-  await pgPool.query(sql);
-}
-
-async function pgTransaction(fn) {
-  const client = await pgPool.connect();
-  try {
-    await client.query('BEGIN');
-    const result = await fn({
-      get: async (s, p = []) => {
-        const { rows } = await client.query(rewriteSql(s), p);
-        return rows[0] || null;
-      },
-      all: async (s, p = []) => {
-        const { rows } = await client.query(rewriteSql(s), p);
-        return rows;
-      },
-      run: async (s, p = []) => {
-        let query = rewriteSql(s);
-        if (needsReturning(s)) query += ' RETURNING id';
-        const { rowCount, rows } = await client.query(query, p);
-        return { changes: rowCount, lastInsertRowid: rows && rows[0] ? rows[0].id : null };
-      },
-    });
-    await client.query('COMMIT');
-    return result;
-  } catch (e) {
-    await client.query('ROLLBACK');
-    throw e;
-  } finally {
-    client.release();
-  }
-}
-
-function pgPersist() {
-  // no-op — Postgres persists itself
 }
 
 // ── sql.js mode ────────────────────────────────────────────────────────────
@@ -260,13 +183,14 @@ let _mode = null; // 'pg' or 'sqlite'
 
 async function init() {
   if (_mode) return;
-  if (DATABASE_URL && !USE_SQLITE) {
+  // Default: sql.js. Only use pg when explicitly opted in via USE_PG=1.
+  if (DATABASE_URL && process.env.USE_PG === '1') {
     _mode = 'pg';
-    console.log('[db] mode: pg (Postgres via DATABASE_URL)');
+    console.log('[db] mode: pg (Postgres via DATABASE_URL — Round 27 preview)');
     await initPg();
   } else {
     _mode = 'sqlite';
-    console.log('[db] mode: sql.js (SQLite local — USE_SQLITE=1 or no DATABASE_URL)');
+    console.log('[db] mode: sql.js (SQLite local — USE_SQLITE=1 or default)');
     await initSqlite();
   }
 }
