@@ -16,7 +16,7 @@ const emailService = require('../services/email');
 
 const router = express.Router();
 
-const HOST = process.env.APP_HOST || 'http://localhost:3001';
+const HOST = process.env.APP_HOST || null; // resolved per-request when null
 
 // ── Login ─────────────────────────────────────────────────────────────────────
 
@@ -103,7 +103,9 @@ router.post('/forgot-password', async (req, res) => {
     );
 
     // Send email
-    const resetUrl = `${HOST}/reset-password/${token}`;
+    const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
+    const host = HOST || `${proto}://${req.get('host')}`;
+    const resetUrl = `${host}/reset-password/${token}`;
     try {
       await emailService.sendPasswordResetEmail(user.email, user.name, resetUrl);
     } catch (e) {
@@ -135,7 +137,9 @@ router.get('/reset-password/:token', async (req, res) => {
     return res.status(400).render('error', {
       title: 'Invalid link',
       code: 400,
-      message: 'This reset link is invalid or expired. <a href="/forgot-password" class="text-recon-red hover:underline">Request a new one</a>.'
+      message: 'This reset link is invalid or expired.',
+      actionLink: '/forgot-password',
+      actionLabel: 'Request a new one'
     });
   }
   res.render('auth/reset-password', { title: 'Reset password', token, error: null, flash: {} });

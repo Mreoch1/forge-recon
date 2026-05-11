@@ -82,8 +82,16 @@ router.post('/password', async (req, res) => {
     setFlash(req, 'error', 'Current password and new password are required.');
     return res.redirect('/settings');
   }
-  if (newPassword.length < 8) {
-    setFlash(req, 'error', 'New password must be at least 8 characters.');
+  const confirm = req.body.confirm_password || '';
+  const pwErrors = [];
+  if (newPassword.length < 8) pwErrors.push('at least 8 characters');
+  if (!/[A-Z]/.test(newPassword)) pwErrors.push('one uppercase letter');
+  if (!/[a-z]/.test(newPassword)) pwErrors.push('one lowercase letter');
+  if (!/\d/.test(newPassword)) pwErrors.push('one number');
+  if (!/[^A-Za-z0-9]/.test(newPassword)) pwErrors.push('one symbol');
+  if (newPassword !== confirm) pwErrors.push('passwords must match');
+  if (pwErrors.length) {
+    setFlash(req, 'error', 'Password needs: ' + pwErrors.join(', ') + '.');
     return res.redirect('/settings');
   }
 

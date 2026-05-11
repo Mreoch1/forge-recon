@@ -96,7 +96,7 @@ async function sendPasswordResetEmail(toEmail, toName, resetUrl) {
   );
   const html = ejs.render(
     fs.readFileSync(path.join(__dirname, '..', 'views', 'emails', 'layout.ejs'), 'utf8'),
-    { body: bodyHtml }
+    { body: bodyHtml, host: process.env.APP_HOST || resetUrl.replace(/\/reset-password\/.*$/, '') }
   );
   const text = `Hi ${toName},\n\nSomeone requested a password reset for your FORGE account. Click the link below to set a new password. The link expires in 1 hour.\n\n${resetUrl}\n\nIf you didn't request this, you can safely ignore this email — no changes will be made to your account.\n\n— FORGE by Recon Enterprises`;
 

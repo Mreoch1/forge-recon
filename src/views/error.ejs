@@ -4,7 +4,11 @@
   <div class="card p-8 max-w-md text-center">
     <div class="text-5xl font-bold text-recon-red mb-2"><%= code %></div>
     <p class="text-recon-charcoal mb-6"><%= message %></p>
-    <a href="/" class="btn btn-primary">Back to dashboard</a>
+    <% if (typeof actionLink !== 'undefined' && actionLink) { %>
+      <a href="<%= actionLink %>" class="btn btn-primary mb-3"><%= typeof actionLabel !== 'undefined' ? actionLabel : 'Go back' %></a>
+    <% } else { %>
+      <a href="/" class="btn btn-primary">Back to dashboard</a>
+    <% } %>
   </div>
 </div>
 

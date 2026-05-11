@@ -44,7 +44,15 @@ router.post('/users', async (req, res) => {
   if (!name) errors.name = 'Name required.';
   if (!VALID_ROLES.includes(role)) errors.role = 'Invalid role.';
   if (!password) errors.password = 'Password required.';
-  else if (password.length < 8) errors.password = 'Min 8 characters.';
+  else if (!/^.{8,}$/.test(password)) errors.password = 'Password must be at least 8 characters.';
+  else {
+    const pwErrors = [];
+    if (!/[A-Z]/.test(password)) pwErrors.push('one uppercase letter');
+    if (!/[a-z]/.test(password)) pwErrors.push('one lowercase letter');
+    if (!/\d/.test(password)) pwErrors.push('one number');
+    if (!/[^A-Za-z0-9]/.test(password)) pwErrors.push('one symbol');
+    if (pwErrors.length) errors.password = 'Password needs: ' + pwErrors.join(', ') + '.';
+  }
   if (Object.keys(errors).length) {
     return res.status(400).render('admin/users/new', { title: 'New user', activeNav: 'admin', user: { id: null, email, name, role, active: 1 }, errors, roles: VALID_ROLES });
   }
@@ -89,7 +97,18 @@ router.post('/users/:id/password', async (req, res) => {
   const target = await db.get('SELECT id, name FROM users WHERE id = ?', [req.params.id]);
   if (!target) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'User not found.' });
   const password = req.body.password || '';
-  if (password.length < 8) { setFlash(req, 'error', 'Password must be at least 8 characters.'); return res.redirect(`/admin/users/${target.id}/edit`); }
+  const confirm = req.body.confirm_password || '';
+  const pwErrors = [];
+  if (password.length < 8) pwErrors.push('at least 8 characters');
+  if (!/[A-Z]/.test(password)) pwErrors.push('one uppercase letter');
+  if (!/[a-z]/.test(password)) pwErrors.push('one lowercase letter');
+  if (!/\d/.test(password)) pwErrors.push('one number');
+  if (!/[^A-Za-z0-9]/.test(password)) pwErrors.push('one symbol');
+  if (password !== confirm) pwErrors.push('passwords must match');
+  if (pwErrors.length) {
+    setFlash(req, 'error', 'Password needs: ' + pwErrors.join(', ') + '.');
+    return res.redirect(`/admin/users/${target.id}/edit`);
+  }
   const hash = await bcrypt.hash(password, 10);
   await db.run("UPDATE users SET password_hash=?, updated_at=now() WHERE id=?", [hash, target.id]);
   setFlash(req, 'success', `Password reset for ${target.name}.`);
@@ -144,7 +163,7 @@ router.get('/ai-usage', async (req, res) => {
   const topUsersQuery = isPg
     ? `SELECT al.user_id, u.name, COUNT(*) AS count,
        COALESCE(SUM(
-         CASE WHEN al.after_json ? 'tokens_used'
+         CASE WHEN jsonb_exists(al.after_json, 'tokens_used')
          THEN (al.after_json ->> 'tokens_used')::int
          ELSE 0 END
        ), 0) AS tokens
