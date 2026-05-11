@@ -30,6 +30,8 @@ const numbering = require('../services/numbering');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+const storage = require('../services/storage');
 
 // Multer config — WO photo uploads
 const UPLOAD_BASE = path.join(__dirname, '..', '..', 'public', 'uploads', 'wo');
@@ -38,17 +40,7 @@ const MAX_SIZE = 10 * 1024 * 1024;
 const MAX_FILES = 6;
 function ensureDir(d) { if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); }
 const woUpload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => {
-      const dir = path.join(UPLOAD_BASE, String(req.params.id));
-      ensureDir(dir); cb(null, dir);
-    },
-    filename: (req, file, cb) => {
-      const ts = Date.now();
-      const s = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 60);
-      cb(null, `${ts}-${s}`);
-    }
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: MAX_SIZE, files: MAX_FILES },
   fileFilter: (req, file, cb) => {
     if (ALLOWED_TYPES.includes(file.mimetype)) cb(null, true);
@@ -767,8 +759,11 @@ router.post('/:id/photos', async (req, res) => {
     try {
       await db.transaction(async (tx) => {
         for (const f of files) {
+          const ext = path.extname(f.originalname) || '';
+          const key = `${wo.id}/${crypto.randomUUID()}${ext}`;
+          await storage.uploadBuffer('wo-photos', key, f.buffer, f.mimetype);
           await tx.run(`INSERT INTO wo_photos (work_order_id, user_id, filename, caption, created_at) VALUES (?, ?, ?, ?, now())`,
-            [wo.id, req.session.userId, f.filename, caption || null]);
+            [wo.id, req.session.userId, key, caption || null]);
         }
         // Single audit row for the batch
         await writeAudit({ entityType: 'work_order', entityId: wo.id, action: 'photo_uploaded', before: {}, after: { count: files.length, filenames: files.map(f => f.filename) }, source: 'user', userId: req.session.userId });
@@ -795,8 +790,8 @@ router.post('/:id/photos/:photoId/delete', async (req, res) => {
   const isManager = req.session.role !== 'worker';
   if (!isOwner && !isManager) { setFlash(req, 'error', 'You can only delete your own photos.'); return res.redirect(`/work-orders/${wo.id}`); }
   // Delete file from disk
-  const filepath = path.join(UPLOAD_BASE, String(wo.id), photo.filename);
-  try { if (fs.existsSync(filepath)) fs.unlinkSync(filepath); } catch(e) { /* best effort */ }
+  // Remove from Supabase Storage
+  try { await storage.remove('wo-photos', photo.filename); } catch(e) { /* best effort */ }
   await db.run('DELETE FROM wo_photos WHERE id = ?', [photo.id]);
   setFlash(req, 'success', 'Photo deleted.');
   res.redirect(`/work-orders/${wo.id}`);
