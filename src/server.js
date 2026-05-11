@@ -233,10 +233,9 @@ async function main() {
   });
 }
 
-main().catch(err => {
+// Vercel: export the app as a promise that resolves after db init
+const serverPromise = main().then(() => app).catch(err => {
   console.error('Server failed to start:', err);
   process.exit(1);
 });
-
-// Vercel: export the app for @vercel/node
-module.exports = app;
+module.exports = serverPromise;
