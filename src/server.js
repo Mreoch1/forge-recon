@@ -39,6 +39,7 @@ const accountingRoutes = require('./routes/accounting');
 const vendorsRoutes = require('./routes/vendors');
 const aiChatRoutes = require('./routes/ai-chat');
 const closuresRoutes = require('./routes/closures');
+const filesRoutes = require('./routes/files');
 
 const PORT = parseInt(process.env.PORT, 10) || 3001;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
@@ -178,6 +179,7 @@ async function main() {
     res.json({ enabled, model: 'deepseek-chat', provider: process.env.AI_PROVIDER || 'deepseek' });
   });
   app.use('/ai', requireAuth, aiChatRoutes);
+  app.use('/files', requireAuth, filesRoutes);
 
   // Dashboard — v2 redesign (classic at /dashboard-classic)
   app.use('/', requireAuth, dashboardRoutes);

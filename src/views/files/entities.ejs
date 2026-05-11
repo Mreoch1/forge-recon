@@ -1,0 +1,24 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<div class="max-w-7xl mx-auto px-4 py-6">
+  <div class="mb-4">
+    <a href="/files" class="text-sm text-recon-fog hover:text-recon-red">&larr; All files</a>
+  </div>
+  <h1 class="page-h1 mb-6"><%= bucket.icon %> <%= bucket.label %></h1>
+  <% if (entities.length === 0) { %>
+    <div class="card p-8 text-center text-recon-fog">No <%= bucket.label.toLowerCase() %> found.</div>
+  <% } else { %>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <% entities.forEach(function(e){ %>
+        <a href="/files/<%= bucket.key %>/<%= e.id %>" class="card p-5 hover:shadow-md transition block">
+          <h3 class="font-semibold text-recon-charcoal"><%= e.name %></h3>
+          <% if (e.folder) { %>
+            <p class="text-xs text-recon-fog mt-1">Has files</p>
+          <% } else { %>
+            <p class="text-xs text-recon-fog mt-1">No files yet</p>
+          <% } %>
+        </a>
+      <% }); %>
+    </div>
+  <% } %>
+</div>
+<%- include('../layouts/footer') %>

@@ -1,0 +1,43 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<div class="max-w-7xl mx-auto px-4 py-6">
+  <div class="mb-4">
+    <a href="/files/<%= entityType %>s" class="text-sm text-recon-fog hover:text-recon-red">&larr; <%= entityType.charAt(0).toUpperCase() + entityType.slice(1) %>s</a>
+  </div>
+  <h1 class="page-h1 mb-1"><%= entityName %></h1>
+  <p class="page-sub mb-6">Folder contents</p>
+
+  <% if (contents.subfolders.length === 0 && contents.files.length === 0) { %>
+    <div class="card p-8 text-center text-recon-fog">This folder is empty.</div>
+  <% } else { %>
+    <% if (contents.subfolders.length > 0) { %>
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-2">Subfolders</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+        <% contents.subfolders.forEach(function(sf){ %>
+          <a href="/files/folders/<%= sf.id %>" class="card p-4 hover:shadow-md transition block">
+            <div class="font-medium text-recon-charcoal">📁 <%= sf.name %></div>
+          </a>
+        <% }); %>
+      </div>
+    <% } %>
+
+    <% if (contents.files.length > 0) { %>
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-2">Files</h2>
+      <div class="card overflow-hidden">
+        <table class="data">
+          <thead><tr><th>Name</th><th>Type</th><th>Size</th><th>Uploaded</th></tr></thead>
+          <tbody>
+            <% contents.files.forEach(function(f){ %>
+              <tr>
+                <td class="font-medium"><a href="/files/<%= f.id %>/view" target="_blank" class="hover:text-recon-red"><%= f.original_filename %></a></td>
+                <td class="text-sm text-recon-fog"><%= f.mime_type || '—' %></td>
+                <td class="text-sm text-recon-fog"><%= f.size_bytes ? (f.size_bytes / 1024).toFixed(1) + ' KB' : '—' %></td>
+                <td class="text-sm text-recon-fog"><%= (f.created_at || '').slice(0,10) %></td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  <% } %>
+</div>
+<%- include('../layouts/footer') %>

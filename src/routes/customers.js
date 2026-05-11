@@ -104,6 +104,11 @@ router.post('/', (req, res) => {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [data.name, data.email, data.billing_email, data.phone, data.address, data.city, data.state, data.zip, data.notes]
   );
+  // Auto-create root folder
+  try {
+    const filesSvc = require('../services/files');
+    filesSvc.ensureRootFolder('customer', r.lastInsertRowid, req.session.userId);
+  } catch(e) { /* folder creation best effort */ }
   setFlash(req, 'success', `Customer "${data.name}" created.`);
   res.redirect(`/customers/${r.lastInsertRowid}`);
 });
