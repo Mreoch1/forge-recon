@@ -36,13 +36,34 @@
   <style>
     body { background: #f5f5f5; color: #1a1a1a; font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif; }
     .forge-wordmark {
-      background: linear-gradient(95deg, #e63946 0%, #ff6b75 35%, #ffffff 100%);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      background: linear-gradient(
+        100deg,
+        #4a4a4a 0%,
+        #8a8a8a 20%,
+        #cfcfcf 35%,
+        #ffffff 48%,
+        #cfcfcf 60%,
+        #8a8a8a 75%,
+        #4a4a4a 100%
+      );
+      background-size: 250% 100%;
+      background-position: 100% center;
       -webkit-background-clip: text;
       background-clip: text;
       -webkit-text-fill-color: transparent;
       color: transparent;
-      filter: drop-shadow(0 1px 0 rgba(0,0,0,.25));
-      transition: filter .2s;
+      animation: forge-shine 3.5s linear infinite;
+      text-shadow: 0 1px 0 rgba(0,0,0,0.15), 0 2px 4px rgba(0,0,0,0.08);
+    }
+    @keyframes forge-shine {
+      0%   { background-position: 100% center; }
+      100% { background-position: -150% center; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .forge-wordmark { animation: none; background-position: 50% center; }
     }
     .group:hover .forge-wordmark {
       filter: drop-shadow(0 0 6px rgba(230,57,70,.55)) drop-shadow(0 1px 0 rgba(0,0,0,.25));
