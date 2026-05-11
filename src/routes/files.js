@@ -12,6 +12,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const storage = require('../services/storage');
 
 const UPLOADS_DIR = path.join(__dirname, '..', '..', 'public', 'uploads', 'files');
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
@@ -19,19 +20,7 @@ const MAX_FILES = 6;
 const ALLOWED_MIMES = ['image/jpeg','image/png','image/webp','application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','text/plain'];
 
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => {
-      const entityType = req.body.entity_type || 'global';
-      const entityId = req.body.entity_id || '0';
-      const dir = path.join(UPLOADS_DIR, entityType, String(entityId));
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      cb(null, dir);
-    },
-    filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname);
-      cb(null, crypto.randomUUID() + '-' + file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_'));
-    }
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: MAX_FILE_SIZE, files: MAX_FILES },
   fileFilter: (req, file, cb) => {
     if (ALLOWED_MIMES.includes(file.mimetype)) cb(null, true);
@@ -148,15 +137,18 @@ router.post('/folders/:folderId/upload', requireAuth, requireManager, upload.arr
     setFlash(req, 'error', 'No files selected.');
     return res.redirect('/files/folders/' + folder.id);
   }
-  req.files.forEach(async (file) => {
+  for (const file of req.files) {
+    const ext = path.extname(file.originalname) || '';
+    const key = `${folder.entity_type}/${folder.entity_id}/${crypto.randomUUID()}${ext}`;
+    await storage.uploadBuffer('entity-files', key, file.buffer, file.mimetype);
     await db.run(`INSERT INTO files (folder_id, name, original_filename, storage_path, mime_type, size_bytes, uploaded_by_user_id, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, now(), now())`,
-      [folder.id, file.filename, file.originalname, file.path, file.mimetype, file.size, req.session.userId]);
-    try {
-      const { writeAudit } = require('../services/audit');
-      writeAudit({ entityType: 'file', entityId: folder.id, action: 'uploaded', before: null, after: { filename: file.originalname }, source: 'user', userId: req.session.userId });
-    } catch(e) { /* audit best effort */ }
-  });
+      [folder.id, key, file.originalname, key, file.mimetype, file.size, req.session.userId]);
+  }
+  try {
+    const { writeAudit } = require('../services/audit');
+    writeAudit({ entityType: 'file', entityId: folder.id, action: 'uploaded', before: null, after: { filename: req.files.map(f => f.originalname).join(', ') }, source: 'web', userId: req.session.userId });
+  } catch(e) { /* audit best effort */ }
   setFlash(req, 'success', req.files.length + ' file(s) uploaded.');
   res.redirect('/files/folders/' + folder.id);
 });
@@ -207,7 +199,7 @@ router.post('/:id/delete', requireAuth, async (req, res) => {
   const isAdmin = req.session.userRole === 'admin';
   const isUploader = file.uploaded_by_user_id === req.session.userId;
   if (!isAdmin && !isUploader) return res.status(403).json({ error: 'Permission denied.' });
-  try { if (fs.existsSync(file.storage_path)) fs.unlinkSync(file.storage_path); } catch(e) { /* best effort */ }
+  try { await storage.remove('entity-files', file.storage_path || file.name); } catch(e) { /* best effort */ }
   await db.run('DELETE FROM files WHERE id=?', [file.id]);
   try {
     const { writeAudit } = require('../services/audit');
@@ -217,26 +209,16 @@ router.post('/:id/delete', requireAuth, async (req, res) => {
   res.redirect('/files/folders/' + file.folder_id);
 });
 
-// GET /files/:id/view — inline preview
+// GET /files/:id/view — inline preview via signed URL
 router.get('/:id/view', requireAuth, async (req, res) => {
   const file = await db.get('SELECT * FROM files WHERE id = ?', [req.params.id]);
   if (!file) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'File not found.' });
-  if (!fs.existsSync(file.storage_path)) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'File not found on disk.' });
-  const isImage = file.mime_type && file.mime_type.startsWith('image/');
-  const isPdf = file.mime_type === 'application/pdf';
-  const isText = file.mime_type === 'text/plain';
-  if (isImage || isPdf) {
-    res.setHeader('Content-Type', file.mime_type);
-    res.setHeader('Content-Disposition', 'inline; filename="' + file.original_filename + '"');
-    return fs.createReadStream(file.storage_path).pipe(res);
+  try {
+    const signedUrl = await storage.getSignedUrl('entity-files', file.storage_path || file.name, 3600);
+    return res.redirect(signedUrl);
+  } catch (e) {
+    return res.status(500).render('error', { title: 'Storage error', code: 500, message: 'Failed to access file: ' + e.message });
   }
-  if (isText) {
-    const content = fs.readFileSync(file.storage_path, 'utf8');
-    const esc = String(content).replace(/[&<>"']/g, function(c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; });
-    return res.send('<pre style="padding:2rem;font-family:monospace;font-size:.9rem;white-space:pre-wrap;word-wrap:break-word;">' + esc + '</pre>');
-  }
-  // Default: download
-  res.download(file.storage_path, file.original_filename);
 });
 
 // GET /files/:entityType/:entityId — show root folder contents
