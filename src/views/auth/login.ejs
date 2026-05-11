@@ -14,6 +14,12 @@
       </div>
     <% } %>
 
+    <% if (typeof verified !== 'undefined' && verified) { %>
+      <div class="mb-4 p-3 rounded bg-green-50 border border-green-200 text-green-800 text-sm">
+        Email verified! You can now sign in.
+      </div>
+    <% } %>
+
     <form action="/login" method="post" class="space-y-4" autocomplete="on">
       <div>
         <label for="email" class="label">Email</label>
@@ -33,6 +39,9 @@
 
     <p class="text-center text-xs text-recon-fog mt-4">
       <a href="/forgot-password" class="text-recon-red hover:underline">Forgot password?</a>
+    </p>
+    <p class="text-center text-xs text-recon-fog mt-2">
+      <a href="/signup" class="text-recon-red hover:underline">Don't have an account? Sign up</a>
     </p>
     <p class="text-center text-xs text-recon-fog mt-2">
       In-house only.

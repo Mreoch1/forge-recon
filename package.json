@@ -21,6 +21,7 @@
     "@supabase/supabase-js": "^2.105.4",
     "bcryptjs": "^3.0.3",
     "connect-pg-simple": "^10.0.0",
+    "cookie-session": "^2.1.1",
     "deasync": "^0.1.31",
     "dotenv": "^16.4.5",
     "ejs": "^3.1.10",

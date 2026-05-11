@@ -136,4 +136,49 @@ function getResend() {
   return resendClient;
 }
 
-module.exports = { sendEmail, sendPasswordResetEmail, MAIL_OUTBOX, MODE };
+/**
+ * Send a verification email for new signups.
+ */
+async function sendVerificationEmail(toEmail, toName, token) {
+  const subject = 'Verify your FORGE account';
+  const baseUrl = process.env.PUBLIC_BASE_URL || 'https://forge.vercel.app';
+  const verifyUrl = `${baseUrl}/verify-email/${token}`;
+
+  const ejs = require('ejs');
+  const bodyHtml = ejs.render(
+    `<p>Hi <%= name %>,</p>
+<p>Thanks for signing up for FORGE. Click below to verify your email address and activate your account. The link expires in 24 hours.</p>
+<p style="text-align:center;margin:24px 0">
+  <a href="<%= verifyUrl %>" style="display:inline-block;background:#c0202b;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">Verify Email</a>
+</p>
+<p>If you didn't create an account, you can safely ignore this email.</p>`,
+    { name: toName, verifyUrl }
+  );
+  const html = ejs.render(
+    fs.readFileSync(path.join(__dirname, '..', 'views', 'emails', 'layout.ejs'), 'utf8'),
+    { body: bodyHtml, host: baseUrl }
+  );
+  const text = `Hi ${toName},\n\nThanks for signing up for FORGE. Click the link below to verify your email address and activate your account. The link expires in 24 hours.\n\n${verifyUrl}\n\nIf you didn't create an account, you can safely ignore this email.\n\n— FORGE by Recon Enterprises`;
+
+  // Try Resend first
+  const resend = getResend();
+  if (resend) {
+    try {
+      const result = await resend.emails.send({
+        from: 'FORGE <support@reconenterprises.net>',
+        to: [toEmail],
+        subject,
+        html,
+        text,
+      });
+      return { ok: true, id: result.id };
+    } catch (e) {
+      console.error('[email] Resend sendVerificationEmail failed:', e.message);
+    }
+  }
+
+  console.log('[email] Verification link for', toEmail, ':', verifyUrl);
+  return { ok: true, dev: true };
+}
+
+module.exports = { sendEmail, sendPasswordResetEmail, sendVerificationEmail, MAIL_OUTBOX, MODE };

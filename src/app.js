@@ -32,6 +32,7 @@ const aiChatRoutes = require('./routes/ai-chat');
 const closuresRoutes = require('./routes/closures');
 const filesRoutes = require('./routes/files');
 const settingsRoutes = require('./routes/settings');
+const signupRoutes = require('./routes/signup');
 
 const PORT = parseInt(process.env.PORT, 10) || 3001;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
@@ -130,6 +131,7 @@ app.use(async (req, res, next) => {
 app.use(loadCurrentUser);
 app.get('/ping', (req, res) => { res.json({ ok: true, ts: new Date().toISOString() }); });
 app.use('/', authRoutes);
+app.use('/', signupRoutes);
 app.use('/customers', requireAuth, requireManager, customersRoutes);
 app.use('/jobs', requireAuth, requireManager, jobsRoutes);
 app.use('/estimates', requireAuth, requireManager, estimatesRoutes);

@@ -26,7 +26,8 @@ router.get('/login', async (req, res) => {
   res.render('auth/login', {
     title: 'Sign in',
     error: null,
-    email: ''
+    email: '',
+    verified: req.query.verified === '1'
   });
 });
 
@@ -55,6 +56,14 @@ router.post('/login', async (req, res) => {
     return res.status(401).render('auth/login', {
       title: 'Sign in',
       error: 'Invalid email or password.',
+      email
+    });
+  }
+
+  if (!user.email_verified) {
+    return res.status(401).render('auth/login', {
+      title: 'Sign in',
+      error: 'Please verify your email before signing in. <a href="/resend-verification" class="underline">Resend verification email</a>.',
       email
     });
   }

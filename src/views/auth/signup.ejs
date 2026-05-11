@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="icon" type="image/png" href="/logos/favicon.png">
+  <style>
+    body { background: #f5f5f5; color: #1a1a1a; font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif; }
+    .forge-wordmark {
+      font-size: 2rem; font-weight: 900; letter-spacing: 0.08em;
+      background: linear-gradient(100deg,#4a4a4a 0%,#8a8a8a 20%,#cfcfcf 35%,#ffffff 48%,#cfcfcf 60%,#8a8a8a 75%,#4a4a4a 100%);
+      background-size: 250% 100%; background-position: 100% center;
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent; color: transparent;
+      animation: forge-shine 3.5s linear infinite;
+      text-shadow: 0 1px 0 rgba(0,0,0,0.15), 0 2px 4px rgba(0,0,0,0.08);
+    }
+    @keyframes forge-shine {
+      0%   { background-position: 100% center; }
+      100% { background-position: -150% center; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .forge-wordmark { animation: none; background-position: 50% center; }
+    }
+    .card { background: #ffffff; border-radius: .5rem; box-shadow: 0 1px 3px rgba(0,0,0,.06); border: 1px solid #e5e5e5; }
+    .input { display: block; width: 100%; padding: .5rem .75rem; border-radius: .375rem; border: 1px solid #d0d0d0; font-size: .9rem; }
+    .input:focus { border-color: #c0202b; outline: none; box-shadow: 0 0 0 3px rgba(192,32,43,.15); }
+    .label { display: block; font-size: .85rem; font-weight: 500; margin-bottom: .25rem; }
+    .btn { display: inline-flex; align-items: center; padding: .5rem 1rem; border-radius: .375rem; font-weight: 500; cursor: pointer; border: none; font-size: .9rem; }
+    .btn-primary { background: #c0202b; color: #ffffff; }
+    .btn-primary:hover { background: #8a0e16; }
+    .btn-ghost { background: transparent; color: #1a1a1a; }
+    .btn-ghost:hover { background: #e5e5e5; }
+  </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+  <div class="card w-full max-w-md p-8">
+    <div class="flex flex-col items-center mb-6">
+      <img src="/logos/recon.png" alt="Recon Construction" class="h-16 w-auto mb-2">
+      <span class="forge-wordmark">FORGE</span>
+      <p class="text-sm text-gray-500 mt-1">Create your account</p>
+    </div>
+
+    <% if (Object.keys(errors).length) { %>
+      <div class="mb-4 p-3 rounded bg-red-50 border border-red-200 text-red-800 text-sm">
+        <% for (const key of Object.keys(errors)) { %>
+          <div><%= errors[key] %></div>
+        <% } %>
+      </div>
+    <% } %>
+
+    <form action="/signup" method="post" class="space-y-4" autocomplete="on">
+      <div>
+        <label for="name" class="label">Full name</label>
+        <input id="name" name="name" type="text" class="input" value="<%= values.name || '' %>" required>
+      </div>
+      <div>
+        <label for="email" class="label">Email</label>
+        <input id="email" name="email" type="email" class="input" value="<%= values.email || '' %>" required autocomplete="email">
+      </div>
+      <div>
+        <label for="password" class="label">Password</label>
+        <input id="password" name="password" type="password" class="input" required autocomplete="new-password">
+        <p class="text-xs text-gray-400 mt-1">Min 8 chars, uppercase, lowercase, number, special char.</p>
+      </div>
+      <div>
+        <label for="password_confirm" class="label">Confirm password</label>
+        <input id="password_confirm" name="password_confirm" type="password" class="input" required autocomplete="new-password">
+      </div>
+      <button type="submit" class="btn btn-primary w-full justify-center">Create account</button>
+    </form>
+
+    <p class="text-center text-sm text-gray-500 mt-4">
+      Already have an account?
+      <a href="/login" class="text-[#c0202b] hover:underline font-medium">Sign in</a>
+    </p>
+  </div>
+</body>
+</html>
