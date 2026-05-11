@@ -7,98 +7,74 @@
  */
 
 const express = require('express');
-const db = require('../db/db');
+const supabase = require('../db/supabase');
 const timeline = require('../services/timeline');
 
 const router = express.Router();
 
 // Classic dashboard handler (was the original "/")
 router.get('/dashboard-classic', async (req, res) => {
-  const openEstimates = (await db.get(
-    "SELECT COUNT(*) AS n FROM estimates WHERE status IN ('draft','sent')"
-  ) || {}).n || 0;
+  const today = new Date().toISOString().slice(0, 10);
+  const currentMonth = today.slice(0, 7);
+  const currentYear = today.slice(0, 4);
 
-  const scheduledWOs = (await db.get(
-    "SELECT COUNT(*) AS n FROM work_orders WHERE status IN ('scheduled','in_progress')"
-  ) || {}).n || 0;
+  const [{ count: openEstimates }, { count: scheduledWOs }, { count: unpaidInvoices }, { data: arData },
+         { data: revMonthData }, { data: revYTDData },
+         { count: overdueCount }, { data: overdueBalData },
+         { count: customerCount }, { count: jobCount }] = await Promise.all([
+    supabase.from('estimates').select('*', { count: 'exact', head: true }).in('status', ['draft', 'sent']),
+    supabase.from('work_orders').select('*', { count: 'exact', head: true }).in('status', ['scheduled', 'in_progress']),
+    supabase.from('invoices').select('*', { count: 'exact', head: true }).in('status', ['sent', 'overdue']),
+    supabase.from('invoices').select('total, amount_paid').in('status', ['sent', 'overdue']),
+    supabase.from('invoices').select('amount_paid').eq('status', 'paid').not('paid_at', 'is', null).gte('paid_at', currentMonth + '-01'),
+    supabase.from('invoices').select('amount_paid').eq('status', 'paid').not('paid_at', 'is', null).gte('paid_at', currentYear + '-01-01'),
+    supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'sent').not('due_date', 'is', null).lt('due_date', today),
+    supabase.from('invoices').select('total, amount_paid').eq('status', 'sent').not('due_date', 'is', null).lt('due_date', today),
+    supabase.from('customers').select('*', { count: 'exact', head: true }),
+    supabase.from('jobs').select('*', { count: 'exact', head: true }),
+  ]);
 
-  const unpaidInvoices = (await db.get(
-    "SELECT COUNT(*) AS n FROM invoices WHERE status IN ('sent','overdue')"
-  ) || {}).n || 0;
+  const arBalance = (arData || []).reduce((s, r) => s + Number(r.total || 0) - Number(r.amount_paid || 0), 0);
+  const revenueThisMonth = (revMonthData || []).reduce((s, r) => s + Number(r.amount_paid || 0), 0);
+  const revenueYTD = (revYTDData || []).reduce((s, r) => s + Number(r.amount_paid || 0), 0);
+  const overdueBalance = (overdueBalData || []).reduce((s, r) => s + Number(r.total || 0) - Number(r.amount_paid || 0), 0);
 
-  const arBalance = Number((await db.get(
-    "SELECT COALESCE(SUM(total - amount_paid), 0) AS n FROM invoices WHERE status IN ('sent','overdue')"
-  ) || {}).n) || 0;
+  // Activity stream (UNION ALL equivalent — 3 separate queries + JS merge)
+  const [woAct, estAct, invAct] = await Promise.all([
+    supabase.from('work_orders').select('id, display_number, status, created_at, jobs!inner(title, customers!inner(id, name))').order('created_at', { ascending: false }).limit(10),
+    supabase.from('estimates').select('id, status, created_at, total, work_orders!inner(display_number, jobs!inner(title, customers!inner(id, name)))').order('created_at', { ascending: false }).limit(10),
+    supabase.from('invoices').select('id, status, created_at, total, work_orders!inner(display_number, jobs!inner(title, customers!inner(id, name)))').order('created_at', { ascending: false }).limit(10),
+  ]);
 
-  // Revenue this month (sum of paid invoices where paid_at falls in current month)
-  const revenueThisMonth = Number((await db.get(
-    "SELECT COALESCE(SUM(amount_paid), 0) AS n FROM invoices " +
-    "WHERE status='paid' AND paid_at IS NOT NULL " +
-    "AND to_char(paid_at, 'YYYY-MM') = to_char(now(), 'YYYY-MM')"
-  ) || {}).n) || 0;
-
-  // Revenue YTD
-  const revenueYTD = Number((await db.get(
-    "SELECT COALESCE(SUM(amount_paid), 0) AS n FROM invoices " +
-    "WHERE status='paid' AND paid_at IS NOT NULL " +
-    "AND to_char(paid_at, 'YYYY') = to_char(now(), 'YYYY')"
-  ) || {}).n) || 0;
-
-  // Overdue count (sent past due_date)
-  const overdueCount = (await db.get(
-    "SELECT COUNT(*) AS n FROM invoices " +
-    "WHERE status='sent' AND due_date IS NOT NULL AND due_date::date < current_date"
-  ) || {}).n || 0;
-
-  const overdueBalance = Number((await db.get(
-    "SELECT COALESCE(SUM(total - amount_paid), 0) AS n FROM invoices " +
-    "WHERE status='sent' AND due_date IS NOT NULL AND due_date::date < current_date"
-  ) || {}).n) || 0;
-
-  // Unified recent activity (latest 10 across estimates/WOs/invoices).
-  // v0.5: estimate -> work_orders -> jobs (no direct estimates.job_id).
-  // Display number for all three is the WO display_number prefixed.
-  const activity = await db.all(`
-    SELECT * FROM (
-      SELECT 'work_order' AS type, w.id AS id, ('WO-' || w.display_number) AS number,
-             w.status AS status, w.created_at AS created_at, NULL AS total,
-             j.id AS job_id, j.title AS job_title,
-             c.id AS customer_id, c.name AS customer_name
-      FROM work_orders w
-      JOIN jobs j      ON j.id = w.job_id
-      JOIN customers c ON c.id = j.customer_id
-      UNION ALL
-      SELECT 'estimate' AS type, e.id, ('EST-' || w.display_number),
-             e.status, e.created_at, e.total,
-             j.id, j.title, c.id, c.name
-      FROM estimates e
-      JOIN work_orders w ON w.id = e.work_order_id
-      JOIN jobs j        ON j.id = w.job_id
-      JOIN customers c   ON c.id = j.customer_id
-      UNION ALL
-      SELECT 'invoice' AS type, i.id, ('INV-' || w.display_number),
-             i.status, i.created_at, i.total,
-             j.id, j.title, c.id, c.name
-      FROM invoices i
-      JOIN work_orders w ON w.id = i.work_order_id
-      JOIN jobs j        ON j.id = w.job_id
-      JOIN customers c   ON c.id = j.customer_id
-    )
-    ORDER BY created_at DESC
-    LIMIT 10
-  `);
-
-  // Customer + job counts (for "growth" indicators / context)
-  const customerCount = (await db.get('SELECT COUNT(*) AS n FROM customers') || {}).n || 0;
-  const jobCount = (await db.get('SELECT COUNT(*) AS n FROM jobs') || {}).n || 0;
+  const activity = [
+    ...(woAct.data || []).map(r => ({
+      type: 'work_order', id: r.id, number: 'WO-' + r.display_number,
+      status: r.status, created_at: r.created_at, total: null,
+      job_id: r.jobs?.id, job_title: r.jobs?.title,
+      customer_id: r.jobs?.customers?.id, customer_name: r.jobs?.customers?.name,
+    })),
+    ...(estAct.data || []).map(r => ({
+      type: 'estimate', id: r.id, number: 'EST-' + r.work_orders?.display_number,
+      status: r.status, created_at: r.created_at, total: r.total,
+      job_title: r.work_orders?.jobs?.title,
+      customer_name: r.work_orders?.jobs?.customers?.name,
+    })),
+    ...(invAct.data || []).map(r => ({
+      type: 'invoice', id: r.id, number: 'INV-' + r.work_orders?.display_number,
+      status: r.status, created_at: r.created_at, total: r.total,
+      job_title: r.work_orders?.jobs?.title,
+      customer_name: r.work_orders?.jobs?.customers?.name,
+    })),
+  ].sort((a, b) => b.created_at?.localeCompare(a.created_at || '') || 0).slice(0, 10);
 
   res.render('dashboard/index', {
     title: 'Dashboard',
     activeNav: 'dashboard',
-    openEstimates, scheduledWOs, unpaidInvoices, arBalance,
+    openEstimates: openEstimates || 0, scheduledWOs: scheduledWOs || 0,
+    unpaidInvoices: unpaidInvoices || 0, arBalance,
     revenueThisMonth, revenueYTD,
-    overdueCount, overdueBalance,
-    activity, customerCount, jobCount,
+    overdueCount: overdueCount || 0, overdueBalance,
+    activity, customerCount: customerCount || 0, jobCount: jobCount || 0,
   });
 });
 
@@ -110,193 +86,169 @@ router.get('/dashboard-classic', async (req, res) => {
 router.get('/', async (req, res) => {
   const today = new Date().toISOString().slice(0, 10);
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const currentMonth = today.slice(0, 7);
+  const currentYear = today.slice(0, 4);
 
-  // ---------- Timeline: today's activity feed (Phase 1) ----------
-  // Merges schedule + notes + audit events into a single chronological view.
+  // ---------- Timeline: today's activity feed ----------
   const userId = req.session?.userId || null;
   const userRole = await (async () => {
-    try { const u = await db.get('SELECT role FROM users WHERE id = ?', [userId]); return u ? u.role : 'admin'; } catch(e) { return 'admin'; }
+    try { const { data: u } = await supabase.from('users').select('role').eq('id', userId).maybeSingle(); return u ? u.role : 'admin'; } catch(e) { return 'admin'; }
   })();
   const dayTimeline = await timeline.buildDayTimeline({ date: today, userId, workerOnly: userRole === 'worker' });
 
-  // ---------- Schedule: tomorrow preview (count + first 3) ----------
-  const tomorrowWOs = await db.all(`
-    SELECT w.id, w.display_number, w.scheduled_time,
-           j.title AS job_title,
-           c.name AS customer_name,
-           u.name AS user_name, w.assigned_to
-    FROM work_orders w
-    JOIN jobs j        ON j.id = w.job_id
-    JOIN customers c   ON c.id = j.customer_id
-    LEFT JOIN users u  ON u.id = w.assigned_to_user_id
-    WHERE w.scheduled_date = ?
-      AND w.status IN ('scheduled','in_progress')
-    ORDER BY COALESCE(w.scheduled_time, '99:99')
-  `, [tomorrow]);
+  // ---------- Schedule: tomorrow preview ----------
+  const { data: tomorrowWOs } = await supabase
+    .from('work_orders')
+    .select('id, display_number, scheduled_time, jobs!inner(title, customers!inner(name)), assigned_to_user_id, users!left(name)')
+    .eq('scheduled_date', tomorrow)
+    .in('status', ['scheduled', 'in_progress'])
+    .order('scheduled_time', { ascending: true, nullsFirst: false });
 
-  const tomorrowCount = tomorrowWOs.length;
-  const tomorrowPreview = tomorrowWOs.slice(0, 3);
+  const tomorrowMapped = (tomorrowWOs || []).map(r => ({
+    id: r.id, display_number: r.display_number, scheduled_time: r.scheduled_time,
+    job_title: r.jobs?.title, customer_name: r.jobs?.customers?.name,
+    user_name: r.users?.name, assigned_to: r.assigned_to_user_id,
+  }));
+  const tomorrowCount = tomorrowMapped.length;
+  const tomorrowPreview = tomorrowMapped.slice(0, 3);
 
   // ---------- Schedule: this week (peek) ----------
-  const upcomingThisWeek = (await db.get(`
-    SELECT COUNT(*) AS n FROM work_orders
-    WHERE scheduled_date::date BETWEEN (?::date + 2) AND (?::date + 7)
-      AND status IN ('scheduled','in_progress')
-  `, [today, today]) || {}).n || 0;
+  const weekEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const { count: upcomingThisWeek } = await supabase
+    .from('work_orders')
+    .select('*', { count: 'exact', head: true })
+    .gte('scheduled_date', tomorrow)
+    .lte('scheduled_date', weekEnd)
+    .in('status', ['scheduled', 'in_progress']);
 
   // ---------- Action queues ----------
-  // Each queue: count, optional total dollar amount, click-through URL, urgency level.
+  // 1. Estimates ready to send
+  const [{ data: estimatesToSend }, { count: estimatesToSendCount }] = await Promise.all([
+    supabase.from('estimates')
+      .select('id, total, created_at, work_orders!inner(display_number, jobs!inner(title, customers!inner(name)))')
+      .eq('status', 'draft').order('created_at', { ascending: false }).limit(5),
+    supabase.from('estimates').select('*', { count: 'exact', head: true }).eq('status', 'draft'),
+  ]);
+  const estMapped = (estimatesToSend || []).map(r => ({
+    id: r.id, display_number: r.work_orders?.display_number,
+    total: r.total, customer_name: r.work_orders?.jobs?.customers?.name, created_at: r.created_at,
+  }));
 
-  // 1. Estimates ready to send (draft)
-  const estimatesToSend = await db.all(`
-    SELECT e.id, w.display_number, e.total, c.name AS customer_name, e.created_at
-    FROM estimates e
-    JOIN work_orders w ON w.id = e.work_order_id
-    JOIN jobs j        ON j.id = w.job_id
-    JOIN customers c   ON c.id = j.customer_id
-    WHERE e.status = 'draft'
-    ORDER BY e.created_at DESC
-    LIMIT 5
-  `);
-  const estimatesToSendCount = (await db.get(
-    "SELECT COUNT(*) AS n FROM estimates WHERE status='draft'"
-  ) || {}).n || 0;
+  // 2. Invoices overdue
+  const [{ data: overdueInvoices }, { count: overdueInvoicesCount }, { data: overdueSumData }] = await Promise.all([
+    supabase.from('invoices')
+      .select('id, total, amount_paid, due_date, work_orders!inner(display_number, jobs!inner(title, customers!inner(name)))')
+      .in('status', ['sent', 'overdue']).not('due_date', 'is', null).lt('due_date', today)
+      .order('due_date', { ascending: true }).limit(5),
+    supabase.from('invoices').select('*', { count: 'exact', head: true })
+      .in('status', ['sent', 'overdue']).not('due_date', 'is', null).lt('due_date', today),
+    supabase.from('invoices').select('total, amount_paid')
+      .in('status', ['sent', 'overdue']).not('due_date', 'is', null).lt('due_date', today),
+  ]);
+  const invMapped = (overdueInvoices || []).map(r => ({
+    id: r.id, display_number: r.work_orders?.display_number,
+    total: r.total, amount_paid: r.amount_paid, due_date: r.due_date,
+    customer_name: r.work_orders?.jobs?.customers?.name,
+    days_late: Math.floor((Date.now() - new Date(r.due_date).getTime()) / 86400000),
+  }));
+  const overdueTotal = (overdueSumData || []).reduce((s, r) => s + Number(r.total || 0) - Number(r.amount_paid || 0), 0);
 
-  // 2. Invoices overdue (sent + past due_date)
-  const overdueInvoices = await db.all(`
-    SELECT i.id, w.display_number, i.total, i.amount_paid, i.due_date,
-           c.name AS customer_name,
-           (current_date - i.due_date::date) AS days_late
-    FROM invoices i
-    JOIN work_orders w ON w.id = i.work_order_id
-    JOIN jobs j        ON j.id = w.job_id
-    JOIN customers c   ON c.id = j.customer_id
-    WHERE i.status IN ('sent','overdue')
-      AND i.due_date IS NOT NULL
-      AND i.due_date::date < current_date
-    ORDER BY i.due_date ASC
-    LIMIT 5
-  `);
-  const overdueInvoicesCount = (await db.get(`
-    SELECT COUNT(*) AS n FROM invoices
-    WHERE status IN ('sent','overdue')
-      AND due_date IS NOT NULL
-      AND due_date::date < current_date
-  `) || {}).n || 0;
-  const overdueTotal = Number((await db.get(`
-    SELECT COALESCE(SUM(total - amount_paid), 0) AS n FROM invoices
-    WHERE status IN ('sent','overdue')
-      AND due_date IS NOT NULL
-      AND due_date::date < current_date
-  `) || {}).n) || 0;
-
-  // 3. Bills awaiting approval (draft)
+  // 3. Bills awaiting approval
   let billsToApproveCount = 0;
   let billsToApproveTotal = 0;
   let billsToApprove = [];
+  let billsMapped = [];
   try {
-    billsToApproveCount = (await db.get(
-      "SELECT COUNT(*) AS n FROM bills WHERE status='draft'"
-    ) || {}).n || 0;
-    billsToApproveTotal = Number((await db.get(
-      "SELECT COALESCE(SUM(total), 0) AS n FROM bills WHERE status='draft'"
-    ) || {}).n) || 0;
-    billsToApprove = await db.all(`
-      SELECT b.id, b.bill_number, b.total, b.due_date, v.name AS vendor_name
-      FROM bills b
-      JOIN vendors v ON v.id = b.vendor_id
-      WHERE b.status='draft'
-      ORDER BY b.created_at DESC
-      LIMIT 5
-    `);
-  } catch (e) {
-    // bills table may not exist on older DBs — soft-fail
-  }
+    const [{ count: bc }, { data: bd }, { data: bl }] = await Promise.all([
+      supabase.from('bills').select('*', { count: 'exact', head: true }).eq('status', 'draft'),
+      supabase.from('bills').select('total').eq('status', 'draft'),
+      supabase.from('bills').select('id, bill_number, total, due_date, vendors!inner(name)').eq('status', 'draft').order('created_at', { ascending: false }).limit(5),
+    ]);
+    billsToApproveCount = bc || 0;
+    billsToApproveTotal = (bd || []).reduce((s, r) => s + Number(r.total || 0), 0);
+    billsMapped = (bl || []).map(r => ({
+      id: r.id, bill_number: r.bill_number, total: r.total, due_date: r.due_date,
+      vendor_name: r.vendors?.name,
+    }));
+  } catch (e) {}
 
-  // 4. Estimates stale (sent > 7 days ago, no acceptance)
-  const staleEstimates = await db.all(`
-    SELECT e.id, w.display_number, e.total, c.name AS customer_name,
-           e.sent_at,
-           (current_date - e.sent_at::date) AS days_since_sent
-    FROM estimates e
-    JOIN work_orders w ON w.id = e.work_order_id
-    JOIN jobs j        ON j.id = w.job_id
-    JOIN customers c   ON c.id = j.customer_id
-    WHERE e.status='sent'
-      AND e.sent_at IS NOT NULL
-      AND e.sent_at::date < current_date - 7
-    ORDER BY e.sent_at ASC
-    LIMIT 5
-  `);
-  const staleEstimatesCount = staleEstimates.length;
+  // 4. Stale estimates
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: staleEstimates } = await supabase
+    .from('estimates')
+    .select('id, total, sent_at, work_orders!inner(display_number, jobs!inner(title, customers!inner(name)))')
+    .eq('status', 'sent').not('sent_at', 'is', null).lt('sent_at', weekAgo)
+    .order('sent_at', { ascending: true }).limit(5);
+  const staleMapped = (staleEstimates || []).map(r => ({
+    id: r.id, display_number: r.work_orders?.display_number,
+    total: r.total, customer_name: r.work_orders?.jobs?.customers?.name,
+    sent_at: r.sent_at,
+    days_since_sent: Math.floor((Date.now() - new Date(r.sent_at).getTime()) / 86400000),
+  }));
+  const staleEstimatesCount = staleMapped.length;
 
-  // ---------- Activity stream (excluding today's timeline WOs) ----------
-  const todayWoIds = dayTimeline.map(d => d.wo_id);
-  const excludeTodayClause = todayWoIds.length > 0
-    ? `WHERE w.id NOT IN (${todayWoIds.join(',')})`
-    : '';
-  const activity = await db.all(`
-    SELECT * FROM (
-      SELECT 'work_order' AS type, w.id AS id, ('WO-' || w.display_number) AS number,
-             w.status AS status, w.created_at AS created_at, NULL AS total,
-             j.title AS job_title, c.name AS customer_name
-      FROM work_orders w
-      JOIN jobs j      ON j.id = w.job_id
-      JOIN customers c ON c.id = j.customer_id
-      ${excludeTodayClause}
-      UNION ALL
-      SELECT 'estimate', e.id, ('EST-' || w.display_number),
-             e.status, e.created_at, e.total,
-             j.title, c.name
-      FROM estimates e
-      JOIN work_orders w ON w.id = e.work_order_id
-      JOIN jobs j        ON j.id = w.job_id
-      JOIN customers c   ON c.id = j.customer_id
-      ${todayWoIds.length > 0 ? `WHERE w.id NOT IN (${todayWoIds.join(',')})` : ''}
-      UNION ALL
-      SELECT 'invoice', i.id, ('INV-' || w.display_number),
-             i.status, i.created_at, i.total,
-             j.title, c.name
-      FROM invoices i
-      JOIN work_orders w ON w.id = i.work_order_id
-      JOIN jobs j        ON j.id = w.job_id
-      JOIN customers c   ON c.id = j.customer_id
-      ${todayWoIds.length > 0 ? `WHERE w.id NOT IN (${todayWoIds.join(',')})` : ''}
-    )
-    ORDER BY created_at DESC
-    LIMIT 12
-  `);
+  // ---------- Activity stream ----------
+  const todayWoIds = dayTimeline.map(d => d.wo_id).filter(Boolean);
+  const limitRecords = 12;
 
-  // ---------- Bottom metrics (de-emphasized but present) ----------
-  const arBalance = Number((await db.get(
-    "SELECT COALESCE(SUM(total - amount_paid), 0) AS n FROM invoices WHERE status IN ('sent','overdue')"
-  ) || {}).n) || 0;
-  const revenueThisMonth = Number((await db.get(
-    "SELECT COALESCE(SUM(amount_paid), 0) AS n FROM invoices " +
-    "WHERE status='paid' AND paid_at IS NOT NULL " +
-    "AND to_char(paid_at, 'YYYY-MM') = to_char(now(), 'YYYY-MM')"
-  ) || {}).n) || 0;
-  const revenueYTD = Number((await db.get(
-    "SELECT COALESCE(SUM(amount_paid), 0) AS n FROM invoices " +
-    "WHERE status='paid' AND paid_at IS NOT NULL " +
-    "AND to_char(paid_at, 'YYYY') = to_char(now(), 'YYYY')"
-  ) || {}).n) || 0;
-  const customerCount = (await db.get('SELECT COUNT(*) AS n FROM customers') || {}).n || 0;
-  const jobsActive = (await db.get(
-    "SELECT COUNT(*) AS n FROM jobs WHERE status IN ('estimating','scheduled','in_progress')"
-  ) || {}).n || 0;
+  const [woAct, estAct, invAct] = await Promise.all([
+    supabase.from('work_orders')
+      .select('id, display_number, status, created_at, jobs!inner(title, customers!inner(name))')
+      .order('created_at', { ascending: false }).limit(limitRecords),
+    supabase.from('estimates')
+      .select('id, status, created_at, total, work_orders!inner(display_number, jobs!inner(title, customers!inner(name)))')
+      .order('created_at', { ascending: false }).limit(limitRecords),
+    supabase.from('invoices')
+      .select('id, status, created_at, total, work_orders!inner(display_number, jobs!inner(title, customers!inner(name)))')
+      .order('created_at', { ascending: false }).limit(limitRecords),
+  ]);
+
+  let activity = [
+    ...(woAct.data || []).filter(r => !todayWoIds.includes(r.id)).map(r => ({
+      type: 'work_order', id: r.id, number: 'WO-' + r.display_number,
+      status: r.status, created_at: r.created_at, total: null,
+      job_title: r.jobs?.title, customer_name: r.jobs?.customers?.name,
+    })),
+    ...(estAct.data || []).map(r => ({
+      type: 'estimate', id: r.id, number: 'EST-' + r.work_orders?.display_number,
+      status: r.status, created_at: r.created_at, total: r.total,
+      job_title: r.work_orders?.jobs?.title,
+      customer_name: r.work_orders?.jobs?.customers?.name,
+    })),
+    ...(invAct.data || []).map(r => ({
+      type: 'invoice', id: r.id, number: 'INV-' + r.work_orders?.display_number,
+      status: r.status, created_at: r.created_at, total: r.total,
+      job_title: r.work_orders?.jobs?.title,
+      customer_name: r.work_orders?.jobs?.customers?.name,
+    })),
+  ].sort((a, b) => b.created_at?.localeCompare(a.created_at || '') || 0).slice(0, limitRecords);
+
+  // ---------- Bottom metrics ----------
+  const [{ data: arData }, { data: revMonthData }, { data: revYTDData },
+         { count: customerCount }, { data: activeJobs }] = await Promise.all([
+    supabase.from('invoices').select('total, amount_paid').in('status', ['sent', 'overdue']),
+    supabase.from('invoices').select('amount_paid').eq('status', 'paid').not('paid_at', 'is', null).gte('paid_at', currentMonth + '-01'),
+    supabase.from('invoices').select('amount_paid').eq('status', 'paid').not('paid_at', 'is', null).gte('paid_at', currentYear + '-01-01'),
+    supabase.from('customers').select('*', { count: 'exact', head: true }),
+    supabase.from('jobs').select('*', { count: 'exact', head: true }).in('status', ['estimating', 'scheduled', 'in_progress']),
+  ]);
+
+  const arBalance = (arData || []).reduce((s, r) => s + Number(r.total || 0) - Number(r.amount_paid || 0), 0);
+  const revenueThisMonth = (revMonthData || []).reduce((s, r) => s + Number(r.amount_paid || 0), 0);
+  const revenueYTD = (revYTDData || []).reduce((s, r) => s + Number(r.amount_paid || 0), 0);
+  const jobsActive = activeJobs?.length || 0;
 
   res.render('dashboard/v2', {
     title: 'Dashboard',
     activeNav: 'dashboard',
     today, tomorrow,
-    dayTimeline, tomorrowPreview, tomorrowCount, upcomingThisWeek,
-    estimatesToSend, estimatesToSendCount,
-    overdueInvoices, overdueInvoicesCount, overdueTotal,
-    billsToApprove, billsToApproveCount, billsToApproveTotal,
-    staleEstimates, staleEstimatesCount,
+    dayTimeline, tomorrowPreview, tomorrowCount, upcomingThisWeek: upcomingThisWeek || 0,
+    estimatesToSend: estMapped, estimatesToSendCount: estimatesToSendCount || 0,
+    overdueInvoices: invMapped, overdueInvoicesCount: overdueInvoicesCount || 0, overdueTotal,
+    billsToApprove: billsMapped, billsToApproveCount, billsToApproveTotal,
+    staleEstimates: staleMapped, staleEstimatesCount,
     activity,
-    arBalance, revenueThisMonth, revenueYTD, customerCount, jobsActive,
+    arBalance, revenueThisMonth, revenueYTD, customerCount: customerCount || 0, jobsActive,
     serverTime: new Date().toISOString(),
   });
 });
