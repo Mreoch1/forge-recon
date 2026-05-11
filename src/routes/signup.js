@@ -124,6 +124,7 @@ router.get('/verify-email/:token', async (req, res) => {
     return res.render('auth/verify-email-error', {
       title: 'Verification failed — FORGE',
       error: 'This link is invalid or expired. Request a new verification email below.',
+      email: '',
     });
   }
 
