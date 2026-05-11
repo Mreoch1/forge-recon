@@ -129,8 +129,10 @@ router.post('/forgot-password', async (req, res) => {
 router.get('/reset-password/:token', async (req, res) => {
   if (req.session && req.session.userId) return res.redirect('/');
   const token = req.params.token;
+  const isPg = db.getMode() === 'pg';
+  const expiryWhere = isPg ? 'expires_at > now()' : "datetime(expires_at) > datetime('now')";
   const row = await db.get(
-    `SELECT * FROM password_reset_tokens WHERE token = ? AND used_at IS NULL AND expires_at > now()`,
+    `SELECT * FROM password_reset_tokens WHERE token = ? AND used_at IS NULL AND ${expiryWhere}`,
     [token]
   );
   if (!row) {
@@ -147,12 +149,14 @@ router.get('/reset-password/:token', async (req, res) => {
 
 router.post('/reset-password/:token', async (req, res) => {
   const token = req.params.token;
+  const isPg = db.getMode() === 'pg';
+  const expiryWhere = isPg ? 'expires_at > now()' : "datetime(expires_at) > datetime('now')";
   const row = await db.get(
-    `SELECT * FROM password_reset_tokens WHERE token = ? AND used_at IS NULL AND expires_at > now()`,
+    `SELECT * FROM password_reset_tokens WHERE token = ? AND used_at IS NULL AND ${expiryWhere}`,
     [token]
   );
   if (!row) {
-    return res.status(400).render('error', { title: 'Invalid link', code: 400, message: 'This reset link is invalid or expired.' });
+    return res.status(400).render('error', { title: 'Invalid link', code: 400, message: 'This reset link is invalid or expired.', actionLink: '/forgot-password', actionLabel: 'Request a new one' });
   }
 
   const password = req.body.new_password || '';
