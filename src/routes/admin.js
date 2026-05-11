@@ -120,7 +120,7 @@ router.post('/settings', async (req, res) => {
   const taxRateNum = isFinite(default_tax_rate) && default_tax_rate >= 0 ? default_tax_rate : 0;
   const validTerms = ['Due on receipt', 'Net 15', 'Net 30', 'Net 45', 'Net 60', 'Custom'];
   const default_payment_terms = validTerms.includes(req.body.default_payment_terms) ? req.body.default_payment_terms : 'Net 30';
-  if (Object.keys(errors).length) return res.status(400).render('admin/settings', { title: 'Company settings', activeNav: 'admin', settings: { company_name, address: emptyToNull(req.body.address), city: emptyToNull(req.body.city), state: emptyToNull(req.body.state), zip: emptyToNull(req.body.zip), phone: emptyToNull(req.body.phone), email: emptyToNull(req.body.email), ein: emptyToNull(req.body.ein), default_tax_rate: taxRateNum, default_payment_terms }, errors: {} });
+  if (Object.keys(errors).length) return res.status(400).render('admin/settings', { title: 'Company settings', activeNav: 'admin', settings: { company_name, address: emptyToNull(req.body.address), city: emptyToNull(req.body.city), state: emptyToNull(req.body.state), zip: emptyToNull(req.body.zip), phone: emptyToNull(req.body.phone), email: emptyToNull(req.body.email), ein: emptyToNull(req.body.ein), default_tax_rate: taxRateNum, default_payment_terms }, errors });
   await db.run(`UPDATE company_settings SET company_name=?, address=?, city=?, state=?, zip=?, phone=?, email=?, ein=?, default_tax_rate=?, default_payment_terms=? WHERE id=1`,
     [company_name, emptyToNull(req.body.address), emptyToNull(req.body.city), emptyToNull(req.body.state), emptyToNull(req.body.zip), emptyToNull(req.body.phone), emptyToNull(req.body.email), emptyToNull(req.body.ein), taxRateNum, default_payment_terms]);
   setFlash(req, 'success', 'Company settings saved.');
@@ -140,13 +140,31 @@ router.get('/ai-usage', async (req, res) => {
   const dailyRows = await d.all(`SELECT date(created_at) AS d, COUNT(*) AS n FROM audit_logs WHERE source = 'ai_chat' AND date(created_at) >= ? AND date(created_at) <= ? GROUP BY d ORDER BY d ASC`, [fourteenDaysAgo, today]);
   const dailyDataMap = {}; dailyRows.forEach(r => { dailyDataMap[r.d] = r.n; });
   const dailyData = []; for (let i = 13; i >= 0; i--) { const d2 = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10); dailyData.push({ date: d2, count: dailyDataMap[d2] || 0 }); }
-  const topUsers = await d.all(`SELECT al.user_id, u.name, COUNT(*) AS count, COALESCE(SUM(CASE WHEN json_extract(al.after_json, '$.tokens_used') IS NOT NULL THEN CAST(json_extract(al.after_json, '$.tokens_used') AS INTEGER) ELSE 0 END), 0) AS tokens FROM audit_logs al LEFT JOIN users u ON u.id = al.user_id WHERE al.source = 'ai_chat' AND al.user_id IS NOT NULL GROUP BY al.user_id ORDER BY count DESC LIMIT 5`);
+  const isPg = d.getMode() === 'pg';
+  const topUsersQuery = isPg
+    ? `SELECT al.user_id, u.name, COUNT(*) AS count,
+       COALESCE(SUM(
+         CASE WHEN al.after_json IS NOT NULL AND al.after_json <> ''
+         THEN (al.after_json::jsonb ->> 'tokens_used')::int
+         ELSE 0 END
+       ), 0) AS tokens
+       FROM audit_logs al LEFT JOIN users u ON u.id = al.user_id
+       WHERE al.source = 'ai_chat' AND al.user_id IS NOT NULL
+       GROUP BY al.user_id ORDER BY count DESC LIMIT 5`
+    : `SELECT al.user_id, u.name, COUNT(*) AS count,
+       COALESCE(SUM(
+         CASE WHEN json_extract(al.after_json, '$.tokens_used') IS NOT NULL
+         THEN CAST(json_extract(al.after_json, '$.tokens_used') AS INTEGER)
+         ELSE 0 END
+       ), 0) AS tokens
+       FROM audit_logs al LEFT JOIN users u ON u.id = al.user_id
+       WHERE al.source = 'ai_chat' AND al.user_id IS NOT NULL
+       GROUP BY al.user_id ORDER BY count DESC LIMIT 5`;
+  const topUsers = await d.all(topUsersQuery);
   const recentRows = await d.all(`SELECT al.id, al.user_id, u.name, al.after_json, al.created_at FROM audit_logs al LEFT JOIN users u ON u.id = al.user_id WHERE al.source = 'ai_chat' ORDER BY al.created_at DESC LIMIT 20`);
   const parsedCalls = recentRows.map(r => { let msg = '', tokens = 0, latency = 0; try { const p = typeof r.after_json === 'string' ? JSON.parse(r.after_json) : (r.after_json || {}); msg = (p.message || '').slice(0, 100); tokens = p.tokens_used || 0; latency = p.latency_ms || 0; } catch(e) {} return { created_at: r.created_at, name: r.name || 'User #' + r.user_id, message: msg, tokens, latency }; });
   res.render('admin/ai-usage', { title: 'AI Usage', activeNav: 'admin', totalCalls, totalTokens, estimatedCost, dailyData, topUsers, recentCalls: parsedCalls, error: null });
 });
-
-module.exports = router;
 
 // admin index redirect
 router.get('/', async (req, res) => { setFlash(req, 'info', 'Admin panel moved to Settings.'); res.redirect('/settings'); });
@@ -161,3 +179,5 @@ router.post('/closures/delete', async (req, res) => {
   if (!c) { setFlash(req, 'error', 'Closure not found.'); return res.redirect('/admin'); }
   await db.run('DELETE FROM closures WHERE id = ?', [id]); setFlash(req, 'success', `Closure "${c.name}" deleted.`); res.redirect('/admin');
 });
+
+module.exports = router;
