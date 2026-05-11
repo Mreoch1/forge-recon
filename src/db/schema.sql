@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS work_orders (
 
   scheduled_date TEXT,
   scheduled_time TEXT,
+  scheduled_end_time TEXT,
   completed_date TEXT,
 
   assigned_to_user_id INTEGER REFERENCES users(id),

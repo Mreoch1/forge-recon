@@ -129,6 +129,7 @@ router.get('/', (req, res) => {
   const wos = db.all(`
     SELECT w.id, w.display_number, w.status, w.scheduled_date, w.scheduled_time,
            w.assigned_to_user_id, w.assigned_to,
+           w.scheduled_end_time,
            j.title AS job_title, c.name AS customer_name,
            u.name AS assignee_user_name
     FROM work_orders w
@@ -212,22 +213,24 @@ router.post('/:id/reschedule', (req, res) => {
   if (!wo) return res.status(404).json({ error: 'Work order not found.' });
   const date = (req.body.scheduled_date || '').trim();
   const time = (req.body.scheduled_time || '').trim();
+  const endTime = (req.body.scheduled_end_time || '').trim();
   if (!date) return res.status(400).json({ error: 'scheduled_date is required.' });
   const today = new Date().toISOString().slice(0, 10);
   if (date < today) return res.status(400).json({ error: 'Cannot schedule in the past.' });
+  if (time && endTime && endTime <= time) return res.status(400).json({ error: 'End time must be after start time.' });
   // Audit
   try {
     const { writeAudit } = require('../services/audit');
     writeAudit({
       entityType: 'work_order', entityId: wo.id, action: 'rescheduled',
-      before: { scheduled_date: wo.scheduled_date, scheduled_time: wo.scheduled_time },
-      after: { scheduled_date: date, scheduled_time: time || null },
+      before: { scheduled_date: wo.scheduled_date, scheduled_time: wo.scheduled_time, scheduled_end_time: wo.scheduled_end_time },
+      after: { scheduled_date: date, scheduled_time: time || null, scheduled_end_time: endTime || null },
       source: 'user', userId: req.session.userId,
     });
   } catch(e) { /* audit best effort */ }
-  db.run(`UPDATE work_orders SET scheduled_date=?, scheduled_time=?, updated_at=datetime('now') WHERE id=?`,
-    [date, time || null, wo.id]);
-  res.json({ ok: true, scheduled_date: date, scheduled_time: time || null });
+  db.run(`UPDATE work_orders SET scheduled_date=?, scheduled_time=?, scheduled_end_time=?, updated_at=datetime('now') WHERE id=?`,
+    [date, time || null, endTime || null, wo.id]);
+  res.json({ ok: true, scheduled_date: date, scheduled_time: time || null, scheduled_end_time: endTime || null });
 });
 
 module.exports = router;

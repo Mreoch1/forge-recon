@@ -80,7 +80,8 @@ async function main() {
     const bootMigrations = [
       {table: 'users', col: 'phone', type: 'TEXT'},
       {table: 'users', col: 'mock', type: 'INTEGER NOT NULL DEFAULT 0'},
-      {table: 'work_order_line_items', col: 'completed_at', type: 'TEXT'}
+      {table: 'work_order_line_items', col: 'completed_at', type: 'TEXT'},
+      {table: 'work_orders', col: 'scheduled_end_time', type: 'TEXT'}
     ];
     bootMigrations.forEach(m => {
       const existing = db.all('PRAGMA table_info(' + m.table + ')');
