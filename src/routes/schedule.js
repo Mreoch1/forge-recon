@@ -183,6 +183,34 @@ router.get('/', (req, res) => {
     }
   });
 
+  // Compute overlap groups per day for horizontal slicing
+  function toMinutes(t) { if (!t) return 8*60; const p=t.split(':'); return parseInt(p[0],10)*60+parseInt(p[1],10); }
+  const woOverlaps = {};
+  const wosByDate = {};
+  wos.forEach(wo => {
+    if (!wosByDate[wo.scheduled_date]) wosByDate[wo.scheduled_date] = [];
+    wosByDate[wo.scheduled_date].push(wo);
+  });
+  Object.values(wosByDate).forEach(dayWos => {
+    dayWos.sort((a,b) => { const da = toMinutes(a.scheduled_time), db = toMinutes(b.scheduled_time); return da - db; });
+    const n = dayWos.length;
+    for (let i = 0; i < n; i++) {
+      const aStart = toMinutes(dayWos[i].scheduled_time);
+      const aEnd = dayWos[i].scheduled_end_time ? toMinutes(dayWos[i].scheduled_end_time) : aStart + 240;
+      let overlapCount = 1, overlapIndex = 0;
+      for (let j = 0; j < n; j++) {
+        if (i === j) continue;
+        const bStart = toMinutes(dayWos[j].scheduled_time);
+        const bEnd = dayWos[j].scheduled_end_time ? toMinutes(dayWos[j].scheduled_end_time) : bStart + 240;
+        if (aStart < bEnd && bStart < aEnd) {
+          if (j < i) overlapIndex++;
+          overlapCount++;
+        }
+      }
+      woOverlaps[dayWos[i].id] = { overlapCount, overlapIndex };
+    }
+  });
+
   // Hours
   const hours = [];
   for (let h = HOURS_START; h <= HOURS_END; h++) hours.push(h);
@@ -206,7 +234,7 @@ router.get('/', (req, res) => {
     today, nowOffset: nowOffset > 0 && nowOffset < 100 ? nowOffset : null,
     assigneeFilter, users, colorForStatus, getInitials, fmtDate, fmtMonth,
     HOURS_START, HOURS_END, HOUR_COUNT, TOTAL_MINUTES,
-    rawDate,
+    rawDate, woOverlaps,
   });
 });
 

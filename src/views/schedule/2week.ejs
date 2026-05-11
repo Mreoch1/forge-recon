@@ -38,6 +38,16 @@
   .sc-day-col:last-child { border-right: none; }
   .sc-day-col.is-today { background: #fafbfe; }
   .sc-wo-block { display: block; width: 100%; border-radius: 3px; padding: .15rem .3rem; font-size: .58rem; line-height: 1.2; overflow: hidden; cursor: pointer; border: 1px solid rgba(0,0,0,.08); box-sizing: border-box; height: 100%; position: relative; }
+  .sc-wo-wrap[data-overlap-count] { left: 0; right: auto; }
+  .sc-wo-wrap[data-overlap-count="2"] { width: calc(50% - 2px); }
+  .sc-wo-wrap[data-overlap-count="2"][data-overlap-index="1"] { left: calc(50% + 2px); }
+  .sc-wo-wrap[data-overlap-count="3"] { width: calc(33.33% - 3px); }
+  .sc-wo-wrap[data-overlap-count="3"][data-overlap-index="1"] { left: calc(33.33% + 1px); }
+  .sc-wo-wrap[data-overlap-count="3"][data-overlap-index="2"] { left: calc(66.66% + 2px); }
+  .sc-wo-wrap[data-overlap-count="4"] { width: calc(25% - 3px); }
+  .sc-wo-wrap[data-overlap-count="4"][data-overlap-index="1"] { left: calc(25% + 1px); }
+  .sc-wo-wrap[data-overlap-count="4"][data-overlap-index="2"] { left: calc(50% + 2px); }
+  .sc-wo-wrap[data-overlap-count="4"][data-overlap-index="3"] { left: calc(75% + 2px); }
   .sc-wo-block:hover { box-shadow: 0 2px 6px rgba(0,0,0,.15); z-index: 4; }
   .sc-wo-block .sc-wo-num { font-family: ui-monospace,monospace; font-size: .52rem; opacity: .8; }
   .sc-wo-block .sc-wo-customer { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .55rem; }
@@ -172,7 +182,8 @@
             var isUnassigned = !wo.assigned_to_user_id && !wo.assigned_to;
             var hasConflict = !!woConflicts[wo.id];
           %>
-            <div class="sc-wo-wrap" style="top:<%= topPct.toFixed(1) %>; height:<%= Math.max(hPct, 3).toFixed(1) %>%">
+            <div class="sc-wo-wrap" style="top:<%= topPct.toFixed(1) %>; height:<%= Math.max(hPct, 3).toFixed(1) %>%"
+               <% var o = woOverlaps[wo.id]; if (o && o.overlapCount > 1) { %>data-overlap-count="<%= o.overlapCount %>" data-overlap-index="<%= o.overlapIndex %>"<% } %>>
               <a href="/work-orders/<%= wo.id %>" class="sc-wo-block<%= isUnassigned ? ' sc-unassigned' : '' %>"
                  style="<%= color ? 'background:'+color : '' %>"
                  data-wo-id="<%= wo.id %>" data-current-date="<%= wo.scheduled_date %>" data-current-time="<%= wo.scheduled_time||'' %>"
