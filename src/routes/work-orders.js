@@ -1,44 +1,57 @@
 /**
- * Work Orders CRUD (v0.5).
+ * Work Orders CRUD — Supabase SDK.
  *
  * WO is the ROOT document: customer -> job -> WO -> estimate -> invoice.
  *
- *   GET  /                       list
- *   GET  /new?job_id=N           new root WO form
- *   POST /                       create (with optional editable display number)
- *   GET  /:id                    show (sub-WOs, line items, related estimate/invoice)
- *   POST /:id/sub                create sub-WO under this WO
- *   GET  /:id/edit               edit (allowed when scheduled or in_progress)
- *   POST /:id                    update
- *   POST /:id/start              scheduled -> in_progress
- *   POST /:id/complete           in_progress -> complete (stamps completed_date)
- *   POST /:id/cancel             scheduled|in_progress -> cancelled
- *   GET  /:id/pdf                PDF (inline or ?download=1)
- *   POST /:id/delete             delete (FK guard against estimates)
- *
- * Display number is editable on creation. If user supplies a custom
- * display_number in "0001-0000" format we use it; otherwise we auto-
- * generate via numbering.nextRootWoNumber() (or nextSubWoNumber for subs).
+ *   GET  /                          list (search + status filter + paging)
+ *   GET  /new?job_id=N              new root WO form
+ *   POST /                          create (uses create_work_order_with_lines RPC)
+ *   GET  /ai-create                 AI-assisted WO form
+ *   POST /ai-create                 parse free text into structured WO + render preview
+ *   POST /ai-finalize               commit the AI extraction (RPC)
+ *   GET  /:id/sub/new               sub-WO form (parent prefilled)
+ *   POST /:id/sub                   create sub-WO (RPC)
+ *   GET  /:id                       show
+ *   GET  /:id/edit                  edit (allowed when scheduled or in_progress)
+ *   POST /:id                       update (RPC)
+ *   POST /:id/start                 scheduled -> in_progress (RPC)
+ *   POST /:id/complete              in_progress -> complete (RPC)
+ *   POST /:id/cancel                scheduled|in_progress -> cancelled (RPC)
+ *   POST /:id/notes                 append a note to wo_notes
+ *   POST /:id/photos                upload one or more photos (Supabase Storage)
+ *   POST /:id/photos/:pid/delete    remove photo (Storage + row)
+ *   GET  /:id/pdf                   PDF
+ *   POST /:id/delete                delete with FK guards
+ *   POST /:id/create-estimate       create 1:1 estimate from WO
  */
 
 const express = require('express');
-const db = require('../db/db');
+const path = require('path');
+const crypto = require('crypto');
+const multer = require('multer');
+
+const supabase = require('../db/supabase');
 const { setFlash } = require('../middleware/auth');
-const { writeAudit } = require('../services/audit');
 const calc = require('../services/calculations');
 const numbering = require('../services/numbering');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-const crypto = require('crypto');
 const storage = require('../services/storage');
 
-// Multer config — WO photo uploads
-const UPLOAD_BASE = path.join(__dirname, '..', '..', 'public', 'uploads', 'wo');
+// PDF service is optional in some envs — wrap import so test boots don't fail
+let pdf;
+try { pdf = require('../services/pdf'); } catch (e) { pdf = null; }
+
+const router = express.Router();
+
+// --- constants ---
+
+const PAGE_SIZE = 25;
+const VALID_STATUSES = ['scheduled', 'in_progress', 'complete', 'cancelled'];
+const VALID_UNITS = ['ea', 'hr', 'sqft', 'lf', 'ton', 'lot'];
+
+// Photo upload: multer memory storage, validation
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
 const MAX_SIZE = 10 * 1024 * 1024;
 const MAX_FILES = 6;
-function ensureDir(d) { if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); }
 const woUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_SIZE, files: MAX_FILES },
@@ -47,11 +60,8 @@ const woUpload = multer({
     else cb(new Error('Only jpg/png/webp/heic allowed.'));
   }
 });
-const router = express.Router();
 
-const PAGE_SIZE = 25;
-const VALID_STATUSES = ['scheduled', 'in_progress', 'complete', 'cancelled'];
-const VALID_UNITS = ['ea', 'hr', 'sqft', 'lf', 'ton', 'lot'];
+// --- helpers ---
 
 function emptyToNull(v) {
   if (typeof v !== 'string') return null;
@@ -91,6 +101,8 @@ function validateWorkOrder(body) {
   if (scheduledDate && !/^\d{4}-\d{2}-\d{2}$/.test(scheduledDate)) errors.scheduled_date = 'Use YYYY-MM-DD.';
   const scheduledTime = emptyToNull(body.scheduled_time);
   if (scheduledTime && !/^\d{2}:\d{2}$/.test(scheduledTime)) errors.scheduled_time = 'Use HH:MM.';
+  const scheduledEndTime = emptyToNull(body.scheduled_end_time);
+  if (scheduledEndTime && !/^\d{2}:\d{2}$/.test(scheduledEndTime)) errors.scheduled_end_time = 'Use HH:MM.';
   const assignedUserId = body.assigned_to_user_id ? parseInt(body.assigned_to_user_id, 10) : null;
   const assignedToText = emptyToNull(body.assigned_to);
 
@@ -118,6 +130,7 @@ function validateWorkOrder(body) {
     data: {
       scheduled_date: scheduledDate,
       scheduled_time: scheduledTime,
+      scheduled_end_time: scheduledEndTime,
       assigned_to_user_id: assignedUserId,
       assigned_to: assignedToText,
       notes: emptyToNull(body.notes),
@@ -127,40 +140,113 @@ function validateWorkOrder(body) {
   };
 }
 
+/** Next root WO display number, reading + advancing company_settings counter. */
+async function nextRootWoDisplay() {
+  const { data: settings, error: sErr } = await supabase
+    .from('company_settings')
+    .select('next_wo_main_number')
+    .eq('id', 1)
+    .maybeSingle();
+  if (sErr) throw sErr;
+  if (!settings) throw new Error('company_settings not initialized.');
+  const main = settings.next_wo_main_number;
+  const { error: uErr } = await supabase
+    .from('company_settings')
+    .update({ next_wo_main_number: main + 1 })
+    .eq('id', 1);
+  if (uErr) throw uErr;
+  return { main, sub: 0, display: numbering.formatDisplay(main, 0) };
+}
+
+/** Next sub-WO under a given parent (by main + max(sub)+1). */
+async function nextSubWoDisplay(parentMain) {
+  const { data: siblings, error } = await supabase
+    .from('work_orders')
+    .select('wo_number_sub')
+    .eq('wo_number_main', parentMain)
+    .order('wo_number_sub', { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  const maxSub = (siblings && siblings[0] && siblings[0].wo_number_sub) || 0;
+  const sub = maxSub + 1;
+  return { main: parentMain, sub, display: numbering.formatDisplay(parentMain, sub) };
+}
+
+/** Load a single WO with joined job/customer/assignee/parent + line items. */
 async function loadWorkOrder(id) {
-  const wo = await db.get(
-    `SELECT w.*,
-            j.title   AS job_title,
-            j.address AS job_address,
-            j.city    AS job_city,
-            j.state   AS job_state,
-            j.zip     AS job_zip,
-            c.id      AS customer_id,
-            c.name    AS customer_name,
-            c.email   AS customer_email,
-            c.billing_email AS customer_billing_email,
-            c.phone   AS customer_phone,
-            c.address AS customer_address,
-            c.city    AS customer_city,
-            c.state   AS customer_state,
-            c.zip     AS customer_zip,
-            u.name    AS assigned_user_name,
-            parent.display_number AS parent_display_number
-     FROM work_orders w
-     JOIN jobs j      ON j.id = w.job_id
-     JOIN customers c ON c.id = j.customer_id
-     LEFT JOIN users u ON u.id = w.assigned_to_user_id
-     LEFT JOIN work_orders parent ON parent.id = w.parent_wo_id
-     WHERE w.id = ?`,
-    [id]
-  );
+  const { data: wo, error } = await supabase
+    .from('work_orders')
+    .select(`
+      *,
+      jobs!inner(id, title, address, city, state, zip,
+        customers!inner(id, name, email, billing_email, phone, address, city, state, zip)),
+      users!left(name)
+    `)
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
   if (!wo) return null;
-  wo.lines = await db.all(
-    `SELECT * FROM work_order_line_items WHERE work_order_id = ? ORDER BY sort_order ASC, id ASC`,
-    [id]
-  );
+
+  // Flatten nested joins to match view expectations
+  const j = wo.jobs;
+  const c = j ? j.customers : null;
+  wo.job_title = j ? j.title : null;
+  wo.job_address = j ? j.address : null;
+  wo.job_city = j ? j.city : null;
+  wo.job_state = j ? j.state : null;
+  wo.job_zip = j ? j.zip : null;
+  wo.customer_id = c ? c.id : null;
+  wo.customer_name = c ? c.name : null;
+  wo.customer_email = c ? c.email : null;
+  wo.customer_billing_email = c ? c.billing_email : null;
+  wo.customer_phone = c ? c.phone : null;
+  wo.customer_address = c ? c.address : null;
+  wo.customer_city = c ? c.city : null;
+  wo.customer_state = c ? c.state : null;
+  wo.customer_zip = c ? c.zip : null;
+  wo.assigned_user_name = wo.users ? wo.users.name : null;
+  delete wo.jobs;
+  delete wo.users;
+
+  // Parent display number (separate lookup — parent_wo_id is a self-FK)
+  wo.parent_display_number = null;
+  if (wo.parent_wo_id) {
+    const { data: parent } = await supabase
+      .from('work_orders')
+      .select('display_number')
+      .eq('id', wo.parent_wo_id)
+      .maybeSingle();
+    wo.parent_display_number = parent ? parent.display_number : null;
+  }
+
+  // Line items
+  const { data: lines, error: liErr } = await supabase
+    .from('work_order_line_items')
+    .select('*')
+    .eq('work_order_id', id)
+    .order('sort_order', { ascending: true })
+    .order('id', { ascending: true });
+  if (liErr) throw liErr;
+  wo.lines = lines || [];
+
   return wo;
 }
+
+/** Build the line-rows payload expected by create/update RPCs. */
+function buildLineRows(lines) {
+  return lines.map((li, idx) => ({
+    description: li.description,
+    quantity: li.quantity,
+    unit: li.unit,
+    unit_price: li.unit_price,
+    cost: li.cost,
+    line_total: calc.lineTotal(li),
+    completed: li.completed ? 1 : 0,
+    sort_order: idx,
+  }));
+}
+
+// --- list ---
 
 router.get('/', async (req, res) => {
   const q = (req.query.q || '').trim();
@@ -168,49 +254,56 @@ router.get('/', async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
 
-  const conds = [];
-  const params = [];
+  let query = supabase
+    .from('work_orders')
+    .select(`
+      id, display_number, wo_number_main, wo_number_sub, parent_wo_id,
+      status, scheduled_date, completed_date, created_at,
+      job_id, jobs!inner(id, title, customers!inner(id, name)),
+      assigned_to_user_id, users!left(name)
+    `, { count: 'exact', head: false });
+
   if (q) {
-    conds.push('(w.display_number ILIKE ? OR j.title ILIKE ? OR c.name ILIKE ?)');
+    // PostgREST OR across nested tables is finicky; restrict to display_number.
     const like = `%${q}%`;
-    params.push(like, like, like);
+    query = query.ilike('display_number', like);
   }
   if (status && VALID_STATUSES.includes(status)) {
-    conds.push('w.status = ?');
-    params.push(status);
+    query = query.eq('status', status);
   }
-  const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
 
-  const total = (await db.get(
-    `SELECT COUNT(*) AS n FROM work_orders w
-     JOIN jobs j ON j.id = w.job_id
-     JOIN customers c ON c.id = j.customer_id ${where}`,
-    params
-  ) || {}).n || 0;
+  const { data: rows, count: total, error } = await query
+    .order('wo_number_main', { ascending: false })
+    .order('wo_number_sub', { ascending: true })
+    .range(offset, offset + PAGE_SIZE - 1);
+  if (error) throw error;
 
-  const workOrders = await db.all(
-    `SELECT w.id, w.display_number, w.wo_number_main, w.wo_number_sub, w.parent_wo_id,
-            w.status, w.scheduled_date, w.completed_date, w.created_at,
-            j.id AS job_id, j.title AS job_title,
-            c.id AS customer_id, c.name AS customer_name,
-            u.name AS assigned_name
-     FROM work_orders w
-     JOIN jobs j ON j.id = w.job_id
-     JOIN customers c ON c.id = j.customer_id
-     LEFT JOIN users u ON u.id = w.assigned_to_user_id
-     ${where}
-     ORDER BY w.wo_number_main DESC, w.wo_number_sub ASC
-     LIMIT ? OFFSET ?`,
-    [...params, PAGE_SIZE, offset]
-  );
+  const workOrders = (rows || []).map(r => ({
+    id: r.id,
+    display_number: r.display_number,
+    wo_number_main: r.wo_number_main,
+    wo_number_sub: r.wo_number_sub,
+    parent_wo_id: r.parent_wo_id,
+    status: r.status,
+    scheduled_date: r.scheduled_date,
+    completed_date: r.completed_date,
+    created_at: r.created_at,
+    job_id: r.jobs ? r.jobs.id : r.job_id,
+    job_title: r.jobs ? r.jobs.title : null,
+    customer_id: r.jobs && r.jobs.customers ? r.jobs.customers.id : null,
+    customer_name: r.jobs && r.jobs.customers ? r.jobs.customers.name : null,
+    assigned_name: r.users ? r.users.name : null,
+  }));
 
   res.render('work-orders/index', {
     title: 'Work Orders', activeNav: 'work-orders',
     workOrders, q, status, page,
-    totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
-    total, statuses: VALID_STATUSES
+    totalPages: Math.max(1, Math.ceil((total || 0) / PAGE_SIZE)),
+    total: total || 0, statuses: VALID_STATUSES
   });
 });
+
+// --- new (must come before /:id) ---
 
 router.get('/new', async (req, res) => {
   const jobId = parseInt(req.query.job_id, 10);
@@ -218,140 +311,195 @@ router.get('/new', async (req, res) => {
     setFlash(req, 'error', 'Pick a job first to create a work order from.');
     return res.redirect('/jobs');
   }
-  const job = await db.get(
-    `SELECT j.*, c.id AS customer_id, c.name AS customer_name
-     FROM jobs j JOIN customers c ON c.id = j.customer_id WHERE j.id = ?`,
-    [jobId]
-  );
+  const { data: job, error: jErr } = await supabase
+    .from('jobs')
+    .select('*, customers!inner(id, name)')
+    .eq('id', jobId)
+    .maybeSingle();
+  if (jErr) throw jErr;
   if (!job) {
     setFlash(req, 'error', 'Job not found.');
     return res.redirect('/jobs');
   }
+  // Flatten customer fields for the form
+  job.customer_id = job.customers ? job.customers.id : null;
+  job.customer_name = job.customers ? job.customers.name : null;
+  delete job.customers;
 
   // Suggest the next root WO number (purely for display in the form)
-  const settings = await db.get('SELECT next_wo_main_number FROM company_settings WHERE id = 1');
+  const { data: settings } = await supabase
+    .from('company_settings')
+    .select('next_wo_main_number')
+    .eq('id', 1)
+    .maybeSingle();
   const suggestedDisplay = numbering.formatDisplay(settings ? settings.next_wo_main_number : 1, 0);
 
   const wo = {
     id: null, job_id: jobId, parent_wo_id: null,
-    display_number: '', // user can override; blank means auto
+    display_number: '',
     suggested_display_number: suggestedDisplay,
     status: 'scheduled',
-    scheduled_date: '', scheduled_time: '',
+    scheduled_date: '', scheduled_time: '', scheduled_end_time: '',
     assigned_to_user_id: null, assigned_to: '',
     notes: '', lines: [],
   };
-  const users = await db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
+  const { data: users } = await supabase
+    .from('users')
+    .select('id, name')
+    .eq('active', 1)
+    .order('name');
+
   res.render('work-orders/new', {
     title: 'New work order', activeNav: 'work-orders',
-    wo, job, users, errors: {}, units: VALID_UNITS, isSubWO: false
+    wo, job, users: users || [], errors: {}, units: VALID_UNITS, isSubWO: false
   });
 });
 
 router.post('/', async (req, res) => {
   const jobId = parseInt(req.body.job_id, 10);
-  const job = jobId ? await db.get(
-    `SELECT j.*, c.id AS customer_id, c.name AS customer_name
-     FROM jobs j JOIN customers c ON c.id = j.customer_id WHERE j.id = ?`,
-    [jobId]
-  ) : null;
+  let job = null;
+  if (jobId) {
+    const { data, error } = await supabase
+      .from('jobs')
+      .select('*, customers!inner(id, name)')
+      .eq('id', jobId)
+      .maybeSingle();
+    if (error) throw error;
+    if (data) {
+      data.customer_id = data.customers ? data.customers.id : null;
+      data.customer_name = data.customers ? data.customers.name : null;
+      delete data.customers;
+      job = data;
+    }
+  }
 
-  const users = await db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
+  const { data: users } = await supabase
+    .from('users')
+    .select('id, name')
+    .eq('active', 1)
+    .order('name');
+
   const { errors, data } = validateWorkOrder(req.body);
   if (!job) errors.job_id = 'Job is required.';
 
   if (Object.keys(errors).length) {
     return res.status(400).render('work-orders/new', {
       title: 'New work order', activeNav: 'work-orders',
-      wo: { id: null, job_id: jobId, parent_wo_id: null, ...data,
-            display_number: req.body.display_number || '' },
-      job: job || { id: jobId }, users, errors,
+      wo: {
+        id: null, job_id: jobId, parent_wo_id: null, ...data,
+        display_number: req.body.display_number || ''
+      },
+      job: job || { id: jobId }, users: users || [], errors,
       units: VALID_UNITS, isSubWO: false
     });
   }
 
-  // Resolve numbering
+  // Resolve numbering: either honor override (after dup check) or auto-advance
   let main, sub, display;
   if (data.display_number_override) {
     ({ main, sub } = data.display_number_override);
     display = numbering.formatDisplay(main, sub);
-    // Reject if already taken
-    const dup = await db.get('SELECT id FROM work_orders WHERE display_number = ?', [display]);
+    const { data: dup } = await supabase
+      .from('work_orders')
+      .select('id')
+      .eq('display_number', display)
+      .maybeSingle();
     if (dup) {
       errors.display_number = `WO ${display} already exists.`;
       return res.status(400).render('work-orders/new', {
         title: 'New work order', activeNav: 'work-orders',
-        wo: { id: null, job_id: jobId, parent_wo_id: null, ...data,
-              display_number: req.body.display_number || '' },
-        job, users, errors, units: VALID_UNITS, isSubWO: false
+        wo: {
+          id: null, job_id: jobId, parent_wo_id: null, ...data,
+          display_number: req.body.display_number || ''
+        },
+        job, users: users || [], errors, units: VALID_UNITS, isSubWO: false
       });
     }
   } else {
-    const next = await numbering.nextRootWoNumber();
+    const next = await nextRootWoDisplay();
     main = next.main; sub = next.sub; display = next.display;
   }
 
-  const newId = await db.transaction(async (tx) => {
-    const r = await tx.run(
-      `INSERT INTO work_orders
-       (job_id, parent_wo_id, wo_number_main, wo_number_sub, display_number, status,
-        scheduled_date, scheduled_time, assigned_to_user_id, assigned_to, notes)
-       VALUES (?, NULL, ?, ?, ?, 'scheduled', ?, ?, ?, ?, ?)`,
-      [job.id, main, sub, display, data.scheduled_date, data.scheduled_time,
-       data.assigned_to_user_id, data.assigned_to, data.notes]
-    );
-    const woId = r.lastInsertRowid;
-    for (let idx = 0; idx < data.lines.length; idx++) {
-      const li = data.lines[idx];
-      const lt = calc.lineTotal(li);
-      await tx.run(
-        `INSERT INTO work_order_line_items
-         (work_order_id, description, quantity, unit, unit_price, cost, line_total, completed, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [woId, li.description, li.quantity, li.unit, li.unit_price, li.cost, lt, li.completed, idx]
-      );
-    }
-    return woId;
+  const { data: newId, error: rpcErr } = await supabase.rpc('create_work_order_with_lines', {
+    wo_data: {
+      job_id: job.id,
+      parent_wo_id: null,
+      wo_number_main: main,
+      wo_number_sub: sub,
+      display_number: display,
+      status: 'scheduled',
+      scheduled_date: data.scheduled_date,
+      scheduled_time: data.scheduled_time,
+      scheduled_end_time: data.scheduled_end_time,
+      assigned_to_user_id: data.assigned_to_user_id,
+      assigned_to: data.assigned_to,
+      notes: data.notes,
+      mock: false,
+    },
+    lines: buildLineRows(data.lines),
+    user_id: req.session.userId || null,
   });
+  if (rpcErr) throw rpcErr;
 
   setFlash(req, 'success', `Work order WO-${display} created.`);
   res.redirect(`/work-orders/${newId}`);
 });
 
-// ---- AI-assisted WO creation (Round 8) ----
-// These MUST come before /:id routes to avoid Express route collision with /ai-create being caught as :id
+// --- AI-assisted creation (must come before /:id) ---
 
 router.get('/ai-create', async (req, res) => {
-  res.render('work-orders/ai-create', { title: 'AI-assisted work order', activeNav: 'work-orders', text: '', error: null });
+  res.render('work-orders/ai-create', {
+    title: 'AI-assisted work order', activeNav: 'work-orders',
+    text: '', error: null
+  });
 });
 
 router.post('/ai-create', async (req, res) => {
   const text = (req.body.description || '').trim();
   if (!text || text.length < 20) {
-    return res.render('work-orders/ai-create', { title: 'AI-assisted WO', activeNav: 'work-orders', text, error: 'Provide more detail (at least 20 characters).' });
+    return res.render('work-orders/ai-create', {
+      title: 'AI-assisted WO', activeNav: 'work-orders', text,
+      error: 'Provide more detail (at least 20 characters).'
+    });
   }
   const ai = require('../services/ai');
   if (!ai.isConfigured()) {
-    return res.render('work-orders/ai-create', { title: 'AI-assisted WO', activeNav: 'work-orders', text, error: 'AI not configured. Add AI_API_KEY to .env.' });
+    return res.render('work-orders/ai-create', {
+      title: 'AI-assisted WO', activeNav: 'work-orders', text,
+      error: 'AI not configured. Add AI_API_KEY to .env.'
+    });
   }
-  const customers = await db.all('SELECT id, name, email FROM customers');
-  const users = await db.all("SELECT id, name FROM users WHERE active = 1");
+  const [{ data: customers }, { data: users }] = await Promise.all([
+    supabase.from('customers').select('id, name, email').order('name'),
+    supabase.from('users').select('id, name').eq('active', 1).order('name'),
+  ]);
+
   try {
-    const result = await ai.extractWorkOrder({ text, customers, users, userId: req.session.userId });
+    const result = await ai.extractWorkOrder({
+      text,
+      customers: customers || [],
+      users: users || [],
+      userId: req.session.userId,
+    });
     if (!result.ok) {
-      return res.render('work-orders/ai-create', { title: 'AI-assisted WO', activeNav: 'work-orders', text, error: `AI parse failed: ${result.reason}` });
+      return res.render('work-orders/ai-create', {
+        title: 'AI-assisted WO', activeNav: 'work-orders', text,
+        error: `AI parse failed: ${result.reason}`
+      });
     }
     res.render('work-orders/ai-create-preview', {
-      title: 'Review AI extraction',
-      activeNav: 'work-orders',
+      title: 'Review AI extraction', activeNav: 'work-orders',
       extracted: result.data,
       rawText: text,
-      customers, users,
+      customers: customers || [], users: users || [],
       tokens: result.tokens,
     });
   } catch (err) {
     console.error('AI extraction error:', err);
-    res.render('work-orders/ai-create', { title: 'AI-assisted WO', activeNav: 'work-orders', text, error: `AI error: ${err.message}` });
+    res.render('work-orders/ai-create', {
+      title: 'AI-assisted WO', activeNav: 'work-orders', text,
+      error: `AI error: ${err.message}`
+    });
   }
 });
 
@@ -372,7 +520,7 @@ router.post('/ai-finalize', async (req, res) => {
     return res.redirect('/work-orders/ai-create');
   }
 
-  // Resolve customer
+  // Resolve customer (existing or new)
   let resolvedCustomerId;
   if (customer_action === 'use_existing' && customer_id) {
     resolvedCustomerId = parseInt(customer_id, 10);
@@ -382,109 +530,140 @@ router.post('/ai-finalize', async (req, res) => {
       setFlash(req, 'error', 'Customer name is required for a new customer.');
       return res.redirect('/work-orders/ai-create');
     }
-    resolvedCustomerId = await db.run(
-      `INSERT INTO customers (name, email, created_at) VALUES (?, ?, now())`,
-      [name, customer_email || null]
-    ).lastInsertRowid;
+    const { data: newCust, error: cErr } = await supabase
+      .from('customers')
+      .insert({ name, email: customer_email || null })
+      .select('id')
+      .single();
+    if (cErr) throw cErr;
+    resolvedCustomerId = newCust.id;
   }
 
   // Create job
-  const jobId = await db.run(
-    `INSERT INTO jobs (customer_id, title, address, city, state, zip, description, status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'estimating', now())`,
-    [resolvedCustomerId, jobTitle, jobAddress, jobCity, jobState, jobZip, jobDescription]
-  ).lastInsertRowid;
+  const { data: newJob, error: jErr } = await supabase
+    .from('jobs')
+    .insert({
+      customer_id: resolvedCustomerId,
+      title: jobTitle,
+      address: jobAddress || null,
+      city: jobCity || null,
+      state: jobState || null,
+      zip: jobZip || null,
+      description: jobDescription || null,
+      status: 'estimating',
+    })
+    .select('id')
+    .single();
+  if (jErr) throw jErr;
+  const jobId = newJob.id;
 
-  // Create work order
-  const calc = require('../services/calculations');
-  const numbering = require('../services/numbering');
-  const next = await numbering.nextRootWoNumber();
-  const display = next.display;
-
-  // Parse assignees from req.body.assignees (array of {name, user_id})
-  const rawAssignees = (() => {
-    const input = req.body.assignees;
-    if (!input) return [];
-    if (Array.isArray(input)) return input;
-    return Object.keys(input).sort((a, b) => parseInt(a,10)-parseInt(b,10)).map(k => input[k]);
-  })();
-  // For the first assignee with a user_id, they become assigned_to_user_id
-  // The rest are concatenated into assigned_to text
+  // Assignees → primary user_id + comma-joined cache text
+  const rawAssignees = asArray(req.body.assignees);
   let assignedUserId = null;
-  let assignedToParts = [];
+  const assignedToParts = [];
   for (const a of rawAssignees) {
     const uid = a.user_id ? parseInt(a.user_id, 10) : null;
     if (uid && !assignedUserId) assignedUserId = uid;
-    else assignedToParts.push(a.name);
+    else if (a.name) assignedToParts.push(a.name);
   }
-  // Also include the named user who's the primary assignee
   if (assignedUserId) {
-    const u = await db.get('SELECT name FROM users WHERE id = ?', [assignedUserId]);
-    if (u) assignedToParts.unshift(u.name);
+    const { data: u } = await supabase
+      .from('users')
+      .select('name')
+      .eq('id', assignedUserId)
+      .maybeSingle();
+    if (u && u.name) assignedToParts.unshift(u.name);
   }
   const assignedToText = assignedToParts.filter(Boolean).join(', ') || null;
 
-  const woId = await db.transaction(async (tx) => {
-    const r = await tx.run(
-      `INSERT INTO work_orders
-       (job_id, parent_wo_id, wo_number_main, wo_number_sub, display_number, status,
-        scheduled_date, scheduled_time, assigned_to_user_id, assigned_to, notes, created_at)
-       VALUES (?, NULL, ?, ?, ?, 'scheduled', ?, ?, ?, ?, ?, now())`,
-      [jobId, next.main, next.sub, display, scheduledDate, scheduledTime, assignedUserId, assignedToText, notes]
-    );
-    const wid = r.lastInsertRowid;
+  // Build line items
+  const rawLines = asArray(req.body.lines);
+  const lines = [];
+  for (let idx = 0; idx < rawLines.length; idx++) {
+    const li = rawLines[idx];
+    const desc = (li.description || '').trim();
+    if (!desc) continue;
+    const qty = parseFloat(li.quantity) || 0;
+    const up = parseFloat(li.unit_price) || 0;
+    lines.push({
+      description: desc,
+      quantity: qty,
+      unit: li.unit || 'ea',
+      unit_price: up,
+      cost: 0,
+      line_total: calc.lineTotal({ quantity: qty, unit_price: up }),
+      completed: 0,
+      sort_order: idx,
+    });
+  }
 
-    // Insert line items
-    const rawLines = (() => {
-      const input = req.body.lines;
-      if (!input) return [];
-      if (Array.isArray(input)) return input;
-      return Object.keys(input).sort((a,b)=>parseInt(a,10)-parseInt(b,10)).map(k => input[k]);
-    })();
-    for (let idx = 0; idx < rawLines.length; idx++) {
-      const li = rawLines[idx];
-      const desc = (li.description || '').trim();
-      if (!desc) continue;
-      const qty = parseFloat(li.quantity) || 0;
-      const up = parseFloat(li.unit_price) || 0;
-      const lt = Math.round(qty * up * 100) / 100;
-      await tx.run(
-        `INSERT INTO work_order_line_items
-         (work_order_id, description, quantity, unit, unit_price, line_total, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [wid, desc, qty, li.unit || 'ea', up, lt, idx]
-      );
-    }
-    return wid;
+  // Resolve numbering (advance counter)
+  const next = await nextRootWoDisplay();
+
+  const { data: newId, error: rpcErr } = await supabase.rpc('create_work_order_with_lines', {
+    wo_data: {
+      job_id: jobId,
+      parent_wo_id: null,
+      wo_number_main: next.main,
+      wo_number_sub: next.sub,
+      display_number: next.display,
+      status: 'scheduled',
+      scheduled_date: scheduledDate,
+      scheduled_time: scheduledTime,
+      scheduled_end_time: null,
+      assigned_to_user_id: assignedUserId,
+      assigned_to: assignedToText,
+      notes,
+      mock: false,
+    },
+    lines,
+    user_id: req.session.userId || null,
   });
+  if (rpcErr) throw rpcErr;
 
-  setFlash(req, 'success', `WO-${display} created from AI extraction.`);
-  res.redirect(`/work-orders/${woId}`);
+  setFlash(req, 'success', `WO-${next.display} created from AI extraction.`);
+  res.redirect(`/work-orders/${newId}`);
 });
 
-// Sub-WO creation (POST /:id/sub) — opens a new form scoped to this parent
+// --- sub-WO ---
+
 router.get('/:id/sub/new', async (req, res) => {
   const parent = await loadWorkOrder(req.params.id);
   if (!parent) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Parent WO not found.' });
-  const job = await db.get('SELECT id, title FROM jobs WHERE id = ?', [parent.job_id]);
 
-  const next = await numbering.nextSubWoNumber(parent.id);
+  const { data: job } = await supabase
+    .from('jobs')
+    .select('id, title')
+    .eq('id', parent.job_id)
+    .maybeSingle();
+
+  const next = await nextSubWoDisplay(parent.wo_number_main);
   const wo = {
     id: null, job_id: parent.job_id, parent_wo_id: parent.id,
     display_number: '', suggested_display_number: next.display,
     status: 'scheduled',
-    scheduled_date: '', scheduled_time: '',
+    scheduled_date: '', scheduled_time: '', scheduled_end_time: '',
     assigned_to_user_id: null, assigned_to: '', notes: '', lines: []
   };
-  const users = await db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
+  const { data: users } = await supabase
+    .from('users')
+    .select('id, name')
+    .eq('active', 1)
+    .order('name');
+
   res.render('work-orders/new', {
     title: `Sub-WO under ${parent.display_number}`, activeNav: 'work-orders',
-    wo, job, users, errors: {}, units: VALID_UNITS, isSubWO: true, parent
+    wo, job, users: users || [], errors: {}, units: VALID_UNITS, isSubWO: true, parent
   });
 });
 
 router.post('/:id/sub', async (req, res) => {
-  const parent = await db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
+  const { data: parent, error: pErr } = await supabase
+    .from('work_orders')
+    .select('*')
+    .eq('id', req.params.id)
+    .maybeSingle();
+  if (pErr) throw pErr;
   if (!parent) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Parent WO not found.' });
 
   const { errors, data } = validateWorkOrder(req.body);
@@ -495,109 +674,172 @@ router.post('/:id/sub', async (req, res) => {
       errors.display_number = `Sub-WO must use main ${numbering.pad(parent.wo_number_main, 4)} (parent's).`;
     } else {
       display = numbering.formatDisplay(main, sub);
-      const dup = await db.get('SELECT id FROM work_orders WHERE display_number = ?', [display]);
+      const { data: dup } = await supabase
+        .from('work_orders')
+        .select('id')
+        .eq('display_number', display)
+        .maybeSingle();
       if (dup) errors.display_number = `WO ${display} already exists.`;
     }
   } else {
-    const next = await numbering.nextSubWoNumber(parent.id);
+    const next = await nextSubWoDisplay(parent.wo_number_main);
     main = next.main; sub = next.sub; display = next.display;
   }
 
   if (Object.keys(errors).length) {
-    const job = await db.get('SELECT id, title FROM jobs WHERE id = ?', [parent.job_id]);
-    const users = await db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
+    const { data: job } = await supabase
+      .from('jobs')
+      .select('id, title')
+      .eq('id', parent.job_id)
+      .maybeSingle();
+    const { data: users } = await supabase
+      .from('users')
+      .select('id, name')
+      .eq('active', 1)
+      .order('name');
+
     return res.status(400).render('work-orders/new', {
       title: `Sub-WO under ${parent.display_number}`, activeNav: 'work-orders',
-      wo: { id: null, job_id: parent.job_id, parent_wo_id: parent.id, ...data,
-            display_number: req.body.display_number || '' },
-      job, users, errors, units: VALID_UNITS, isSubWO: true, parent
+      wo: {
+        id: null, job_id: parent.job_id, parent_wo_id: parent.id, ...data,
+        display_number: req.body.display_number || ''
+      },
+      job, users: users || [], errors, units: VALID_UNITS, isSubWO: true, parent
     });
   }
 
-  const newId = await db.transaction(async (tx) => {
-    const r = await tx.run(
-      `INSERT INTO work_orders
-       (job_id, parent_wo_id, wo_number_main, wo_number_sub, display_number, status,
-        scheduled_date, scheduled_time, assigned_to_user_id, assigned_to, notes)
-       VALUES (?, ?, ?, ?, ?, 'scheduled', ?, ?, ?, ?, ?)`,
-      [parent.job_id, parent.id, main, sub, display, data.scheduled_date, data.scheduled_time,
-       data.assigned_to_user_id, data.assigned_to, data.notes]
-    );
-    const woId = r.lastInsertRowid;
-    for (let idx = 0; idx < data.lines.length; idx++) {
-      const li = data.lines[idx];
-      const lt = calc.lineTotal(li);
-      await tx.run(
-        `INSERT INTO work_order_line_items
-         (work_order_id, description, quantity, unit, unit_price, cost, line_total, completed, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [woId, li.description, li.quantity, li.unit, li.unit_price, li.cost, lt, li.completed, idx]
-      );
-    }
-    return woId;
+  const { data: newId, error: rpcErr } = await supabase.rpc('create_work_order_with_lines', {
+    wo_data: {
+      job_id: parent.job_id,
+      parent_wo_id: parent.id,
+      wo_number_main: main,
+      wo_number_sub: sub,
+      display_number: display,
+      status: 'scheduled',
+      scheduled_date: data.scheduled_date,
+      scheduled_time: data.scheduled_time,
+      scheduled_end_time: data.scheduled_end_time,
+      assigned_to_user_id: data.assigned_to_user_id,
+      assigned_to: data.assigned_to,
+      notes: data.notes,
+      mock: false,
+    },
+    lines: buildLineRows(data.lines),
+    user_id: req.session.userId || null,
   });
+  if (rpcErr) throw rpcErr;
 
   setFlash(req, 'success', `Sub-WO WO-${display} created.`);
   res.redirect(`/work-orders/${newId}`);
 });
 
+// --- show ---
+
 router.get('/:id', async (req, res) => {
   const wo = await loadWorkOrder(req.params.id);
   if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
 
-  const subs = await db.all(
-    `SELECT id, display_number, wo_number_sub, status, scheduled_date, completed_date, created_at
-     FROM work_orders WHERE parent_wo_id = ? ORDER BY wo_number_sub ASC`,
-    [wo.id]
-  );
-  const estimate = await db.get('SELECT id, status FROM estimates WHERE work_order_id = ?', [wo.id]);
-  const invoice = estimate ? await db.get('SELECT id, status FROM invoices WHERE estimate_id = ?', [estimate.id]) : null;
+  // Sub-WOs
+  const { data: subs } = await supabase
+    .from('work_orders')
+    .select('id, display_number, wo_number_sub, status, scheduled_date, completed_date, created_at')
+    .eq('parent_wo_id', wo.id)
+    .order('wo_number_sub', { ascending: true });
 
-  // Notes feed (newest last so it reads top-down chronologically)
-  let notes = [];
-  try {
-    notes = await db.all(
-      `SELECT n.id, n.body, n.created_at, u.name AS user_name
-       FROM wo_notes n
-       LEFT JOIN users u ON u.id = n.user_id
-       WHERE n.work_order_id = ?
-       ORDER BY n.created_at ASC`,
-      [wo.id]
-    );
-  } catch (e) {
-    // wo_notes table may be missing on very old DBs
+  // Related estimate + invoice (1:1 chain)
+  const { data: estimate } = await supabase
+    .from('estimates')
+    .select('id, status')
+    .eq('work_order_id', wo.id)
+    .maybeSingle();
+
+  let invoice = null;
+  if (estimate) {
+    const { data: inv } = await supabase
+      .from('invoices')
+      .select('id, status')
+      .eq('estimate_id', estimate.id)
+      .maybeSingle();
+    invoice = inv || null;
   }
 
-  // Fetch photos
+  // Notes feed (wo_notes + author name lookup)
+  let notes = [];
+  try {
+    const { data: noteRows } = await supabase
+      .from('wo_notes')
+      .select('id, body, created_at, user_id')
+      .eq('work_order_id', wo.id)
+      .order('created_at', { ascending: true });
+    notes = noteRows || [];
+    // Resolve user names in a single batched query
+    const userIds = Array.from(new Set(notes.map(n => n.user_id).filter(Boolean)));
+    if (userIds.length) {
+      const { data: noteUsers } = await supabase
+        .from('users')
+        .select('id, name')
+        .in('id', userIds);
+      const nameById = {};
+      (noteUsers || []).forEach(u => { nameById[u.id] = u.name; });
+      notes = notes.map(n => ({ ...n, user_name: nameById[n.user_id] || null }));
+    }
+  } catch (e) {
+    // wo_notes may be missing on very old DBs
+  }
+
+  // Photos (+ public URLs from Supabase Storage)
   let photos = [];
   try {
-    photos = await db.all(
-      `SELECT p.*, u.name AS user_name
-       FROM wo_photos p
-       LEFT JOIN users u ON u.id = p.user_id
-       WHERE p.work_order_id = ?
-       ORDER BY p.created_at DESC`,
-      [wo.id]
-    );
-  } catch (e) {}
-
-  // Resolve public URLs for photos (stored in Supabase Storage)
-  photos = await Promise.all(photos.map(async (p) => {
-    try {
-      const url = await storage.getPublicUrl('wo-photos', p.filename);
-      return { ...p, url };
-    } catch {
-      console.warn('[wo-photos] failed to resolve public URL for', p.filename);
-      return { ...p, url: '#' };
+    const { data: photoRows } = await supabase
+      .from('wo_photos')
+      .select('id, work_order_id, user_id, filename, caption, created_at')
+      .eq('work_order_id', wo.id)
+      .order('created_at', { ascending: false });
+    photos = photoRows || [];
+    const userIds = Array.from(new Set(photos.map(p => p.user_id).filter(Boolean)));
+    let nameById = {};
+    if (userIds.length) {
+      const { data: photoUsers } = await supabase
+        .from('users')
+        .select('id, name')
+        .in('id', userIds);
+      (photoUsers || []).forEach(u => { nameById[u.id] = u.name; });
     }
-  }));
+    photos = await Promise.all(photos.map(async (p) => {
+      let url = '#';
+      try { url = await storage.getPublicUrl('wo-photos', p.filename); }
+      catch (e) { console.warn('[wo-photos] failed to resolve public URL for', p.filename); }
+      return { ...p, url, user_name: nameById[p.user_id] || null };
+    }));
+  } catch (e) {
+    // wo_photos may be missing on very old DBs
+  }
 
-  const fileCountWO = (await db.get('SELECT COUNT(f.id) AS n FROM files f JOIN folders fl ON fl.id = f.folder_id WHERE fl.entity_type = ? AND fl.entity_id = ?', ['work_order', wo.id]) || {}).n || 0;
+  // File count: files attached via folders.entity_type/id
+  let fileCount = 0;
+  try {
+    const { data: folder } = await supabase
+      .from('folders')
+      .select('id')
+      .eq('entity_type', 'work_order')
+      .eq('entity_id', wo.id)
+      .maybeSingle();
+    if (folder) {
+      const { count } = await supabase
+        .from('files')
+        .select('id', { count: 'exact', head: true })
+        .eq('folder_id', folder.id);
+      fileCount = count || 0;
+    }
+  } catch (e) { /* best-effort */ }
+
   res.render('work-orders/show', {
     title: `WO-${wo.display_number}`, activeNav: 'work-orders',
-    wo, subs, estimate, invoice, notes, photos, fileCount: fileCountWO
+    wo, subs: subs || [], estimate, invoice, notes, photos, fileCount
   });
 });
+
+// --- edit / update ---
 
 router.get('/:id/edit', async (req, res) => {
   const wo = await loadWorkOrder(req.params.id);
@@ -606,10 +848,15 @@ router.get('/:id/edit', async (req, res) => {
     setFlash(req, 'error', `WO-${wo.display_number} is "${wo.status}" and cannot be edited.`);
     return res.redirect(`/work-orders/${wo.id}`);
   }
-  const users = await db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
+  const { data: users } = await supabase
+    .from('users')
+    .select('id, name')
+    .eq('active', 1)
+    .order('name');
+
   res.render('work-orders/edit', {
     title: `Edit WO-${wo.display_number}`, activeNav: 'work-orders',
-    wo, users, errors: {}, units: VALID_UNITS
+    wo, users: users || [], errors: {}, units: VALID_UNITS
   });
 });
 
@@ -622,9 +869,11 @@ router.post('/:id', async (req, res) => {
   }
 
   const { errors, data } = validateWorkOrder(req.body);
-  // For edit, allow display number override if it's unique and matches parent constraint
+
+  // Display-number override validation (sub-WO must keep parent's main)
   let newDisplay = existing.display_number;
-  let newMain = existing.wo_number_main, newSub = existing.wo_number_sub;
+  let newMain = existing.wo_number_main;
+  let newSub = existing.wo_number_sub;
   if (data.display_number_override) {
     const { main, sub } = data.display_number_override;
     if (existing.parent_wo_id && main !== existing.wo_number_main) {
@@ -632,7 +881,12 @@ router.post('/:id', async (req, res) => {
     } else {
       const candidate = numbering.formatDisplay(main, sub);
       if (candidate !== existing.display_number) {
-        const dup = await db.get('SELECT id FROM work_orders WHERE display_number = ? AND id != ?', [candidate, existing.id]);
+        const { data: dup } = await supabase
+          .from('work_orders')
+          .select('id')
+          .eq('display_number', candidate)
+          .neq('id', existing.id)
+          .maybeSingle();
         if (dup) errors.display_number = `WO ${candidate} already exists.`;
         else { newDisplay = candidate; newMain = main; newSub = sub; }
       }
@@ -640,185 +894,280 @@ router.post('/:id', async (req, res) => {
   }
 
   if (Object.keys(errors).length) {
-    const users = await db.all("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE ASC");
+    const { data: users } = await supabase
+      .from('users')
+      .select('id, name')
+      .eq('active', 1)
+      .order('name');
+
     return res.status(400).render('work-orders/edit', {
       title: `Edit WO-${existing.display_number}`, activeNav: 'work-orders',
       wo: { ...existing, ...data, display_number: req.body.display_number || existing.display_number },
-      users, errors, units: VALID_UNITS
+      users: users || [], errors, units: VALID_UNITS
     });
   }
 
-  // ── Item-completion audit: snapshot old completed states ──
-  const oldLines = await db.all('SELECT id, description, completed, completed_at FROM work_order_line_items WHERE work_order_id = ?', [existing.id]);
-
-  await db.transaction(async (tx) => {
-    await tx.run(
-      `UPDATE work_orders SET
-         wo_number_main=?, wo_number_sub=?, display_number=?,
-         scheduled_date=?, scheduled_time=?, assigned_to_user_id=?, assigned_to=?, notes=?,
-         updated_at=now()
-       WHERE id=?`,
-      [newMain, newSub, newDisplay,
-       data.scheduled_date, data.scheduled_time, data.assigned_to_user_id, data.assigned_to, data.notes,
-       existing.id]
-    );
-    await tx.run('DELETE FROM work_order_line_items WHERE work_order_id = ?', [existing.id]);
-    for (let idx = 0; idx < data.lines.length; idx++) {
-      const li = data.lines[idx];
-      const lt = calc.lineTotal(li);
-      const isCompleted = li.completed ? 1 : 0;
-      // Check if this line was previously NOT completed (new completion)
-      const oldLine = oldLines[idx] || oldLines.find(o => String(o.description).trim() === String(li.description || '').trim());
-      const wasAlreadyCompleted = oldLine && oldLine.completed === 1 && oldLine.completed_at;
-      const completedAt = isCompleted && !wasAlreadyCompleted ? "now()" : (oldLine && oldLine.completed_at ? `'${oldLine.completed_at}'` : 'NULL');
-      await tx.run(
-        `INSERT INTO work_order_line_items
-         (work_order_id, description, quantity, unit, unit_price, cost, line_total, completed, completed_at, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ${completedAt}, ?)`,
-        [existing.id, li.description, li.quantity, li.unit, li.unit_price, li.cost, lt, isCompleted, idx]
-      );
-      // Write audit for new completions
-      if (isCompleted && !wasAlreadyCompleted) {
-        try {
-          const { writeAudit } = require('../services/audit');
-          await writeAudit({
-            entityType: 'work_order_line_item', entityId: 0,
-            action: 'item_completed',
-            before: {}, after: { wo_id: existing.id, description: li.description, quantity: li.quantity, unit: li.unit },
-            source: 'user', userId: req.session.userId
-          });
-        } catch(e) { console.error('item-completion audit failed:', e.message); }
-      }
-    }
+  const { error: rpcErr } = await supabase.rpc('update_work_order_with_lines', {
+    wo_id: parseInt(existing.id, 10),
+    wo_data: {
+      wo_number_main: newMain,
+      wo_number_sub: newSub,
+      display_number: newDisplay,
+      scheduled_date: data.scheduled_date,
+      scheduled_time: data.scheduled_time,
+      scheduled_end_time: data.scheduled_end_time,
+      assigned_to_user_id: data.assigned_to_user_id,
+      assigned_to: data.assigned_to,
+      notes: data.notes,
+    },
+    lines: buildLineRows(data.lines),
+    user_id: req.session.userId || null,
   });
+  if (rpcErr) throw rpcErr;
 
   setFlash(req, 'success', `WO-${newDisplay} updated.`);
   res.redirect(`/work-orders/${existing.id}`);
 });
 
-// Note: item-completion audit hook requires per-line diff tracking,
-// which is incompatible with the delete-then-insert pattern above.
-// TODO Round 16+: use a before/after snapshot for audit.
+// --- status transitions (RPC handles status field, timestamps, audit) ---
 
-async function statusTransition(req, res, fromStatus, toStatus, timestampField) {
-  const wo = await db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
-  if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
-  const allowedFrom = Array.isArray(fromStatus) ? fromStatus : [fromStatus];
-  if (!allowedFrom.includes(wo.status)) {
-    setFlash(req, 'error', `Cannot move WO-${wo.display_number} from "${wo.status}" to "${toStatus}".`);
-    return res.redirect(`/work-orders/${wo.id}`);
-  }
-  const sets = ['status = ?', `updated_at = now()`];
-  const params = [toStatus];
-  if (timestampField) sets.push(`${timestampField} = now()`);
-  await db.run(`UPDATE work_orders SET ${sets.join(', ')} WHERE id = ?`, [...params, wo.id]);
-  // Audit log
-  try {
-    const { writeAudit } = require('../services/audit');
-    const auditAction = toStatus === 'in_progress' ? 'started' : toStatus;
-    await writeAudit({ entityType: 'work_order', entityId: wo.id, action: auditAction, before: { status: wo.status }, after: { status: toStatus }, source: 'web', userId: req.session.userId });
-  } catch(e) { console.error('audit failed:', e.message); }
-  setFlash(req, 'success', `WO-${wo.display_number} marked ${toStatus.replace('_',' ')}.`);
-  res.redirect(`/work-orders/${wo.id}`);
+function statusTransitionRoute(newStatus, friendlyVerb) {
+  return async (req, res) => {
+    const { data: wo, error } = await supabase
+      .from('work_orders')
+      .select('id, display_number, status')
+      .eq('id', req.params.id)
+      .maybeSingle();
+    if (error) throw error;
+    if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
+
+    const { error: rpcErr } = await supabase.rpc('transition_work_order_status', {
+      wo_id: parseInt(wo.id, 10),
+      new_status: newStatus,
+      user_id: req.session.userId || null,
+    });
+    if (rpcErr) {
+      // The RPC enforces transition legality; surface its message verbatim.
+      setFlash(req, 'error', `Cannot ${friendlyVerb} WO-${wo.display_number}: ${rpcErr.message}`);
+      return res.redirect(`/work-orders/${wo.id}`);
+    }
+
+    setFlash(req, 'success', `WO-${wo.display_number} marked ${newStatus.replace('_', ' ')}.`);
+    res.redirect(`/work-orders/${wo.id}`);
+  };
 }
 
-router.post('/:id/start',    (req, res) => statusTransition(req, res, 'scheduled', 'in_progress', null));
-router.post('/:id/complete', (req, res) => statusTransition(req, res, 'in_progress', 'complete', 'completed_date'));
-router.post('/:id/cancel',   (req, res) => statusTransition(req, res, ['scheduled','in_progress'], 'cancelled', null));
+router.post('/:id/start',    statusTransitionRoute('in_progress', 'start'));
+router.post('/:id/complete', statusTransitionRoute('complete',    'complete'));
+router.post('/:id/cancel',   statusTransitionRoute('cancelled',   'cancel'));
 
-// POST /:id/notes — add a note to a work order
+// --- notes ---
+
 router.post('/:id/notes', async (req, res) => {
-  const wo = await db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
+  const { data: wo, error: findErr } = await supabase
+    .from('work_orders')
+    .select('id, assigned_to_user_id, assigned_to')
+    .eq('id', req.params.id)
+    .maybeSingle();
+  if (findErr) throw findErr;
   if (!wo) {
     setFlash(req, 'error', 'Work order not found.');
     return res.redirect('/work-orders');
   }
-  // Permission: workers can post only on assigned WOs
+
+  // Worker permission: only their assigned WOs
   if (req.session.role === 'worker') {
+    const userName = res.locals.currentUser ? res.locals.currentUser.name : '';
     const isAssigned = wo.assigned_to_user_id === req.session.userId ||
-      (wo.assigned_to && wo.assigned_to.includes(req.session.userName || ''));
+      (wo.assigned_to && userName && wo.assigned_to.includes(userName));
     if (!isAssigned) {
       setFlash(req, 'error', 'You can only post notes on work orders assigned to you.');
       return res.redirect(`/work-orders/${wo.id}`);
     }
   }
+
   const body = (req.body.body || '').trim();
   if (!body || body.length < 2) {
     setFlash(req, 'error', 'Note must be at least 2 characters.');
     return res.redirect(`/work-orders/${wo.id}`);
   }
-  await db.run(`INSERT INTO wo_notes (work_order_id, user_id, body, created_at) VALUES (?, ?, ?, now())`,
-    [wo.id, req.session.userId, body]);
+
+  const { error: insErr } = await supabase
+    .from('wo_notes')
+    .insert({ work_order_id: wo.id, user_id: req.session.userId, body });
+  if (insErr) throw insErr;
+
+  // Audit (best-effort)
+  try {
+    await supabase.from('audit_logs').insert({
+      entity_type: 'work_order', entity_id: wo.id, action: 'note_added',
+      before_json: null, after_json: { body },
+      source: 'web', user_id: req.session.userId,
+    });
+  } catch (e) { /* best-effort */ }
+
   setFlash(req, 'success', 'Note posted.');
   res.redirect(`/work-orders/${wo.id}`);
 });
 
-// POST /:id/photos — upload photos
+// --- photos: upload ---
+
 router.post('/:id/photos', async (req, res) => {
-  const wo = await db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
-  if (!wo) { setFlash(req, 'error', 'Work order not found.'); return res.redirect('/work-orders'); }
-  if (req.session.role === 'worker') {
-    const isAssigned = wo.assigned_to_user_id === req.session.userId ||
-      (wo.assigned_to && wo.assigned_to.includes(req.session.userName || ''));
-    if (!isAssigned) { setFlash(req, 'error', 'You can only upload photos to assigned WOs.'); return res.redirect(`/work-orders/${wo.id}`); }
+  const { data: wo, error: findErr } = await supabase
+    .from('work_orders')
+    .select('id, assigned_to_user_id, assigned_to')
+    .eq('id', req.params.id)
+    .maybeSingle();
+  if (findErr) throw findErr;
+  if (!wo) {
+    setFlash(req, 'error', 'Work order not found.');
+    return res.redirect('/work-orders');
   }
+  if (req.session.role === 'worker') {
+    const userName = res.locals.currentUser ? res.locals.currentUser.name : '';
+    const isAssigned = wo.assigned_to_user_id === req.session.userId ||
+      (wo.assigned_to && userName && wo.assigned_to.includes(userName));
+    if (!isAssigned) {
+      setFlash(req, 'error', 'You can only upload photos to assigned WOs.');
+      return res.redirect(`/work-orders/${wo.id}`);
+    }
+  }
+
   woUpload.array('photos', MAX_FILES)(req, res, async (err) => {
-    if (err) { setFlash(req, 'error', err.message); return res.redirect(`/work-orders/${wo.id}`); }
+    if (err) {
+      setFlash(req, 'error', err.message);
+      return res.redirect(`/work-orders/${wo.id}`);
+    }
     const files = req.files || [];
-    if (files.length === 0) { setFlash(req, 'error', 'No files selected.'); return res.redirect(`/work-orders/${wo.id}`); }
+    if (files.length === 0) {
+      setFlash(req, 'error', 'No files selected.');
+      return res.redirect(`/work-orders/${wo.id}`);
+    }
     const caption = (req.body.caption || '').trim();
+
+    const uploadedKeys = [];
     try {
-      await db.transaction(async (tx) => {
-        for (const f of files) {
-          const ext = path.extname(f.originalname) || '';
-          const key = `${wo.id}/${crypto.randomUUID()}${ext}`;
-          await storage.uploadBuffer('wo-photos', key, f.buffer, f.mimetype);
-          await tx.run(`INSERT INTO wo_photos (work_order_id, user_id, filename, caption, created_at) VALUES (?, ?, ?, ?, now())`,
-            [wo.id, req.session.userId, key, caption || null]);
-        }
-        // Single audit row for the batch
-        await writeAudit({ entityType: 'work_order', entityId: wo.id, action: 'photo_uploaded', before: {}, after: { count: files.length, filenames: files.map(f => f.filename) }, source: 'user', userId: req.session.userId });
-      });
+      for (const f of files) {
+        const ext = path.extname(f.originalname) || '';
+        const key = `${wo.id}/${crypto.randomUUID()}${ext}`;
+        await storage.uploadBuffer('wo-photos', key, f.buffer, f.mimetype);
+        uploadedKeys.push(key);
+        const { error: insErr } = await supabase
+          .from('wo_photos')
+          .insert({
+            work_order_id: wo.id,
+            user_id: req.session.userId,
+            filename: key,
+            caption: caption || null,
+          });
+        if (insErr) throw insErr;
+      }
+
+      // Single audit row for the batch
+      try {
+        await supabase.from('audit_logs').insert({
+          entity_type: 'work_order', entity_id: wo.id, action: 'photo_uploaded',
+          before_json: null,
+          after_json: { count: files.length, filenames: uploadedKeys },
+          source: 'web', user_id: req.session.userId,
+        });
+      } catch (e) { /* best-effort */ }
     } catch (e) {
-      console.error('photo upload tx failed:', e);
+      console.error('photo upload failed:', e);
+      // Best-effort cleanup of any Storage uploads
+      for (const k of uploadedKeys) {
+        try { await storage.remove('wo-photos', k); } catch (_) {}
+      }
       setFlash(req, 'error', 'Failed to save photos: ' + e.message);
       return res.redirect(`/work-orders/${wo.id}`);
     }
+
     const msg = files.length === 1 ? '1 photo uploaded.' : `${files.length} photos uploaded.`;
     setFlash(req, 'success', msg);
     res.redirect(`/work-orders/${wo.id}`);
   });
 });
 
-// POST /:id/photos/:photoId/delete — delete a photo
+// --- photos: delete ---
+
 router.post('/:id/photos/:photoId/delete', async (req, res) => {
-  const wo = await db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
-  if (!wo) { setFlash(req, 'error', 'Work order not found.'); return res.redirect('/work-orders'); }
-  const photo = await db.get('SELECT * FROM wo_photos WHERE id = ? AND work_order_id = ?', [req.params.photoId, wo.id]);
-  if (!photo) { setFlash(req, 'error', 'Photo not found.'); return res.redirect(`/work-orders/${wo.id}`); }
+  const { data: wo, error: woErr } = await supabase
+    .from('work_orders')
+    .select('id')
+    .eq('id', req.params.id)
+    .maybeSingle();
+  if (woErr) throw woErr;
+  if (!wo) {
+    setFlash(req, 'error', 'Work order not found.');
+    return res.redirect('/work-orders');
+  }
+
+  const { data: photo, error: phErr } = await supabase
+    .from('wo_photos')
+    .select('*')
+    .eq('id', req.params.photoId)
+    .eq('work_order_id', wo.id)
+    .maybeSingle();
+  if (phErr) throw phErr;
+  if (!photo) {
+    setFlash(req, 'error', 'Photo not found.');
+    return res.redirect(`/work-orders/${wo.id}`);
+  }
+
   // Permission: uploader or manager+
   const isOwner = photo.user_id === req.session.userId;
   const isManager = req.session.role !== 'worker';
-  if (!isOwner && !isManager) { setFlash(req, 'error', 'You can only delete your own photos.'); return res.redirect(`/work-orders/${wo.id}`); }
-  // Delete file from disk
-  // Remove from Supabase Storage
-  try { await storage.remove('wo-photos', photo.filename); } catch(e) { /* best effort */ }
-  await db.run('DELETE FROM wo_photos WHERE id = ?', [photo.id]);
+  if (!isOwner && !isManager) {
+    setFlash(req, 'error', 'You can only delete your own photos.');
+    return res.redirect(`/work-orders/${wo.id}`);
+  }
+
+  // Best-effort Storage removal
+  try { await storage.remove('wo-photos', photo.filename); } catch (e) { /* best-effort */ }
+
+  const { error: delErr } = await supabase.from('wo_photos').delete().eq('id', photo.id);
+  if (delErr) throw delErr;
+
+  try {
+    await supabase.from('audit_logs').insert({
+      entity_type: 'work_order', entity_id: wo.id, action: 'photo_deleted',
+      before_json: { filename: photo.filename, caption: photo.caption },
+      after_json: null,
+      source: 'web', user_id: req.session.userId,
+    });
+  } catch (e) { /* best-effort */ }
+
   setFlash(req, 'success', 'Photo deleted.');
   res.redirect(`/work-orders/${wo.id}`);
 });
 
+// --- PDF ---
+
 router.get('/:id/pdf', async (req, res) => {
   const wo = await loadWorkOrder(req.params.id);
   if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
-  const company = await db.get('SELECT * FROM company_settings WHERE id = 1') || {};
+
+  const { data: company } = await supabase
+    .from('company_settings')
+    .select('*')
+    .eq('id', 1)
+    .maybeSingle();
+
   const filename = `WO-${wo.display_number}.pdf`;
   const disposition = req.query.download ? 'attachment' : 'inline';
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `${disposition}; filename="${filename}"`);
   res.setHeader('Cache-Control', 'no-store');
+
+  if (!pdf) {
+    if (!res.headersSent) {
+      return res.status(500).render('error', { title: 'PDF error', code: 500, message: 'PDF service not available.' });
+    }
+    return res.end();
+  }
+
   try {
-    pdf.generateWorkOrderPDF({ ...wo, wo_number: `WO-${wo.display_number}` }, company, res);
+    pdf.generateWorkOrderPDF({ ...wo, wo_number: `WO-${wo.display_number}` }, company || {}, res);
   } catch (err) {
     console.error('WO PDF failed:', err);
     if (!res.headersSent) res.status(500).render('error', { title: 'PDF error', code: 500, message: err.message });
@@ -826,66 +1175,125 @@ router.get('/:id/pdf', async (req, res) => {
   }
 });
 
+// --- delete ---
+
 router.post('/:id/delete', async (req, res) => {
-  const wo = await db.get('SELECT id, display_number FROM work_orders WHERE id = ?', [req.params.id]);
+  const id = parseInt(req.params.id, 10);
+  const { data: wo, error: findErr } = await supabase
+    .from('work_orders')
+    .select('id, display_number, status')
+    .eq('id', id)
+    .maybeSingle();
+  if (findErr) throw findErr;
   if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
-  const subCount = (await db.get('SELECT COUNT(*) AS n FROM work_orders WHERE parent_wo_id = ?', [wo.id]) || {}).n || 0;
-  if (subCount) {
+
+  // Block: sub-WOs
+  const { count: subCount, error: subErr } = await supabase
+    .from('work_orders')
+    .select('id', { count: 'exact', head: true })
+    .eq('parent_wo_id', wo.id);
+  if (subErr) throw subErr;
+  if ((subCount || 0) > 0) {
     setFlash(req, 'error', `Cannot delete WO-${wo.display_number} — ${subCount} sub-WO(s) attached.`);
     return res.redirect(`/work-orders/${wo.id}`);
   }
-  const estCount = (await db.get('SELECT COUNT(*) AS n FROM estimates WHERE work_order_id = ?', [wo.id]) || {}).n || 0;
-  if (estCount) {
+
+  // Block: estimates
+  const { count: estCount, error: estErr } = await supabase
+    .from('estimates')
+    .select('id', { count: 'exact', head: true })
+    .eq('work_order_id', wo.id);
+  if (estErr) throw estErr;
+  if ((estCount || 0) > 0) {
     setFlash(req, 'error', `Cannot delete WO-${wo.display_number} — an estimate references it.`);
     return res.redirect(`/work-orders/${wo.id}`);
   }
-  await db.run('DELETE FROM work_order_line_items WHERE work_order_id = ?', [wo.id]);
-  await db.run('DELETE FROM work_orders WHERE id = ?', [wo.id]);
+
+  // Cascade rows that don't have ON DELETE CASCADE
+  await supabase.from('work_order_line_items').delete().eq('work_order_id', wo.id);
+  // Notes + photos best-effort (table may not exist on older DBs)
+  try { await supabase.from('wo_notes').delete().eq('work_order_id', wo.id); } catch (_) {}
+  try { await supabase.from('wo_photos').delete().eq('work_order_id', wo.id); } catch (_) {}
+
+  const { error: delErr } = await supabase.from('work_orders').delete().eq('id', wo.id);
+  if (delErr) throw delErr;
+
   try {
-    const { writeAudit } = require('../services/audit');
-    await writeAudit({ entityType: 'work_order', entityId: wo.id, action: 'deleted', before: null, after: null, source: 'web', userId: req.session.userId });
-  } catch(e) {}
+    await supabase.from('audit_logs').insert({
+      entity_type: 'work_order', entity_id: wo.id, action: 'delete',
+      before_json: { display_number: wo.display_number, status: wo.status },
+      after_json: null,
+      source: 'web', user_id: req.session.userId,
+    });
+  } catch (e) { /* best-effort */ }
+
   setFlash(req, 'success', `WO-${wo.display_number} deleted.`);
   res.redirect('/work-orders');
 });
 
-// Create estimate from this WO (1:1)
+// --- create estimate from WO (1:1) ---
+
 router.post('/:id/create-estimate', async (req, res) => {
-  const wo = await db.get('SELECT * FROM work_orders WHERE id = ?', [req.params.id]);
+  const { data: wo, error: woErr } = await supabase
+    .from('work_orders')
+    .select('*, work_order_line_items(*)')
+    .eq('id', req.params.id)
+    .maybeSingle();
+  if (woErr) throw woErr;
   if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
-  const existing = await db.get('SELECT id FROM estimates WHERE work_order_id = ?', [wo.id]);
+
+  const { data: existing } = await supabase
+    .from('estimates')
+    .select('id')
+    .eq('work_order_id', wo.id)
+    .maybeSingle();
   if (existing) {
     setFlash(req, 'info', `Estimate already exists for WO-${wo.display_number}.`);
     return res.redirect(`/estimates/${existing.id}`);
   }
 
-  const lines = await db.all(
-    `SELECT * FROM work_order_line_items WHERE work_order_id = ? ORDER BY sort_order ASC, id ASC`,
-    [wo.id]
-  );
-  const settings = await db.get('SELECT default_tax_rate FROM company_settings WHERE id = 1') || { default_tax_rate: 0 };
-  const taxRate = Number(settings.default_tax_rate) || 0;
-  const totals = calc.totals(lines, taxRate);
-  const costTotal = lines.reduce((s, li) => s + (Number(li.cost) || 0) * (Number(li.quantity) || 0), 0);
-
-  const newId = await db.transaction(async (tx) => {
-    const r = await tx.run(
-      `INSERT INTO estimates (work_order_id, status, subtotal, tax_rate, tax_amount, total, cost_total)
-       VALUES (?, 'draft', ?, ?, ?, ?, ?)`,
-      [wo.id, totals.subtotal, taxRate, totals.taxAmount, totals.total, costTotal]
-    );
-    const eid = r.lastInsertRowid;
-    for (let idx = 0; idx < lines.length; idx++) {
-      const li = lines[idx];
-      const lt = calc.lineTotal(li);
-      await tx.run(
-        `INSERT INTO estimate_line_items (estimate_id, description, quantity, unit, unit_price, cost, line_total, selected, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)`,
-        [eid, li.description, li.quantity, li.unit, li.unit_price, li.cost, lt, idx]
-      );
-    }
-    return eid;
+  const lines = (wo.work_order_line_items || []).slice().sort((a, b) => {
+    const ao = a.sort_order || 0, bo = b.sort_order || 0;
+    if (ao !== bo) return ao - bo;
+    return (a.id || 0) - (b.id || 0);
   });
+
+  const { data: settings } = await supabase
+    .from('company_settings')
+    .select('default_tax_rate')
+    .eq('id', 1)
+    .maybeSingle();
+  const taxRate = Number(settings && settings.default_tax_rate) || 0;
+  const totals = calc.totals(lines, taxRate);
+  const costTotal = lines.reduce((s, li) =>
+    s + (Number(li.cost) || 0) * (Number(li.quantity) || 0), 0);
+
+  const linePayload = lines.map((li, idx) => ({
+    description: li.description,
+    quantity: li.quantity,
+    unit: li.unit,
+    unit_price: li.unit_price,
+    cost: li.cost,
+    line_total: calc.lineTotal(li),
+    selected: 1,
+    sort_order: idx,
+  }));
+
+  const { data: newId, error: rpcErr } = await supabase.rpc('create_estimate_with_lines', {
+    estimate_data: {
+      work_order_id: wo.id,
+      status: 'draft',
+      subtotal: totals.subtotal,
+      tax_rate: taxRate,
+      tax_amount: totals.taxAmount,
+      total: totals.total,
+      cost_total: costTotal,
+      payment_terms: 'Net 30',
+    },
+    lines: linePayload,
+    user_id: req.session.userId || null,
+  });
+  if (rpcErr) throw rpcErr;
 
   setFlash(req, 'success', `Estimate EST-${wo.display_number} created from WO-${wo.display_number}.`);
   res.redirect(`/estimates/${newId}`);
