@@ -75,4 +75,49 @@ async function sendEmail({ to, subject, text, html, attachments }) {
   return { messageId: result.messageId, mode: 'smtp', accepted: result.accepted, rejected: result.rejected };
 }
 
-module.exports = { sendEmail, MAIL_OUTBOX, MODE };
+/**
+ * Send a password reset email.
+ * Falls back to console.log if Resend is not configured.
+ */
+async function sendPasswordResetEmail(toEmail, toName, resetUrl) {
+  const subject = 'Reset your FORGE password';
+  const text = `Hi ${toName},\n\nSomeone requested a password reset for your FORGE account. Click the link below to set a new password. The link expires in 1 hour.\n\n${resetUrl}\n\nIf you didn't request this, you can safely ignore this email — no changes will be made to your account.\n\n— FORGE by Recon Enterprises`;
+  const html = `<p>Hi ${toName},</p><p>Someone requested a password reset for your FORGE account. Click below to set a new password. The link expires in 1 hour.</p><p style="text-align:center;margin:24px 0"><a href="${resetUrl}" style="display:inline-block;background:#c0202b;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">Reset password</a></p><p>If you didn't request this, you can safely ignore this email — no changes will be made to your account.</p><p style="color:#888;font-size:12px">— FORGE by Recon Enterprises</p>`;
+
+  // Try Resend first if configured
+  const resend = getResend();
+  if (resend) {
+    try {
+      const result = await resend.emails.send({
+        from: 'FORGE <support@reconenterprises.net>',
+        to: [toEmail],
+        subject,
+        html,
+        text,
+      });
+      return { ok: true, id: result.id };
+    } catch (e) {
+      console.error('[email] Resend send failed:', e.message);
+      // Fall through to file/console fallback
+    }
+  }
+
+  // Fallback: log to console (dev/staging convenience)
+  console.log('[email] Password reset link for', toEmail, ':', resetUrl);
+  console.log('[email] Would have sent:', { to: toEmail, subject, text: text.slice(0, 200) });
+  return { ok: true, dev: true };
+}
+
+/**
+ * Lazy-init Resend client.
+ */
+let resendClient = null;
+function getResend() {
+  if (resendClient) return resendClient;
+  if (!process.env.RESEND_API_KEY) return null;
+  const { Resend } = require('resend');
+  resendClient = new Resend(process.env.RESEND_API_KEY);
+  return resendClient;
+}
+
+module.exports = { sendEmail, sendPasswordResetEmail, MAIL_OUTBOX, MODE };

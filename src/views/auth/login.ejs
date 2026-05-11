@@ -3,9 +3,9 @@
 <div class="min-h-[80vh] flex items-center justify-center px-4">
   <div class="card w-full max-w-md p-8">
     <div class="flex flex-col items-center mb-6">
-      <img src="/logos/recon.png" alt="Recon Construction" class="h-28 w-auto mb-3">
-      <h1 class="text-xl font-bold text-recon-charcoal">Recon Work Orders</h1>
-      <p class="text-sm text-recon-fog mt-1">Sign in to continue</p>
+      <img src="/logos/recon.png" alt="Recon Construction" class="h-20 w-auto mb-2">
+      <span class="forge-wordmark" style="font-size:2rem;font-weight:800;letter-spacing:.16em;background:linear-gradient(95deg,#e63946 0%,#ff6b75 35%,#ffffff 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;filter:drop-shadow(0 1px 0 rgba(0,0,0,.25));">FORGE</span>
+      <p class="text-sm text-recon-fog mt-1">by Recon Enterprises</p>
     </div>
 
     <% if (typeof error !== 'undefined' && error) { %>
@@ -31,8 +31,11 @@
       </button>
     </form>
 
-    <p class="text-center text-xs text-recon-fog mt-6">
-      In-house only. Forgot your password? Ask an admin.
+    <p class="text-center text-xs text-recon-fog mt-4">
+      <a href="/forgot-password" class="text-recon-red hover:underline">Forgot password?</a>
+    </p>
+    <p class="text-center text-xs text-recon-fog mt-2">
+      In-house only.
     </p>
   </div>
 </div>

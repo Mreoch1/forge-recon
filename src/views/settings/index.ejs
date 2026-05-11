@@ -27,18 +27,17 @@
 
     <details class="mt-6">
       <summary class="text-sm font-medium text-recon-red cursor-pointer">Change password</summary>
-      <form method="post" action="/settings/password" class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4 max-w-lg">
-        <div>
+      <form method="post" action="/settings/password" class="mt-3 max-w-lg">
+        <div class="mb-3">
           <label class="label">Current password</label>
           <input type="password" name="current_password" class="input" required>
         </div>
-        <div>
-          <label class="label">New password</label>
-          <input type="password" name="new_password" class="input" required minlength="8">
+        <%- include('../partials/password-validator', { fieldId: 'new_password', label: 'New password', confirmFieldId: 'confirm_password' }) %>
+        <div class="mb-3">
+          <label for="confirm_password" class="label">Confirm password</label>
+          <input type="password" name="confirm_password" id="confirm_password" class="input" required autocomplete="new-password">
         </div>
-        <div class="flex items-end">
-          <button type="submit" class="btn btn-secondary">Change</button>
-        </div>
+        <button type="submit" class="btn btn-secondary">Change</button>
       </form>
     </details>
   </div>

@@ -34,10 +34,7 @@
         </select>
       </div>
       <div>
-        <label class="label" for="password">Password <span class="text-recon-red">*</span></label>
-        <input type="password" name="password" id="password" required minlength="8"
-               class="input <%= errors.password ? 'border-red-500' : '' %>"
-               placeholder="At least 8 characters" autocomplete="new-password">
+        <%- include('../../partials/password-validator', { fieldId: 'password', label: 'Password', confirmFieldId: '' }) %>
         <% if (errors.password) { %><p class="text-sm text-red-600 mt-1"><%= errors.password %></p><% } %>
       </div>
 
