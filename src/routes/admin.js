@@ -325,18 +325,10 @@ router.get('/ai-usage', (req, res) => {
 
 module.exports = router;
 
-// --- admin index (not under /users namespace) ---
+// --- admin index → redirect to /settings ---
 router.get('/', (req, res) => {
-  const userCount = (db.get('SELECT COUNT(*) AS n FROM users WHERE active = 1') || {}).n || 0;
-  const closureCount = (db.get('SELECT COUNT(*) AS n FROM closures') || {}).n || 0;
-  const holidayCount = (db.get("SELECT COUNT(*) AS n FROM closures WHERE type = 'holiday'") || {}).n || 0;
-  const customCount = closureCount - holidayCount;
-  const closures = db.all('SELECT * FROM closures ORDER BY date_start ASC');
-  res.render('admin/index', {
-    title: 'Admin',
-    activeNav: 'admin',
-    userCount, closureCount, holidayCount, customCount, closures,
-  });
+  setFlash(req, 'info', 'Admin panel moved to Settings.');
+  res.redirect('/settings');
 });
 
 // --- closures CRUD moved inline ---

@@ -39,6 +39,7 @@ const vendorsRoutes = require('./routes/vendors');
 const aiChatRoutes = require('./routes/ai-chat');
 const closuresRoutes = require('./routes/closures');
 const filesRoutes = require('./routes/files');
+const settingsRoutes = require('./routes/settings');
 
 const PORT = parseInt(process.env.PORT, 10) || 3001;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
@@ -181,6 +182,9 @@ async function main() {
   app.use('/bills', requireAuth, requireManager, billsRoutes);
   app.use('/admin', requireAuth, requireAdmin, adminRoutes);
   app.use('/admin/closures', requireAuth, requireAdmin, closuresRoutes);
+  // Settings — per-role (all authenticated users)
+  app.use('/settings', requireAuth, settingsRoutes);
+
   // Work orders are worker-accessible (Round 4 will scope to assigned WOs only)
   app.use('/work-orders', requireAuth, workOrdersRoutes);
   app.use('/schedule', requireAuth, scheduleRoutes);

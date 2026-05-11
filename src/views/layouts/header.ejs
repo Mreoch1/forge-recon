@@ -114,7 +114,7 @@
           <div class="relative" id="more-dropdown">
             <%
               var _activeNav = (typeof activeNav !== 'undefined') ? activeNav : '';
-              var moreActive = _activeNav === 'vendors' || _activeNav === 'bills' || _activeNav === 'accounting' || _activeNav === 'admin' || _activeNav === 'customers';
+              var moreActive = _activeNav === 'vendors' || _activeNav === 'bills' || _activeNav === 'accounting' || _activeNav === 'customers';
             %>
             <button class="navlink more-toggle<%= moreActive ? ' active' : '' %>">More ▾</button>
             <div class="more-menu hidden absolute top-full right-0 mt-1 bg-recon-steel border border-recon-ash rounded-lg shadow-xl py-1 min-w-[160px] z-50">
@@ -122,10 +122,6 @@
               <a href="/vendors" class="block px-4 py-2 text-sm text-recon-mist hover:bg-recon-ash transition<%= typeof activeNav !== 'undefined' && activeNav === 'vendors' ? ' bg-recon-red text-white hover:bg-recon-red' : '' %>">Vendors</a>
               <a href="/bills" class="block px-4 py-2 text-sm text-recon-mist hover:bg-recon-ash transition<%= typeof activeNav !== 'undefined' && activeNav === 'bills' ? ' bg-recon-red text-white hover:bg-recon-red' : '' %>">Bills</a>
               <a href="/accounting" class="block px-4 py-2 text-sm text-recon-mist hover:bg-recon-ash transition<%= typeof activeNav !== 'undefined' && activeNav === 'accounting' ? ' bg-recon-red text-white hover:bg-recon-red' : '' %>">Accounting</a>
-              <% if (currentUser.role === 'admin') { %>
-                <div class="border-t border-recon-ash my-1"></div>
-                <a href="/admin" class="block px-4 py-2 text-sm text-recon-mist hover:bg-recon-ash transition">Admin</a>
-              <% } %>
             </div>
           </div>
         </div>
@@ -141,14 +137,11 @@
           <a href="/vendors" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'vendors' ? ' active' : '' %>">Vendors</a>
           <a href="/bills" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'bills' ? ' active' : '' %>">Bills</a>
           <a href="/accounting" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'accounting' ? ' active' : '' %>">Accounting</a>
-          <% if (currentUser.role === 'admin') { %>
-            <a href="/admin" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'admin' ? ' active' : '' %>">Admin</a>
-          <% } %>
         </div>
       </div>
       <div class="flex items-center gap-3">
         <span class="text-sm text-recon-fog hidden sm:inline"><%= currentUser.name %></span>
-        <span class="text-xs text-recon-fog hidden sm:inline">(<%= currentUser.role %>)</span>
+        <a href="/settings" class="text-xs text-recon-fog hidden sm:inline hover:text-white transition">(<%= currentUser.role %>)</a>
         <form action="/logout" method="post" class="m-0 p-0">
           <button type="submit" class="text-sm text-recon-fog hover:text-white transition">Logout</button>
         </form>
