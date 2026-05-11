@@ -93,9 +93,33 @@
   .sc-init-chip { position: absolute; top: 1px; right: 1px; width: 16px; height: 16px; border-radius: 50%; background: rgba(255,255,255,.3); color: #fff; font-size: .45rem; font-weight: 700; display: flex; align-items: center; justify-content: center; line-height: 1; pointer-events: none; }
   .sc-wo-block { color: #fff; }
   .sc-wo-block.sc-unassigned { color: #555; }
+  /* Unscheduled sidebar */
+  .sc-layout { flex-direction: row; }
+  .sc-sidebar { width: 220px; flex-shrink: 0; border-right: 1px solid #e0e0e0; display: flex; flex-direction: column; overflow-y: auto; background: #fafafa; }
+  .sc-sb-header { display: flex; align-items: center; justify-content: space-between; padding: .6rem .75rem; border-bottom: 1px solid #e0e0e0; font-size: .72rem; text-transform: uppercase; letter-spacing: .12em; font-weight: 700; color: #555; }
+  .sc-sb-count { background: #c0202b; color: #fff; border-radius: 9999px; padding: .05rem .45rem; font-size: .65rem; font-weight: 600; }
+  .sc-sb-list { flex: 1; overflow-y: auto; padding: .35rem; }
+  .sc-sb-pill { background: #fff; border-radius: 6px; padding: .4rem .5rem; margin-bottom: .35rem; cursor: grab; border: 1px solid #e5e5e5; transition: box-shadow .1s; }
+  .sc-sb-pill:hover { box-shadow: 0 2px 6px rgba(0,0,0,.1); }
+  .sc-sb-pill-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: .15rem; }
+  .sc-sb-pill-num { font-family: ui-monospace, monospace; font-size: .68rem; font-weight: 700; }
+  .sc-sb-chip { width: 16px; height: 16px; border-radius: 50%; background: #d0d0d0; color: #555; font-size: .45rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .sc-sb-pill-customer { font-size: .75rem; font-weight: 600; color: #1a1a1a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sc-sb-pill-job { font-size: .65rem; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sc-sb-pill-assignee { font-size: .62rem; color: #aaa; margin-top: .1rem; }
+  .sc-sb-empty { padding: 1rem .75rem; font-size: .8rem; color: #10b981; text-align: center; }
+  .sc-header-wrap { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  @media (max-width: 768px) {
+    .sc-layout { flex-direction: column; }
+    .sc-sidebar { width: 100%; max-height: 120px; border-right: none; border-bottom: 1px solid #e0e0e0; }
+    .sc-sb-list { display: flex; gap: .35rem; overflow-x: auto; padding: .35rem; }
+    .sc-sb-pill { min-width: 160px; flex-shrink: 0; margin-bottom: 0; }
+  }
 </style>
 
 <div class="sc-layout">
+  <%- include('_unscheduled-lane') %>
+  <div class="sc-header-wrap">
   <!-- Header -->
   <div class="sc-header">
     <a href="/schedule?view=2week&date=<%= prevDate %><%= assigneeFilter ? '&assignee=' + assigneeFilter : '' %>" class="sc-nav-btn">&larr;</a>
@@ -223,4 +247,5 @@
   </div>
 </div>
 <script src="/js/schedule-drag.js" defer></script>
+</div>
 <%- include('../layouts/footer') %>

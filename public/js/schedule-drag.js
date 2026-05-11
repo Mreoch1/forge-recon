@@ -300,6 +300,8 @@
   }
 
   function renderFromToPopup(block, state, newDate, newTime, endTime, conflicts, pt) {
+    const isSidebar = block.dataset.source === 'sidebar';
+    const moveLabel = isSidebar ? 'Schedule' : 'Move';
     const fmtDate = (d) => {
       const dt = new Date(d + 'T12:00:00');
       return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -308,7 +310,7 @@
     const card = document.createElement('div');
     card.className = 'sc-confirm-card sc-from-to-card';
     card.innerHTML = `
-      <div class="scc-header">Move WO-${state.woDisplay}?</div>
+      <div class="scc-header">${moveLabel} WO-${state.woDisplay}?</div>
       <div class="scc-from-to-row">
         <span class="scc-label">Date:</span>
         <span class="scc-date-display">${fmtDate(newDate)}</span>
@@ -411,13 +413,18 @@
     // Month view: attach to .sc-wo-pill elements
     if (document.querySelector('.sc-month-grid')) {
       document.querySelectorAll('.sc-wo-pill').forEach(pill => {
-        // Only make pills with a data-wo-id draggable
         if (pill.dataset.woId) {
           pill.style.cursor = 'grab';
           pill.addEventListener('pointerdown', (e) => startDrag(e, pill));
         }
       });
     }
+
+    // Sidebar: attach to .sc-sb-pill elements
+    document.querySelectorAll('.sc-sb-pill').forEach(pill => {
+      pill.style.cursor = 'grab';
+      pill.addEventListener('pointerdown', (e) => startDrag(e, pill));
+    });
   }
 
   if (document.readyState === 'loading') {

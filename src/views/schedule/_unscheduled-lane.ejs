@@ -1,0 +1,33 @@
+<div class="sc-sidebar">
+  <div class="sc-sb-header">
+    <span class="sc-sb-title">Unscheduled</span>
+    <span class="sc-sb-count"><%= unscheduled.length %></span>
+  </div>
+  <% if (unscheduled.length === 0) { %>
+    <div class="sc-sb-empty">&#10003; All work orders scheduled</div>
+  <% } else { %>
+    <div class="sc-sb-list">
+      <% unscheduled.forEach(function(wo){
+        var sColor = colorForStatus(wo, woConflicts);
+        var sName = wo.assigned_user_name || wo.assigned_to || '';
+      %>
+        <div class="sc-sb-pill" style="border-left:3px solid <%= sColor || '#9ca3af' %>"
+             data-wo-id="<%= wo.id %>"
+             data-wo-display="<%= wo.display_number %>"
+             data-current-date=""
+             data-current-time=""
+             data-end-time=""
+             data-assignee-id="<%= wo.assigned_to_user_id || '' %>"
+             data-source="sidebar">
+          <div class="sc-sb-pill-top">
+            <span class="sc-sb-pill-num" style="color:<%= sColor || '#555' %>">WO-<%= wo.display_number %></span>
+            <% if (sName) { %><span class="sc-sb-chip"><%= getInitials(sName) %></span><% } %>
+          </div>
+          <div class="sc-sb-pill-customer"><%= wo.customer_name || '' %></div>
+          <div class="sc-sb-pill-job"><%= wo.job_title || '' %></div>
+          <div class="sc-sb-pill-assignee"><%= sName || 'Unassigned' %></div>
+        </div>
+      <% }); %>
+    </div>
+  <% } %>
+</div>

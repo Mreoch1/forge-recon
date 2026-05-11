@@ -64,15 +64,17 @@ function fmtMoney(n) {
 
 // --- header ---
 
+const LOGO_HEIGHT = 110;
+
 function drawHeader(doc, company) {
   const left = doc.page.margins.left;
   const right = doc.page.width - doc.page.margins.right;
   const top = doc.page.margins.top;
 
-  // Logo (graceful fallback to text)
+  // Logo (graceful fallback to text) -- enlarged
   if (fs.existsSync(LOGO_PATH)) {
     try {
-      doc.image(LOGO_PATH, left, top, { fit: [120, 60], align: 'left' });
+      doc.image(LOGO_PATH, left, top, { fit: [220, LOGO_HEIGHT], align: 'left' });
     } catch (e) {
       doc.fillColor(COLOR.charcoal).fontSize(20).font('Helvetica-Bold').text(company.company_name || 'Recon Construction', left, top);
     }
@@ -97,6 +99,9 @@ function drawHeader(doc, company) {
     doc.text(line, left, y, { width: right - left, align: 'right' });
     y += i === 0 ? 14 : 11;
   });
+
+  // Ensure subsequent content clears the (now larger) logo.
+  doc.y = Math.max(y, top + LOGO_HEIGHT + 6);
 }
 
 // --- title ---
@@ -238,6 +243,90 @@ function drawNotes(doc, notes) {
   doc.moveDown(1);
 }
 
+// --- signature block (estimates) ---
+
+function drawSignatureBlock(doc) {
+  const left = doc.page.margins.left;
+  const right = doc.page.width - doc.page.margins.right;
+  const tableWidth = right - left;
+
+  // Reserve room: if not enough, page-break first.
+  const blockHeight = 110;
+  if (doc.y > doc.page.height - doc.page.margins.bottom - blockHeight - 30) {
+    doc.addPage();
+  }
+
+  doc.moveDown(1);
+  let y = doc.y;
+
+  // Header
+  doc.fillColor(COLOR.fog).fontSize(8).font('Helvetica-Bold')
+    .text('ACCEPTANCE OF ESTIMATE', left, y);
+  y = doc.y + 4;
+
+  doc.fillColor(COLOR.ash).fontSize(9).font('Helvetica')
+    .text(
+      'The above prices, specifications and conditions are satisfactory and are hereby accepted. ' +
+      'You are authorized to do the work as specified. Payment will be made as outlined above.',
+      left, y, { width: tableWidth }
+    );
+  y = doc.y + 14;
+
+  // Signature line + date line, side by side
+  const sigW = tableWidth * 0.62;
+  const dateW = tableWidth - sigW - 20;
+  const sigX = left;
+  const dateX = left + sigW + 20;
+  const lineY = y + 22;
+
+  doc.strokeColor(COLOR.charcoal).lineWidth(0.8)
+    .moveTo(sigX, lineY).lineTo(sigX + sigW, lineY).stroke();
+  doc.strokeColor(COLOR.charcoal).lineWidth(0.8)
+    .moveTo(dateX, lineY).lineTo(dateX + dateW, lineY).stroke();
+
+  doc.fillColor(COLOR.fog).fontSize(8).font('Helvetica')
+    .text('Sign here', sigX, lineY + 4, { width: sigW });
+  doc.fillColor(COLOR.fog).fontSize(8).font('Helvetica')
+    .text('Date', dateX, lineY + 4, { width: dateW });
+
+  // Return-to instruction (bold, red accent)
+  const instrY = lineY + 22;
+  doc.fillColor(COLOR.red).fontSize(10).font('Helvetica-Bold')
+    .text('Please sign, date and return to Office@reconenterprises.net',
+      left, instrY, { width: tableWidth, align: 'center' });
+
+  doc.y = instrY + 18;
+}
+
+// --- payment terms (invoices) ---
+
+function drawPaymentTerms(doc, invoice, company) {
+  const left = doc.page.margins.left;
+  const right = doc.page.width - doc.page.margins.right;
+  const tableWidth = right - left;
+
+  // Prefer company- or invoice-level terms; fall back to a sensible default.
+  const terms =
+    (invoice && invoice.payment_terms) ||
+    (company && company.payment_terms) ||
+    'Net 30 -- payment due within 30 days of invoice date. ' +
+    'A finance charge of 1.5% per month (18% per annum) will be applied to past-due balances. ' +
+    'Make checks payable to Recon Enterprises. For questions, contact Office@reconenterprises.net.';
+
+  // Reserve a bit of room; page-break if tight.
+  if (doc.y > doc.page.height - doc.page.margins.bottom - 80) {
+    doc.addPage();
+  }
+
+  doc.moveDown(0.5);
+  const y = doc.y;
+  doc.fillColor(COLOR.fog).fontSize(8).font('Helvetica-Bold')
+    .text('PAYMENT TERMS', left, y);
+  doc.fillColor(COLOR.charcoal).fontSize(9).font('Helvetica')
+    .text(terms, left, doc.y + 4, { width: tableWidth });
+  doc.moveDown(0.8);
+}
+
 function drawFooterMeta(doc, lines) {
   const left = doc.page.margins.left;
   const right = doc.page.width - doc.page.margins.right;
@@ -282,6 +371,9 @@ function generateEstimatePDF(estimate, company, stream) {
 
   if (estimate.notes) drawNotes(doc, estimate.notes);
 
+  // Customer signature / acceptance block + return-to instruction
+  drawSignatureBlock(doc);
+
   const footerLines = [];
   if (estimate.created_at) footerLines.push(`Created: ${String(estimate.created_at).slice(0,10)}`);
   if (estimate.valid_until) footerLines.push(`Valid until: ${String(estimate.valid_until).slice(0,10)}`);
@@ -294,7 +386,7 @@ function generateEstimatePDF(estimate, company, stream) {
 // --- public: work order ---
 
 function drawWOLineItems(doc, lines) {
-  // WO line items — scope sheet, no pricing.
+  // WO line items -- scope sheet, no pricing.
   const left = doc.page.margins.left;
   const right = doc.page.width - doc.page.margins.right;
   const tableWidth = right - left;
@@ -479,6 +571,9 @@ function generateInvoicePDF(invoice, company, stream) {
 
   if (invoice.notes) drawNotes(doc, invoice.notes);
 
+  // Payment terms block (configurable via company/invoice, with default)
+  drawPaymentTerms(doc, invoice, company);
+
   const footerLines = [];
   if (invoice.created_at) footerLines.push(`Issued: ${String(invoice.created_at).slice(0,10)}`);
   if (invoice.due_date)  footerLines.push(`Due: ${String(invoice.due_date).slice(0,10)}`);
@@ -510,5 +605,5 @@ module.exports = {
   generateWorkOrderPDF,
   generateInvoicePDF,
   renderToBuffer,
-  _internal: { drawHeader, drawTitle, drawAddressBlocks, drawLineItemsTable, drawTotals, drawNotes, drawFooterMeta, fmt, fmtMoney, COLOR },
+  _internal: { drawHeader, drawTitle, drawAddressBlocks, drawLineItemsTable, drawTotals, drawNotes, drawSignatureBlock, drawPaymentTerms, drawFooterMeta, fmt, fmtMoney, COLOR },
 };

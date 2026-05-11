@@ -170,6 +170,20 @@ router.get('/', (req, res) => {
     ORDER BY w.scheduled_date, w.scheduled_time, w.display_number
   `, params);
 
+  // Unscheduled WOs for sidebar
+  const unscheduled = db.all(`
+    SELECT w.id, w.display_number, w.status, w.scheduled_date, w.scheduled_time,
+           w.assigned_to_user_id, w.assigned_to, w.scheduled_end_time,
+           j.title AS job_title, c.name AS customer_name,
+           u.name AS assignee_user_name
+    FROM work_orders w
+    JOIN jobs j ON j.id = w.job_id
+    JOIN customers c ON c.id = j.customer_id
+    LEFT JOIN users u ON u.id = w.assigned_to_user_id
+    WHERE w.scheduled_date IS NULL AND w.status IN ('scheduled', 'in_progress')
+    ORDER BY w.created_at DESC LIMIT 25
+  `);
+
   // Compute conflicts
   const woConflicts = {};
   wos.forEach(wo => {
@@ -234,7 +248,7 @@ router.get('/', (req, res) => {
     today, nowOffset: nowOffset > 0 && nowOffset < 100 ? nowOffset : null,
     assigneeFilter, users, colorForStatus, getInitials, fmtDate, fmtMonth,
     HOURS_START, HOURS_END, HOUR_COUNT, TOTAL_MINUTES,
-    rawDate, woOverlaps,
+    rawDate, woOverlaps, unscheduled,
   });
 });
 
@@ -287,11 +301,12 @@ router.post('/:id/reschedule', (req, res) => {
   const today = new Date().toISOString().slice(0, 10);
   if (date < today) return res.status(400).json({ error: 'Cannot schedule in the past.' });
   if (time && endTime && endTime <= time) return res.status(400).json({ error: 'End time must be after start time.' });
+  const isFirstSchedule = !wo.scheduled_date;
   // Audit
   try {
     const { writeAudit } = require('../services/audit');
     writeAudit({
-      entityType: 'work_order', entityId: wo.id, action: 'rescheduled',
+      entityType: 'work_order', entityId: wo.id, action: isFirstSchedule ? 'scheduled' : 'rescheduled',
       before: { scheduled_date: wo.scheduled_date, scheduled_time: wo.scheduled_time, scheduled_end_time: wo.scheduled_end_time },
       after: { scheduled_date: date, scheduled_time: time || null, scheduled_end_time: endTime || null },
       source: 'user', userId: req.session.userId,
