@@ -1,13 +1,12 @@
 node_modules/
 *.log
-.env
+.env*
+!.env.example
 data/
 mail-outbox/
 public/uploads/
 .DS_Store
 Thumbs.db
-data/
 sessions/
-node_modules/
 
 .vercel
