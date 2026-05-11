@@ -38,17 +38,29 @@
     </div>
   </div>
 
+  <%
+    var _users = (typeof users !== 'undefined') ? users : [];
+    var _assigneeFilter = (typeof assigneeFilter !== 'undefined') ? assigneeFilter : '';
+    var _statuses = (typeof statuses !== 'undefined') ? statuses : [];
+  %>
   <form method="get" action="/work-orders" class="list-utility-bar" style="margin-bottom:.65rem">
     <input type="text" name="q" value="<%= q %>" placeholder="Search WO #, job, customer..." class="list-search">
     <select name="status" class="list-filter">
-        <option value="">All</option>
-        <% (users || []).forEach(function(u){ %>
-          <option value="<%= u.id %>" <%= Number(assigneeFilter) === u.id ? 'selected' : '' %>><%= u.name %></option>
+      <option value="">All statuses</option>
+      <% _statuses.forEach(function(s){ %>
+        <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s.replace('_',' ') %></option>
+      <% }); %>
+    </select>
+    <% if (_users.length) { %>
+      <select name="assignee" class="list-filter">
+        <option value="">All assignees</option>
+        <% _users.forEach(function(u){ %>
+          <option value="<%= u.id %>" <%= String(_assigneeFilter) === String(u.id) ? 'selected' : '' %>><%= u.name %></option>
         <% }); %>
       </select>
-      <button type="submit" class="btn btn-secondary">Filter</button>
-      <% if (q || status) { %><a href="/work-orders" class="list-clear">Clear</a><% } %>
-      <a href="/work-orders/ai-create" class="btn btn-primary">+ AI work order</a>
+    <% } %>
+    <button type="submit" class="btn btn-secondary">Filter</button>
+    <% if (q || status) { %><a href="/work-orders" class="list-clear">Clear</a><% } %>
   </form>
   <% if (workOrders.length === 0) { %>
     <div class="wol-empty">

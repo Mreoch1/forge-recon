@@ -181,6 +181,16 @@ const actionSections = [
     font-size: .7rem; color: #aaa; font-weight: 500;
   }
   .dv2-queue-urgent .count { color: #c0202b; }
+  .dv2-queue-section.dv2-queue-urgent {
+    background: #fef2f2;
+    border-left: 3px solid #c0202b;
+    padding: .55rem .65rem .35rem;
+    margin: 0 -.65rem .25rem;
+    border-radius: 3px;
+  }
+  .dv2-queue-section.dv2-queue-urgent + .dv2-queue-section { border-top-color: transparent; margin-top: .75rem; }
+  .dv2-queue-section.dv2-queue-urgent .dv2-queue-title { color: #991b1b; }
+  .dv2-queue-section.dv2-queue-urgent .dv2-queue-row .amt { color: #c0202b; font-weight: 600; }
   .dv2-queue-amount-total { font-size: .72rem; color: #888; font-family: ui-monospace, monospace; }
   .dv2-queue-row {
     display: grid;

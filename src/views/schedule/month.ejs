@@ -86,7 +86,7 @@
       days.forEach(function(day){
         var isOther = !day.isThisMonth && !day.isToday;
       %>
-        <div class="sc-month-day<%= isOther ? ' other-month' : '' %><%= day.isToday ? ' is-today' : '' %>">
+        <div class="sc-month-day<%= isOther ? ' other-month' : '' %><%= day.isToday ? ' is-today' : '' %>" data-day-date="<%= day.date %>">
           <div class="sc-day-num"><%= day.num %></div>
           <%
           var dayWos = wos.filter(function(w){ return w.scheduled_date === day.date; });

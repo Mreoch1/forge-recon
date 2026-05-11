@@ -113,7 +113,8 @@
           <!-- More dropdown -->
           <div class="relative" id="more-dropdown">
             <%
-              var moreActive = activeNav === 'vendors' || activeNav === 'bills' || activeNav === 'accounting' || activeNav === 'admin';
+              var _activeNav = (typeof activeNav !== 'undefined') ? activeNav : '';
+              var moreActive = _activeNav === 'vendors' || _activeNav === 'bills' || _activeNav === 'accounting' || _activeNav === 'admin';
             %>
             <button class="navlink more-toggle<%= moreActive ? ' active' : '' %>">More ▾</button>
             <div class="more-menu hidden absolute top-full right-0 mt-1 bg-recon-steel border border-recon-ash rounded-lg shadow-xl py-1 min-w-[160px] z-50">

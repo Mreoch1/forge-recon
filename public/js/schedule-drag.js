@@ -205,9 +205,8 @@
       if (!newDate) { dragState = null; return; }
       if (newDate === dragState.origDate) { dragState = null; return; }
 
-      // Show from-to popup with existing times (or defaults)
-      const origEnd = dragState.origEndTime || addHours(dragState.origTime || '08:00', 4);
-      showFromToPopup(block, dragState, newDate, dragState.origTime || '08:00', origEnd, pt);
+      // Month drop: default to 08:00-12:00 since no hour slot
+      showFromToPopup(block, dragState, newDate, '08:00', '12:00', pt);
       dragState = null;
       return;
     }
