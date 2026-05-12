@@ -93,7 +93,16 @@ router.get('/', async (req, res) => {
 
   // R37c: projects list — LEFT join customers + include RPM-native `client` field
   // so RPM-imported projects (with customer_id=NULL + free-text client) appear.
-  let query = supabase.from('jobs').select('id, title, status, address, city, state, scheduled_date, created_at, customer_id, client, customers!left(name), assigned_to_user_id, users!left(name)', { count: 'exact', head: false });
+  // R37i: jobs has TWO FKs to users (assigned_to_user_id + project_manager_user_id
+  // added in r36_projects_layer). PostgREST can't resolve plain `users!left(...)`
+  // when multiple FKs exist — must use the FK constraint name explicitly.
+  let query = supabase.from('jobs').select(
+    'id, title, status, address, city, state, scheduled_date, created_at, customer_id, client, ' +
+    'customers!left(name), ' +
+    'assigned_to_user_id, ' +
+    'users!jobs_assigned_to_user_id_fkey(name)',
+    { count: 'exact', head: false }
+  );
   let countQuery = supabase.from('jobs').select('*', { count: 'exact', head: true });
 
   if (q) {
@@ -107,11 +116,16 @@ router.get('/', async (req, res) => {
     countQuery = countQuery.eq('status', status);
   }
 
-  const [{ data: jobs, count: total }, { error }] = await Promise.all([
+  // R37i: also surface the listing-query error (was being silently swallowed —
+  // only countQuery.error was checked, masking PostgREST FK-resolution failures).
+  const [listResult, countResult] = await Promise.all([
     query.order('created_at', { ascending: false }).range(offset, offset + PAGE_SIZE - 1),
     countQuery,
   ]);
-  if (error) throw error;
+  if (listResult.error) throw listResult.error;
+  if (countResult.error) throw countResult.error;
+  const jobs = listResult.data;
+  const total = listResult.count;
 
   res.render('jobs/index', {
     title: 'Projects', activeNav: 'projects',
@@ -185,9 +199,11 @@ router.post('/', async (req, res) => {
 
 router.get('/:id', async (req, res) => {
   const id = req.params.id;
+  // R37i: jobs has TWO FKs to users (assigned_to_user_id + project_manager_user_id from r36).
+  // Use explicit FK constraint name on users embed to avoid ambiguity error.
   const { data: job, error: jError } = await supabase
     .from('jobs')
-    .select('*, customers!left(id, name, email, phone, address, city, state, zip), users!left(name)')
+    .select('*, customers!left(id, name, email, phone, address, city, state, zip), users!jobs_assigned_to_user_id_fkey(name)')
     .eq('id', id)
     .maybeSingle();
   if (jError) throw jError;
