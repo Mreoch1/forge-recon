@@ -144,7 +144,7 @@ router.post('/', async (req, res) => {
     supabase.from('customers').select('id, name, address, city, state, zip').order('name'),
     supabase.from('users').select('id, name').eq('active', 1).order('name'),
   ]);
-  const { errors, data } = validateJob(req.body);
+  const { errors, data } = await validateJob(req.body);
   if (Object.keys(errors).length) {
     return res.status(400).render('jobs/new', {
       title: 'New job', activeNav: 'jobs',
@@ -219,7 +219,7 @@ router.post('/:id', async (req, res) => {
     supabase.from('customers').select('id, name').order('name'),
     supabase.from('users').select('id, name').eq('active', 1).order('name'),
   ]);
-  const { errors, data } = validateJob(req.body);
+  const { errors, data } = await validateJob(req.body);
   if (Object.keys(errors).length) {
     return res.status(400).render('jobs/edit', {
       title: `Edit ${job.title}`, activeNav: 'jobs',
