@@ -907,6 +907,13 @@ router.post('/:id', async (req, res) => {
   }
 
   const linesForUpdate = req.body.lines === undefined ? (existing.lines || []) : data.lines;
+  const { data: users } = await supabase
+    .from('users')
+    .select('id, name, email')
+    .eq('active', 1)
+    .order('name');
+  const newAssigneeIds = normalizeAssigneeIds(req.body.assignee_ids);
+  const assignmentFields = primaryAssigneeFields(newAssigneeIds, users || []);
 
   const { error: rpcErr } = await supabase.rpc('update_work_order_with_lines', {
     wo_id: parseInt(existing.id, 10),
@@ -917,30 +924,49 @@ router.post('/:id', async (req, res) => {
       scheduled_date: data.scheduled_date,
       scheduled_time: data.scheduled_time,
       scheduled_end_time: data.scheduled_end_time,
-      assigned_to_user_id: data.assigned_to_user_id,
-      assigned_to: data.assigned_to,
+      assigned_to_user_id: assignmentFields.assigned_to_user_id,
+      assigned_to: assignmentFields.assigned_to,
       notes: data.notes,
     },
     lines: buildLineRows(linesForUpdate),
     user_id: req.session.userId || null,
   });
   if (rpcErr) throw rpcErr;
+  const { error: assignUpdateErr } = await supabase
+    .from('work_orders')
+    .update({
+      assigned_to_user_id: assignmentFields.assigned_to_user_id,
+      assigned_to: assignmentFields.assigned_to,
+    })
+    .eq('id', existing.id);
+  if (assignUpdateErr) throw assignUpdateErr;
 
   // Update work_order_assignees
-  const newAssigneeIds = normalizeArr(req.body.assignee_ids);
   const { data: currentAssignees } = await supabase.from('work_order_assignees').select('user_id').eq('work_order_id', existing.id);
-  const currentIds = (currentAssignees || []).map(a => a.user_id);
-  const toAdd = newAssigneeIds.filter(id => !currentIds.includes(parseInt(id, 10)));
-  const toRemove = currentIds.filter(id => !newAssigneeIds.includes(String(id)));
+  const currentIds = (currentAssignees || []).map(a => Number(a.user_id)).filter(Boolean);
+  const toAdd = newAssigneeIds.filter(id => !currentIds.includes(id));
+  const toRemove = currentIds.filter(id => !newAssigneeIds.includes(id));
   for (const uid of toRemove) {
     await supabase.from('work_order_assignees').delete().eq('work_order_id', existing.id).eq('user_id', uid);
   }
-  for (const uid of toAdd) {
-    await supabase.from('work_order_assignees').insert({
-      work_order_id: existing.id, user_id: parseInt(uid, 10),
-      assigned_at: new Date().toISOString(), assigned_by_user_id: req.session.userId || null,
-    });
-  }
+  await saveAssigneesAndNotify({
+    workOrderId: existing.id,
+    assigneeIds: toAdd,
+    users: users || [],
+    customer: {
+      name: existing.customer_name,
+      address: existing.customer_address || existing.job_address,
+      city: existing.customer_city || existing.job_city,
+      state: existing.customer_state || existing.job_state,
+    },
+    display: newDisplay,
+    unitNumber: existing.unit_number || '',
+    description: data.description || existing.description || '',
+    notes: data.notes || '',
+    scheduledDate: data.scheduled_date || '',
+    scheduledTime: data.scheduled_time || '',
+    assignedByUserId: req.session.userId || null,
+  });
 
   setFlash(req, 'success', `WO-${newDisplay} updated.`);
   res.redirect(`/work-orders/${existing.id}`);
