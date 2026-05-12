@@ -550,13 +550,15 @@ MUTATION_TOOLS.send_estimate = {
 MUTATION_TOOLS.mark_invoice_paid = {
   needs_user: 'write',
   async propose(args, ctx) {
-    const { data: inv } = await supabase.from('invoices').select('id, status, total, amount_paid, work_order_id').eq('id', args.invoice_id).maybeSingle();
+    const { data: inv, error: invError } = await supabase.from('invoices').select('id, status, total, amount_paid, work_order_id').eq('id', args.invoice_id).maybeSingle();
+    if (invError) return { error: invError.message };
     if (!inv) return { error: 'Invoice not found.' };
     if (inv.status === 'paid') return { error: 'Invoice is already paid.' };
     const balance = Math.round((Number(inv.total) - Number(inv.amount_paid)) * 100) / 100;
     let amount = Number(args.amount) || balance;
     if (amount > balance) { amount = balance; }
-    const { data: wo } = await supabase.from('work_orders').select('display_number').eq('id', inv.work_order_id).maybeSingle();
+    const { data: wo, error: woError } = await supabase.from('work_orders').select('display_number').eq('id', inv.work_order_id).maybeSingle();
+    if (woError) return { error: woError.message };
     const number = `INV-${wo ? wo.display_number : ''}`;
     const lines = [`Invoice: ${number}`, `Amount: $${amount.toFixed(2)}`, `Balance before: $${balance.toFixed(2)}`];
     if (amount !== (Number(args.amount) || balance)) lines.push('(adjusted to outstanding balance)');
@@ -564,11 +566,15 @@ MUTATION_TOOLS.mark_invoice_paid = {
     return { summary_lines: lines, args_normalized: { ...args, amount, payment_date: args.payment_date || today } };
   },
   async execute(args, ctx) {
-    const { data: inv } = await supabase.from('invoices').select('id, status, total, amount_paid').eq('id', args.invoice_id).maybeSingle();
+    const { data: inv, error: invError } = await supabase.from('invoices').select('id, status, total, amount_paid').eq('id', args.invoice_id).maybeSingle();
+    if (invError) throw invError;
+    if (!inv) return { error: 'Invoice not found.' };
+    if (inv.status === 'paid') return { error: 'Invoice is already paid.' };
     const amount = Number(args.amount);
     const newAmt = (Number(inv.amount_paid) || 0) + amount;
     const newStatus = newAmt >= Number(inv.total) ? 'paid' : 'sent';
-    await supabase.from('invoices').update({ amount_paid: newAmt, status: newStatus, paid_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', inv.id);
+    const { error: updateError } = await supabase.from('invoices').update({ amount_paid: newAmt, status: newStatus, paid_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', inv.id);
+    if (updateError) throw updateError;
     // Post JE via accounting-posting
     try {
       const posting = require('../services/accounting-posting');
