@@ -41,7 +41,7 @@ const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 
-const LOGO_PATH = path.join(__dirname, '..', '..', 'public', 'logos', 'recon.png');
+const LOGO_PATH = path.join(__dirname, '..', '..', 'public', 'logos', 'recon-logo.jpg');
 
 const COLOR = {
   red:      '#c0202b',

@@ -181,11 +181,8 @@ async function sendWorkOrderAssignedEmail({ to, toName, woNumber, woId, customer
   const subject = `FORGE · Work Order ${woNumber} · ${safeCust}${safeUnit ? ' (' + safeUnit + ')' : ''}`;
   const bodyHtml = `
     <div style="max-width:600px;margin:0 auto;font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif">
-    <div style="background:linear-gradient(135deg,#c0202b 0%,#8a0e16 50%,#5a5a5a 100%);padding:24px 32px;border-radius:12px 12px 0 0">
-      <h1 style="color:#fff;margin:0;font-size:20px;font-weight:700;letter-spacing:-.02em">FORGE</h1>
-      <p style="color:rgba(255,255,255,.85);margin:4px 0 0;font-size:13px">Work Order Assignment</p>
-    </div>
-    <div style="background:#fff;border:1px solid #e0e0e0;border-top:0;padding:24px 32px;border-radius:0 0 12px 12px">
+    <div style="background:#fff;border:1px solid #e0e0e0;padding:24px 32px;border-radius:8px">
+      <p style="font-size:12px;color:#888;margin:0 0 12px;text-transform:uppercase;letter-spacing:.08em">Work Order Assignment</p>
       <p style="font-size:15px;color:#333">Hello${toName ? ' ' + escapeHtml(toName) : ''},</p>
       <p style="font-size:14px;color:#555">You've been assigned the following work order:</p>
 
@@ -238,4 +235,3 @@ async function sendWorkOrderAssignedEmail({ to, toName, woNumber, woId, customer
 }
 
 module.exports = { sendEmail, sendVerificationEmail, sendPasswordResetEmail, sendWorkOrderAssignedEmail };
-
