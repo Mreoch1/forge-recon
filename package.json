@@ -12,7 +12,6 @@
     "dev": "nodemon src/server.js",
     "e2e": "bash scripts/e2e-smoke.sh",
     "schema:check": "node scripts/schema-check.js",
-    "vercel-build": "git rev-parse HEAD > public/version.txt || echo unknown > public/version.txt",
     "init-db": "node src/db/init.js",
     "seed": "node src/db/seed.js",
     "init-accounting": "node src/db/init-accounting.js",
