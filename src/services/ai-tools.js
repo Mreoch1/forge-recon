@@ -588,18 +588,24 @@ MUTATION_TOOLS.mark_invoice_paid = {
 MUTATION_TOOLS.approve_bill = {
   needs_user: 'write',
   async propose(args, ctx) {
-    const { data: bill } = await supabase.from('bills').select('id, bill_number, status, total, vendor_id').eq('id', args.bill_id).maybeSingle();
+    const { data: bill, error: billError } = await supabase.from('bills').select('id, bill_number, status, total, vendor_id').eq('id', args.bill_id).maybeSingle();
+    if (billError) return { error: billError.message };
     if (!bill) return { error: 'Bill not found.' };
     if (bill.status !== 'draft') return { error: `Bill is "${bill.status}" — must be draft to approve.` };
-    const { data: vendor } = await supabase.from('vendors').select('name').eq('id', bill.vendor_id).maybeSingle();
+    const { data: vendor, error: vendorError } = await supabase.from('vendors').select('name').eq('id', bill.vendor_id).maybeSingle();
+    if (vendorError) return { error: vendorError.message };
     return { summary_lines: [`Bill: ${bill.bill_number || '#' + bill.id}`, `Vendor: ${vendor ? vendor.name : 'Unknown'}`, `Total: $${Number(bill.total).toFixed(2)}`, `Status: draft → approved`], args_normalized: args };
   },
   async execute(args, ctx) {
-    const { data: bill } = await supabase.from('bills').select('id, status, total, vendor_id').eq('id', args.bill_id).maybeSingle();
+    const { data: bill, error: billError } = await supabase.from('bills').select('id, bill_number, bill_date, status, total, tax_amount, vendor_id').eq('id', args.bill_id).maybeSingle();
+    if (billError) throw billError;
     if (!bill) return { error: 'Bill not found.' };
-    await supabase.from('bills').update({ status: 'approved', approved_by_user_id: ctx.userId, approved_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', bill.id);
+    if (bill.status !== 'draft') return { error: `Bill is "${bill.status}" — must be draft to approve.` };
+    const { error: updateError } = await supabase.from('bills').update({ status: 'approved', approved_by_user_id: ctx.userId, approved_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', bill.id);
+    if (updateError) throw updateError;
     try {
-      const { data: lines } = await supabase.from('bill_lines').select('*').eq('bill_id', bill.id);
+      const { data: lines, error: linesError } = await supabase.from('bill_lines').select('*').eq('bill_id', bill.id);
+      if (linesError) throw linesError;
       const posting = require('../services/accounting-posting');
       await posting.postBillApproved(bill, lines, { userId: ctx.userId });
     } catch(e) { console.warn('JE post for bill approve failed:', e.message); }
@@ -635,7 +641,8 @@ MUTATION_TOOLS.add_wo_note = {
 MUTATION_TOOLS.schedule_wo = {
   needs_user: 'write',
   async propose(args, ctx) {
-    const { data: wo } = await supabase.from('work_orders').select('*').eq('id', args.wo_id).maybeSingle();
+    const { data: wo, error: woError } = await supabase.from('work_orders').select('*').eq('id', args.wo_id).maybeSingle();
+    if (woError) return { error: woError.message };
     if (!wo) return { error: 'Work order not found.' };
 
     const date = args.date;
@@ -654,7 +661,8 @@ MUTATION_TOOLS.schedule_wo = {
 
     // If assignee_user_id provided, look up name
     if (assigneeUserId) {
-      const { data: u } = await supabase.from('users').select('name').eq('id', assigneeUserId).maybeSingle();
+      const { data: u, error: userError } = await supabase.from('users').select('name').eq('id', assigneeUserId).maybeSingle();
+      if (userError) return { error: userError.message };
       if (u) assigneeName = u.name;
     }
 
@@ -693,14 +701,18 @@ MUTATION_TOOLS.schedule_wo = {
     return { summary_lines: summary, args_normalized: { ...args, date, time, assignee_user_id: assigneeUserId, assignee_name: assigneeName }, warnings };
   },
   async execute(args, ctx) {
+    const proposal = await MUTATION_TOOLS.schedule_wo.propose(args, ctx);
+    if (proposal.error) return { error: proposal.error };
+    const normalized = proposal.args_normalized || args;
     const updateFields = {};
-    if (args.date) updateFields.scheduled_date = args.date;
-    if (args.time) updateFields.scheduled_time = args.time;
-    if (args.assignee_user_id) updateFields.assigned_to_user_id = args.assignee_user_id;
-    if (args.assignee_name) updateFields.assigned_to = args.assignee_name;
+    if (normalized.date) updateFields.scheduled_date = normalized.date;
+    if (normalized.time) updateFields.scheduled_time = normalized.time;
+    if (normalized.assignee_user_id) updateFields.assigned_to_user_id = normalized.assignee_user_id;
+    if (normalized.assignee_name) updateFields.assigned_to = normalized.assignee_name;
     updateFields.updated_at = new Date().toISOString();
-    await supabase.from('work_orders').update(updateFields).eq('id', args.wo_id);
-    await writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'scheduled_by_ai', before: {}, after: { scheduled_date: args.date, scheduled_time: args.time, assigned_to: args.assignee_name }, source: 'ai', userId: ctx.userId });
+    const { error: updateError } = await supabase.from('work_orders').update(updateFields).eq('id', args.wo_id);
+    if (updateError) throw updateError;
+    await writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'scheduled_by_ai', before: {}, after: { scheduled_date: normalized.date, scheduled_time: normalized.time, assigned_to: normalized.assignee_name }, source: 'ai', userId: ctx.userId });
     return { id: args.wo_id, href: `/work-orders/${args.wo_id}` };
   }
 };
@@ -708,7 +720,8 @@ MUTATION_TOOLS.schedule_wo = {
 MUTATION_TOOLS.reschedule_wo = {
   needs_user: 'write',
   async propose(args, ctx) {
-    const { data: wo } = await supabase.from('work_orders').select('*').eq('id', args.wo_id).maybeSingle();
+    const { data: wo, error: woError } = await supabase.from('work_orders').select('*').eq('id', args.wo_id).maybeSingle();
+    if (woError) return { error: woError.message };
     if (!wo) return { error: 'Work order not found.' };
 
     const date = args.new_date;
@@ -746,12 +759,16 @@ MUTATION_TOOLS.reschedule_wo = {
     return { summary_lines: summary, args_normalized: { ...args, date, time }, warnings };
   },
   async execute(args, ctx) {
+    const proposal = await MUTATION_TOOLS.reschedule_wo.propose(args, ctx);
+    if (proposal.error) return { error: proposal.error };
+    const normalized = proposal.args_normalized || args;
     const updateFields = {};
-    if (args.new_date) updateFields.scheduled_date = args.new_date;
-    if (args.new_time) updateFields.scheduled_time = args.new_time;
+    if (normalized.date) updateFields.scheduled_date = normalized.date;
+    if (normalized.time) updateFields.scheduled_time = normalized.time;
     updateFields.updated_at = new Date().toISOString();
-    await supabase.from('work_orders').update(updateFields).eq('id', args.wo_id);
-    await writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'rescheduled_by_ai', before: {}, after: { scheduled_date: args.new_date, scheduled_time: args.new_time }, source: 'ai', userId: ctx.userId });
+    const { error: updateError } = await supabase.from('work_orders').update(updateFields).eq('id', args.wo_id);
+    if (updateError) throw updateError;
+    await writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'rescheduled_by_ai', before: {}, after: { scheduled_date: normalized.date, scheduled_time: normalized.time }, source: 'ai', userId: ctx.userId });
     return { id: args.wo_id, href: `/work-orders/${args.wo_id}` };
   }
 };
@@ -759,7 +776,8 @@ MUTATION_TOOLS.reschedule_wo = {
 MUTATION_TOOLS.assign_wo = {
   needs_user: 'write',
   async propose(args, ctx) {
-    const { data: wo } = await supabase.from('work_orders').select('*').eq('id', args.wo_id).maybeSingle();
+    const { data: wo, error: woError } = await supabase.from('work_orders').select('*').eq('id', args.wo_id).maybeSingle();
+    if (woError) return { error: woError.message };
     if (!wo) return { error: 'Work order not found.' };
 
     let assigneeUserId = args.assignee_user_id;
@@ -782,7 +800,8 @@ MUTATION_TOOLS.assign_wo = {
 
     // If we have a user_id but no name, look it up
     if (assigneeUserId && !assigneeName) {
-      const { data: u } = await supabase.from('users').select('name').eq('id', assigneeUserId).maybeSingle();
+      const { data: u, error: userError } = await supabase.from('users').select('name').eq('id', assigneeUserId).maybeSingle();
+      if (userError) return { error: userError.message };
       if (u) assigneeName = u.name;
     }
 
@@ -808,12 +827,17 @@ MUTATION_TOOLS.assign_wo = {
     return { summary_lines: summary, args_normalized: { ...args, assignee_user_id: assigneeUserId, assignee_name: assigneeName }, warnings };
   },
   async execute(args, ctx) {
+    const proposal = await MUTATION_TOOLS.assign_wo.propose(args, ctx);
+    if (proposal.error) return { error: proposal.error };
+    if (proposal.suggest_disambiguation) return proposal;
+    const normalized = proposal.args_normalized || args;
     const updateFields = {};
-    if (args.assignee_user_id) updateFields.assigned_to_user_id = args.assignee_user_id;
-    if (args.assignee_name) updateFields.assigned_to = args.assignee_name;
+    if (normalized.assignee_user_id) updateFields.assigned_to_user_id = normalized.assignee_user_id;
+    if (normalized.assignee_name) updateFields.assigned_to = normalized.assignee_name;
     updateFields.updated_at = new Date().toISOString();
-    await supabase.from('work_orders').update(updateFields).eq('id', args.wo_id);
-    await writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'assigned_by_ai', before: {}, after: { assigned_to: args.assignee_name }, source: 'ai', userId: ctx.userId });
+    const { error: updateError } = await supabase.from('work_orders').update(updateFields).eq('id', args.wo_id);
+    if (updateError) throw updateError;
+    await writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'assigned_by_ai', before: {}, after: { assigned_to: normalized.assignee_name }, source: 'ai', userId: ctx.userId });
     return { id: args.wo_id, href: `/work-orders/${args.wo_id}` };
   }
 };
