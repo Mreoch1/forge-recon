@@ -245,6 +245,87 @@ function normalizeArr(v) {
   return [v];
 }
 
+function normalizeAssigneeIds(input) {
+  return [...new Set(normalizeArr(input)
+    .map(id => parseInt(id, 10))
+    .filter(id => Number.isInteger(id) && id > 0))];
+}
+
+function primaryAssigneeFields(assigneeIds, users = []) {
+  const primaryId = assigneeIds[0] || null;
+  const names = assigneeIds
+    .map(id => (users || []).find(u => Number(u.id) === Number(id))?.name)
+    .filter(Boolean);
+  return {
+    assigned_to_user_id: primaryId,
+    assigned_to: names.length ? names.join(', ') : null,
+  };
+}
+
+async function buildWorkOrderPdfBuffer(woId) {
+  if (!pdf) return null;
+  try {
+    const wo = await loadWorkOrder(woId);
+    if (!wo) return null;
+    const { data: company } = await supabase
+      .from('company_settings')
+      .select('*')
+      .eq('id', 1)
+      .maybeSingle();
+    return pdf.renderToBuffer(pdf.generateWorkOrderPDF, { ...wo, wo_number: `WO-${wo.display_number}` }, company || {});
+  } catch (e) {
+    console.warn('[work-orders] WO PDF attachment failed:', e.message);
+    return null;
+  }
+}
+
+async function saveAssigneesAndNotify({ workOrderId, assigneeIds, users = [], customer = {}, display, unitNumber, description, notes, scheduledDate, scheduledTime, assignedByUserId }) {
+  if (!assigneeIds.length) return;
+
+  const pdfBuffer = await buildWorkOrderPdfBuffer(workOrderId);
+  const sendWoEmail = require('../services/email').sendWorkOrderAssignedEmail;
+
+  for (const uid of assigneeIds) {
+    const { error: insErr } = await supabase.from('work_order_assignees').insert({
+      work_order_id: workOrderId,
+      user_id: uid,
+      assigned_at: new Date().toISOString(),
+      assigned_by_user_id: assignedByUserId || null,
+    });
+    if (insErr) {
+      console.warn('[work-orders] assignee insert failed for uid', uid, ':', insErr.message);
+      continue;
+    }
+
+    const assignee = (users || []).find(u => Number(u.id) === Number(uid));
+    if (!assignee || !assignee.email) continue;
+
+    try {
+      await sendWoEmail({
+        to: assignee.email,
+        toName: assignee.name,
+        woNumber: 'WO-' + display,
+        woId: workOrderId,
+        customerName: customer?.name || '',
+        address: [customer?.address, customer?.city, customer?.state].filter(Boolean).join(', '),
+        unitNumber: unitNumber || '',
+        description: description || '',
+        internalNotes: notes || '',
+        scheduledDate: scheduledDate || '',
+        scheduledTime: scheduledTime || '',
+        pdfBuffer,
+      });
+      await supabase
+        .from('work_order_assignees')
+        .update({ notified_at: new Date().toISOString() })
+        .eq('work_order_id', workOrderId)
+        .eq('user_id', uid);
+    } catch (e) {
+      console.warn('[work-orders] assignee email failed for', assignee.email, ':', e.message);
+    }
+  }
+}
+
 async function createWorkOrderWithLines(woData, lines, userId) {
   const { data: wo, error: woErr } = await supabase
     .from('work_orders')
@@ -410,6 +491,9 @@ router.post('/', async (req, res) => {
     main = next.main; sub = next.sub; display = next.display;
   }
 
+  const assigneeIds = normalizeAssigneeIds(req.body.assignee_ids);
+  const assignmentFields = primaryAssigneeFields(assigneeIds, users || []);
+
   const newId = await createWorkOrderWithLines(
     {
       customer_id: customerId,
@@ -424,46 +508,27 @@ router.post('/', async (req, res) => {
       scheduled_date: data.scheduled_date,
       scheduled_time: data.scheduled_time,
       scheduled_end_time: null,
-      assigned_to_user_id: null,
-      assigned_to: null,
+      assigned_to_user_id: assignmentFields.assigned_to_user_id,
+      assigned_to: assignmentFields.assigned_to,
       notes: data.notes || null,
     },
     buildLineRows(data.lines),
     req.session.userId || null
   );
 
-  // Insert work_order_assignees + email
-  const assigneeIds = normalizeArr(req.body.assignee_ids);
-  for (const uid of assigneeIds) {
-    const { error: insErr } = await supabase.from('work_order_assignees').insert({
-      work_order_id: newId, user_id: parseInt(uid, 10),
-      assigned_at: new Date().toISOString(),
-      assigned_by_user_id: req.session.userId || null,
-    });
-    if (insErr) { console.warn('[r34] assignee insert failed for uid', uid, ':', insErr.message); continue; }
-    // Email the assignee (best-effort)
-    try {
-      const assignee = users.find(u => u.id == uid);
-      if (assignee && assignee.email) {
-        const sendWoEmail = require('../services/email').sendWorkOrderAssignedEmail;
-        sendWoEmail({
-          to: assignee.email,
-          toName: assignee.name,
-          woNumber: 'WO-' + display,
-          woId: newId,
-          customerName: customer?.name || '',
-          address: [customer?.address, customer?.city, customer?.state].filter(Boolean).join(', '),
-          unitNumber: req.body.unit_number || '',
-          description: (req.body.description || '').trim(),
-          internalNotes: data.notes || '',
-          scheduledDate: data.scheduled_date || '',
-          scheduledTime: data.scheduled_time || '',
-        }).then(() => {
-          supabase.from('work_order_assignees').update({ notified_at: new Date().toISOString() }).eq('work_order_id', newId).eq('user_id', uid).then().catch(() => {});
-        }).catch(e => console.warn('[r34] assignee email failed for', assignee.email, ':', e.message));
-      }
-    } catch (e) { console.warn('[r34] assignee email setup failed:', e.message); }
-  }
+  await saveAssigneesAndNotify({
+    workOrderId: newId,
+    assigneeIds,
+    users: users || [],
+    customer,
+    display,
+    unitNumber: req.body.unit_number || '',
+    description: data.description || '',
+    notes: data.notes || '',
+    scheduledDate: data.scheduled_date || '',
+    scheduledTime: data.scheduled_time || '',
+    assignedByUserId: req.session.userId || null,
+  });
 
   setFlash(req, 'success', `Work order WO-${display} created.`);
   res.redirect(`/work-orders/${newId}`);
@@ -544,6 +609,7 @@ router.post('/ai-finalize', async (req, res) => {
   const scheduledDate = (req.body.scheduled_date || '').trim() || null;
   const scheduledTime = (req.body.scheduled_time || '').trim() || null;
   const notes = (req.body.notes || '').trim() || null;
+  const { data: users } = await supabase.from('users').select('id, name, email').eq('active', 1).order('name');
 
   if (!jobTitle) {
     setFlash(req, 'error', 'Work order title is required.');
@@ -589,22 +655,16 @@ router.post('/ai-finalize', async (req, res) => {
 
   // Assignees → primary user_id + comma-joined cache text
   const rawAssignees = asArray(req.body.assignees);
-  let assignedUserId = null;
+  const assigneeIds = [];
   const assignedToParts = [];
   for (const a of rawAssignees) {
     const uid = a.user_id ? parseInt(a.user_id, 10) : null;
-    if (uid && !assignedUserId) assignedUserId = uid;
+    if (uid) assigneeIds.push(uid);
     else if (a.name) assignedToParts.push(a.name);
   }
-  if (assignedUserId) {
-    const { data: u } = await supabase
-      .from('users')
-      .select('name')
-      .eq('id', assignedUserId)
-      .maybeSingle();
-    if (u && u.name) assignedToParts.unshift(u.name);
-  }
-  const assignedToText = assignedToParts.filter(Boolean).join(', ') || null;
+  const uniqueAssigneeIds = [...new Set(assigneeIds)];
+  const assignmentFields = primaryAssigneeFields(uniqueAssigneeIds, users || []);
+  const assignedToText = [assignmentFields.assigned_to, ...assignedToParts].filter(Boolean).join(', ') || null;
 
   // Build line items
   const rawLines = asArray(req.body.lines);
@@ -641,13 +701,33 @@ router.post('/ai-finalize', async (req, res) => {
       scheduled_date: scheduledDate,
       scheduled_time: scheduledTime,
       scheduled_end_time: null,
-      assigned_to_user_id: assignedUserId,
+      assigned_to_user_id: assignmentFields.assigned_to_user_id,
       assigned_to: assignedToText,
       notes,
     },
     lines,
     req.session.userId || null
   );
+
+  const { data: customerForEmail } = await supabase
+    .from('customers')
+    .select('id, name, email, phone, address, city, state, zip')
+    .eq('id', resolvedCustomerId)
+    .maybeSingle();
+
+  await saveAssigneesAndNotify({
+    workOrderId: newId,
+    assigneeIds: uniqueAssigneeIds,
+    users: users || [],
+    customer: customerForEmail || { name: customer_name || '' },
+    display: next.display,
+    unitNumber: '',
+    description: jobDescription || jobTitle,
+    notes: notes || '',
+    scheduledDate: scheduledDate || '',
+    scheduledTime: scheduledTime || '',
+    assignedByUserId: req.session.userId || null,
+  });
 
   setFlash(req, 'success', `WO-${next.display} created from AI extraction.`);
   res.redirect(`/work-orders/${newId}`);
