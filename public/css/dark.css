@@ -53,6 +53,15 @@ html.dark .text-gray-700 {
   color: var(--dark-text-muted) !important;
 }
 
-html.dark a:not(.btn):not(button):not(.no-dark) {
+html.dark .page-h1,
+html.dark .label {
+  color: var(--dark-text) !important;
+}
+
+html.dark .page-sub {
+  color: var(--dark-text-muted) !important;
+}
+
+html.dark main a:not(.btn):not(.navlink):not(.no-dark) {
   color: #6ab0f3;
 }
