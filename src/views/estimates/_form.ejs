@@ -89,8 +89,11 @@ function numberInputValue(n) {
                 <input type="checkbox" name="lines[<%= idx %>][selected]" value="1" <%= li.selected === 0 || li.selected === false ? '' : 'checked' %>>
               </td>
               <td>
-                <input type="text" name="lines[<%= idx %>][description]" data-field="description"
-                       value="<%= li.description || '' %>" class="input">
+                <textarea name="lines[<%= idx %>][description]" data-field="description"
+                          data-autosize rows="1"
+                          class="input"
+                          style="min-height: 2.25rem; resize: vertical;"
+                ><%= li.description || '' %></textarea>
               </td>
               <td class="text-right">
                 <input type="number" step="0.01" min="0" name="lines[<%= idx %>][quantity]" data-field="quantity"
@@ -126,7 +129,7 @@ function numberInputValue(n) {
               <input type="hidden" name="lines[__IDX__][selected]" value="0">
               <input type="checkbox" name="lines[__IDX__][selected]" value="1" checked>
             </td>
-            <td><input type="text" name="lines[__IDX__][description]" data-field="description" class="input"></td>
+            <td><textarea name="lines[__IDX__][description]" data-field="description" data-autosize rows="1" class="input" style="min-height: 2.25rem; resize: vertical;"></textarea></td>
             <td class="text-right"><input type="number" step="0.01" min="0" name="lines[__IDX__][quantity]" data-field="quantity" value="1" class="input text-right" style="width: 5rem; min-width: 4rem;" onfocus="this.select()" inputmode="decimal"></td>
             <td>
               <select name="lines[__IDX__][unit]" data-field="unit" class="input" style="min-width: 5rem;">
@@ -175,7 +178,7 @@ function numberInputValue(n) {
     <label class="label" for="notes">Notes (visible on customer PDF)
       <span class="ml-1 text-recon-fog cursor-help" title="Customer-facing notes that print on the estimate PDF. Use for warranty terms, scheduling caveats, or assumptions.">ⓘ</span>
     </label>
-    <textarea name="notes" id="notes" rows="3" class="input"><%= estimate.notes || '' %></textarea>
+    <textarea name="notes" id="notes" rows="3" data-autosize class="input"><%= estimate.notes || '' %></textarea>
   </div>
 
   <div class="flex items-center gap-2 pt-2">
@@ -194,5 +197,31 @@ function numberInputValue(n) {
     select.addEventListener('change', sync);
     sync();
   });
+
+  // R37d — textarea autosize: any <textarea data-autosize> grows to fit its content.
+  // Also handles textareas added dynamically (e.g. new line-item rows cloned from template).
+  function fitTextarea(el){
+    if (!el || el.tagName !== 'TEXTAREA') return;
+    el.style.height = 'auto';
+    el.style.height = (el.scrollHeight + 2) + 'px';
+  }
+  function bindAutosize(el){
+    if (!el || el.dataset._autosizeBound === '1') return;
+    el.dataset._autosizeBound = '1';
+    fitTextarea(el);
+    el.addEventListener('input', function(){ fitTextarea(el); });
+  }
+  // Initial pass
+  document.querySelectorAll('textarea[data-autosize]').forEach(bindAutosize);
+  // Observe DOM for newly-added rows from line-items.js cloning the __IDX__ template
+  var mo = new MutationObserver(function(mutations){
+    mutations.forEach(function(m){
+      m.addedNodes && m.addedNodes.forEach(function(node){
+        if (!node.querySelectorAll) return;
+        node.querySelectorAll && node.querySelectorAll('textarea[data-autosize]').forEach(bindAutosize);
+      });
+    });
+  });
+  mo.observe(document.body, { childList: true, subtree: true });
 })();
 </script>
