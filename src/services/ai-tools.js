@@ -88,29 +88,31 @@ tools.search_invoices = {
   args: { query: 'string (optional) — partial number, customer, or job', status: 'string (optional) — draft|sent|paid|overdue|void' },
   needs_user: 'read',
   handler: async ({ query, status }, ctx) => {
-    const conds = ['i.id IS NOT NULL'];
-    const params = [];
-    if (query) { const like = resolveQuery(query); conds.push('(i.id ILIKE ? OR c.name ILIKE ? OR j.title ILIKE ?)'); params.push(like, like, like); }
-    if (status) { conds.push('i.status = ?'); params.push(status); }
-    const rows = await db.all(`SELECT i.id, i.status, i.total, i.amount_paid, i.due_date, i.created_at,
-      w.display_number AS wo_display,
-      j.title AS job_title, c.name AS customer_name
-      FROM invoices i
-      JOIN work_orders w ON w.id = i.work_order_id
-      JOIN jobs j ON j.id = w.job_id
-      JOIN customers c ON c.id = j.customer_id
-      WHERE ${conds.join(' AND ')}
-      ORDER BY i.created_at DESC LIMIT 10`, params);
-    return rows.map(r => {
+    let q = supabase.from('invoices').select(`
+      id, status, total, amount_paid, due_date, created_at,
+      work_orders!inner(
+        display_number,
+        jobs!left(title, customers!left(name)),
+        customers!left(name)
+      )
+    `).order('created_at', { ascending: false }).limit(10);
+
+    if (status) q = q.eq('status', status);
+    if (query) q = q.or(`id.ilike.%${query}%,work_orders.jobs.title.ilike.%${query}%,work_orders.customers.name.ilike.%${query}%,work_orders.jobs.customers.name.ilike.%${query}%`);
+
+    const { data: rows } = await q;
+    return (rows || []).map(r => {
+      const wo = r.work_orders;
+      const customer = wo.customers || wo.jobs?.customers || {};
       const total = Number(r.total) || 0;
       const paid = Number(r.amount_paid) || 0;
       const bal = Math.round((total - paid) * 100) / 100;
       const due = r.due_date ? String(r.due_date).slice(0,10) : '';
       return {
-        id: r.id, number: `INV-${r.wo_display || ''}`, status: r.status,
+        id: r.id, number: `INV-${wo.display_number || ''}`, status: r.status,
         total, amount_paid: paid, balance: bal,
         due_date: due, days_late: due ? Math.max(0, daysAgo(due)) : 0,
-        customer_name: r.customer_name || '', job_title: r.job_title || ''
+        customer_name: customer.name || '', job_title: wo.jobs?.title || ''
       };
     });
   }
