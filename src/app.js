@@ -310,12 +310,15 @@ app.post('/feedback', async (req, res) => {
   res.redirect(req.headers.referer || '/');
 });
 
-// POST /account/ack-email-warning — dismiss the email warning modal (D-029)
+// POST /account/ack-email-warning — dismiss the email warning modal (D-029/D-038)
 app.post('/account/ack-email-warning', async (req, res) => {
   if (!req.session.userId) return res.status(401).redirect('/login');
   try {
     const supabase = require('./db/supabase');
     await supabase.from('users').update({ acknowledged_live_email_warning_at: new Date() }).eq('id', req.session.userId);
+    // D-038: patch session cache so currentUser reflects the change immediately
+    if (res.locals.currentUser) res.locals.currentUser.acknowledged_live_email_warning_at = new Date().toISOString();
+    if (req.currentUser) req.currentUser.acknowledged_live_email_warning_at = new Date().toISOString();
   } catch (e) {
     console.warn('[account] ack-email-warning failed:', e.message);
   }
@@ -334,9 +337,11 @@ app.post('/account/complete-onboarding', async (req, res) => {
   try {
     const supabase = require('./db/supabase');
     await supabase.from('users').update({ completed_onboarding_at: new Date() }).eq('id', req.session.userId);
-    // Reload session user
-    const { data: user } = await supabase.from('users').select('id, name, email, role, active, acknowledged_live_email_warning_at, completed_onboarding_at').eq('id', req.session.userId).maybeSingle();
-    if (user) req.currentUser = user;
+    // D-038: patch session cache so currentUser reflects the change immediately
+    if (res.locals.currentUser) res.locals.currentUser.completed_onboarding_at = new Date().toISOString();
+    if (req.currentUser) req.currentUser.completed_onboarding_at = new Date().toISOString();
+    // Also store in session for the requireAuth redirect check
+    req.session.completed_onboarding_at = new Date().toISOString();
   } catch (e) {
     console.warn('[account] complete-onboarding failed:', e.message);
   }
