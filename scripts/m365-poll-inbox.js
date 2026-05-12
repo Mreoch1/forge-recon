@@ -1,9 +1,19 @@
 const { getToken } = require('./m365-device-code-auth');
+const fs = require('fs');
+const path = require('path');
+
+const STATE_FILE = path.join(__dirname, '..', '.m365-poll-state.json');
 
 async function pollInbox() {
   const token = await getToken();
   
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  // Track last poll time so we only report new emails
+  let lastSeen = null;
+  if (fs.existsSync(STATE_FILE)) {
+    try { lastSeen = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')).lastPoll; } catch(e) {}
+  }
+  const since = lastSeen || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
   const url = 'https://graph.microsoft.com/v1.0/me/messages'
     + '?$filter=receivedDateTime ge ' + since
     + '&$orderby=receivedDateTime desc'
@@ -12,6 +22,9 @@ async function pollInbox() {
 
   const res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
   const data = await res.json();
+
+  // Save current time for next poll
+  fs.writeFileSync(STATE_FILE, JSON.stringify({ lastPoll: new Date().toISOString() }));
 
   const results = [];
   for (const msg of (data.value || [])) {
