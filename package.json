@@ -29,6 +29,7 @@
     "deasync": "^0.1.31",
     "dotenv": "^16.4.5",
     "ejs": "^3.1.10",
+    "exceljs": "^4.4.0",
     "express": "^4.21.0",
     "express-async-errors": "^3.1.1",
     "express-rate-limit": "^8.5.1",
