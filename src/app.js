@@ -221,6 +221,41 @@ app.get('/ai/chat/health', (req, res) => {
   });
 });
 app.use('/ai', requireAuth, aiChatRoutes);
+
+// D-029/D-038: ack-email-warning must be BEFORE the dashboard catch-all so requireAuth
+// onboarding redirect doesn't intercept it.
+app.post('/account/ack-email-warning', async (req, res) => {
+  if (!req.session.userId) return res.status(401).redirect('/login');
+  try {
+    const supabase = require('./db/supabase');
+    await supabase.from('users').update({ acknowledged_live_email_warning_at: new Date() }).eq('id', req.session.userId);
+    if (res.locals.currentUser) res.locals.currentUser.acknowledged_live_email_warning_at = new Date().toISOString();
+    if (req.currentUser) req.currentUser.acknowledged_live_email_warning_at = new Date().toISOString();
+  } catch (e) {
+    console.warn('[account] ack-email-warning failed:', e.message);
+  }
+  res.redirect(req.headers.referer || '/');
+});
+
+// D-030: onboarding — must be before dashboard catch-all too.
+app.get('/onboarding', async (req, res) => {
+  if (!req.session.userId) return res.redirect('/login');
+  res.render('onboarding', { title: 'Welcome to FORGE', activeNav: '' });
+});
+app.post('/account/complete-onboarding', async (req, res) => {
+  if (!req.session.userId) return res.status(401).redirect('/login');
+  try {
+    const supabase = require('./db/supabase');
+    await supabase.from('users').update({ completed_onboarding_at: new Date() }).eq('id', req.session.userId);
+    if (res.locals.currentUser) res.locals.currentUser.completed_onboarding_at = new Date().toISOString();
+    if (req.currentUser) req.currentUser.completed_onboarding_at = new Date().toISOString();
+    req.session.completed_onboarding_at = new Date().toISOString();
+  } catch (e) {
+    console.warn('[account] complete-onboarding failed:', e.message);
+  }
+  res.redirect('/');
+});
+
 app.use('/', requireAuth, dashboardRoutes);
 
 // POST /report-error — user-triggered error report email (must be before 404 handler)
@@ -308,44 +343,6 @@ app.post('/feedback', async (req, res) => {
     setFlash(req, 'error', 'Could not send feedback. Try again later.');
   }
   res.redirect(req.headers.referer || '/');
-});
-
-// POST /account/ack-email-warning — dismiss the email warning modal (D-029/D-038)
-app.post('/account/ack-email-warning', async (req, res) => {
-  if (!req.session.userId) return res.status(401).redirect('/login');
-  try {
-    const supabase = require('./db/supabase');
-    await supabase.from('users').update({ acknowledged_live_email_warning_at: new Date() }).eq('id', req.session.userId);
-    // D-038: patch session cache so currentUser reflects the change immediately
-    if (res.locals.currentUser) res.locals.currentUser.acknowledged_live_email_warning_at = new Date().toISOString();
-    if (req.currentUser) req.currentUser.acknowledged_live_email_warning_at = new Date().toISOString();
-  } catch (e) {
-    console.warn('[account] ack-email-warning failed:', e.message);
-  }
-  res.redirect(req.headers.referer || '/');
-});
-
-// GET /onboarding — first-login intro page (D-030)
-app.get('/onboarding', async (req, res) => {
-  if (!req.session.userId) return res.redirect('/login');
-  res.render('onboarding', { title: 'Welcome to FORGE', activeNav: '' });
-});
-
-// POST /account/complete-onboarding — dismiss onboarding (D-030)
-app.post('/account/complete-onboarding', async (req, res) => {
-  if (!req.session.userId) return res.status(401).redirect('/login');
-  try {
-    const supabase = require('./db/supabase');
-    await supabase.from('users').update({ completed_onboarding_at: new Date() }).eq('id', req.session.userId);
-    // D-038: patch session cache so currentUser reflects the change immediately
-    if (res.locals.currentUser) res.locals.currentUser.completed_onboarding_at = new Date().toISOString();
-    if (req.currentUser) req.currentUser.completed_onboarding_at = new Date().toISOString();
-    // Also store in session for the requireAuth redirect check
-    req.session.completed_onboarding_at = new Date().toISOString();
-  } catch (e) {
-    console.warn('[account] complete-onboarding failed:', e.message);
-  }
-  res.redirect('/');
 });
 
 app.use((req, res) => {
