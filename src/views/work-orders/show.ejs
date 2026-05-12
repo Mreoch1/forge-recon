@@ -36,7 +36,7 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
 
   .ws-status-badge { padding: .15rem .55rem; border-radius: 3px; font-size: .72rem; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; }
 
-  /* Strip: schedule | assignee | progress | estimate | invoice */
+  /* Strip: schedule | assignee | estimate | invoice| cancel */
   .ws-strip {
     display: flex; flex-wrap: wrap; align-items: stretch;
     border-top: 2px solid #1a1a1a; border-bottom: 1px solid #cfcfcf;
@@ -73,12 +73,7 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
   .ws-checkbox.done { background: #10b981; border-color: #10b981; position: relative; }
   .ws-checkbox.done::after { content: ''; position: absolute; left: 3px; top: 0px; width: 4px; height: 8px; border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg); }
 
-  /* Progress bar */
-  .ws-progress { display: inline-flex; align-items: center; gap: .5rem; }
-  .ws-progress-bar { width: 5rem; height: 5px; background: #e5e5e5; border-radius: 999px; overflow: hidden; }
-  .ws-progress-fill { height: 100%; background: <%= pct === 100 ? '#10b981' : '#c0202b' %>; transition: width .3s; }
-
-  /* Notes feed (right column) */
+  /* Notes feed */
   .ws-note-row { padding: .6rem 0; border-bottom: 1px solid #f0f0f0; font-size: .82rem; }
   .ws-note-row:last-child { border-bottom: none; }
   .ws-note-meta { font-size: .68rem; color: #aaa; margin-bottom: .15rem; font-family: ui-monospace, monospace; }
@@ -149,11 +144,6 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
       <% if (wo.status === 'scheduled' || wo.status === 'in_progress') { %>
         <a href="/work-orders/<%= wo.id %>/edit" class="btn btn-secondary text-sm">Edit</a>
       <% } %>
-      <% if (wo.status === 'scheduled' || wo.status === 'in_progress') { %>
-        <form action="/work-orders/<%= wo.id %>/complete" method="post" class="m-0 inline">
-          <button class="btn btn-primary text-sm" title="Mark this WO complete. Locks the WO and makes it eligible to convert into an estimate or invoice.">Mark complete</button>
-        </form>
-      <% } %>
       <% if (wo.status !== 'cancelled' && !estimate) { %>
         <form action="/work-orders/<%= wo.id %>/create-estimate" method="post" class="m-0 inline">
           <button class="btn btn-primary text-sm" title="Create a customer-facing estimate from this WO's line items. You can edit before sending.">Create estimate</button>
@@ -180,17 +170,6 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
     <div class="ws-strip-cell">
       <div class="ws-strip-label">Assignee</div>
       <div class="ws-strip-value"><%= wo.assigned_user_name || wo.assigned_to || '—' %></div>
-    </div>
-    <div class="ws-strip-cell">
-      <div class="ws-strip-label">Progress</div>
-      <div class="ws-strip-value">
-        <span class="ws-progress">
-          <span class="ws-strip-value-mono"><%= completedCount %>/<%= totalCount %></span>
-          <% if (totalCount > 0) { %>
-            <span class="ws-progress-bar"><span class="ws-progress-fill" style="width: <%= pct %>%"></span></span>
-          <% } %>
-        </span>
-      </div>
     </div>
     <% if (estimate) { %>
       <div class="ws-strip-cell">
