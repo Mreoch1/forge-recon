@@ -233,6 +233,41 @@ router.get('/ai-usage', async (req, res) => {
 
 // admin index redirect
 router.get('/', async (req, res) => { setFlash(req, 'info', 'Admin panel moved to Settings.'); res.redirect('/settings'); });
+
+// ── Audit log ─────────────────────────────────────────────────────────────
+router.get('/audit', async (req, res) => {
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = 50;
+  const offset = (page - 1) * limit;
+  const type = (req.query.type || '').trim();
+  const action = (req.query.action || '').trim();
+
+  let q = supabase
+    .from('audit_logs')
+    .select('*, users!audit_logs_user_id_fkey(name)', { count: 'exact' });
+
+  if (type) q = q.eq('entity_type', type);
+  if (action) q = q.eq('action', action);
+
+  const { data: entries, count: total, error } = await q
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+  if (error) throw error;
+
+  // Get distinct entity types for the filter dropdown
+  const { data: types } = await supabase.from('audit_logs')
+    .select('entity_type')
+    .order('entity_type')
+    .limit(100);
+  const distinctTypes = [...new Set((types || []).map(t => t.entity_type))].sort();
+
+  res.render('admin/audit', {
+    title: 'Audit Log', activeNav: 'admin',
+    entries: entries || [], total: total || 0, page,
+    totalPages: Math.max(1, Math.ceil((total || 0) / limit)),
+    type, action, types: distinctTypes,
+  });
+});
 router.post('/closures/create', async (req, res) => {
   const name = (req.body.name || '').trim(); const date_start = (req.body.date_start || '').trim(); const type = req.body.type || 'holiday';
   if (!name || !date_start) { setFlash(req, 'error', 'Name and date required.'); return res.redirect('/admin'); }

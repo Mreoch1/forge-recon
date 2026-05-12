@@ -1,0 +1,74 @@
+<%- include('../layouts/header', { title: title, currentUser: typeof currentUser !== 'undefined' ? currentUser : null, flash: typeof flash !== 'undefined' ? flash : {} }) %>
+
+<div class="max-w-7xl mx-auto px-4 py-6">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold">Audit Log</h1>
+    <p class="text-sm text-gray-500"><%= total %> entries</p>
+  </div>
+
+  <!-- Filters -->
+  <form method="get" class="flex gap-3 items-end mb-6 flex-wrap">
+    <div>
+      <label class="label text-xs">Entity type</label>
+      <select name="type" class="input text-sm" onchange="this.form.submit()">
+        <option value="">All</option>
+        <% types.forEach(function(t){ %>
+          <option value="<%= t %>" <%= type === t ? 'selected' : '' %>><%= t %></option>
+        <% }) %>
+      </select>
+    </div>
+    <div>
+      <label class="label text-xs">Action</label>
+      <input name="action" class="input text-sm" placeholder="e.g. create, send" value="<%= action %>">
+    </div>
+    <button type="submit" class="btn btn-ghost text-sm">Filter</button>
+    <% if (type || action) { %>
+      <a href="/admin/audit" class="btn btn-ghost text-sm">Clear</a>
+    <% } %>
+  </form>
+
+  <!-- Table -->
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b text-left text-gray-500">
+          <th class="pb-2 pr-4">Time</th>
+          <th class="pb-2 pr-4">User</th>
+          <th class="pb-2 pr-4">Entity</th>
+          <th class="pb-2 pr-4">Action</th>
+          <th class="pb-2 pr-4">Before</th>
+          <th class="pb-2">After</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!entries.length) { %>
+          <tr><td colspan="6" class="py-8 text-center text-gray-400">No audit entries found.</td></tr>
+        <% } %>
+        <% entries.forEach(function(e){ %>
+          <tr class="border-b hover:bg-gray-50">
+            <td class="py-2 pr-4 text-xs text-gray-500 whitespace-nowrap"><%= new Date(e.created_at).toLocaleString() %></td>
+            <td class="py-2 pr-4"><%= e.users?.name || 'System' %></td>
+            <td class="py-2 pr-4"><span class="text-xs font-mono"><%= e.entity_type %> #<%= e.entity_id %></span></td>
+            <td class="py-2 pr-4"><span class="badge <%= e.action === 'create' ? 'badge-accepted' : 'badge-draft' %>"><%= e.action %></span></td>
+            <td class="py-2 pr-4 max-w-xs truncate text-xs text-gray-400"><%= e.before_json || '-' %></td>
+            <td class="py-2 max-w-xs truncate text-xs text-gray-400"><%= e.after_json || '-' %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  <% if (totalPages > 1) { %>
+    <div class="flex justify-center gap-2 mt-6">
+      <% if (page > 1) { %>
+        <a href="/admin/audit?page=<%= page - 1 %><%= type ? '&type=' + type : '' %><%= action ? '&action=' + encodeURIComponent(action) : '' %>" class="btn btn-ghost text-sm">← Prev</a>
+      <% } %>
+      <span class="px-3 py-1 text-sm text-gray-500">Page <%= page %> of <%= totalPages %></span>
+      <% if (page < totalPages) { %>
+        <a href="/admin/audit?page=<%= page + 1 %><%= type ? '&type=' + type : '' %><%= action ? '&action=' + encodeURIComponent(action) : '' %>" class="btn btn-ghost text-sm">Next →</a>
+      <% } %>
+    </div>
+  <% } %>
+</div>
+</%- include('../layouts/footer') %>
