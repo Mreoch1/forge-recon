@@ -257,7 +257,7 @@ router.get('/:id', async (req, res) => {
   ] = await Promise.all([
     supabase
       .from('work_orders')
-      .select('id, display_number, status, scheduled_date, unit_number, assigned_to')
+      .select('id, display_number, wo_number_main, wo_number_sub, parent_wo_id, status, scheduled_date, unit_number, assigned_to, completed_date, created_at')
       .eq('job_id', id)
       .order('created_at', { ascending: false })
       .order('wo_number_sub', { ascending: true }),
