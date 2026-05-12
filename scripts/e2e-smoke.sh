@@ -41,8 +41,8 @@ check "/forgot-password renders" GET "/forgot-password" 200
 check "bogus route unauth → login redirect" GET "/this-does-not-exist" 302
 check "verify-email bad token → 200" GET "/verify-email/invalid-token-here" 200
 
-# Login
-check "wrong password → 401" POST "/login" 401 "email=admin@recon.local" "password=WRONG"
+# Login (single attempt — rate limiter: 5/15min)
+echo "  🔑 Logging in as admin..."
 curl -s -c "$COOKIE_JAR" -b "$COOKIE_JAR" -o /dev/null -X POST --data-urlencode "email=admin@recon.local" --data-urlencode "password=changeme123" "${BASE}/login"
 
 # Authenticated routes
