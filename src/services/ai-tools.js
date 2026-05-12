@@ -503,13 +503,14 @@ MUTATION_TOOLS.create_customer = {
     return { summary_lines: lines, args_normalized: args };
   },
   async execute(args, ctx) {
-    const { data: newCustomer } = await supabase.from('customers').insert({
+    const { data: newCustomer, error } = await supabase.from('customers').insert({
       name: args.name.trim(), email: (args.email || '').trim() || null,
       phone: (args.phone || '').trim() || null, address: (args.address || '').trim() || null,
       city: (args.city || '').trim() || null, state: (args.state || '').trim() || null,
       zip: (args.zip || '').trim() || null, billing_email: (args.billing_email || '').trim() || null,
       notes: (args.notes || '').trim() || null,
     }).select('id').single();
+    if (error) throw error;
     await writeAudit({ entityType: 'customer', entityId: newCustomer?.id, action: 'created_by_ai', before: null, after: { name: args.name.trim() }, source: 'ai', userId: ctx.userId });
     return { id: newCustomer?.id, name: args.name.trim(), href: `/customers/${newCustomer?.id}` };
   }
