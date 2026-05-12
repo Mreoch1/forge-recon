@@ -1,8 +1,9 @@
-<%# emails/layout.ejs — Reusable branded HTML email wrapper.
+<!--
+  emails/layout.ejs — Reusable branded HTML email wrapper.
   Inline CSS only (most email clients strip <style> tags).
-  Usage:
-    <%- include('emails/layout', { body: '<p>Email content here</p>' }) %>
-%>
+  Usage (call from a route):
+    res.render('emails/layout', { body: '<p>Email content here</p>' })
+-->
 <!DOCTYPE html>
 <html>
 <head>

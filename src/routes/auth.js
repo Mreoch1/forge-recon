@@ -121,12 +121,9 @@ router.post('/forgot-password', async (req, res) => {
       .insert({ user_id: user.id, token, expires_at: expiresAt, created_at: new Date().toISOString() });
     if (insertError) throw insertError;
 
-    // Send email
-    const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
-    const host = HOST || `${proto}://${req.get('host')}`;
-    const resetUrl = `${host}/reset-password/${token}`;
+    // Send email — pass raw token; email.js builds the full URL via PUBLIC_BASE_URL.
     try {
-      await emailService.sendPasswordResetEmail(user.email, user.name, resetUrl);
+      await emailService.sendPasswordResetEmail(user.email, user.name, token);
     } catch (e) {
       console.warn('[auth] reset email send failed:', e.message);
     }

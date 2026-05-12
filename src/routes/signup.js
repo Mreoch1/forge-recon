@@ -98,11 +98,20 @@ router.post('/signup', async (req, res) => {
   });
   if (insertError) throw insertError;
 
-  // Send verification email (fire-and-forget)
+  // Send verification email. Log full error info so we can debug SMTP failures
+  // without crashing the request — but DO surface SMTP response codes when present.
   try {
     await emailService.sendVerificationEmail(data.email, data.name, token);
   } catch (e) {
-    console.error('[signup] sendVerificationEmail failed:', e.message);
+    console.error('[signup] sendVerificationEmail failed for', data.email, '|',
+      'message:', e.message, '|',
+      'code:', e.code || 'n/a', '|',
+      'response:', e.response || 'n/a', '|',
+      'responseCode:', e.responseCode || 'n/a', '|',
+      'command:', e.command || 'n/a');
+    if (process.env.NODE_ENV !== 'production' || process.env.EMAIL_SMOKE_TEST === '1') {
+      console.error('[signup] full stack:', e.stack);
+    }
   }
 
   res.render('auth/check-email', {
@@ -167,7 +176,11 @@ router.post('/resend-verification', async (req, res) => {
     try {
       await emailService.sendVerificationEmail(email, user.name, token);
     } catch (e) {
-      console.error('[resend] sendVerificationEmail failed:', e.message);
+      console.error('[resend] sendVerificationEmail failed for', email, '|',
+        'message:', e.message, '|',
+        'code:', e.code || 'n/a', '|',
+        'response:', e.response || 'n/a', '|',
+        'responseCode:', e.responseCode || 'n/a');
     }
   }
 
