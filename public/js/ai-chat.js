@@ -215,12 +215,14 @@
 
       @media (max-width: 640px) {
         .recon-aic-pill {
-          left: .75rem; right: .75rem; bottom: calc(.75rem + env(safe-area-inset-bottom, 0px));
+          left: .75rem; right: .75rem; bottom: calc(var(--recon-aic-keyboard-bottom, 0px) + .75rem + env(safe-area-inset-bottom, 0px));
           justify-content: center;
         }
         .recon-aic-panel {
-          left: .5rem; right: .5rem; bottom: calc(.5rem + env(safe-area-inset-bottom, 0px));
-          width: auto; height: min(78dvh, 560px); max-height: calc(100dvh - 1rem - env(safe-area-inset-bottom, 0px));
+          left: .5rem; right: .5rem;
+          top: calc(var(--recon-aic-offset-top, 0px) + .5rem);
+          bottom: calc(var(--recon-aic-keyboard-bottom, 0px) + .5rem + env(safe-area-inset-bottom, 0px));
+          width: auto; height: auto; max-height: none;
           border-radius: 6px;
         }
         .recon-aic-msgs { padding: .65rem; }
@@ -263,8 +265,29 @@
 
   loadHistory();
 
+  function syncMobileViewportVars() {
+    const vv = window.visualViewport;
+    const rootStyle = document.documentElement.style;
+    if (!vv) {
+      rootStyle.setProperty('--recon-aic-offset-top', '0px');
+      rootStyle.setProperty('--recon-aic-keyboard-bottom', '0px');
+      return;
+    }
+    const keyboardBottom = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    rootStyle.setProperty('--recon-aic-offset-top', Math.max(0, vv.offsetTop) + 'px');
+    rootStyle.setProperty('--recon-aic-keyboard-bottom', keyboardBottom + 'px');
+  }
+  syncMobileViewportVars();
+  window.addEventListener('resize', syncMobileViewportVars, { passive: true });
+  window.addEventListener('orientationchange', syncMobileViewportVars, { passive: true });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', syncMobileViewportVars, { passive: true });
+    window.visualViewport.addEventListener('scroll', syncMobileViewportVars, { passive: true });
+  }
+
   // ----- Render -----
   function render() {
+    syncMobileViewportVars();
     if (state.disabled) {
       root.innerHTML = '';
       return;

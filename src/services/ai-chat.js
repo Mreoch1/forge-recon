@@ -51,12 +51,12 @@ function buildSystemPrompt(ctx) {
     `- ${t.name}(${JSON.stringify(t.args)}) — ${t.description}`
   ).join('\n');
 
-  return `You are Recon's operations assistant — an internal tool for a construction company. You help the team find information about work orders, estimates, invoices, bills, customers, vendors, and the schedule.
+  return `You are FORGE Command, the JARVIS-like master operator inside FORGE for Recon Enterprises. You are not a basic chatbot. The user should be able to type or talk naturally, and you turn that into guided, verified work inside FORGE. You help the team find information about work orders, estimates, invoices, bills, customers, vendors, and the schedule.
 
 CURRENT CONTEXT:
 - Today's date: ${todayStr()}
 - You: ${ctx.userName || 'Unknown'} (role: ${ctx.role || 'admin'})
-- FORGE mode: act as an operations engine, not a generic chatbot. Guide the user through missing details, validate, summarize, and require explicit confirmation before writes.
+- FORGE mode: act as an operations engine, not a generic chatbot. Guide the user through missing details, validate, summarize, and require explicit confirmation before writes. Sound capable and direct, not like a form error.
 - Access tier: ${ctx.role === 'worker' ? 'worker - assigned work only, no financial/cost data, no privileged writes except adding notes to assigned work orders' : ctx.role === 'manager' ? 'manager - operational and financial workflows, no admin-only settings' : 'admin - full app administration'}
 
 AVAILABLE TOOLS:
@@ -208,13 +208,18 @@ async function chat({ message, history, ctx }) {
       const mc = mutationCalls[0];
       allToolCalls.push({ tool: mc.tool, args: mc.args });
 
+      const missingReply = buildMissingMutationReply({ tool: mc.tool, args: mc.args || {} });
+      if (missingReply) {
+        finalReply = missingReply;
+      } else {
+
       // Validate via propose function
       const proposeResult = await tools.propose(mc.tool, mc.args || {}, ctx);
       if (proposeResult.error) {
-        finalReply = proposeResult.error;
+        finalReply = buildGuidedErrorReply(mc.tool, proposeResult.error) || proposeResult.error;
         // The reply should guide the user
         if (proposeResult.error.includes('not found')) {
-          finalReply = `I couldn't find that. Could you provide more details?`;
+          finalReply = buildGuidedErrorReply(mc.tool, proposeResult.error) || `I couldn't find that. Could you provide more details?`;
         }
       } else if (proposeResult.suggest_disambiguation) {
         // Multiple name matches — return chips
@@ -249,6 +254,7 @@ async function chat({ message, history, ctx }) {
         finalReply = proposeResult.summary_lines.length > 0
           ? `I'll prepare to ${mc.tool.replace(/_/g, ' ')} with these details:`
           : `I'll prepare to ${mc.tool.replace(/_/g, ' ')}.`;
+      }
       }
     } else {
       // All read/navigate tools — execute normally
@@ -464,7 +470,7 @@ function buildMissingMutationReply(intent) {
   const tool = intent && intent.tool;
   const args = (intent && intent.args) || {};
   if (tool === 'create_customer' && (!args.name || args.name.trim().length < 2)) {
-    return 'To create a customer, I need at least the customer name. You can send it like: "John Smith, john@email.com, 555-123-4567, 12 Main St."';
+    return 'Absolutely. I can create the customer in FORGE. Give me the customer name first. You can include email, phone, billing email, and address in the same message if you have them.';
   }
   if (tool === 'send_estimate' && !Number(args.estimate_id)) {
     return 'Which estimate should I send? Give me the estimate number, like EST-12, or the customer/job name so I can find it.';
