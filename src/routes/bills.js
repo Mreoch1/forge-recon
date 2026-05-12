@@ -496,7 +496,7 @@ router.post('/:id/void', async (req, res) => {
     const posting = require('../services/accounting-posting');
     const { data: bill } = await supabase.from('bills').select('id, bill_number, total, tax_amount').eq('id', id).single();
     const { data: lines } = await supabase.from('bill_lines').select('line_total, description, account_id').eq('bill_id', id);
-    await posting.postBillVoid(bill, lines || [], { userId: req.currentUser?.id });
+    await posting.postBillVoid(bill, lines || [], { userId: req.currentUser?.id ?? req.session?.userId ?? null });
   } catch(e) { console.warn('[bills] JE reversal on void failed:', e.message); }
   setFlash(req, 'success', 'Bill voided.');
   res.redirect(`/bills/${id}`);

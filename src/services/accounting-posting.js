@@ -160,9 +160,14 @@ async function postBillVoid(bill, lines, opts = {}) {
   if (!await isAccountingReady()) return null;
   const ap = await lookupAccount(CODES.ACCOUNTS_PAYABLE);
   if (!ap) return null;
-  // Find existing JE
-  const { data: existing } = await supabase.from('journal_entries').select('id').eq('source_type', 'bill').eq('source_id', String(bill.id)).maybeSingle();
-  if (!existing) return null; // nothing to reverse
+  const { data: original } = await supabase
+    .from('journal_entries')
+    .select('id')
+    .eq('source_type', 'bill')
+    .eq('source_id', String(bill.id))
+    .is('reversed_by_entry_id', null)
+    .maybeSingle();
+  if (!original) return null; // nothing unreversed to reverse
   const total = Number(bill.total) || 0; const taxAmount = Number(bill.tax_amount) || 0;
   const desc = `Void bill ${bill.bill_number || '#' + bill.id}`;
   const fallback = await lookupAccount(CODES.MISC_EXPENSE);
@@ -180,7 +185,9 @@ async function postBillVoid(bill, lines, opts = {}) {
     jeLines.push({ accountId: taxAcct.id, debit: 0, credit: taxAmount, description: `${desc} — sales tax reversal` });
   }
   jeLines.push({ accountId: ap.id, debit: total, credit: 0, description: `${desc} — AP reversal` });
-  return postJournalEntry({ entryDate: todayDate(), description: desc, sourceType: 'bill_void', sourceId: bill.id, userId, lines: jeLines });
+  const reversingId = await postJournalEntry({ entryDate: todayDate(), description: desc, sourceType: 'bill_void', sourceId: bill.id, userId, lines: jeLines });
+  await supabase.from('journal_entries').update({ reversed_by_entry_id: reversingId }).eq('id', original.id);
+  return reversingId;
 }
 
 async function postBillPaid(bill, amount, opts = {}) {
