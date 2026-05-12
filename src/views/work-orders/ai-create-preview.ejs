@@ -103,7 +103,7 @@ const warnings = extracted.warnings || [];
                    var a = h < 12 ? 'AM' : 'PM';
                    var hh = h % 12 || 12;
             %>
-              <option value="<%= v %>" <%= job.scheduled_time === v ? 'selected' : '' %>><%= hh %>:<%= String(m).padStart(2,'0') %> <%= a %></option>
+              <option value="<%= v %>" <%= (job.scheduled_time || v === '09:00') === v ? 'selected' : '' %>><%= hh %>:<%= String(m).padStart(2,'0') %> <%= a %></option>
             <% }} %>
           </select>
         </div>

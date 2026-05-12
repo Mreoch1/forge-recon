@@ -72,7 +72,7 @@ const selectedAssignees = wo.assignee_ids || [];
                  var h12 = h % 12 || 12;
                  var label = h12 + ':' + String(m).padStart(2,'0') + ' ' + ampm;
           %>
-            <option value="<%= val %>" <%= wo.scheduled_time === val ? 'selected' : '' %>><%= label %></option>
+            <option value="<%= val %>" <%= (wo.scheduled_time || val === '09:00') === val ? 'selected' : '' %>><%= label %></option>
           <% }} %>
         </select>
       </div>
