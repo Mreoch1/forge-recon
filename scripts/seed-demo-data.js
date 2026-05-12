@@ -4,9 +4,16 @@
  * Run: node scripts/seed-demo-data.js
  */
 const { Pool } = require('pg');
-const bcrypt = require('bcryptjs');
+require('dotenv').config();
+
+const connectionString = process.env.DATABASE_URL_DIRECT || process.env.DATABASE_URL;
+if (!connectionString) {
+  console.error('Seed failed: DATABASE_URL_DIRECT or DATABASE_URL is required.');
+  process.exit(1);
+}
+
 const pool = new Pool({
-  connectionString: 'postgres://postgres:lROoEzXTQrkz9H5B@db.zquzmavbpiaboouffqhm.supabase.co:5432/postgres',
+  connectionString,
   max: 1,
 });
 
