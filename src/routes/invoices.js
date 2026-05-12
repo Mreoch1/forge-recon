@@ -89,15 +89,15 @@ function validateInvoice(body) {
 
 async function loadInvoice(id) {
   // Nested selects rely on FKs: invoices.work_order_id -> work_orders,
-  // work_orders.job_id -> jobs, jobs.customer_id -> customers,
-  // invoices.sent_by_user_id -> users.
+  // with direct work_orders.customer_id preferred and legacy jobs as fallback.
   const { data: inv, error } = await supabase
     .from('invoices')
     .select(`
       *,
-      work_orders!left(id, display_number, jobs!left(id, title, address, city, state, zip,
-        customers!left(id, name, email, billing_email, phone, address, city, state, zip))),
-      users!left(name)
+      work_orders!left(id, display_number, customer_id, unit_number,
+        customers!left(id, name, email, billing_email, phone, address, city, state, zip),
+        jobs!left(id, title, address, city, state, zip,
+        customers!left(id, name, email, billing_email, phone, address, city, state, zip)))
     `)
     .eq('id', id)
     .maybeSingle();
@@ -107,11 +107,11 @@ async function loadInvoice(id) {
   // Flatten nested data to match view expectations
   const w = inv.work_orders;
   const j = w?.jobs;
-  const c = j?.customers;
+  const c = w?.customers || j?.customers;
   inv.wo_id = w?.id;
   inv.wo_display_number = w?.display_number;
   inv.job_id = j?.id;
-  inv.job_title = j?.title;
+  inv.job_title = j?.title || (c?.name ? `${c.name} work order` : 'Customer work order');
   inv.job_address = j?.address;
   inv.job_city = j?.city;
   inv.job_state = j?.state;
@@ -125,9 +125,16 @@ async function loadInvoice(id) {
   inv.customer_city = c?.city;
   inv.customer_state = c?.state;
   inv.customer_zip = c?.zip;
-  inv.sent_by_name = inv.users?.name;
   delete inv.work_orders;
-  delete inv.users;
+
+  if (inv.sent_by_user_id) {
+    const { data: sentBy } = await supabase
+      .from('users')
+      .select('name')
+      .eq('id', inv.sent_by_user_id)
+      .maybeSingle();
+    inv.sent_by_name = sentBy?.name || null;
+  }
 
   const { data: lines, error: lineErr } = await supabase
     .from('invoice_line_items')
@@ -162,14 +169,16 @@ router.get('/', async (req, res) => {
     .from('invoices')
     .select(`
       id, status, total, amount_paid, due_date, created_at, payment_terms,
-      work_orders!left(id, display_number, jobs!left(id, title, customers!left(id, name)))
+      work_orders!left(
+        id, display_number, customer_id,
+        customers!left(id, name),
+        jobs!left(id, title, customers!left(id, name))
+      )
     `, { count: 'exact', head: false });
 
   if (q) {
-    const like = `%${q}%`;
-    query = query.or(
-      `work_orders.display_number.ilike.${like},work_orders.jobs.title.ilike.${like},work_orders.jobs.customers.name.ilike.${like}`
-    );
+    // Nested relation filters can break when WOs no longer require jobs.
+    // Keep the database query broad and apply the mixed customer/legacy search below.
   }
   if (status && VALID_STATUSES.includes(status)) {
     query = query.eq('status', status);
@@ -180,15 +189,27 @@ router.get('/', async (req, res) => {
     .range(offset, offset + PAGE_SIZE - 1);
   if (error) throw error;
 
-  const invoices = (rows || []).map(r => ({
+  const filtered = q
+    ? (rows || []).filter(r => {
+        const haystack = [
+          r.work_orders?.display_number,
+          r.work_orders?.customers?.name,
+          r.work_orders?.jobs?.title,
+          r.work_orders?.jobs?.customers?.name,
+        ].filter(Boolean).join(' ').toLowerCase();
+        return haystack.includes(q.toLowerCase());
+      })
+    : (rows || []);
+
+  const invoices = filtered.map(r => ({
     id: r.id, status: r.status, total: r.total, amount_paid: r.amount_paid,
     due_date: r.due_date, created_at: r.created_at, payment_terms: r.payment_terms,
     wo_id: r.work_orders?.id,
     wo_display_number: r.work_orders?.display_number,
     job_id: r.work_orders?.jobs?.id,
-    job_title: r.work_orders?.jobs?.title,
-    customer_id: r.work_orders?.jobs?.customers?.id,
-    customer_name: r.work_orders?.jobs?.customers?.name,
+    job_title: r.work_orders?.jobs?.title || (r.work_orders?.customers?.name ? `${r.work_orders.customers.name} work order` : 'Customer work order'),
+    customer_id: r.work_orders?.customers?.id || r.work_orders?.jobs?.customers?.id,
+    customer_name: r.work_orders?.customers?.name || r.work_orders?.jobs?.customers?.name,
   }));
 
   res.render('invoices/index', {
@@ -278,7 +299,7 @@ router.post('/:id', async (req, res) => {
       action: 'update',
       before_json: { total: existing.total },
       after_json: { total: t.total },
-      source: 'web',
+      source: 'user',
       user_id: req.session.userId,
     });
     if (auditErr) throw auditErr;
@@ -476,4 +497,3 @@ router.post('/:id/delete', async (req, res) => {
 });
 
 module.exports = router;
-

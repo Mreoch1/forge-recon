@@ -1,73 +1,93 @@
 /**
  * files.js — File system service: root folder auto-creation, backfill.
- * Converted to Supabase SDK.
  */
-const supabase = require('../db/supabase');
+const db = require('../db/db');
+
+let schemaReady = false;
+
+async function ensureSchema() {
+  if (schemaReady) return;
+  await db.init();
+  await db.run(`
+    CREATE TABLE IF NOT EXISTS folders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      parent_folder_id INTEGER REFERENCES folders(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      is_root INTEGER NOT NULL DEFAULT 0,
+      created_by_user_id INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  await db.run(`
+    CREATE TABLE IF NOT EXISTS files (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      folder_id INTEGER NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      original_filename TEXT NOT NULL,
+      storage_path TEXT,
+      mime_type TEXT,
+      size_bytes INTEGER,
+      uploaded_by_user_id INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  await db.run('CREATE INDEX IF NOT EXISTS idx_folders_entity ON folders(entity_type, entity_id, is_root)');
+  await db.run('CREATE INDEX IF NOT EXISTS idx_files_folder ON files(folder_id)');
+  schemaReady = true;
+}
 
 async function ensureRootFolder(entityType, entityId, createdByUserId) {
+  await ensureSchema();
   if (!entityType || !entityId) return null;
-  const { data: existing } = await supabase
-    .from('folders')
-    .select('id')
-    .eq('entity_type', entityType)
-    .eq('entity_id', String(entityId))
-    .eq('is_root', true)
-    .maybeSingle();
+  const existing = await db.get(
+    'SELECT id FROM folders WHERE entity_type = ? AND entity_id = ? AND is_root = 1',
+    [entityType, String(entityId)]
+  );
   if (existing) return existing.id;
-  const { data: inserted, error } = await supabase
-    .from('folders')
-    .insert({
-      name: entityType + '_' + entityId,
-      entity_type: entityType,
-      entity_id: String(entityId),
-      is_root: true,
-      created_by_user_id: createdByUserId || null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .select('id')
-    .single();
-  if (error) throw error;
-  return inserted.id;
+  const inserted = await db.run(`
+    INSERT INTO folders (name, entity_type, entity_id, is_root, created_by_user_id, created_at, updated_at)
+    VALUES (?, ?, ?, 1, ?, datetime('now'), datetime('now'))
+  `, [entityType + '_' + entityId, entityType, String(entityId), createdByUserId || null]);
+  return inserted.lastInsertRowid;
 }
 
 async function getRootFolder(entityType, entityId) {
-  const { data } = await supabase
-    .from('folders')
-    .select('*')
-    .eq('entity_type', entityType)
-    .eq('entity_id', String(entityId))
-    .eq('is_root', true)
-    .maybeSingle();
-  return data || null;
+  await ensureSchema();
+  return db.get(
+    'SELECT * FROM folders WHERE entity_type = ? AND entity_id = ? AND is_root = 1',
+    [entityType, String(entityId)]
+  );
 }
 
 async function getFolderContents(folderId) {
-  const [{ data: subfolders }, { data: files }] = await Promise.all([
-    supabase.from('folders').select('*').eq('parent_folder_id', folderId).order('name', { ascending: true }),
-    supabase.from('files').select('*').eq('folder_id', folderId).order('created_at', { ascending: false }),
+  await ensureSchema();
+  const [subfolders, files] = await Promise.all([
+    db.all('SELECT * FROM folders WHERE parent_folder_id = ? ORDER BY name', [folderId]),
+    db.all('SELECT * FROM files WHERE folder_id = ? ORDER BY created_at DESC', [folderId]),
   ]);
   return { subfolders: subfolders || [], files: files || [] };
 }
 
 async function getEntityList(entityType) {
+  await ensureSchema();
   if (entityType === 'customer') {
-    const { data } = await supabase.from('customers').select('id, name').order('name', { ascending: true });
-    return data || [];
+    return db.all('SELECT id, name FROM customers ORDER BY name');
   }
   if (entityType === 'vendor') {
-    const { data } = await supabase.from('vendors').select('id, name').order('name', { ascending: true });
-    return data || [];
+    return db.all('SELECT id, name FROM vendors ORDER BY name');
   }
   if (entityType === 'user' || entityType === 'worker') {
-    const { data } = await supabase.from('users').select('id, name, role').eq('active', 1).order('name', { ascending: true });
-    return data || [];
+    return db.all('SELECT id, name, role FROM users WHERE active = 1 ORDER BY name');
   }
   if (entityType === 'work_order' || entityType === 'project') {
-    const { data } = await supabase.from('work_orders').select('id, display_number').order('id', { ascending: false });
-    return (data || []).map(r => ({ id: r.id, name: r.display_number }));
+    const rows = await db.all('SELECT id, display_number FROM work_orders ORDER BY id DESC');
+    return (rows || []).map(r => ({ id: r.id, name: r.display_number }));
   }
   return [];
 }
 
-module.exports = { ensureRootFolder, getRootFolder, getFolderContents, getEntityList };
+module.exports = { ensureSchema, ensureRootFolder, getRootFolder, getFolderContents, getEntityList };

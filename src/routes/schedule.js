@@ -23,6 +23,16 @@ const STATUS_COLORS = {
   cancelled: '#9ca3af',
   urgent: '#c0202b',
 };
+const WORK_ORDER_CUSTOMER_SELECT = 'id, display_number, status, scheduled_date, scheduled_time, assigned_to_user_id, assigned_to, scheduled_end_time, customer_id, customers!left(name), jobs!left(title, customers!left(name)), users!left(name), work_order_assignees(users!work_order_assignees_user_id_fkey(id, name))';
+
+function workOrderDisplayFields(row) {
+  const customerName = row.customers?.name || row.jobs?.customers?.name || '';
+  return {
+    job_title: row.jobs?.title || (customerName ? `${customerName} work order` : 'Customer work order'),
+    customer_name: customerName,
+  };
+}
+
 function colorForStatus(wo, woConflicts) {
   if (!wo) return null;
   if (!wo.assigned_to_user_id && !wo.assigned_to) return null; // unassigned = hatched
@@ -180,7 +190,7 @@ router.get('/', async (req, res) => {
   // Query WOs in range
   let woQuery = supabase
     .from('work_orders')
-    .select('id, display_number, status, scheduled_date, scheduled_time, assigned_to_user_id, assigned_to, scheduled_end_time, jobs!inner(title, customers!inner(name)), users!left(name), work_order_assignees(users!work_order_assignees_user_id_fkey(id, name)))')
+    .select(WORK_ORDER_CUSTOMER_SELECT)
     .gte('scheduled_date', weekStart)
     .lte('scheduled_date', weekEnd)
     .in('status', ['scheduled', 'in_progress'])
@@ -205,14 +215,14 @@ router.get('/', async (req, res) => {
     scheduled_date: r.scheduled_date, scheduled_time: r.scheduled_time,
     assigned_to_user_id: r.assigned_to_user_id, assigned_to: r.assigned_to,
     scheduled_end_time: r.scheduled_end_time,
-    job_title: r.jobs?.title, customer_name: r.jobs?.customers?.name,
+    ...workOrderDisplayFields(r),
     assignee_user_name: r.users?.name,
   }));
 
   // Unscheduled WOs for sidebar
   let unscheduledQuery = supabase
     .from('work_orders')
-    .select('id, display_number, status, scheduled_date, scheduled_time, assigned_to_user_id, assigned_to, scheduled_end_time, jobs!inner(title, customers!inner(name)), users!left(name), work_order_assignees(users!work_order_assignees_user_id_fkey(id, name)))')
+    .select(WORK_ORDER_CUSTOMER_SELECT)
     .is('scheduled_date', null)
     .in('status', ['scheduled', 'in_progress'])
     .order('created_at', { ascending: false })
@@ -225,7 +235,7 @@ router.get('/', async (req, res) => {
     scheduled_date: r.scheduled_date, scheduled_time: r.scheduled_time,
     assigned_to_user_id: r.assigned_to_user_id, assigned_to: r.assigned_to,
     scheduled_end_time: r.scheduled_end_time,
-    job_title: r.jobs?.title, customer_name: r.jobs?.customers?.name,
+    ...workOrderDisplayFields(r),
     assignee_user_name: r.users?.name,
   }));
 
@@ -250,16 +260,16 @@ router.get('/', async (req, res) => {
 
   // Compute conflicts
   const woConflicts = {};
-  wosMapped.forEach(wo => {
+  await Promise.all(wosMapped.map(async (wo) => {
     if (wo.assigned_to_user_id) {
-      const conflicts = scheduling.findScheduleConflicts({
+      const conflicts = await scheduling.findScheduleConflicts({
         assignee_user_id: wo.assigned_to_user_id, date: wo.scheduled_date,
         time: wo.scheduled_time, duration_hours: parseInt(process.env.WO_DEFAULT_DURATION_HOURS || '4', 10),
         exclude_wo_id: wo.id,
       });
       if (conflicts.length > 0) woConflicts[wo.id] = conflicts;
     }
-  });
+  }));
 
   // Compute overlap groups per day for horizontal slicing
   function toMinutes(t) { if (!t) return 8*60; const p=t.split(':'); return parseInt(p[0],10)*60+parseInt(p[1],10); }
@@ -329,7 +339,7 @@ router.get('/conflict-check', async (req, res) => {
   if (!assigneeId) return res.json({ conflicts: [] });
   // Compute end time from provided end_time, or default to time + 4h
   const effectiveEndTime = endTime || computeDefaultEndTime(time || wo.scheduled_time);
-  const conflicts = scheduling.findScheduleConflicts({
+  const conflicts = await scheduling.findScheduleConflicts({
     assignee_user_id: assigneeId,
     date,
     time: time || wo.scheduled_time,
@@ -388,4 +398,3 @@ router.post('/:id/reschedule', async (req, res) => {
 });
 
 module.exports = router;
-

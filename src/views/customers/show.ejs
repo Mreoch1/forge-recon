@@ -12,7 +12,7 @@
     </div>
     <div class="flex gap-2">
       <a href="/customers/<%= customer.id %>/edit" class="btn btn-secondary">Edit</a>
-      <a href="/jobs/new?customer_id=<%= customer.id %>" class="btn btn-primary">+ New job</a>
+      <a href="/work-orders/new?customer_id=<%= customer.id %>" class="btn btn-primary">+ Work order</a>
     </div>
   </div>
 
@@ -50,12 +50,12 @@
     <div class="lg:col-span-2">
       <div class="card overflow-hidden">
         <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
-          <h3 class="font-semibold">Jobs (<%= jobs.length %>)</h3>
-          <a href="/jobs/new?customer_id=<%= customer.id %>" class="text-sm text-recon-red hover:underline">+ Add job</a>
+          <h3 class="font-semibold">Legacy jobs (<%= jobs.length %>)</h3>
+          <a href="/work-orders/new?customer_id=<%= customer.id %>" class="text-sm text-recon-red hover:underline">+ Add work order</a>
         </div>
         <% if (jobs.length === 0) { %>
           <div class="p-8 text-center text-recon-fog text-sm">
-            No jobs for this customer yet. <a href="/jobs/new?customer_id=<%= customer.id %>" class="text-recon-red underline">Create one</a>.
+            No legacy jobs for this customer. <a href="/work-orders/new?customer_id=<%= customer.id %>" class="text-recon-red underline">Create a work order</a>.
           </div>
         <% } else { %>
           <table class="data">
@@ -65,7 +65,7 @@
             <tbody>
               <% jobs.forEach(function(j){ %>
                 <tr>
-                  <td class="font-medium"><a href="/jobs/<%= j.id %>" class="text-recon-charcoal hover:text-recon-red"><%= j.title %></a></td>
+                  <td class="font-medium"><%= j.title %></td>
                   <td><%= [j.address, j.city, j.state].filter(Boolean).join(', ') || '—' %></td>
                   <td><span class="badge badge-<%= j.status %>"><%= j.status.replace('_',' ') %></span></td>
                   <td><%= (j.created_at || '').slice(0,10) %></td>

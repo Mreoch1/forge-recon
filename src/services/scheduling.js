@@ -5,7 +5,7 @@
  * scheduling, rescheduling, or assigning a WO to a worker.
  */
 
-const db = require('../db/db');
+const supabase = require('../db/supabase');
 
 /**
  * Find schedule conflicts for a proposed assignment.
@@ -25,25 +25,38 @@ async function findScheduleConflicts({ assignee_user_id, date, time, end_time, d
     return [];
   }
 
-  const params = [assignee_user_id, assignee_user_id, date];
-  let excludeClause = '';
-  if (exclude_wo_id) {
-    excludeClause = ' AND w.id != ?';
-    params.push(exclude_wo_id);
-  }
+  const { data: user } = await supabase
+    .from('users')
+    .select('name')
+    .eq('id', assignee_user_id)
+    .maybeSingle();
+  const userName = (user?.name || '').toLowerCase();
 
-  const conflicts = await db.all(`
-    SELECT w.id, w.display_number, w.scheduled_date, w.scheduled_time, w.scheduled_end_time, w.assigned_to,
-           j.title AS job_title, c.name AS customer_name
-    FROM work_orders w
-    JOIN jobs j ON j.id = w.job_id
-    JOIN customers c ON c.id = j.customer_id
-    WHERE (w.assigned_to_user_id = ? OR w.assigned_to LIKE (SELECT '%' || name || '%' FROM users WHERE id = ?))
-      AND w.scheduled_date = ?
-      AND w.status IN ('scheduled', 'in_progress')
-      ${excludeClause}
-    ORDER BY w.scheduled_time
-  `, params);
+  let query = supabase
+    .from('work_orders')
+    .select(`
+      id, display_number, scheduled_date, scheduled_time, scheduled_end_time,
+      assigned_to_user_id, assigned_to,
+      jobs!left(title, customers!left(name)),
+      customers!left(name),
+      work_order_assignees(user_id)
+    `)
+    .eq('scheduled_date', date)
+    .in('status', ['scheduled', 'in_progress'])
+    .order('scheduled_time', { ascending: true });
+  if (exclude_wo_id) query = query.neq('id', exclude_wo_id);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const conflicts = (data || []).filter(wo => {
+    if (Number(wo.assigned_to_user_id) === Number(assignee_user_id)) return true;
+    if (userName && String(wo.assigned_to || '').toLowerCase().includes(userName)) return true;
+    return (wo.work_order_assignees || []).some(a => Number(a.user_id) === Number(assignee_user_id));
+  }).map(wo => ({
+    ...wo,
+    customer_name: wo.customers?.name || wo.jobs?.customers?.name || '',
+  }));
 
   if (!conflicts || conflicts.length === 0) return [];
 

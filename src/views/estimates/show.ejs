@@ -29,7 +29,6 @@ const roi = costTotal > 0 ? ((margin / costTotal) * 100).toFixed(1) : '&mdash;';
       </div>
       <p class="page-sub">
         <a href="/work-orders/<%= estimate.wo_id %>" class="hover:text-recon-red font-medium">&larr; WO-<%= estimate.wo_display_number %></a>
-        &middot; Job: <a href="/jobs/<%= estimate.job_id %>" class="hover:text-recon-red"><%= estimate.job_title %></a>
         &middot; Customer: <a href="/customers/<%= estimate.customer_id %>" class="hover:text-recon-red"><%= estimate.customer_name %></a>
       </p>
     </div>

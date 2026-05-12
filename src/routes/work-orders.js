@@ -545,7 +545,7 @@ router.post('/ai-finalize', async (req, res) => {
   const notes = (req.body.notes || '').trim() || null;
 
   if (!jobTitle) {
-    setFlash(req, 'error', 'Job title is required.');
+    setFlash(req, 'error', 'Work order title is required.');
     return res.redirect('/work-orders/ai-create');
   }
 
@@ -788,14 +788,14 @@ router.post('/:id', async (req, res) => {
 
   const { errors, data } = validateWorkOrder(req.body);
 
-  // Display-number override validation (sub-WO must keep parent's main)
+  // Display-number override validation for legacy child work orders.
   let newDisplay = existing.display_number;
   let newMain = existing.wo_number_main;
   let newSub = existing.wo_number_sub;
   if (data.display_number_override) {
     const { main, sub } = data.display_number_override;
     if (existing.parent_wo_id && main !== existing.wo_number_main) {
-      errors.display_number = 'Sub-WO main must match parent.';
+      errors.display_number = 'Child work order main number must match parent.';
     } else {
       const candidate = numbering.formatDisplay(main, sub);
       if (candidate !== existing.display_number) {
@@ -1109,14 +1109,14 @@ router.post('/:id/delete', async (req, res) => {
   if (findErr) throw findErr;
   if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
 
-  // Block: sub-WOs
+  // Block deleting legacy parent records that still have child work orders.
   const { count: subCount, error: subErr } = await supabase
     .from('work_orders')
     .select('id', { count: 'exact', head: true })
     .eq('parent_wo_id', wo.id);
   if (subErr) throw subErr;
   if ((subCount || 0) > 0) {
-    setFlash(req, 'error', `Cannot delete WO-${wo.display_number} — ${subCount} sub-WO(s) attached.`);
+    setFlash(req, 'error', `Cannot delete WO-${wo.display_number} — ${subCount} child work order(s) attached.`);
     return res.redirect(`/work-orders/${wo.id}`);
   }
 

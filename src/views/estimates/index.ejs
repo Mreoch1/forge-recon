@@ -50,7 +50,7 @@ const showPrices = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
         <% if (q || status) { %>
           No estimates match. <a href="/estimates" class="text-recon-red underline">Clear</a>
         <% } else { %>
-          No estimates yet. Create one from a <a href="/jobs" class="text-recon-red underline">job</a>.
+          No estimates yet. Create one from a <a href="/work-orders" class="text-recon-red underline">work order</a>.
         <% } %>
       </div>
     <% } else { %>
@@ -58,7 +58,7 @@ const showPrices = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
         <thead>
           <tr>
             <th>Number</th>
-            <th>Job</th>
+            <th>Work order</th>
             <th>Customer</th>
             <th>Status</th>
             <th class="text-right">Total</th>
@@ -72,7 +72,7 @@ const showPrices = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
           <% estimates.forEach(function(e){ %>
 <tr class="row-link" data-href="/estimates/<%= e.id %>">
             <td class="font-medium">EST-<%= e.wo_display_number %></td>
-              <td><%= e.job_title %></td>
+              <td>WO-<%= e.wo_display_number %></td>
               <td><%= e.customer_name %></td>
               <td><span class="badge badge-<%= e.status %>"><%= e.status %></span></td>
               <td class="text-right">$<%= fmt(e.total) %></td>

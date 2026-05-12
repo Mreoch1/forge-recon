@@ -38,6 +38,11 @@ const ENTITY_TYPES = [
   { key: 'global', label: 'Global', icon: '🌐', path: '/files/global' },
 ];
 
+router.use(async (req, res, next) => {
+  await filesService.ensureSchema();
+  next();
+});
+
 function isWorker(req) {
   return req.session?.role === 'worker';
 }
@@ -219,7 +224,11 @@ router.get('/:entityType/:entityId', requireAuth, async (req, res) => {
   const mappedType = entityType === 'project' ? 'work_order' : entityType === 'worker' ? 'user' : entityType;
   if (!workerCanAccessEntity(req, entityType, entityId)) return workerForbidden(res);
 
-  const folder = await filesService.getRootFolder(mappedType, entityId);
+  let folder = await filesService.getRootFolder(mappedType, entityId);
+  if (!folder) {
+    const folderId = await filesService.ensureRootFolder(mappedType, entityId, req.session.userId);
+    folder = folderId ? await filesService.getRootFolder(mappedType, entityId) : null;
+  }
   if (!folder) {
     return res.status(404).render('error', { title: 'Not found', code: 404, message: 'No files for this entity.' });
   }

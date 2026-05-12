@@ -85,22 +85,31 @@ function validateEstimate(body) {
 }
 
 async function loadEstimate(id) {
-  const { data: est } = await supabase
+  const { data: est, error } = await supabase
     .from('estimates')
-    .select('*, work_orders!inner(id, display_number, wo_number_main, wo_number_sub, jobs!inner(id, title, address, city, state, zip, customers!inner(id, name, email, billing_email, phone, address, city, state, zip))), sent_by_user_id, users!left(name)')
+    .select(`
+      *,
+      work_orders!left(
+        id, display_number, wo_number_main, wo_number_sub, customer_id, unit_number,
+        customers!left(id, name, email, billing_email, phone, address, city, state, zip),
+        jobs!left(id, title, address, city, state, zip,
+          customers!left(id, name, email, billing_email, phone, address, city, state, zip))
+      )
+    `)
     .eq('id', id)
     .maybeSingle();
+  if (error) throw error;
   if (!est) return null;
   // Flatten nested data
   const w = est.work_orders;
   const j = w?.jobs;
-  const c = j?.customers;
+  const c = w?.customers || j?.customers;
   est.wo_id = w?.id;
   est.wo_display_number = w?.display_number;
   est.wo_number_main = w?.wo_number_main;
   est.wo_number_sub = w?.wo_number_sub;
   est.job_id = j?.id;
-  est.job_title = j?.title;
+  est.job_title = j?.title || (c?.name ? `${c.name} work order` : 'Customer work order');
   est.job_address = j?.address;
   est.job_city = j?.city;
   est.job_state = j?.state;
@@ -114,9 +123,15 @@ async function loadEstimate(id) {
   est.customer_city = c?.city;
   est.customer_state = c?.state;
   est.customer_zip = c?.zip;
-  est.sent_by_name = est.users?.name;
   delete est.work_orders;
-  delete est.users;
+  if (est.sent_by_user_id) {
+    const { data: sentBy } = await supabase
+      .from('users')
+      .select('name')
+      .eq('id', est.sent_by_user_id)
+      .maybeSingle();
+    est.sent_by_name = sentBy?.name || null;
+  }
   // Load line items
   const { data: lines } = await supabase
     .from('estimate_line_items')
@@ -137,13 +152,19 @@ router.get('/', async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
 
-  let query = supabase.from('estimates').select('id, status, total, cost_total, valid_until, created_at, work_orders!inner(display_number, id, jobs!inner(id, title, customers!inner(id, name)))', { count: 'exact', head: false });
+  let query = supabase.from('estimates').select(`
+    id, status, total, cost_total, valid_until, created_at,
+    work_orders!left(
+      display_number, id, customer_id,
+      customers!left(id, name),
+      jobs!left(id, title, customers!left(id, name))
+    )
+  `, { count: 'exact', head: false });
   let countQuery = supabase.from('estimates').select('*', { count: 'exact', head: true });
 
   if (q) {
-    const like = `%${q}%`;
-    query = query.or(`work_orders.display_number.ilike.${like},work_orders.jobs.title.ilike.${like},work_orders.jobs.customers.name.ilike.${like}`);
-    countQuery = countQuery.or(`work_orders.display_number.ilike.${like},work_orders.jobs.title.ilike.${like},work_orders.jobs.customers.name.ilike.${like}`);
+    // Nested relation filters can break when WOs no longer require jobs.
+    // Keep the database query broad and apply the mixed customer/legacy search below.
   }
   if (status && VALID_STATUSES.includes(status)) {
     query = query.eq('status', status);
@@ -163,15 +184,27 @@ router.get('/', async (req, res) => {
   ]);
   if (error) throw error;
 
-  const mapped = (estimates || []).map(r => ({
+  const filtered = q
+    ? (estimates || []).filter(r => {
+        const haystack = [
+          r.work_orders?.display_number,
+          r.work_orders?.customers?.name,
+          r.work_orders?.jobs?.title,
+          r.work_orders?.jobs?.customers?.name,
+        ].filter(Boolean).join(' ').toLowerCase();
+        return haystack.includes(q.toLowerCase());
+      })
+    : (estimates || []);
+
+  const mapped = filtered.map(r => ({
     id: r.id, status: r.status, total: r.total, cost_total: r.cost_total,
     valid_until: r.valid_until, created_at: r.created_at,
     wo_display_number: r.work_orders?.display_number,
     wo_id: r.work_orders?.id,
     job_id: r.work_orders?.jobs?.id,
-    job_title: r.work_orders?.jobs?.title,
-    customer_id: r.work_orders?.jobs?.customers?.id,
-    customer_name: r.work_orders?.jobs?.customers?.name,
+    job_title: r.work_orders?.jobs?.title || (r.work_orders?.customers?.name ? `${r.work_orders.customers.name} work order` : 'Customer work order'),
+    customer_id: r.work_orders?.customers?.id || r.work_orders?.jobs?.customers?.id,
+    customer_name: r.work_orders?.customers?.name || r.work_orders?.jobs?.customers?.name,
   }));
 
   res.render('estimates/index', {

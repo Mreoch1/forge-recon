@@ -76,13 +76,6 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
   .ws-note-meta { font-size: .68rem; color: #aaa; margin-bottom: .15rem; font-family: ui-monospace, monospace; }
   .ws-note-body { color: #1a1a1a; line-height: 1.4; white-space: pre-line; }
 
-  /* Sub-WO compact list */
-  .ws-sub-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: .65rem; padding: .4rem 0; border-bottom: 1px solid #f0f0f0; align-items: center; font-size: .82rem; }
-  .ws-sub-row:last-child { border-bottom: none; }
-  .ws-sub-row:hover { background: #fafafa; }
-  .ws-sub-num { font-family: ui-monospace, monospace; font-weight: 600; }
-  .ws-sub-meta { font-size: .72rem; color: #999; }
-
   /* Customer block */
   .ws-cust { font-size: .85rem; color: #1a1a1a; }
   .ws-cust-name { font-weight: 700; font-size: .95rem; margin-bottom: .15rem; }
@@ -137,7 +130,7 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
       </div>
       <p class="text-sm text-recon-fog mt-1">
         <a href="/customers/<%= wo.customer_id %>" class="font-semibold text-recon-charcoal hover:text-recon-red"><%= wo.customer_name %></a>
-        · <a href="/jobs/<%= wo.job_id %>" class="hover:text-recon-red"><%= wo.job_title %></a>
+        <% if (wo.unit_number) { %><span class="text-recon-fog">· Unit <%= wo.unit_number %></span><% } %>
         <% if (addr) { %><span class="text-recon-fog">· <%= addr %></span><% } %>
       </p>
     </div>

@@ -12,6 +12,25 @@ const timeline = require('../services/timeline');
 
 const router = express.Router();
 
+const WO_DASHBOARD_SELECT = 'id, display_number, status, created_at, customer_id, customers!left(id, name), jobs!left(id, title, customers!left(id, name))';
+const EST_DASHBOARD_SELECT = 'id, status, created_at, total, work_orders!left(display_number, customer_id, customers!left(id, name), jobs!left(id, title, customers!left(id, name)))';
+const INV_DASHBOARD_SELECT = 'id, status, created_at, total, work_orders!left(display_number, customer_id, customers!left(id, name), jobs!left(id, title, customers!left(id, name)))';
+
+function displayForWorkOrder(wo) {
+  const customer = wo?.customers || wo?.jobs?.customers || {};
+  const customerName = customer.name || '';
+  return {
+    job_id: wo?.jobs?.id,
+    job_title: wo?.jobs?.title || (customerName ? `${customerName} work order` : 'Customer work order'),
+    customer_id: customer.id,
+    customer_name: customerName,
+  };
+}
+
+function displayForNestedWorkOrder(row) {
+  return displayForWorkOrder(row?.work_orders || {});
+}
+
 // Classic dashboard handler (was the original "/")
 router.get('/dashboard-classic', async (req, res) => {
   if (req.session?.role === 'worker') return res.redirect('/work-orders');
@@ -23,7 +42,7 @@ router.get('/dashboard-classic', async (req, res) => {
   const [{ count: openEstimates }, { count: scheduledWOs }, { count: unpaidInvoices }, { data: arData },
          { data: revMonthData }, { data: revYTDData },
          { count: overdueCount }, { data: overdueBalData },
-         { count: customerCount }, { count: jobCount }] = await Promise.all([
+         { count: customerCount }, { count: workOrderCount }] = await Promise.all([
     supabase.from('estimates').select('*', { count: 'exact', head: true }).in('status', ['draft', 'sent']),
     supabase.from('work_orders').select('*', { count: 'exact', head: true }).in('status', ['scheduled', 'in_progress']),
     supabase.from('invoices').select('*', { count: 'exact', head: true }).in('status', ['sent', 'overdue']),
@@ -33,7 +52,7 @@ router.get('/dashboard-classic', async (req, res) => {
     supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'sent').not('due_date', 'is', null).lt('due_date', today),
     supabase.from('invoices').select('total, amount_paid').eq('status', 'sent').not('due_date', 'is', null).lt('due_date', today),
     supabase.from('customers').select('*', { count: 'exact', head: true }),
-    supabase.from('jobs').select('*', { count: 'exact', head: true }),
+    supabase.from('work_orders').select('*', { count: 'exact', head: true }),
   ]);
 
   const arBalance = (arData || []).reduce((s, r) => s + Number(r.total || 0) - Number(r.amount_paid || 0), 0);
@@ -43,29 +62,26 @@ router.get('/dashboard-classic', async (req, res) => {
 
   // Activity stream (UNION ALL equivalent — 3 separate queries + JS merge)
   const [woAct, estAct, invAct] = await Promise.all([
-    supabase.from('work_orders').select('id, display_number, status, created_at, jobs!inner(title, customers!inner(id, name))').order('created_at', { ascending: false }).limit(10),
-    supabase.from('estimates').select('id, status, created_at, total, work_orders!inner(display_number, jobs!inner(title, customers!inner(id, name)))').order('created_at', { ascending: false }).limit(10),
-    supabase.from('invoices').select('id, status, created_at, total, work_orders!inner(display_number, jobs!inner(title, customers!inner(id, name)))').order('created_at', { ascending: false }).limit(10),
+    supabase.from('work_orders').select(WO_DASHBOARD_SELECT).order('created_at', { ascending: false }).limit(10),
+    supabase.from('estimates').select(EST_DASHBOARD_SELECT).order('created_at', { ascending: false }).limit(10),
+    supabase.from('invoices').select(INV_DASHBOARD_SELECT).order('created_at', { ascending: false }).limit(10),
   ]);
 
   const activity = [
     ...(woAct.data || []).map(r => ({
       type: 'work_order', id: r.id, number: 'WO-' + r.display_number,
       status: r.status, created_at: r.created_at, total: null,
-      job_id: r.jobs?.id, job_title: r.jobs?.title,
-      customer_id: r.jobs?.customers?.id, customer_name: r.jobs?.customers?.name,
+      ...displayForWorkOrder(r),
     })),
     ...(estAct.data || []).map(r => ({
       type: 'estimate', id: r.id, number: 'EST-' + r.work_orders?.display_number,
       status: r.status, created_at: r.created_at, total: r.total,
-      job_title: r.work_orders?.jobs?.title,
-      customer_name: r.work_orders?.jobs?.customers?.name,
+      ...displayForNestedWorkOrder(r),
     })),
     ...(invAct.data || []).map(r => ({
       type: 'invoice', id: r.id, number: 'INV-' + r.work_orders?.display_number,
       status: r.status, created_at: r.created_at, total: r.total,
-      job_title: r.work_orders?.jobs?.title,
-      customer_name: r.work_orders?.jobs?.customers?.name,
+      ...displayForNestedWorkOrder(r),
     })),
   ].sort((a, b) => b.created_at?.localeCompare(a.created_at || '') || 0).slice(0, 10);
 
@@ -76,7 +92,7 @@ router.get('/dashboard-classic', async (req, res) => {
     unpaidInvoices: unpaidInvoices || 0, arBalance,
     revenueThisMonth, revenueYTD,
     overdueCount: overdueCount || 0, overdueBalance,
-    activity, customerCount: customerCount || 0, jobCount: jobCount || 0,
+    activity, customerCount: customerCount || 0, workOrderCount: workOrderCount || 0,
   });
 });
 
@@ -103,14 +119,14 @@ router.get('/', async (req, res) => {
   // ---------- Schedule: tomorrow preview ----------
   const { data: tomorrowWOs } = await supabase
     .from('work_orders')
-    .select('id, display_number, scheduled_time, jobs!inner(title, customers!inner(name)), assigned_to_user_id, users!left(name), work_order_assignees(users!work_order_assignees_user_id_fkey(id, name)))')
+    .select('id, display_number, scheduled_time, customer_id, customers!left(name), jobs!left(title, customers!left(name)), assigned_to_user_id, users!left(name), work_order_assignees(users!work_order_assignees_user_id_fkey(id, name)))')
     .eq('scheduled_date', tomorrow)
     .in('status', ['scheduled', 'in_progress'])
     .order('scheduled_time', { ascending: true, nullsFirst: false });
 
   const tomorrowMapped = (tomorrowWOs || []).map(r => ({
     id: r.id, display_number: r.display_number, scheduled_time: r.scheduled_time,
-    job_title: r.jobs?.title, customer_name: r.jobs?.customers?.name,
+    ...displayForWorkOrder(r),
     user_name: r.users?.name, assigned_to: r.assigned_to_user_id,
   }));
   const tomorrowCount = tomorrowMapped.length;
@@ -129,19 +145,19 @@ router.get('/', async (req, res) => {
   // 1. Estimates ready to send
   const [{ data: estimatesToSend }, { count: estimatesToSendCount }] = await Promise.all([
     supabase.from('estimates')
-      .select('id, total, created_at, work_orders!inner(display_number, jobs!inner(title, customers!inner(name)))')
+      .select('id, total, created_at, work_orders!left(display_number, customer_id, customers!left(name), jobs!left(title, customers!left(name)))')
       .eq('status', 'draft').order('created_at', { ascending: false }).limit(5),
     supabase.from('estimates').select('*', { count: 'exact', head: true }).eq('status', 'draft'),
   ]);
   const estMapped = (estimatesToSend || []).map(r => ({
     id: r.id, display_number: r.work_orders?.display_number,
-    total: r.total, customer_name: r.work_orders?.jobs?.customers?.name, created_at: r.created_at,
+    total: r.total, customer_name: displayForNestedWorkOrder(r).customer_name, created_at: r.created_at,
   }));
 
   // 2. Invoices overdue
   const [{ data: overdueInvoices }, { count: overdueInvoicesCount }, { data: overdueSumData }] = await Promise.all([
     supabase.from('invoices')
-      .select('id, total, amount_paid, due_date, work_orders!inner(display_number, jobs!inner(title, customers!inner(name)))')
+      .select('id, total, amount_paid, due_date, work_orders!left(display_number, customer_id, customers!left(name), jobs!left(title, customers!left(name)))')
       .in('status', ['sent', 'overdue']).not('due_date', 'is', null).lt('due_date', today)
       .order('due_date', { ascending: true }).limit(5),
     supabase.from('invoices').select('*', { count: 'exact', head: true })
@@ -152,7 +168,7 @@ router.get('/', async (req, res) => {
   const invMapped = (overdueInvoices || []).map(r => ({
     id: r.id, display_number: r.work_orders?.display_number,
     total: r.total, amount_paid: r.amount_paid, due_date: r.due_date,
-    customer_name: r.work_orders?.jobs?.customers?.name,
+    customer_name: displayForNestedWorkOrder(r).customer_name,
     days_late: Math.floor((Date.now() - new Date(r.due_date).getTime()) / 86400000),
   }));
   const overdueTotal = (overdueSumData || []).reduce((s, r) => s + Number(r.total || 0) - Number(r.amount_paid || 0), 0);
@@ -180,12 +196,12 @@ router.get('/', async (req, res) => {
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data: staleEstimates } = await supabase
     .from('estimates')
-    .select('id, total, sent_at, work_orders!inner(display_number, jobs!inner(title, customers!inner(name)))')
+    .select('id, total, sent_at, work_orders!left(display_number, customer_id, customers!left(name), jobs!left(title, customers!left(name)))')
     .eq('status', 'sent').not('sent_at', 'is', null).lt('sent_at', weekAgo)
     .order('sent_at', { ascending: true }).limit(5);
   const staleMapped = (staleEstimates || []).map(r => ({
     id: r.id, display_number: r.work_orders?.display_number,
-    total: r.total, customer_name: r.work_orders?.jobs?.customers?.name,
+    total: r.total, customer_name: displayForNestedWorkOrder(r).customer_name,
     sent_at: r.sent_at,
     days_since_sent: Math.floor((Date.now() - new Date(r.sent_at).getTime()) / 86400000),
   }));
@@ -197,13 +213,13 @@ router.get('/', async (req, res) => {
 
   const [woAct, estAct, invAct] = await Promise.all([
     supabase.from('work_orders')
-      .select('id, display_number, status, created_at, jobs!inner(title, customers!inner(name))')
+      .select(WO_DASHBOARD_SELECT)
       .order('created_at', { ascending: false }).limit(limitRecords),
     supabase.from('estimates')
-      .select('id, status, created_at, total, work_orders!inner(display_number, jobs!inner(title, customers!inner(name)))')
+      .select(EST_DASHBOARD_SELECT)
       .order('created_at', { ascending: false }).limit(limitRecords),
     supabase.from('invoices')
-      .select('id, status, created_at, total, work_orders!inner(display_number, jobs!inner(title, customers!inner(name)))')
+      .select(INV_DASHBOARD_SELECT)
       .order('created_at', { ascending: false }).limit(limitRecords),
   ]);
 
@@ -211,36 +227,34 @@ router.get('/', async (req, res) => {
     ...(woAct.data || []).filter(r => !todayWoIds.includes(r.id)).map(r => ({
       type: 'work_order', id: r.id, number: 'WO-' + r.display_number,
       status: r.status, created_at: r.created_at, total: null,
-      job_title: r.jobs?.title, customer_name: r.jobs?.customers?.name,
+      ...displayForWorkOrder(r),
     })),
     ...(estAct.data || []).map(r => ({
       type: 'estimate', id: r.id, number: 'EST-' + r.work_orders?.display_number,
       status: r.status, created_at: r.created_at, total: r.total,
-      job_title: r.work_orders?.jobs?.title,
-      customer_name: r.work_orders?.jobs?.customers?.name,
+      ...displayForNestedWorkOrder(r),
     })),
     ...(invAct.data || []).map(r => ({
       type: 'invoice', id: r.id, number: 'INV-' + r.work_orders?.display_number,
       status: r.status, created_at: r.created_at, total: r.total,
-      job_title: r.work_orders?.jobs?.title,
-      customer_name: r.work_orders?.jobs?.customers?.name,
+      ...displayForNestedWorkOrder(r),
     })),
   ].sort((a, b) => b.created_at?.localeCompare(a.created_at || '') || 0).slice(0, limitRecords);
 
   // ---------- Bottom metrics ----------
   const [{ data: arData }, { data: revMonthData }, { data: revYTDData },
-         { count: customerCount }, { data: activeJobs }] = await Promise.all([
+         { count: customerCount }, { data: activeWorkOrders }] = await Promise.all([
     supabase.from('invoices').select('total, amount_paid').in('status', ['sent', 'overdue']),
     supabase.from('invoices').select('amount_paid').eq('status', 'paid').not('paid_at', 'is', null).gte('paid_at', currentMonth + '-01'),
     supabase.from('invoices').select('amount_paid').eq('status', 'paid').not('paid_at', 'is', null).gte('paid_at', currentYear + '-01-01'),
     supabase.from('customers').select('*', { count: 'exact', head: true }),
-    supabase.from('jobs').select('*', { count: 'exact', head: true }).in('status', ['estimating', 'scheduled', 'in_progress']),
+    supabase.from('work_orders').select('id').in('status', ['scheduled', 'in_progress']),
   ]);
 
   const arBalance = (arData || []).reduce((s, r) => s + Number(r.total || 0) - Number(r.amount_paid || 0), 0);
   const revenueThisMonth = (revMonthData || []).reduce((s, r) => s + Number(r.amount_paid || 0), 0);
   const revenueYTD = (revYTDData || []).reduce((s, r) => s + Number(r.amount_paid || 0), 0);
-  const jobsActive = activeJobs?.length || 0;
+  const workOrdersActive = activeWorkOrders?.length || 0;
 
   res.render('dashboard/v2', {
     title: 'Dashboard',
@@ -252,7 +266,7 @@ router.get('/', async (req, res) => {
     billsToApprove: billsMapped, billsToApproveCount, billsToApproveTotal,
     staleEstimates: staleMapped, staleEstimatesCount,
     activity,
-    arBalance, revenueThisMonth, revenueYTD, customerCount: customerCount || 0, jobsActive,
+    arBalance, revenueThisMonth, revenueYTD, customerCount: customerCount || 0, workOrdersActive,
     serverTime: new Date().toISOString(),
   });
 });

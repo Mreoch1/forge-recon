@@ -25,7 +25,7 @@ function typeLabel(t) {
     <div class="flex flex-wrap gap-2 items-center">
       <a href="/" class="text-xs text-recon-fog hover:text-recon-red mr-2">← back to operational dashboard</a>
       <a href="/customers/new" class="btn btn-secondary">+ Customer</a>
-      <a href="/jobs/new" class="btn btn-primary">+ Job</a>
+      <a href="/work-orders/new" class="btn btn-primary">+ Work order</a>
     </div>
   </div>
 
@@ -68,8 +68,8 @@ function typeLabel(t) {
       <div class="text-2xl font-semibold mt-1">$<%= fmt(revenueYTD) %></div>
     </div>
     <div class="card p-4">
-      <div class="text-xs uppercase tracking-wide text-recon-fog">Customers / Jobs</div>
-      <div class="text-2xl font-semibold mt-1"><%= customerCount %> <span class="text-recon-fog text-base font-normal">customers</span> / <%= jobCount %> <span class="text-recon-fog text-base font-normal">jobs</span></div>
+      <div class="text-xs uppercase tracking-wide text-recon-fog">Customers / Work orders</div>
+      <div class="text-2xl font-semibold mt-1"><%= customerCount %> <span class="text-recon-fog text-base font-normal">customers</span> / <%= workOrderCount %> <span class="text-recon-fog text-base font-normal">work orders</span></div>
     </div>
   </div>
 
@@ -99,7 +99,7 @@ function typeLabel(t) {
                     <% } %>
                   </p>
                   <p class="text-xs text-recon-fog truncate">
-                    <%= act.job_title %> &middot; <%= act.customer_name %>
+                    <%= act.customer_name %><% if (act.job_title) { %> &middot; <%= act.job_title %><% } %>
                   </p>
                 </div>
               </div>

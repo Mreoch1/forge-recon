@@ -347,16 +347,24 @@ function parseResponse(text) {
 module.exports = { chat, buildSystemPrompt };
 
 // ── Keyword-based mutation intent detection ──────────────────────────
+function extractNamedValue(message) {
+  const match = message.match(/(?:named|called|for)\s+(.+?)(?:\s+(?:with|email|phone|from|in|at)\b|[,.;]|$)/i);
+  if (!match) return '';
+  return match[1]
+    .replace(/\s+/g, ' ')
+    .replace(/^["']|["']$/g, '')
+    .trim();
+}
+
 const MUTATION_PATTERNS = [
   {
     tool: 'create_customer',
     patterns: [/add\s+(?:a\s+)?customer/i, /create\s+(?:a\s+)?customer/i, /new\s+customer/i],
     extract: (msg) => {
-      const nameMatch = msg.match(/(?:named|called|for)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/);
       const emailMatch = msg.match(/([\w._%+-]+@[\w.-]+\.[A-Za-z]{2,})/);
       const phoneMatch = msg.match(/(?:\d{3}[-.]?\d{3}[-.]?\d{4})/);
       const addrMatch = msg.match(/(?:from|in|at)\s+(.+?)(?:,|\.|\s+email|\s+phone|$)/);
-      const args = { name: nameMatch ? nameMatch[1].trim() : '' };
+      const args = { name: extractNamedValue(msg) };
       if (emailMatch) args.email = emailMatch[1];
       if (phoneMatch) args.phone = phoneMatch[0];
       if (addrMatch && addrMatch[1].trim().length < 80) {

@@ -42,7 +42,7 @@ function isOverdue(inv) {
     <% } else { %>
       <table class="data">
         <thead>
-          <tr><th>Number</th><th>Job</th><th>Customer</th><th>Status</th><th class="text-right">Total</th><th class="text-right">Paid</th><th class="text-right">Balance</th><th>Due</th></tr>
+          <tr><th>Number</th><th>Work order</th><th>Customer</th><th>Status</th><th class="text-right">Total</th><th class="text-right">Paid</th><th class="text-right">Balance</th><th>Due</th></tr>
         </thead>
         <tbody>
           <% invoices.forEach(function(i){ %>
@@ -50,7 +50,7 @@ function isOverdue(inv) {
             <% const showStatus = isOverdue(i) ? 'overdue' : i.status; %>
             <tr class="row-link" data-href="/invoices/<%= i.id %>">
               <td class="font-medium">INV-<%= i.wo_display_number %></td>
-              <td><%= i.job_title %></td>
+              <td>WO-<%= i.wo_display_number %></td>
               <td><%= i.customer_name %></td>
               <td><span class="badge badge-<%= showStatus %>"><%= showStatus %></span></td>
               <td class="text-right">$<%= fmt(i.total) %></td>

@@ -21,7 +21,6 @@ const margin = (Number(invoice.total) || 0) - (Number(invoice.cost_total) || 0);
       <p class="page-sub">
         WO: <a href="/work-orders/<%= invoice.wo_id %>" class="hover:text-recon-red">WO-<%= invoice.wo_display_number %></a>
         &middot; Estimate: <a href="/estimates/<%= invoice.estimate_id %>" class="hover:text-recon-red">EST-<%= invoice.wo_display_number %></a>
-        &middot; Job: <a href="/jobs/<%= invoice.job_id %>" class="hover:text-recon-red"><%= invoice.job_title %></a>
         &middot; Customer: <a href="/customers/<%= invoice.customer_id %>" class="hover:text-recon-red"><%= invoice.customer_name %></a>
       </p>
     </div>

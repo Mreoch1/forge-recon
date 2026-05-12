@@ -389,7 +389,7 @@ router.post('/:id', async (req, res) => {
       action: 'update',
       before_json: { total: existing.total },
       after_json: { total: data.total },
-      source: 'web',
+      source: 'user',
       user_id: req.session.userId,
     });
     if (auditErr) throw auditErr;

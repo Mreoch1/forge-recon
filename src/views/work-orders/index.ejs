@@ -44,7 +44,7 @@
     var _statuses = (typeof statuses !== 'undefined') ? statuses : [];
   %>
   <form method="get" action="/work-orders" class="list-utility-bar" style="margin-bottom:.65rem">
-    <input type="text" name="q" value="<%= q %>" placeholder="Search WO #, job, customer..." class="list-search">
+    <input type="text" name="q" value="<%= q %>" placeholder="Search WO #, customer..." class="list-search">
     <select name="status" class="list-filter">
       <option value="">All statuses</option>
       <% _statuses.forEach(function(s){ %>
@@ -76,7 +76,7 @@
         <tr>
           <th style="width:1.5rem;"></th>
           <th style="width:9rem;">Number</th>
-          <th>Customer · Job</th>
+          <th>Customer · Work order</th>
           <th style="width:7rem;">Status</th>
           <th style="width:7rem;">Scheduled</th>
           <th style="width:7rem;">Assigned</th>
