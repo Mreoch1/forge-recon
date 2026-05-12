@@ -86,6 +86,9 @@ const margin = (Number(invoice.total) || 0) - (Number(invoice.cost_total) || 0);
         <span><span class="text-recon-fog">Margin:</span> <strong class="<%= margin >= 0 ? 'text-green-700' : 'text-recon-red' %>">$<%= fmt(margin) %></strong></span>
         <span><span class="text-recon-fog">Terms:</span> <strong><%= invoice.payment_terms %></strong></span>
         <span><span class="text-recon-fog">Recipient:</span> <strong><%= invoice.customer_billing_email || invoice.customer_email || '—' %></strong></span>
+        <% if (invoice.customer_email && invoice.customer_billing_email && invoice.customer_billing_email !== invoice.customer_email) { %>
+          <span class="text-xs text-recon-fog ml-1">(estimates go to: <%= invoice.customer_email %>)</span>
+        <% } %>
       </div>
       <p class="text-xs text-recon-fog mt-1">Cost + margin are internal — not on customer PDFs.</p>
     </div>

@@ -333,7 +333,13 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
           <div class="ws-cust-line"><a href="tel:<%= wo.customer_phone %>" class="hover:text-recon-red"><%= wo.customer_phone %></a></div>
         <% } %>
         <% if (wo.customer_email) { %>
-          <div class="ws-cust-line"><a href="mailto:<%= wo.customer_email %>" class="hover:text-recon-red"><%= wo.customer_email %></a></div>
+          <div class="ws-cust-line"><a href="mailto:<%= wo.customer_email %>" class="hover:text-recon-red"><%= wo.customer_email %></a>
+            <span class="text-xs text-recon-fog">(estimates)</span></div>
+        <% } %>
+        <% var bEmail = wo.customer_billing_email || wo.customer_email; %>
+        <% if (bEmail) { %>
+          <div class="ws-cust-line"><a href="mailto:<%= bEmail %>" class="hover:text-recon-red"><%= bEmail %></a>
+            <span class="text-xs text-recon-fog">(invoices)</span></div>
         <% } %>
         <% const custAddr = [wo.customer_address, wo.customer_city, wo.customer_state, wo.customer_zip].filter(Boolean).join(', '); %>
         <% if (custAddr) { %>

@@ -1,6 +1,11 @@
 <%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
 
 <div class="max-w-3xl mx-auto px-4 py-6">
+  <%
+    const termPresets = ['Due on receipt', 'Net 15', 'Net 30', 'Net 45', 'Net 60'];
+    const defaultTerms = settings.default_payment_terms || 'Net 30';
+    const defaultIsCustom = termPresets.indexOf(defaultTerms) === -1;
+  %>
   <div class="mb-4">
     <a href="/admin/users" class="text-sm text-recon-fog hover:text-recon-red">&larr; Admin</a>
   </div>
@@ -68,13 +73,14 @@
           <div>
             <label class="label" for="default_payment_terms">Default payment terms</label>
             <select name="default_payment_terms" id="default_payment_terms" class="input">
-              <option value="Due on receipt" <%= settings.default_payment_terms === 'Due on receipt' ? 'selected' : '' %>>Due on receipt</option>
-              <option value="Net 15" <%= settings.default_payment_terms === 'Net 15' ? 'selected' : '' %>>Net 15</option>
-              <option value="Net 30" <%= settings.default_payment_terms === 'Net 30' ? 'selected' : '' %>>Net 30</option>
-              <option value="Net 45" <%= settings.default_payment_terms === 'Net 45' ? 'selected' : '' %>>Net 45</option>
-              <option value="Net 60" <%= settings.default_payment_terms === 'Net 60' ? 'selected' : '' %>>Net 60</option>
-              <option value="Custom" <%= settings.default_payment_terms === 'Custom' ? 'selected' : '' %>>Custom</option>
+              <% termPresets.forEach(function(p){ %>
+                <option value="<%= p %>" <%= defaultTerms === p ? 'selected' : '' %>><%= p %></option>
+              <% }); %>
+              <option value="__custom" <%= defaultIsCustom ? 'selected' : '' %>>Custom</option>
             </select>
+            <input type="text" name="default_payment_terms_custom" id="default_payment_terms_custom"
+                   value="<%= defaultIsCustom ? defaultTerms : '' %>" class="input mt-2 <%= defaultIsCustom ? '' : 'hidden' %>"
+                   placeholder="Custom terms">
           </div>
         </div>
         <p class="text-xs text-recon-fog mt-2">
@@ -90,5 +96,16 @@
     </form>
   </div>
 </div>
+
+<script>
+(function(){
+  var select = document.getElementById('default_payment_terms');
+  var custom = document.getElementById('default_payment_terms_custom');
+  if (!select || !custom) return;
+  function sync() { custom.classList.toggle('hidden', select.value !== '__custom'); }
+  select.addEventListener('change', sync);
+  sync();
+})();
+</script>
 
 <%- include('../layouts/footer') %>

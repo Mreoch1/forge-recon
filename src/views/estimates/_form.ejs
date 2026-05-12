@@ -4,18 +4,33 @@
 const linesToRender = (estimate.lines && estimate.lines.length) ? estimate.lines : [{
   description: '', quantity: 1, unit: 'ea', unit_price: 0, cost: 0, line_total: 0
 }];
+const termPresets = (typeof paymentTermsPresets !== 'undefined') ? paymentTermsPresets : ['Due on receipt', 'Net 15', 'Net 30', 'Net 45', 'Net 60'];
+const currentTerms = estimate.payment_terms || 'Net 30';
+const termsAreCustom = termPresets.indexOf(currentTerms) === -1;
 function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
 %>
 <form action="<%= formAction %>" method="post" class="space-y-6">
   <div class="card p-5">
     <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Header</h3>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
       <div>
         <label class="label" for="valid_until">Valid until</label>
         <input type="date" name="valid_until" id="valid_until"
                value="<%= estimate.valid_until ? String(estimate.valid_until).slice(0,10) : '' %>"
                class="input <%= errors.valid_until ? 'border-red-500' : '' %>">
         <% if (errors.valid_until) { %><p class="text-sm text-red-600 mt-1"><%= errors.valid_until %></p><% } %>
+      </div>
+      <div>
+        <label class="label" for="payment_terms">Payment terms</label>
+        <select name="payment_terms" id="payment_terms" class="input" data-payment-terms-select>
+          <% termPresets.forEach(function(p){ %>
+            <option value="<%= p %>" <%= currentTerms === p ? 'selected' : '' %>><%= p %></option>
+          <% }); %>
+          <option value="__custom" <%= termsAreCustom ? 'selected' : '' %>>Custom</option>
+        </select>
+        <input type="text" name="payment_terms_custom" value="<%= termsAreCustom ? currentTerms : '' %>"
+               class="input mt-2 <%= termsAreCustom ? '' : 'hidden' %>" data-payment-terms-custom
+               placeholder="Custom terms">
       </div>
       <div>
         <label class="label" for="tax_rate">Tax rate (%)</label>
@@ -143,3 +158,14 @@ function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed
 </form>
 
 <script src="/js/line-items.js"></script>
+<script>
+(function(){
+  document.querySelectorAll('[data-payment-terms-select]').forEach(function(select){
+    var custom = select.parentElement.querySelector('[data-payment-terms-custom]');
+    if (!custom) return;
+    function sync() { custom.classList.toggle('hidden', select.value !== '__custom'); }
+    select.addEventListener('change', sync);
+    sync();
+  });
+})();
+</script>

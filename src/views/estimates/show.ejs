@@ -30,6 +30,10 @@ const roi = costTotal > 0 ? ((margin / costTotal) * 100).toFixed(1) : '&mdash;';
       <p class="page-sub">
         <a href="/work-orders/<%= estimate.wo_id %>" class="hover:text-recon-red font-medium">&larr; WO-<%= estimate.wo_display_number %></a>
         &middot; Customer: <a href="/customers/<%= estimate.customer_id %>" class="hover:text-recon-red"><%= estimate.customer_name %></a>
+        <% var esEmail = estimate.customer_billing_email || estimate.customer_email; %>
+        <% if (esEmail) { %>
+          &middot; Invoice to: <a href="mailto:<%= esEmail %>" class="hover:text-recon-red"><%= esEmail %></a>
+        <% } %>
       </p>
     </div>
     <div class="flex flex-wrap gap-2">
@@ -148,6 +152,7 @@ const roi = costTotal > 0 ? ((margin / costTotal) * 100).toFixed(1) : '&mdash;';
       <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-2">Dates</h3>
       <dl class="space-y-1 text-sm">
         <div><dt class="text-recon-fog text-xs inline">Created:</dt> <dd class="inline"><%= (estimate.created_at || '&mdash;').slice(0,10) %></dd></div>
+        <div><dt class="text-recon-fog text-xs inline">Terms:</dt> <dd class="inline"><%= estimate.payment_terms || 'Net 30' %></dd></div>
         <% if (estimate.valid_until) { %>
           <div><dt class="text-recon-fog text-xs inline">Valid until:</dt> <dd class="inline"><%= String(estimate.valid_until).slice(0,10) %></dd></div>
         <% } %>
