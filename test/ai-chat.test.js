@@ -25,7 +25,7 @@ test('AI chat resumes a guided create-customer flow from the next user message',
   assert.equal(intent.args.name, 'Michael Reoch');
   assert.equal(intent.args.email, 'mike@example.com');
   assert.equal(intent.args.phone, '555-123-4567');
-  assert.equal(chat._internal.buildMissingMutationReply(intent), null);
+  assert.match(chat._internal.buildMissingMutationReply(intent), /service address/i);
 });
 
 test('AI chat resumes create-customer flow from the live assistant wording', () => {
@@ -36,7 +36,52 @@ test('AI chat resumes create-customer flow from the live assistant wording', () 
 
   assert.equal(intent.tool, 'create_customer');
   assert.equal(intent.args.name, 'Test Towers');
+  assert.match(chat._internal.buildMissingMutationReply(intent), /Do you know the email/i);
+});
+
+test('AI chat waits for optional customer intake fields before confirmation', () => {
+  const firstIntent = chat._internal.detectGuidedContinuation(
+    'Test Towers',
+    [{ role: 'assistant', content: 'Absolutely. I can create the customer in FORGE. Give me the customer name first. You can include email, phone, billing email, and address in the same message if you have them.' }]
+  );
+  const intakeReply = chat._internal.buildMissingMutationReply(firstIntent);
+
+  assert.match(intakeReply, /email/);
+  assert.match(intakeReply, /phone/);
+  assert.match(intakeReply, /billing email or billing address/);
+  assert.match(intakeReply, /contact or manager name/);
+});
+
+test('AI chat creates customer with known info after user says not sure', () => {
+  const intent = chat._internal.detectGuidedContinuation(
+    'not sure',
+    [
+      { role: 'assistant', content: 'Absolutely. I can create the customer in FORGE. Give me the customer name first. You can include email, phone, billing email, and address in the same message if you have them.' },
+      { role: 'user', content: 'Test Towers' },
+      { role: 'assistant', content: 'Got the customer name for Test Towers. Do you know the email, phone, service address, billing email or billing address, contact or manager name? Send whatever you have, or say "not sure" and I will create the customer with what we have.' }
+    ]
+  );
+
+  assert.equal(intent.tool, 'create_customer');
+  assert.equal(intent.args.name, 'Test Towers');
+  assert.equal(intent.args._customer_skip_missing, true);
   assert.equal(chat._internal.buildMissingMutationReply(intent), null);
+});
+
+test('AI chat merges customer details across intake turns', () => {
+  const intent = chat._internal.detectGuidedContinuation(
+    'phone is 555-123-4567, contact is Sarah Manager',
+    [
+      { role: 'assistant', content: 'Absolutely. I can create the customer in FORGE. Give me the customer name first. You can include email, phone, billing email, and address in the same message if you have them.' },
+      { role: 'user', content: 'Test Towers' },
+      { role: 'assistant', content: 'Got the customer name for Test Towers. Do you know the email, phone, service address, billing email or billing address, contact or manager name? Send whatever you have, or say "not sure" and I will create the customer with what we have.' }
+    ]
+  );
+
+  assert.equal(intent.args.name, 'Test Towers');
+  assert.equal(intent.args.phone, '555-123-4567');
+  assert.equal(intent.args.contact_name, 'Sarah Manager');
+  assert.match(chat._internal.buildMissingMutationReply(intent), /email/);
 });
 
 test('workers cannot execute privileged confirmed AI mutations', async () => {

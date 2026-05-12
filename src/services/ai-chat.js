@@ -447,7 +447,7 @@ function parseCustomerArgs(message, opts = {}) {
   }
   const notes = [];
   if (billingAddressMatch && billingAddressMatch[1].trim().length < 160) notes.push(`Billing address: ${billingAddressMatch[1].trim()}`);
-  if (contactMatch && contactMatch[1].trim().length < 120) notes.push(`Contact/manager: ${contactMatch[1].trim()}`);
+  if (contactMatch && contactMatch[1].trim().length < 120) args.contact_name = contactMatch[1].trim();
   if (notes.length) args.notes = notes.join('\n');
   return args;
 }
@@ -544,7 +544,7 @@ function customerMissingFields(args) {
   if (!args.phone) missing.push('phone');
   if (!args.address && !args.city && !args.state && !args.zip) missing.push('service address');
   if (!args.billing_email && !/billing address:/i.test(args.notes || '')) missing.push('billing email or billing address');
-  if (!/contact\/manager:/i.test(args.notes || '')) missing.push('contact or manager name');
+  if (!args.contact_name && !/contact\/manager:/i.test(args.notes || '')) missing.push('contact or manager name');
   return missing;
 }
 

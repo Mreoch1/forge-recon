@@ -497,6 +497,7 @@ MUTATION_TOOLS.create_customer = {
     lines.push(`Name: ${cleanArgs.name.trim()}`);
     if (cleanArgs.email) lines.push(`Email: ${cleanArgs.email.trim()}`);
     if (cleanArgs.phone) lines.push(`Phone: ${cleanArgs.phone.trim()}`);
+    if (cleanArgs.contact_name) lines.push(`Contact: ${cleanArgs.contact_name.trim()}`);
     if (cleanArgs.address || cleanArgs.city || cleanArgs.state || cleanArgs.zip) {
       lines.push(`Address: ${[cleanArgs.address, cleanArgs.city, cleanArgs.state, cleanArgs.zip].filter(Boolean).join(', ')}`);
     }
@@ -508,6 +509,7 @@ MUTATION_TOOLS.create_customer = {
     const { data: newCustomer, error } = await supabase.from('customers').insert({
       name: args.name.trim(), email: (args.email || '').trim() || null,
       phone: (args.phone || '').trim() || null, address: (args.address || '').trim() || null,
+      contact_name: (args.contact_name || '').trim() || null,
       city: (args.city || '').trim() || null, state: (args.state || '').trim() || null,
       zip: (args.zip || '').trim() || null, billing_email: (args.billing_email || '').trim() || null,
       notes: (args.notes || '').trim() || null,
