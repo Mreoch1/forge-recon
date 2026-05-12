@@ -38,11 +38,6 @@ const ENTITY_TYPES = [
   { key: 'global', label: 'Global', icon: '🌐', path: '/files/global' },
 ];
 
-router.use(async (req, res, next) => {
-  await filesService.ensureSchema();
-  next();
-});
-
 function isWorker(req) {
   return req.session?.role === 'worker';
 }
