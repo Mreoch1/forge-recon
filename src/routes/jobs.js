@@ -609,6 +609,28 @@ router.delete('/:id/line-items/:itemId', async (req, res) => {
   res.render('jobs/_line_items_table', { job: { id }, lineItems, vendors });
 });
 
+// ---------- Vendor Invoices ----------
+
+router.post('/:id/vendor-invoices', async (req, res) => {
+  const id = req.params.id;
+  const { data: job } = await supabase.from('jobs').select('id').eq('id', id).maybeSingle();
+  if (!job) return res.status(404).send('Project not found');
+  const vendorName = emptyToNull(req.body.vendor_name);
+  if (!vendorName) return res.status(400).send('Vendor name required');
+  const amount = req.body.amount === '' || req.body.amount == null ? null : Number(req.body.amount);
+  if (!amount || amount <= 0) return res.status(400).send('Valid amount required');
+  const { error } = await supabase.from('vendor_invoices').insert({
+    job_id: parseInt(id, 10),
+    vendor_name: vendorName,
+    invoice_number: emptyToNull(req.body.invoice_number),
+    description: emptyToNull(req.body.description),
+    amount,
+  });
+  if (error) throw error;
+  setFlash(req, 'success', `Vendor invoice $${amount.toFixed(2)} added for ${vendorName}.`);
+  res.redirect(`/projects/${id}`);
+});
+
 // ---------- Members ----------
 
 router.get('/:id/members', async (req, res) => {

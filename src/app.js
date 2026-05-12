@@ -267,6 +267,49 @@ app.post('/report-error', async (req, res) => {
   }
 });
 
+// POST /feedback — support/feedback from the floating button
+app.post('/feedback', async (req, res) => {
+  const subject = (req.body.subject || '').trim();
+  const message = (req.body.message || '').trim();
+  if (!subject || !message) {
+    setFlash(req, 'error', 'Subject and message are required.');
+    return res.redirect(req.headers.referer || '/');
+  }
+  const userEmail = req.currentUser?.email || req.session?.email || 'unknown';
+  const name = req.currentUser?.name || '';
+  const html = `<div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto">
+    <div style="background:linear-gradient(135deg,#c0202b,#8a0e16);padding:24px;border-radius:12px 12px 0 0">
+      <h1 style="color:#fff;margin:0;font-size:20px">FORGE Feedback</h1>
+    </div>
+    <div style="background:#fff;border:1px solid #e0e0e0;padding:24px;border-radius:0 0 12px 12px">
+      <p style="font-size:14px;color:#555"><strong>From:</strong> ${name} &lt;${userEmail}&gt;</p>
+      <p style="font-size:14px;color:#555"><strong>Page:</strong> ${req.headers.referer || '—'}</p>
+      <p style="font-size:14px;color:#555"><strong>User-Agent:</strong> ${req.headers['user-agent'] || '—'}</p>
+      <div style="background:#f5f5f5;border-radius:8px;padding:16px;margin:16px 0">
+        <p style="font-size:13px;color:#888;margin:0 0 6px;text-transform:uppercase;letter-spacing:.06em">${subject}</p>
+        <p style="font-size:14px;color:#333;margin:0;white-space:pre-line">${message}</p>
+      </div>
+    </div>`;
+
+  try {
+    const emailService = require('./services/email');
+    await emailService.sendEmail({
+      to: 'mike@reconenterprises.net',
+      subject: `[FORGE Feedback] ${subject}`,
+      html,
+    });
+    await supabase.from('audit_logs').insert({
+      entity_type: 'feedback', action: 'submitted', source: 'user',
+      details: { subject, user: userEmail }, user_id: req.session.userId || null,
+    }).then().catch(() => {});
+    setFlash(req, 'success', 'Thanks for the feedback! Mike will review it.');
+  } catch (e) {
+    console.error('[feedback] send failed:', e.message);
+    setFlash(req, 'error', 'Could not send feedback. Try again later.');
+  }
+  res.redirect(req.headers.referer || '/');
+});
+
 app.use((req, res) => {
   const errorCtx = { method: req.method, user: req.currentUser?.email || req.session?.email || 'unknown', timestamp: new Date().toISOString() };
   res.status(404).render('error', { title: 'Not found', code: 404, message: 'That page does not exist.', currentUrl: req.originalUrl, errorCtx });

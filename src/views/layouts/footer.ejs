@@ -40,6 +40,34 @@
 <script>
 (function(){ document.querySelectorAll('input:not([type=password]):not([type=email]):not([type=url]):not([type=search]), textarea').forEach(function(el){ el.spellcheck = true; }); })();
 </script>
+
+<!-- Support/feedback button -->
+<style>
+  .fb-btn { position: fixed; bottom: 20px; right: 20px; z-index: 999; background: #c0202b; color: #fff; border: none; border-radius: 999px; padding: 10px 18px; font-size: 13px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2); transition: all .2s; }
+  .fb-btn:hover { background: #a01f24; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+  .fb-overlay { position: fixed; inset: 0; z-index: 998; background: rgba(0,0,0,0.4); display: none; }
+  .fb-overlay.open { display: block; }
+  .fb-modal { position: fixed; bottom: 80px; right: 20px; z-index: 999; background: #fff; border-radius: 12px; padding: 20px; width: 360px; max-width: calc(100vw - 40px); box-shadow: 0 8px 32px rgba(0,0,0,0.2); display: none; }
+  .fb-modal.open { display: block; }
+  .fb-modal h3 { margin: 0 0 4px; font-size: 15px; font-weight: 600; color: #1a1a1a; }
+  .fb-modal p { margin: 0 0 12px; font-size: 12px; color: #888; }
+  .fb-modal input, .fb-modal textarea { width: 100%; box-sizing: border-box; margin-bottom: 10px; font-size: 13px; }
+  .fb-modal textarea { min-height: 80px; resize: vertical; }
+</style>
+<div class="fb-overlay" id="fb-overlay" onclick="closeFeedback()"></div>
+<div class="fb-modal" id="fb-modal">
+  <h3>💬 Feedback</h3>
+  <p>Found a bug? Have a suggestion? Let Mike know.</p>
+  <form action="/feedback" method="post" onsubmit="setTimeout(function(){closeFeedback();this.querySelector('textarea').value='';}.bind(this),500)">
+    <input type="text" name="subject" placeholder="Subject" class="input" required maxlength="100">
+    <textarea name="message" class="input" placeholder="Tell us what's on your mind..." required maxlength="2000"></textarea>
+    <button type="submit" class="btn btn-primary text-sm w-full">Send feedback</button>
+  </form>
+</div>
+<button class="fb-btn" onclick="document.getElementById('fb-overlay').classList.add('open');document.getElementById('fb-modal').classList.add('open')">💬 Feedback</button>
+<script>
+function closeFeedback(){ document.getElementById('fb-overlay').classList.remove('open'); document.getElementById('fb-modal').classList.remove('open'); }
+</script>
 <% } %>
 
 </body>

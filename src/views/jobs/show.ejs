@@ -74,7 +74,7 @@ workOrders.filter(w => w.parent_wo_id).forEach(s => {
   </details>
 
   <!-- R37n: Vendor spend rollup (RPM-imported invoices grouped by vendor) -->
-  <% if (typeof vendorInvoiceCount !== 'undefined' && vendorInvoiceCount > 0) { %>
+  <% if (typeof vendorInvoiceCount !== 'undefined') { %>
     <details class="mb-6" open>
       <summary class="cursor-pointer text-sm font-medium text-recon-fog mb-2 hover:text-recon-red">
         Vendor spend (<%= vendorInvoiceCount %> invoice<%= vendorInvoiceCount === 1 ? '' : 's' %>)
@@ -83,7 +83,9 @@ workOrders.filter(w => w.parent_wo_id).forEach(s => {
         <%- include('_vendor_invoices_table', {
           vendorSpend: vendorSpend,
           vendorInvoiceCount: vendorInvoiceCount,
-          vendorInvoiceGrandTotal: vendorInvoiceGrandTotal
+          vendorInvoiceGrandTotal: vendorInvoiceGrandTotal,
+          jobId: job.id,
+          projectContractors: typeof projectContractors !== 'undefined' ? projectContractors : []
         }) %>
       </div>
     </details>
