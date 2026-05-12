@@ -130,14 +130,20 @@ tools.search_customers = {
   handler: async ({ query }, ctx) => {
     const like = resolveQuery(query);
     if (!like) return [];
-    // Workers: only customers whose jobs have a WO assigned to them
-    let cond = '(name ILIKE ? OR email ILIKE ? OR phone ILIKE ?)';
-    const params = [like, like, like];
+    let q = supabase.from('customers').select('id, name, email, phone, city, state').ilike('name', like).or(`email.ilike.${like},phone.ilike.${like}`).limit(10);
     if (ctx.role === 'worker' && ctx.userId) {
-      cond += ' AND c.id IN (SELECT DISTINCT j.customer_id FROM jobs j JOIN work_orders w ON w.job_id = j.id WHERE (w.assigned_to_user_id = ? OR w.assigned_to ILIKE ?) AND w.status IN (\'scheduled\',\'in_progress\',\'complete\'))';
-      params.push(ctx.userId, `%${ctx.userName}%`);
+      // Workers: only customers assigned via legacy column OR work_order_assignees
+      const { data: assignedWO } = await supabase
+        .from('work_orders')
+        .select('customer_id')
+        .or(`assigned_to_user_id.eq.${ctx.userId},assigned_to.ilike.%${ctx.userName}%`)
+        .in('status', ['scheduled','in_progress','complete'])
+        .not('customer_id', 'is', null);
+      const custIds = [...new Set((assignedWO || []).map(w => w.customer_id).filter(Boolean))];
+      if (custIds.length) q = q.in('id', custIds);
+      else return []; // no assigned customers
     }
-    const rows = await db.all(`SELECT c.id, c.name, c.email, c.phone, c.city, c.state FROM customers c WHERE ${cond} LIMIT 10`, params);
+    const { data: rows } = await q;
     return rows.map(r => ({ id: r.id, name: r.name, email: r.email || '', phone: r.phone || '', city: r.city || '', state: r.state || '' }));
   }
 };
@@ -246,31 +252,31 @@ tools.search_work_orders = {
   args: { query: 'string (optional)', status: 'string (optional)', scheduled_date: 'string (optional)' },
   needs_user: 'read',
   handler: async ({ query, status, scheduled_date }, ctx) => {
-    const conds = ['w.id IS NOT NULL'];
-    const params = [];
-    if (query) { const like = resolveQuery(query); conds.push('(w.display_number ILIKE ? OR c.name ILIKE ? OR j.title ILIKE ?)'); params.push(like, like, like); }
-    if (status) { conds.push('w.status = ?'); params.push(status); }
-    if (scheduled_date) { conds.push('w.scheduled_date = ?'); params.push(scheduled_date); }
+    let q = supabase.from('work_orders').select(`
+      id, display_number, status, scheduled_date, scheduled_time, assigned_to, assigned_to_user_id,
+      jobs!left(title, customers!left(name)),
+      customers!left(name),
+      users!left(name)
+    `).order('scheduled_date', { ascending: true }).order('scheduled_time', { ascending: true }).limit(10);
+
+    if (status) q = q.eq('status', status);
+    if (scheduled_date) q = q.eq('scheduled_date', scheduled_date);
+    if (query) q = q.or(`display_number.ilike.%${query}%,jobs.title.ilike.%${query}%,customers.name.ilike.%${query}%,jobs.customers.name.ilike.%${query}%`);
     if (ctx.role === 'worker' && ctx.userId) {
-      conds.push('(w.assigned_to_user_id = ? OR w.assigned_to ILIKE ?)');
-      params.push(ctx.userId, `%${ctx.userName}%`);
+      q = q.or(`assigned_to_user_id.eq.${ctx.userId},assigned_to.ilike.%${ctx.userName}%`);
     }
-    const rows = await db.all(`SELECT w.id, w.display_number, w.status, w.scheduled_date, w.scheduled_time,
-      w.assigned_to, u.name AS assigned_user_name,
-      j.title AS job_title, c.name AS customer_name
-      FROM work_orders w
-      JOIN jobs j ON j.id = w.job_id
-      JOIN customers c ON c.id = j.customer_id
-      LEFT JOIN users u ON u.id = w.assigned_to_user_id
-      WHERE ${conds.join(' AND ')}
-      ORDER BY w.scheduled_date ASC, w.scheduled_time ASC LIMIT 10`, params);
-    return rows.map(r => ({
-      id: r.id, number: `WO-${r.display_number || ''}`, status: r.status,
-      scheduled_date: r.scheduled_date ? String(r.scheduled_date).slice(0,10) : '',
-      scheduled_time: r.scheduled_time || '',
-      customer_name: r.customer_name || '', job_title: r.job_title || '',
-      assignee: r.assigned_user_name || r.assigned_to || ''
-    }));
+
+    const { data: rows } = await q;
+    return (rows || []).map(r => {
+      const customer = r.customers || r.jobs?.customers || {};
+      return {
+        id: r.id, number: `WO-${r.display_number || ''}`, status: r.status,
+        scheduled_date: r.scheduled_date ? String(r.scheduled_date).slice(0,10) : '',
+        scheduled_time: r.scheduled_time || '',
+        customer_name: customer.name || '', job_title: r.jobs?.title || '',
+        assignee: r.users?.name || r.assigned_to || ''
+      };
+    });
   }
 };
 
