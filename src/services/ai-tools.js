@@ -50,6 +50,64 @@ async function vendorIdsByName(term) {
   return idsFrom(data);
 }
 
+async function customerIdsByText(term) {
+  const like = resolveQuery(term);
+  if (!like) return [];
+  const ids = new Set();
+  for (const column of ['name', 'email', 'phone']) {
+    const { data, error } = await supabase.from('customers').select('id').ilike(column, like).limit(50);
+    if (error) throw error;
+    idsFrom(data).forEach(id => ids.add(id));
+  }
+  return [...ids];
+}
+
+async function assignedWorkOrderIdsForWorker(ctx) {
+  if (!ctx.userId) return [];
+  const ids = new Set();
+  const userName = String(ctx.userName || '').trim();
+
+  let legacy = supabase.from('work_orders').select('id').eq('assigned_to_user_id', ctx.userId);
+  const { data: legacyIds, error: legacyErr } = await legacy.limit(100);
+  if (legacyErr) throw legacyErr;
+  idsFrom(legacyIds).forEach(id => ids.add(id));
+
+  if (userName) {
+    const { data: nameIds, error: nameErr } = await supabase
+      .from('work_orders')
+      .select('id')
+      .ilike('assigned_to', resolveQuery(userName))
+      .limit(100);
+    if (nameErr) throw nameErr;
+    idsFrom(nameIds).forEach(id => ids.add(id));
+  }
+
+  const { data: linkedIds, error: linkedErr } = await supabase
+    .from('work_order_assignees')
+    .select('work_order_id')
+    .eq('user_id', ctx.userId)
+    .limit(100);
+  if (linkedErr) throw linkedErr;
+  (linkedIds || []).forEach(r => {
+    if (r.work_order_id !== null && r.work_order_id !== undefined) ids.add(r.work_order_id);
+  });
+
+  return [...ids];
+}
+
+async function customerIdsForWorker(ctx) {
+  const workOrderIds = await assignedWorkOrderIdsForWorker(ctx);
+  if (!workOrderIds.length) return [];
+  const { data, error } = await supabase
+    .from('work_orders')
+    .select('customer_id, jobs!left(customer_id)')
+    .in('id', workOrderIds)
+    .in('status', ['scheduled', 'in_progress', 'complete'])
+    .limit(100);
+  if (error) throw error;
+  return [...new Set((data || []).map(r => r.customer_id || oneEmbedded(r.jobs).customer_id).filter(Boolean))];
+}
+
 async function workOrderIdsForFinancialSearch(term) {
   const like = resolveQuery(term);
   if (!like) return [];
@@ -128,23 +186,17 @@ tools.search_customers = {
   args: { query: 'string (required) — partial name, email, or phone' },
   needs_user: 'read',
   handler: async ({ query }, ctx) => {
-    const like = resolveQuery(query);
-    if (!like) return [];
-    let q = supabase.from('customers').select('id, name, email, phone, city, state').ilike('name', like).or(`email.ilike.${like},phone.ilike.${like}`).limit(10);
+    const customerIds = await customerIdsByText(query);
+    if (!customerIds.length) return [];
+    let q = supabase.from('customers').select('id, name, email, phone, city, state').in('id', customerIds).limit(10);
     if (ctx.role === 'worker' && ctx.userId) {
-      // Workers: only customers assigned via legacy column OR work_order_assignees
-      const { data: assignedWO } = await supabase
-        .from('work_orders')
-        .select('customer_id')
-        .or(`assigned_to_user_id.eq.${ctx.userId},assigned_to.ilike.%${ctx.userName}%`)
-        .in('status', ['scheduled','in_progress','complete'])
-        .not('customer_id', 'is', null);
-      const custIds = [...new Set((assignedWO || []).map(w => w.customer_id).filter(Boolean))];
-      if (custIds.length) q = q.in('id', custIds);
+      const workerCustomerIds = await customerIdsForWorker(ctx);
+      if (workerCustomerIds.length) q = q.in('id', workerCustomerIds);
       else return []; // no assigned customers
     }
-    const { data: rows } = await q;
-    return rows.map(r => ({ id: r.id, name: r.name, email: r.email || '', phone: r.phone || '', city: r.city || '', state: r.state || '' }));
+    const { data: rows, error } = await q;
+    if (error) throw error;
+    return (rows || []).map(r => ({ id: r.id, name: r.name, email: r.email || '', phone: r.phone || '', city: r.city || '', state: r.state || '' }));
   }
 };
 
@@ -261,20 +313,30 @@ tools.search_work_orders = {
 
     if (status) q = q.eq('status', status);
     if (scheduled_date) q = q.eq('scheduled_date', scheduled_date);
-    if (query) q = q.or(`display_number.ilike.%${query}%,jobs.title.ilike.%${query}%,customers.name.ilike.%${query}%,jobs.customers.name.ilike.%${query}%`);
+    if (query) {
+      const workOrderIds = await workOrderIdsForFinancialSearch(query);
+      if (!workOrderIds.length) return [];
+      q = q.in('id', workOrderIds);
+    }
     if (ctx.role === 'worker' && ctx.userId) {
-      q = q.or(`assigned_to_user_id.eq.${ctx.userId},assigned_to.ilike.%${ctx.userName}%`);
+      const workerWorkOrderIds = await assignedWorkOrderIdsForWorker(ctx);
+      if (!workerWorkOrderIds.length) return [];
+      q = q.in('id', workerWorkOrderIds);
     }
 
-    const { data: rows } = await q;
+    const { data: rows, error } = await q;
+    if (error) throw error;
     return (rows || []).map(r => {
-      const customer = r.customers || r.jobs?.customers || {};
+      const job = oneEmbedded(r.jobs);
+      const directCustomer = oneEmbedded(r.customers);
+      const jobCustomer = oneEmbedded(job.customers);
+      const customer = directCustomer.name ? directCustomer : jobCustomer;
       return {
         id: r.id, number: `WO-${r.display_number || ''}`, status: r.status,
         scheduled_date: r.scheduled_date ? String(r.scheduled_date).slice(0,10) : '',
         scheduled_time: r.scheduled_time || '',
-        customer_name: customer.name || '', job_title: r.jobs?.title || '',
-        assignee: r.users?.name || r.assigned_to || ''
+        customer_name: customer.name || '', job_title: job.title || '',
+        assignee: oneEmbedded(r.users).name || r.assigned_to || ''
       };
     });
   }
