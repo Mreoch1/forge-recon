@@ -37,6 +37,10 @@ check "/signup renders" GET "/signup" 200
 check "/ping" GET "/ping" 200
 check "/forgot-password renders" GET "/forgot-password" 200
 
+# Edge cases
+check "bogus route → 404" GET "/this-does-not-exist" 404
+check "verify-email bad token → 200" GET "/verify-email/invalid-token-here" 200
+
 # Login
 check "wrong password → 401" POST "/login" 401 "email=admin@recon.local" "password=WRONG"
 curl -s -c "$COOKIE_JAR" -b "$COOKIE_JAR" -o /dev/null -X POST --data-urlencode "email=admin@recon.local" --data-urlencode "password=changeme123" "${BASE}/login"
