@@ -9,5 +9,6 @@ public/uploads/
 Thumbs.db
 sessions/
 .m365-token.json
+.m365-cache.json
 
 .vercel
