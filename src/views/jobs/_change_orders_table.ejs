@@ -1,0 +1,99 @@
+<%
+// D-007 Change Orders table partial.
+// Inputs: changeOrders[] (with vendor_name, approver_name), job.
+function money(v) {
+  var x = Number(v) || 0;
+  var neg = x < 0;
+  var s = Math.abs(x).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (neg ? '-$' : '$') + s;
+}
+function dateOnly(d) { return d ? String(d).slice(0,10) : '—'; }
+%>
+<div class="card overflow-hidden" id="change-orders-section">
+  <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
+    <h3 class="font-semibold">Change Orders (<%= changeOrders.length %>)</h3>
+    <button type="button"
+            onclick="document.getElementById('co-form').classList.toggle('hidden')"
+            class="text-sm text-recon-red hover:underline">+ Add change order</button>
+  </div>
+
+  <div id="co-form" class="hidden p-5 border-b border-recon-mist bg-recon-cloud">
+    <form hx-post="/projects/<%= job.id %>/change-orders"
+          hx-target="#change-orders-section"
+          hx-swap="outerHTML"
+          class="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div class="md:col-span-4">
+        <label class="label">Description</label>
+        <input type="text" name="description" required class="input" placeholder="What changed?">
+      </div>
+      <div>
+        <label class="label">Vendor</label>
+        <select name="vendor_id" class="input">
+          <option value="">— none —</option>
+          <% (typeof vendors !== 'undefined' ? vendors : []).forEach(function(v){ %>
+            <option value="<%= v.id %>"><%= v.name %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div>
+        <label class="label">Vendor amount</label>
+        <input type="number" name="vendor_amount" step="0.01" class="input" placeholder="0.00">
+      </div>
+      <div>
+        <label class="label">Customer amount</label>
+        <input type="number" name="customer_amount" step="0.01" class="input" placeholder="0.00">
+      </div>
+      <div class="flex items-end">
+        <button type="submit" class="btn btn-primary w-full">Create</button>
+      </div>
+    </form>
+  </div>
+
+  <% if (changeOrders.length === 0) { %>
+    <div class="p-8 text-center text-recon-fog text-sm">No change orders yet.</div>
+  <% } else { %>
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th>Vendor</th>
+          <th class="text-right">Vendor $</th>
+          <th class="text-right">Customer $</th>
+          <th>Status</th>
+          <th>Approved by</th>
+          <th>Created</th>
+          <th class="text-right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% changeOrders.forEach(function(co){ %>
+          <tr>
+            <td class="font-medium"><%= co.description %></td>
+            <td><%= co.vendor_name || '—' %></td>
+            <td class="text-right"><%= money(co.vendor_amount) %></td>
+            <td class="text-right"><%= money(co.customer_amount) %></td>
+            <td><span class="badge badge-<%= co.status === 'approved' ? 'accepted' : (co.status === 'rejected' ? 'rejected' : (co.status === 'invoiced' ? 'sent' : 'draft')) %>"><%= co.status %></span></td>
+            <td><%= co.approver_name || '—' %></td>
+            <td class="text-xs text-recon-fog"><%= dateOnly(co.created_at) %></td>
+            <td class="text-right">
+              <% if (co.status === 'pending') { %>
+                <form hx-post="/projects/<%= job.id %>/change-orders/<%= co.id %>/approve"
+                      hx-target="#change-orders-section" hx-swap="outerHTML"
+                      class="inline">
+                  <button type="submit" class="text-xs text-green-700 hover:underline mr-2">Approve</button>
+                </form>
+                <form hx-post="/projects/<%= job.id %>/change-orders/<%= co.id %>/reject"
+                      hx-target="#change-orders-section" hx-swap="outerHTML"
+                      class="inline">
+                  <button type="submit" class="text-xs text-red-700 hover:underline">Reject</button>
+                </form>
+              <% } else { %>
+                <span class="text-xs text-recon-fog">—</span>
+              <% } %>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+</div>

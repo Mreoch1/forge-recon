@@ -1,0 +1,83 @@
+<%
+// D-007 Project Header partial.
+// Inputs (locals): job (with customer_name, customer_id, customer_email,
+//   customer_phone, assigned_name), projectManager (optional).
+function dateOnly(d) { return d ? String(d).slice(0,10) : '—'; }
+var siteParts = [job.address, [job.city, job.state, job.zip].filter(Boolean).join(' ')].filter(Boolean);
+var custSiteSame = job.customers && (job.address === job.customers.address) && (job.city === job.customers.city);
+%>
+
+<div class="card overflow-hidden mb-6">
+  <div class="px-5 py-5 bg-gradient-to-r from-recon-charcoal to-recon-steel text-white">
+    <div class="flex items-start justify-between flex-wrap gap-3">
+      <div class="min-w-0">
+        <div class="flex items-center gap-3 flex-wrap">
+          <h1 class="text-2xl font-bold tracking-tight"><%= job.title %></h1>
+          <span class="badge badge-<%= job.status %>"><%= job.status.replace('_',' ') %></span>
+          <% if (job.archived) { %><span class="badge badge-archived">archived</span><% } %>
+        </div>
+        <p class="text-recon-fog text-sm mt-1">
+          <% if (job.customer_id) { %>
+            <a href="/customers/<%= job.customer_id %>" class="hover:text-white"><%= job.customer_name %></a>
+            &middot;
+          <% } %>
+          Project #<%= job.id %>
+          &middot; created <%= dateOnly(job.created_at) %>
+        </p>
+      </div>
+      <div class="flex gap-2">
+        <a href="/projects/<%= job.id %>/edit" class="btn btn-secondary">Edit</a>
+        <a href="/work-orders/new?job_id=<%= job.id %>" class="btn btn-primary">+ Work order</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 px-5 py-4 gap-4 border-b border-recon-mist text-sm">
+    <div>
+      <p class="text-[.65rem] uppercase tracking-wider text-recon-fog mb-1">Customer</p>
+      <% if (job.customer_id) { %>
+        <a href="/customers/<%= job.customer_id %>" class="font-medium text-recon-charcoal hover:text-recon-red"><%= job.customer_name %></a>
+        <% if (job.customer_phone) { %><p class="text-xs text-recon-fog mt-0.5"><a href="tel:<%= job.customer_phone %>" class="hover:text-recon-red"><%= job.customer_phone %></a></p><% } %>
+        <% if (job.customer_email) { %><p class="text-xs text-recon-fog truncate"><a href="mailto:<%= job.customer_email %>" class="hover:text-recon-red"><%= job.customer_email %></a></p><% } %>
+      <% } else { %>
+        <span class="text-recon-fog">—</span>
+      <% } %>
+    </div>
+    <div>
+      <p class="text-[.65rem] uppercase tracking-wider text-recon-fog mb-1">Site address</p>
+      <% if (siteParts.length) { %>
+        <p class="text-recon-charcoal"><%= job.address || '' %></p>
+        <p class="text-xs text-recon-fog"><%= [job.city, job.state, job.zip].filter(Boolean).join(' ') %></p>
+      <% } else { %>
+        <span class="text-recon-fog">No address</span>
+      <% } %>
+    </div>
+    <div>
+      <p class="text-[.65rem] uppercase tracking-wider text-recon-fog mb-1">Schedule</p>
+      <p class="text-recon-charcoal">
+        <%= dateOnly(job.start_date || job.scheduled_date) %>
+        <% if (job.end_date) { %> &rarr; <%= dateOnly(job.end_date) %><% } %>
+      </p>
+      <% if (job.scheduled_time) { %><p class="text-xs text-recon-fog"><%= job.scheduled_time %></p><% } %>
+    </div>
+    <div>
+      <p class="text-[.65rem] uppercase tracking-wider text-recon-fog mb-1">Project manager</p>
+      <% if (projectManager) { %>
+        <p class="text-recon-charcoal font-medium"><%= projectManager.name %></p>
+        <% if (projectManager.email) { %><p class="text-xs text-recon-fog truncate"><%= projectManager.email %></p><% } %>
+      <% } else if (job.assigned_name) { %>
+        <p class="text-recon-charcoal"><%= job.assigned_name %></p>
+        <p class="text-[.65rem] text-recon-fog">(assigned)</p>
+      <% } else { %>
+        <span class="text-recon-fog">Unassigned</span>
+      <% } %>
+    </div>
+  </div>
+
+  <% if (job.description) { %>
+    <div class="px-5 py-4 text-sm text-recon-charcoal whitespace-pre-line border-b border-recon-mist">
+      <p class="text-[.65rem] uppercase tracking-wider text-recon-fog mb-1">Scope / description</p>
+      <%= job.description %>
+    </div>
+  <% } %>
+</div>

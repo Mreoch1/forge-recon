@@ -92,7 +92,12 @@
     .navlink { color: #d0d0d0; padding: .5rem .75rem; border-radius: .25rem; transition: all .15s; font-size: .9rem; }
     .navlink:hover { background: #3d3d3d; color: #ffffff; }
     .navlink.active { background: #c0202b; color: #ffffff; }
-    .btn { display: inline-flex; align-items: center; padding: .5rem 1rem; border-radius: .375rem; font-weight: 500; transition: all .15s; cursor: pointer; border: none; font-size: .9rem; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: .5rem 1rem; border-radius: .375rem; font-weight: 500; transition: all .15s; cursor: pointer; border: none; font-size: .9rem; }
+    /* R33: bigger tap targets on phones */
+    @media (max-width: 767px) {
+      .btn { min-height: 44px; padding: .65rem 1rem; }
+      .input, select.input, textarea.input { min-height: 44px; font-size: 1rem; } /* font-size 1rem prevents iOS auto-zoom */
+    }
     .btn-primary { background: #c0202b; color: #ffffff; }
     .btn-primary:hover { background: #8a0e16; }
     .btn-secondary { background: #2d2d2d; color: #ffffff; }
@@ -114,6 +119,11 @@
     .badge-scheduled, .badge-in_progress, .badge-estimating { background: #ede9fe; color: #5b21b6; }
     .badge-lead    { background: #f3f4f6; color: #374151; }
     .badge-archived { background: #6b7280; color: #ffffff; }
+    /* R33: wrap any .data table in .card to get clean horizontal scroll on mobile. */
+    .card.overflow-hidden { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    @media (max-width: 767px) {
+      table.data { min-width: 540px; }
+    }
     table.data { width: 100%; border-collapse: collapse; }
     table.data th { text-align: left; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: #888; padding: .75rem 1rem; border-bottom: 1px solid #e5e5e5; background: #fafafa; }
     table.data td { padding: .75rem 1rem; border-bottom: 1px solid #f0f0f0; font-size: .9rem; }
@@ -121,7 +131,10 @@
     .page-h1 { font-size: 1.5rem; font-weight: 700; color: #1a1a1a; }
     .page-sub { color: #888; font-size: .9rem; }
     .list-utility-bar { display: flex; align-items: center; gap: .5rem; margin-bottom: 1rem; min-height: 38px; flex-wrap: wrap; }
-    .list-utility-bar .list-search { flex: 1; min-width: 140px; max-width: 260px; padding: .4rem .65rem; border-radius: .375rem; border: 1px solid #d0d0d0; background: #fff; font-size: .85rem; }
+    .list-utility-bar .list-search { flex: 1 1 100%; min-width: 140px; max-width: 100%; padding: .55rem .75rem; border-radius: .375rem; border: 1px solid #d0d0d0; background: #fff; font-size: .9rem; min-height: 40px; }
+    @media (min-width: 768px) {
+      .list-utility-bar .list-search { flex: 1; max-width: 260px; padding: .4rem .65rem; font-size: .85rem; min-height: 0; }
+    }
     .list-utility-bar .list-search:focus { border-color: #c0202b; outline: none; box-shadow: 0 0 0 3px rgba(192,32,43,.15); }
     .list-utility-bar .list-filter { padding: .4rem .65rem; border-radius: .375rem; border: 1px solid #d0d0d0; background: #fff; font-size: .85rem; min-width: 120px; color: #1a1a1a; }
     .list-utility-bar .btn { font-size: .85rem; padding: .4rem .75rem; }
@@ -129,22 +142,49 @@
     .list-utility-bar .list-clear:hover { color: #c0202b; }
     tr.row-link { cursor: pointer; }
     tr.row-link:hover { background: #f0f0f0 !important; }
+
+    /* R33 — mobile header / hamburger.
+       Pure-CSS hamburger via a hidden checkbox + :checked sibling selector.
+       The checkbox is the FIRST child of <nav>; #mobile-panel is a later
+       sibling, so :checked ~ #mobile-panel reveals the panel. The label
+       (.r33-hamburger) lives inside the toolbar and is wired via for=. */
+    #r33-nav-toggle { display: none; }
+    .r33-hamburger {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 44px; height: 44px; border-radius: 6px; cursor: pointer;
+      color: #d0d0d0; transition: background .15s, color .15s;
+    }
+    .r33-hamburger:hover { background: #3d3d3d; color: #fff; }
+    .r33-hamburger svg { width: 22px; height: 22px; }
+    #mobile-panel { display: none; }
+    #r33-nav-toggle:checked ~ #mobile-panel { display: block; }
+    /* Hover-style hint to indicate active state on the label when panel is open */
+    #r33-nav-toggle:checked ~ .max-w-7xl .r33-hamburger { background: #3d3d3d; color: #fff; }
+    /* On md+ screens always hide the toggle UI even if state was checked */
+    @media (min-width: 768px) {
+      #r33-nav-toggle:checked ~ #mobile-panel { display: none; }
+      .r33-hamburger { display: none; }
+    }
+    /* Bigger tap targets in the mobile panel */
+    #mobile-panel .navlink { display: block; padding: .75rem .85rem; font-size: .95rem; min-height: 44px; }
   </style>
 </head>
 <body class="min-h-screen flex flex-col">
 
 <% if (typeof currentUser !== 'undefined' && currentUser) { %>
   <nav class="bg-recon-charcoal text-white shadow-md">
-    <div class="max-w-7xl mx-auto px-4 flex items-center justify-between h-20">
-      <div class="flex items-center gap-2">
-        <a href="/" class="flex items-center gap-3 mr-4 group">
-          <img src="/logos/recon-logo.jpg" alt="Recon Enterprises Inc." class="h-14 w-auto">
+    <!-- R33: hidden checkbox drives the mobile menu open/closed state -->
+    <input type="checkbox" id="r33-nav-toggle" aria-hidden="true">
+    <div class="max-w-7xl mx-auto px-3 md:px-4 flex items-center justify-between h-16 md:h-20 gap-2">
+      <div class="flex items-center gap-2 min-w-0">
+        <a href="/" class="flex items-center gap-2 md:gap-3 md:mr-4 group shrink-0">
+          <img src="/logos/recon-logo.jpg" alt="Recon Enterprises Inc." class="h-10 md:h-14 w-auto">
           <span class="flex flex-col leading-none">
-            <span class="forge-wordmark font-extrabold text-lg tracking-[.16em]">FORGE</span>
-            <span class="text-[.55rem] uppercase tracking-[.18em] text-recon-fog mt-0.5">by Recon Enterprises</span>
+            <span class="forge-wordmark font-extrabold text-base md:text-lg tracking-[.16em]">FORGE</span>
+            <span class="hidden sm:inline text-[.55rem] uppercase tracking-[.18em] text-recon-fog mt-0.5">by Recon Enterprises</span>
           </span>
         </a>
-        <!-- Desktop nav -->
+        <!-- Desktop nav (md+) -->
         <div class="hidden md:flex items-center gap-1" id="desktop-nav">
           <a href="/" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'dashboard' ? ' active' : '' %>">Dashboard</a>
           <a href="/work-orders" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'work-orders' ? ' active' : '' %>">Work Orders</a>
@@ -155,37 +195,51 @@
           <div class="relative" id="more-dropdown">
             <%
               var _activeNav = (typeof activeNav !== 'undefined') ? activeNav : '';
-              var moreActive = _activeNav === 'vendors' || _activeNav === 'bills' || _activeNav === 'accounting' || _activeNav === 'customers';
+              var moreActive = _activeNav === 'vendors' || _activeNav === 'bills' || _activeNav === 'accounting' || _activeNav === 'customers' || _activeNav === 'projects';
             %>
             <button class="navlink more-toggle<%= moreActive ? ' active' : '' %>">More ▾</button>
             <div class="more-menu hidden absolute top-full right-0 mt-1 bg-recon-steel border border-recon-ash rounded-lg shadow-xl py-1 min-w-[160px] z-50">
               <a href="/customers" class="block px-4 py-2 text-sm text-recon-mist hover:bg-recon-ash transition<%= typeof activeNav !== 'undefined' && activeNav === 'customers' ? ' bg-recon-red text-white hover:bg-recon-red' : '' %>">Customers</a>
+              <a href="/projects" class="block px-4 py-2 text-sm text-recon-mist hover:bg-recon-ash transition<%= typeof activeNav !== 'undefined' && activeNav === 'projects' ? ' bg-recon-red text-white hover:bg-recon-red' : '' %>">Projects</a>
               <a href="/vendors" class="block px-4 py-2 text-sm text-recon-mist hover:bg-recon-ash transition<%= typeof activeNav !== 'undefined' && activeNav === 'vendors' ? ' bg-recon-red text-white hover:bg-recon-red' : '' %>">Vendors</a>
               <a href="/bills" class="block px-4 py-2 text-sm text-recon-mist hover:bg-recon-ash transition<%= typeof activeNav !== 'undefined' && activeNav === 'bills' ? ' bg-recon-red text-white hover:bg-recon-red' : '' %>">Bills</a>
               <a href="/accounting" class="block px-4 py-2 text-sm text-recon-mist hover:bg-recon-ash transition<%= typeof activeNav !== 'undefined' && activeNav === 'accounting' ? ' bg-recon-red text-white hover:bg-recon-red' : '' %>">Accounting</a>
             </div>
           </div>
         </div>
-        <!-- Mobile nav -->
-        <div class="md:hidden flex items-center gap-1 flex-wrap" id="mobile-nav">
-          <a href="/" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'dashboard' ? ' active' : '' %>">Dashboard</a>
-          <a href="/work-orders" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'work-orders' ? ' active' : '' %>">Work Orders</a>
-          <a href="/estimates" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'estimates' ? ' active' : '' %>">Estimates</a>
-          <a href="/invoices" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'invoices' ? ' active' : '' %>">Invoices</a>
-          <a href="/schedule" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'schedule' ? ' active' : '' %>">Schedule</a>
-          <a href="/customers" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'customers' ? ' active' : '' %>">Customers</a>
-          <a href="/vendors" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'vendors' ? ' active' : '' %>">Vendors</a>
-          <a href="/bills" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'bills' ? ' active' : '' %>">Bills</a>
-          <a href="/accounting" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'accounting' ? ' active' : '' %>">Accounting</a>
-        </div>
       </div>
-      <div class="flex items-center gap-3">
-        <span class="text-sm text-recon-fog hidden sm:inline"><%= currentUser.name %></span>
-        <a href="/settings" class="text-xs text-recon-fog hidden sm:inline hover:text-white transition">(<%= currentUser.role %>)</a>
-        <form action="/logout" method="post" class="m-0 p-0">
+      <div class="flex items-center gap-2 md:gap-3 shrink-0">
+        <span class="text-sm text-recon-fog hidden md:inline"><%= currentUser.name %></span>
+        <a href="/settings" class="text-xs text-recon-fog hidden md:inline hover:text-white transition">(<%= currentUser.role %>)</a>
+        <form action="/logout" method="post" class="m-0 p-0 hidden sm:block">
           <button type="submit" class="text-sm text-recon-fog hover:text-white transition">Logout</button>
         </form>
-        <button id="theme-toggle" class="text-sm text-recon-fog hover:text-white transition" title="Toggle dark mode">☀</button>
+        <button id="theme-toggle" class="text-base text-recon-fog hover:text-white transition w-9 h-9 flex items-center justify-center rounded" title="Toggle dark mode">☀</button>
+        <!-- R33: hamburger label (mobile only) — the actual toggle is the hidden checkbox above the toolbar -->
+        <label for="r33-nav-toggle" class="r33-hamburger md:hidden" aria-label="Toggle menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </label>
+      </div>
+    </div>
+    <!-- R33: mobile slide-down nav panel (md:hidden) -->
+    <div id="mobile-panel" class="md:hidden bg-recon-steel border-t border-recon-ash">
+      <div class="px-3 py-2 flex flex-col gap-1">
+        <a href="/" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'dashboard' ? ' active' : '' %>">Dashboard</a>
+        <a href="/work-orders" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'work-orders' ? ' active' : '' %>">Work Orders</a>
+        <a href="/estimates" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'estimates' ? ' active' : '' %>">Estimates</a>
+        <a href="/invoices" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'invoices' ? ' active' : '' %>">Invoices</a>
+        <a href="/schedule" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'schedule' ? ' active' : '' %>">Schedule</a>
+        <a href="/customers" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'customers' ? ' active' : '' %>">Customers</a>
+        <a href="/projects" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'projects' ? ' active' : '' %>">Projects</a>
+        <a href="/vendors" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'vendors' ? ' active' : '' %>">Vendors</a>
+        <a href="/bills" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'bills' ? ' active' : '' %>">Bills</a>
+        <a href="/accounting" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'accounting' ? ' active' : '' %>">Accounting</a>
+        <div class="border-t border-recon-ash mt-1 pt-2 flex items-center justify-between text-xs text-recon-fog">
+          <span><%= currentUser.name %> <span class="opacity-70">(<%= currentUser.role %>)</span></span>
+          <form action="/logout" method="post" class="m-0 p-0">
+            <button type="submit" class="text-recon-fog hover:text-white transition px-2 py-1">Logout</button>
+          </form>
+        </div>
       </div>
     </div>
   </nav>

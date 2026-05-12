@@ -1,0 +1,65 @@
+<%
+// D-007 Project members list partial.
+// Inputs: members[] (with user_name, user_email, role), job, users[] (avail users).
+var roles = ['owner', 'manager', 'member', 'contractor'];
+%>
+<div class="card overflow-hidden" id="members-section">
+  <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
+    <h3 class="font-semibold">Project members (<%= members.length %>)</h3>
+    <button type="button"
+            onclick="document.getElementById('mem-form').classList.toggle('hidden')"
+            class="text-sm text-recon-red hover:underline">+ Add member</button>
+  </div>
+
+  <div id="mem-form" class="hidden p-5 border-b border-recon-mist bg-recon-cloud">
+    <form hx-post="/projects/<%= job.id %>/members"
+          hx-target="#members-section"
+          hx-swap="outerHTML"
+          class="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div>
+        <label class="label">User</label>
+        <select name="user_id" required class="input">
+          <option value="">— select user —</option>
+          <% (typeof users !== 'undefined' ? users : []).forEach(function(u){ %>
+            <option value="<%= u.id %>"><%= u.name %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div>
+        <label class="label">Role</label>
+        <select name="role" class="input">
+          <% roles.forEach(function(r){ %>
+            <option value="<%= r %>" <%= r === 'member' ? 'selected' : '' %>><%= r %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div class="flex items-end">
+        <button type="submit" class="btn btn-primary w-full">Add</button>
+      </div>
+    </form>
+  </div>
+
+  <% if (members.length === 0) { %>
+    <div class="p-8 text-center text-recon-fog text-sm">No members yet.</div>
+  <% } else { %>
+    <ul class="divide-y divide-recon-mist">
+      <% members.forEach(function(m){ %>
+        <li class="px-5 py-3 flex items-center justify-between">
+          <div>
+            <p class="font-medium text-recon-charcoal"><%= m.user_name %></p>
+            <% if (m.user_email) { %><p class="text-xs text-recon-fog"><%= m.user_email %></p><% } %>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="badge badge-<%= m.role === 'owner' ? 'accepted' : (m.role === 'manager' ? 'scheduled' : 'draft') %>"><%= m.role %></span>
+            <form hx-delete="/projects/<%= job.id %>/members/<%= m.id %>"
+                  hx-target="#members-section" hx-swap="outerHTML"
+                  hx-confirm="Remove <%= m.user_name %> from this project?"
+                  class="inline m-0">
+              <button type="submit" class="text-xs text-red-700 hover:underline">Remove</button>
+            </form>
+          </div>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+</div>

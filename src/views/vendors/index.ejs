@@ -6,7 +6,7 @@
     <% if (q) { %><a href="/vendors" class="list-clear">Clear</a><% } %>
     <a href="/vendors/new" class="btn btn-primary">+ New vendor</a></form>
   <% if (!vendors || vendors.length === 0) { %>
-    <div class="card p-8 text-center"><p class="text-recon-fog"><%= q ? 'No vendors match "' + q + '".' : 'No vendors yet.' %></p>
+    <div class="card p-8 text-center"><p class="text-recon-fog"><% if (q) { %>No vendors match "<%= q %>".<% } else { %>No vendors yet. <a href="/vendors/new" class="text-recon-red underline">Add your first vendor</a> to start recording bills.<% } %></p>
       <% if (q) { %><a href="/vendors" class="btn btn-ghost mt-2">Clear filter</a><% } %></div>
   <% } else { %>
     <div class="card overflow-hidden"><table class="data"><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Location</th></tr></thead><tbody>

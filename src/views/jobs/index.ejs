@@ -3,12 +3,12 @@
 <div class="max-w-7xl mx-auto px-4 py-6">
   <div class="flex items-baseline justify-between mb-4 flex-wrap gap-2">
     <div>
-      <h1 class="page-h1">Jobs</h1>
+      <h1 class="page-h1">Projects</h1>
       <p class="page-sub"><%= total %> total<% if (q) { %> &middot; filter: "<%= q %>"<% } %><% if (status) { %> &middot; status: <%= status.replace('_',' ') %><% } %></p>
     </div>
   </div>
 
-  <form method="get" action="/jobs" class="list-utility-bar">
+  <form method="get" action="/projects" class="list-utility-bar">
     <input type="text" name="q" value="<%= q %>" placeholder="Search title, address, customer..." class="list-search">
     <select name="status" class="list-filter">
       <option value="">All statuses</option>
@@ -18,18 +18,18 @@
     </select>
     <button type="submit" class="btn btn-secondary">Filter</button>
     <% if (q || status) { %>
-      <a href="/jobs" class="list-clear">Clear</a>
+      <a href="/projects" class="list-clear">Clear</a>
     <% } %>
-    <a href="/jobs/new" class="btn btn-primary">+ New job</a>
+    <a href="/projects/new" class="btn btn-primary">+ New project</a>
   </form>
 
   <div class="card overflow-hidden">
     <% if (jobs.length === 0) { %>
       <div class="p-8 text-center text-recon-fog">
         <% if (q || status) { %>
-          No jobs match those filters. <a href="/jobs" class="text-recon-red underline">Clear</a>
+          No projects match those filters. <a href="/projects" class="text-recon-red underline">Clear</a>
         <% } else { %>
-          No jobs yet. <a href="/jobs/new" class="text-recon-red underline">Create one</a>.
+          No projects yet. <a href="/projects/new" class="text-recon-red underline">Create one</a>.
         <% } %>
       </div>
     <% } else { %>
@@ -45,7 +45,7 @@
         </thead>
         <tbody>
           <% jobs.forEach(function(j){ %>
-            <tr class="row-link" data-href="/jobs/<%= j.id %>">
+            <tr class="row-link" data-href="/projects/<%= j.id %>">
               <td class="font-medium"><%= j.title %></td>
               <td><%= j.customer_name %></td>
               <td><%= [j.address, j.city, j.state].filter(Boolean).join(', ') || '—' %></td>
@@ -65,7 +65,7 @@
         <% if (p === page) { %>
           <span class="btn btn-primary"><%= p %></span>
         <% } else { %>
-          <a href="/jobs?<%= qs.join('&') %>" class="btn btn-ghost"><%= p %></a>
+          <a href="/projects?<%= qs.join('&') %>" class="btn btn-ghost"><%= p %></a>
         <% } %>
       <% } %>
     </div>

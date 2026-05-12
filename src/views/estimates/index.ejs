@@ -50,7 +50,7 @@ const showPrices = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
         <% if (q || status) { %>
           No estimates match. <a href="/estimates" class="text-recon-red underline">Clear</a>
         <% } else { %>
-          No estimates yet. Create one from a <a href="/work-orders" class="text-recon-red underline">work order</a>.
+          No estimates yet. Use the <a href="/estimates/new" class="text-recon-red underline">+ New estimate</a> button above, or create one from a <a href="/work-orders" class="text-recon-red underline">work order</a>.
         <% } %>
       </div>
     <% } else { %>
@@ -69,12 +69,19 @@ const showPrices = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
           </tr>
         </thead>
         <tbody>
-          <% estimates.forEach(function(e){ %>
+          <% estimates.forEach(function(e){
+               const estStatusHint = e.status === 'draft' ? 'Not sent yet. Edit freely.'
+                                   : e.status === 'sent' ? 'Emailed to customer, awaiting decision.'
+                                   : e.status === 'accepted' ? 'Customer approved. Ready to convert to invoice.'
+                                   : e.status === 'rejected' ? 'Customer declined. Read-only.'
+                                   : e.status === 'converted' ? 'Invoice has been created from this estimate.'
+                                   : e.status;
+          %>
 <tr class="row-link" data-href="/estimates/<%= e.id %>">
             <td class="font-medium">EST-<%= e.wo_display_number %></td>
               <td>WO-<%= e.wo_display_number %></td>
               <td><%= e.customer_name %></td>
-              <td><span class="badge badge-<%= e.status %>"><%= e.status %></span></td>
+              <td><span class="badge badge-<%= e.status %>" title="<%= estStatusHint %>"><%= e.status %></span></td>
               <td class="text-right">$<%= fmt(e.total) %></td>
               <% if (showPrices) { %><td class="text-right" style="color:<%= (Number(e.cost_total)||0) > 0 && (Number(e.subtotal)||0) > (Number(e.cost_total)||0) ? '#065f46' : '#991b1b' %>"><%= calcMargin(e) %></td><% } %>
               <td><%= (e.valid_until || '&mdash;').slice(0,10) %></td>

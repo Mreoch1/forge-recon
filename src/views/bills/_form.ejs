@@ -10,7 +10,9 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
     <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Header</h3>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div>
-        <label class="label" for="vendor_id">Vendor <span class="text-recon-red">*</span></label>
+        <label class="label" for="vendor_id">Vendor <span class="text-recon-red">*</span>
+          <span class="ml-1 text-recon-fog cursor-help" title="The supplier or subcontractor this bill is from. Add new vendors under Vendors first.">ⓘ</span>
+        </label>
         <select name="vendor_id" id="vendor_id" class="input<%= errors.vendor_id ? ' border-red-500' : '' %>">
           <option value="">— Select —</option>
           <% vendors.forEach(function(v) { %>
@@ -20,24 +22,32 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
         <% if (errors.vendor_id) { %><p class="text-sm text-red-600 mt-1"><%= errors.vendor_id %></p><% } %>
       </div>
       <div>
-        <label class="label" for="bill_number">Bill #</label>
+        <label class="label" for="bill_number">Bill #
+          <span class="ml-1 text-recon-fog cursor-help" title="The vendor's invoice number. Helps match payments to their records.">ⓘ</span>
+        </label>
         <input type="text" name="bill_number" id="bill_number" value="<%= bill.bill_number || '' %>" class="input">
       </div>
       <div class="grid grid-cols-2 gap-4">
         <div>
-          <label class="label" for="bill_date">Bill date</label>
+          <label class="label" for="bill_date">Bill date
+            <span class="ml-1 text-recon-fog cursor-help" title="Date printed on the vendor's invoice.">ⓘ</span>
+          </label>
           <input type="date" name="bill_date" id="bill_date" value="<%= bill.bill_date ? String(bill.bill_date).slice(0,10) : '' %>" class="input<%= errors.bill_date ? ' border-red-500' : '' %>">
           <% if (errors.bill_date) { %><p class="text-sm text-red-600 mt-1"><%= errors.bill_date %></p><% } %>
         </div>
         <div>
-          <label class="label" for="due_date">Due date</label>
+          <label class="label" for="due_date">Due date
+            <span class="ml-1 text-recon-fog cursor-help" title="When the vendor expects payment. Drives the AP aging report.">ⓘ</span>
+          </label>
           <input type="date" name="due_date" id="due_date" value="<%= bill.due_date ? String(bill.due_date).slice(0,10) : '' %>" class="input<%= errors.due_date ? ' border-red-500' : '' %>">
           <% if (errors.due_date) { %><p class="text-sm text-red-600 mt-1"><%= errors.due_date %></p><% } %>
         </div>
       </div>
     </div>
     <div class="mt-4">
-      <label class="label" for="tax_amount">Tax amount ($)</label>
+      <label class="label" for="tax_amount">Tax amount ($)
+        <span class="ml-1 text-recon-fog cursor-help" title="Total sales tax charged on this bill, in dollars (not a percentage).">ⓘ</span>
+      </label>
       <input type="number" step="0.01" min="0" name="tax_amount" id="tax_amount" value="<%= bill.tax_amount || 0 %>" class="input max-w-xs">
     </div>
   </div>
@@ -54,11 +64,11 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
       <table class="data" data-line-items>
         <thead>
           <tr>
-            <th>Account</th>
-            <th>Description</th>
-            <th class="text-right">Qty</th>
-            <th class="text-right">Unit $</th>
-            <th class="text-right">Line $</th>
+            <th title="Expense account this line posts to in the general ledger. Leave as Misc if unsure.">Account</th>
+            <th title="What you bought, e.g. lumber, drywall, sub labor.">Description</th>
+            <th class="text-right" title="How many units.">Qty</th>
+            <th class="text-right" title="Cost per unit.">Unit $</th>
+            <th class="text-right" title="Qty x Unit $ for this line.">Line $</th>
             <th></th>
           </tr>
         </thead>
@@ -130,7 +140,9 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
   </div>
 
   <div class="card p-5">
-    <label class="label" for="notes">Notes / memo</label>
+    <label class="label" for="notes">Notes / memo
+      <span class="ml-1 text-recon-fog cursor-help" title="Internal memo for this bill (PO number, approver, job reference). Not shown to the vendor.">ⓘ</span>
+    </label>
     <textarea name="notes" id="notes" rows="3" class="input"><%= bill.notes || '' %></textarea>
   </div>
 

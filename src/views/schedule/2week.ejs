@@ -115,6 +115,10 @@
     .sc-sidebar { width: 100%; max-height: 120px; border-right: none; border-bottom: 1px solid #e0e0e0; }
     .sc-sb-list { display: flex; gap: .35rem; overflow-x: auto; padding: .35rem; }
     .sc-sb-pill { min-width: 160px; flex-shrink: 0; margin-bottom: 0; }
+    /* R33: horizontal scroll for the 2-week grid on phones */
+    .sc-grid-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .sc-grid { min-width: 700px; }
+    .sc-header { padding: .55rem .75rem; gap: .4rem; }
   }
 </style>
 
@@ -126,15 +130,20 @@
     <a href="/schedule?view=2week&date=<%= prevDate %><%= assigneeFilter ? '&assignee=' + assigneeFilter : '' %>" class="sc-nav-btn">&larr;</a>
     <a href="/schedule?view=2week&date=<%= nextDate %><%= assigneeFilter ? '&assignee=' + assigneeFilter : '' %>" class="sc-nav-btn">Next &rarr;</a>
     <a href="/schedule?view=2week" class="sc-today-btn">Today</a>
-    <h1>Schedule</h1>
+    <h1>Schedule
+      <span class="ml-1 text-recon-fog cursor-help" title="Drag a WO block to move it; drop onto the Unscheduled lane to clear its date." style="font-size:.78rem; font-weight:normal;">ⓘ</span>
+    </h1>
     <span class="sc-date-range"><%= fmtDate(weekStart) %> – <%= fmtDate(weekEnd) %></span>
 
-    <div class="sc-view-toggle">
-      <a href="/schedule?view=week&date=<%= rawDate %><%= assigneeFilter ? '&assignee=' + assigneeFilter : '' %>">Week</a>
+    <div class="sc-view-toggle" title="Switch how far ahead the schedule shows.">
+      <a href="/schedule?view=week&date=<%= rawDate %><%= assigneeFilter ? '&assignee=' + assigneeFilter : '' %>"
+         title="7-day view with time slots. Best for daily dispatch.">Week</a>
       <span class="sc-toggle-sep"></span>
-      <a href="/schedule?view=2week&date=<%= rawDate %><%= assigneeFilter ? '&assignee=' + assigneeFilter : '' %>" class="active">2 weeks</a>
+      <a href="/schedule?view=2week&date=<%= rawDate %><%= assigneeFilter ? '&assignee=' + assigneeFilter : '' %>" class="active"
+         title="14-day compact view. Best for short-term planning.">2 weeks</a>
       <span class="sc-toggle-sep"></span>
-      <a href="/schedule?view=month&date=<%= rawDate %><%= assigneeFilter ? '&assignee=' + assigneeFilter : '' %>">Month</a>
+      <a href="/schedule?view=month&date=<%= rawDate %><%= assigneeFilter ? '&assignee=' + assigneeFilter : '' %>"
+         title="Full month overview. Best for long-range planning.">Month</a>
     </div>
 
     <div style="flex:1"></div>

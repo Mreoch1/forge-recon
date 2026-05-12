@@ -1,0 +1,97 @@
+<%
+// D-007 Vendor commitment line items table partial.
+// Inputs: lineItems[] (with vendor_name, total_cost), job.
+function money(v) {
+  var x = Number(v) || 0;
+  var neg = x < 0;
+  var s = Math.abs(x).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (neg ? '-$' : '$') + s;
+}
+var totalCommit = lineItems.reduce(function(s, li){ return s + (Number(li.quantity)||0) * (Number(li.unit_cost)||0); }, 0);
+%>
+<div class="card overflow-hidden" id="line-items-section">
+  <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
+    <h3 class="font-semibold">Vendor commitments (<%= lineItems.length %>)</h3>
+    <div class="flex items-center gap-3">
+      <span class="text-sm text-recon-fog">Total: <span class="font-semibold text-recon-charcoal"><%= money(totalCommit) %></span></span>
+      <button type="button"
+              onclick="document.getElementById('li-form').classList.toggle('hidden')"
+              class="text-sm text-recon-red hover:underline">+ Add commitment</button>
+    </div>
+  </div>
+
+  <div id="li-form" class="hidden p-5 border-b border-recon-mist bg-recon-cloud">
+    <form hx-post="/projects/<%= job.id %>/line-items"
+          hx-target="#line-items-section"
+          hx-swap="outerHTML"
+          class="grid grid-cols-1 md:grid-cols-5 gap-3">
+      <div class="md:col-span-2">
+        <label class="label">Description</label>
+        <input type="text" name="description" required class="input" placeholder="Scope of work">
+      </div>
+      <div>
+        <label class="label">Vendor</label>
+        <select name="vendor_id" class="input">
+          <option value="">— none —</option>
+          <% (typeof vendors !== 'undefined' ? vendors : []).forEach(function(v){ %>
+            <option value="<%= v.id %>"><%= v.name %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div>
+        <label class="label">Qty</label>
+        <input type="number" name="quantity" step="0.01" value="1" class="input">
+      </div>
+      <div>
+        <label class="label">Unit cost</label>
+        <input type="number" name="unit_cost" step="0.01" required class="input" placeholder="0.00">
+      </div>
+      <div class="md:col-span-5 flex justify-end">
+        <button type="submit" class="btn btn-primary">Add commitment</button>
+      </div>
+    </form>
+  </div>
+
+  <% if (lineItems.length === 0) { %>
+    <div class="p-8 text-center text-recon-fog text-sm">No vendor commitments yet.</div>
+  <% } else { %>
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th>Vendor</th>
+          <th class="text-right">Qty</th>
+          <th class="text-right">Unit cost</th>
+          <th class="text-right">Total</th>
+          <th class="text-right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% lineItems.forEach(function(li){ %>
+          <tr>
+            <td class="font-medium"><%= li.description %></td>
+            <td><%= li.vendor_name || '—' %></td>
+            <td class="text-right"><%= (Number(li.quantity)||0).toFixed(2) %></td>
+            <td class="text-right"><%= money(li.unit_cost) %></td>
+            <td class="text-right font-semibold"><%= money(li.total_cost) %></td>
+            <td class="text-right">
+              <form hx-delete="/projects/<%= job.id %>/line-items/<%= li.id %>"
+                    hx-target="#line-items-section" hx-swap="outerHTML"
+                    hx-confirm="Remove this commitment?"
+                    class="inline">
+                <button type="submit" class="text-xs text-red-700 hover:underline">Remove</button>
+              </form>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="4" class="text-right font-medium text-recon-charcoal">Total committed</td>
+          <td class="text-right font-bold text-recon-charcoal"><%= money(totalCommit) %></td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  <% } %>
+</div>

@@ -4,21 +4,27 @@
 <form action="<%= formAction %>" method="post" class="space-y-4">
   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
     <div class="md:col-span-2">
-      <label class="label" for="name">Name <span class="text-recon-red">*</span></label>
+      <label class="label" for="name">Name <span class="text-recon-red">*</span>
+        <span class="ml-1 text-recon-fog cursor-help" title="Customer or company name as it should appear on estimates, work orders, and invoices.">ⓘ</span>
+      </label>
       <input type="text" name="name" id="name" required value="<%= customer.name || '' %>"
              class="input <%= errors.name ? 'border-red-500' : '' %>" autofocus>
       <% if (errors.name) { %><p class="text-sm text-red-600 mt-1"><%= errors.name %></p><% } %>
     </div>
 
     <div>
-      <label class="label" for="email">Primary email <span class="text-recon-fog text-xs font-normal">(estimates)</span></label>
+      <label class="label" for="email">Primary email <span class="text-recon-fog text-xs font-normal">(estimates)</span>
+        <span class="ml-1 text-recon-fog cursor-help" title="Where estimates and general communication are sent. Used as a fallback for billing if no billing email is set.">ⓘ</span>
+      </label>
       <input type="email" name="email" id="email" value="<%= customer.email || '' %>"
              class="input <%= errors.email ? 'border-red-500' : '' %>">
       <% if (errors.email) { %><p class="text-sm text-red-600 mt-1"><%= errors.email %></p><% } %>
     </div>
 
     <div>
-      <label class="label" for="billing_email">Billing email <span class="text-recon-fog text-xs font-normal">(invoices)</span></label>
+      <label class="label" for="billing_email">Billing email <span class="text-recon-fog text-xs font-normal">(invoices)</span>
+        <span class="ml-1 text-recon-fog cursor-help" title="Where invoices and payment reminders are sent. Leave blank to use the primary email instead.">ⓘ</span>
+      </label>
       <input type="email" name="billing_email" id="billing_email" value="<%= customer.billing_email || '' %>"
              class="input <%= errors.billing_email ? 'border-red-500' : '' %>"
              placeholder="Falls back to primary if blank">
@@ -26,12 +32,16 @@
     </div>
 
     <div>
-      <label class="label" for="phone">Phone</label>
+      <label class="label" for="phone">Phone
+        <span class="ml-1 text-recon-fog cursor-help" title="Best contact number for scheduling and crew on-site coordination.">ⓘ</span>
+      </label>
       <input type="text" name="phone" id="phone" value="<%= customer.phone || '' %>" class="input">
     </div>
 
     <div class="md:col-span-2">
-      <label class="label" for="address">Address</label>
+      <label class="label" for="address">Address
+        <span class="ml-1 text-recon-fog cursor-help" title="Service address — where the crew will go. Appears on the WO PDF.">ⓘ</span>
+      </label>
       <input type="text" name="address" id="address" value="<%= customer.address || '' %>" class="input">
     </div>
 
@@ -52,7 +62,9 @@
     </div>
 
     <div class="md:col-span-2">
-      <label class="label" for="notes">Notes</label>
+      <label class="label" for="notes">Notes
+        <span class="ml-1 text-recon-fog cursor-help" title="Internal notes about this customer (gate codes, preferences, billing quirks). NOT shown to the customer.">ⓘ</span>
+      </label>
       <textarea name="notes" id="notes" rows="3" class="input"><%= customer.notes || '' %></textarea>
     </div>
   </div>

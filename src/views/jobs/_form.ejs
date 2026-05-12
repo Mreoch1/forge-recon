@@ -42,7 +42,7 @@
     </div>
 
     <div class="md:col-span-2">
-      <label class="label" for="address">Job site address</label>
+      <label class="label" for="address">Project site address</label>
       <input type="text" name="address" id="address" value="<%= job.address || '' %>" class="input" data-site-address>
     </div>
 
@@ -97,7 +97,7 @@
 
   <div class="flex items-center gap-2 pt-4 border-t border-recon-mist">
     <button type="submit" class="btn btn-primary"><%= submitLabel %></button>
-    <a href="<%= job.id ? '/jobs/' + job.id : '/jobs' %>" class="btn btn-ghost">Cancel</a>
+    <a href="<%= job.id ? '/projects/' + job.id : '/projects' %>" class="btn btn-ghost">Cancel</a>
   </div>
 </form>
 

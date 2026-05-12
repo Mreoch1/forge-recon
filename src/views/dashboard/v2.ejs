@@ -260,7 +260,10 @@ const actionSections = [
     .dv2-sched-time { font-size: .92rem; }
     .dv2-sched-customer { font-size: .92rem; }
     .dv2-sched-job { font-size: .8rem; }
-    .dv2-sched-row { padding: .65rem 0; }
+    /* R33: tap targets — schedule/tomorrow/queue rows need 44px min-height on phones */
+    .dv2-sched-row { padding: .85rem 0; min-height: 44px; cursor: pointer; }
+    .dv2-tom-row   { padding: .75rem 0; min-height: 44px; cursor: pointer; }
+    .dv2-queue-row { padding: .5rem 0; min-height: 36px; cursor: pointer; }
     .dv2-events { margin-left: 3.25rem; padding-left: .65rem; }
     .dv2-event-row { font-size: .72rem; grid-template-columns: 3rem 1fr; }
     .dv2-queue-card,
@@ -278,18 +281,18 @@ const actionSections = [
 <div class="dv2-bg">
   <div class="max-w-7xl mx-auto px-4 py-5">
 
-    <!-- Header -->
-    <div class="flex items-end justify-between mb-5 flex-wrap gap-3">
+    <!-- Header — R33: stack vertically on mobile, horizontal on md+ -->
+    <div class="flex flex-col md:flex-row md:items-end md:justify-between mb-5 gap-3">
       <div>
         <div class="dv2-eyebrow"><%= currentUser.role.toUpperCase() %> · <%= currentUser.name %></div>
         <h1 class="dv2-h1 mt-1"><%= headerDate %></h1>
       </div>
-      <div class="flex items-center gap-3">
+      <div class="flex items-center justify-between md:justify-end gap-3 flex-wrap">
         <span class="text-xs text-recon-fog flex items-center gap-1.5">
           <span class="dv2-dot dv2-dot-go"></span>
           Updated <span id="dv2-since">just now</span>
         </span>
-        <a href="/work-orders/new" class="btn btn-secondary text-sm">+ Work order</a>
+        <a href="/work-orders/new" class="btn btn-secondary text-sm min-h-[44px]">+ Work order</a>
       </div>
     </div>
 
@@ -303,13 +306,15 @@ const actionSections = [
 
         <!-- TODAY -->
         <h2 class="dv2-h-primary flex items-baseline justify-between">
-          <span>Today</span>
+          <span>Today
+            <span class="ml-1 text-recon-fog cursor-help" title="Work orders scheduled for today, ordered by start time. Live (in-progress) WOs show a pulsing orange dot.">ⓘ</span>
+          </span>
           <span class="dv2-eyebrow"><%= dayTimeline.length %> scheduled</span>
         </h2>
 
         <% if (dayTimeline.length === 0) { %>
           <div class="py-10">
-            <p class="text-sm text-recon-fog">Nothing on today's board.</p>
+            <p class="text-sm text-recon-fog">Nothing on today's board. Use <a href="/work-orders/new" class="text-recon-red underline">+ New work order</a> above to schedule one.</p>
             <a href="/work-orders" class="text-sm text-recon-red hover:underline">Browse all work orders →</a>
           </div>
         <% } else { %>
@@ -367,12 +372,14 @@ const actionSections = [
 
         <!-- TOMORROW -->
         <h2 class="dv2-h-tertiary flex items-baseline justify-between mt-9">
-          <span>Tomorrow</span>
+          <span>Tomorrow
+            <span class="ml-1 text-recon-fog cursor-help" title="A preview of WOs already on the calendar for tomorrow. Helps the office line up materials and crew.">ⓘ</span>
+          </span>
           <span class="dv2-eyebrow"><%= tomorrowCount %> scheduled<% if (upcomingThisWeek > 0) { %> · <%= upcomingThisWeek %> later this week<% } %></span>
         </h2>
 
         <% if (tomorrowPreview.length === 0) { %>
-          <div class="py-3 text-sm text-recon-fog">Nothing scheduled yet.</div>
+          <div class="py-3 text-sm text-recon-fog">Nothing scheduled yet. Use <a href="/work-orders/new" class="text-recon-red underline">+ New work order</a> to put one on the calendar.</div>
         <% } else { %>
           <div>
             <% tomorrowPreview.forEach(function(w){
@@ -388,7 +395,7 @@ const actionSections = [
             <% }); %>
           </div>
           <% if (tomorrowCount > tomorrowPreview.length) { %>
-            <a href="/work-orders?status=scheduled" class="block py-2 text-xs text-recon-fog hover:text-recon-red">+ <%= tomorrowCount - tomorrowPreview.length %> more →</a>
+            <a href="/work-orders?status=scheduled" class="block mt-2 py-2 text-xs text-recon-fog hover:text-recon-red border-t border-recon-mist">Show all <%= tomorrowCount %> work orders →</a>
           <% } %>
         <% } %>
       </div>
@@ -399,16 +406,24 @@ const actionSections = [
       <div>
 
         <h2 class="dv2-h-secondary flex items-baseline justify-between">
-          <span>Needs you</span>
+          <span>Needs you
+            <span class="ml-1 text-recon-fog cursor-help" title="Things that need someone's attention right now &mdash; overdue invoices, draft estimates to send, bills awaiting approval, and quotes going stale.">ⓘ</span>
+          </span>
           <span class="dv2-eyebrow">action queue</span>
         </h2>
 
         <div>
-          <% actionSections.forEach(function(sec){ %>
+          <% actionSections.forEach(function(sec){
+               var secHint = sec.label === 'Overdue invoices' ? 'Invoices past their due date and not paid. Send a reminder or call the customer.'
+                          : sec.label === 'Estimates to send' ? 'Estimates still in draft &mdash; not yet emailed to the customer.'
+                          : sec.label === 'Bills awaiting approval' ? 'Vendor bills sitting in draft, waiting for an admin to approve before payment.'
+                          : sec.label === 'Stale quotes' ? 'Estimates sent 7+ days ago with no response. Time to follow up.'
+                          : '';
+          %>
             <div class="dv2-queue-section <%= sec.urgent ? 'dv2-queue-urgent' : '' %>">
               <div class="dv2-queue-head">
                 <div class="dv2-queue-title">
-                  <span><%= sec.label %></span>
+                  <span <% if (secHint) { %>title="<%= secHint %>" class="cursor-help"<% } %>><%= sec.label %></span>
                   <span class="count">· <%= sec.count %></span>
                   <% if (sec.sublabel) { %><span class="sublabel"><%= sec.sublabel %></span><% } %>
                 </div>
@@ -451,23 +466,23 @@ const actionSections = [
 
     <!-- Bottom metrics — small, monospace, separator-only -->
     <div class="dv2-metric-strip">
-      <div>
+      <div title="Accounts Receivable: total dollars owed by customers on unpaid invoices.">
         <div class="dv2-metric-label">A/R</div>
         <div class="dv2-metric-value"><%= fmtMoney(arBalance) %></div>
       </div>
-      <div>
+      <div title="Total of paid invoices issued in the current calendar month.">
         <div class="dv2-metric-label">Revenue MTD</div>
         <div class="dv2-metric-value"><%= fmtMoney(revenueThisMonth) %></div>
       </div>
-      <div>
+      <div title="Total of paid invoices from Jan 1 of this year through today.">
         <div class="dv2-metric-label">Revenue YTD</div>
         <div class="dv2-metric-value"><%= fmtMoney(revenueYTD) %></div>
       </div>
-      <div>
+      <div title="Work orders currently scheduled or in progress.">
         <div class="dv2-metric-label">Active work orders</div>
         <div class="dv2-metric-value"><%= workOrdersActive %></div>
       </div>
-      <div>
+      <div title="Total customers in the system.">
         <div class="dv2-metric-label">Customers</div>
         <div class="dv2-metric-value"><%= customerCount %></div>
       </div>

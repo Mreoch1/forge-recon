@@ -13,19 +13,19 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
   <% } %>
 
   <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-    <div class="card p-4">
+    <div class="card p-4" title="Total number of AI requests made by all users in the displayed period.">
       <div class="text-xs uppercase tracking-wide text-recon-fog">Total calls</div>
       <div class="text-xl font-semibold mt-1"><%= totalCalls %></div>
     </div>
-    <div class="card p-4">
+    <div class="card p-4" title="Total tokens (roughly words + punctuation) processed. Drives the cost.">
       <div class="text-xs uppercase tracking-wide text-recon-fog">Tokens used</div>
       <div class="text-xl font-semibold mt-1"><%= totalTokens %></div>
     </div>
-    <div class="card p-4">
+    <div class="card p-4" title="Estimated dollar cost of the AI usage at current rates. Not a bill &mdash; just a forecast.">
       <div class="text-xs uppercase tracking-wide text-recon-fog">Est. cost</div>
       <div class="text-xl font-semibold mt-1">$<%= fmt(estimatedCost) %></div>
     </div>
-    <div class="card p-4">
+    <div class="card p-4" title="Average tokens per call. Higher = users asking longer or more complex questions.">
       <div class="text-xs uppercase tracking-wide text-recon-fog">Avg tokens/call</div>
       <div class="text-xl font-semibold mt-1"><%= totalCalls > 0 ? Math.round(totalTokens / totalCalls) : 0 %></div>
     </div>

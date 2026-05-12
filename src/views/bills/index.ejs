@@ -23,7 +23,7 @@
   </form>
   <% if (!bills || bills.length === 0) { %>
     <div class="card p-8 text-center">
-      <p class="text-recon-fog">No bills yet. Add a vendor and create a bill.</p>
+      <p class="text-recon-fog">No bills yet. Add a <a href="/vendors" class="text-recon-red underline">vendor</a> first, then use <a href="/bills/new" class="text-recon-red underline">+ New bill</a> to record what you owe.</p>
       <% if (status || vendorId) { %><a href="/bills" class="btn btn-ghost mt-2">Clear filter</a><% } %>
     </div>
   <% } else { %>
@@ -39,10 +39,16 @@
         <tbody>
           <% bills.forEach(function(b) { %>
             <% const bal = (Number(b.total) || 0) - (Number(b.amount_paid) || 0); %>
+            <% const billStatusHint = b.status === 'draft' ? 'Awaiting approval. Edit freely.'
+                                   : b.status === 'pending' ? 'Awaiting approval before it can be paid.'
+                                   : b.status === 'approved' ? 'Cleared to pay. Counted in AP.'
+                                   : b.status === 'paid' ? 'Full payment recorded. Read-only.'
+                                   : b.status === 'void' ? 'Cancelled. Does not count toward AP.'
+                                   : b.status; %>
             <tr class="row-link" data-href="/bills/<%= b.id %>">
               <td><%= b.bill_number || '#' + b.id %></td>
               <td><%= b.vendor_name || '-' %></td>
-              <td><span class="badge badge-<%= b.status %>"><%= b.status %></span></td>
+              <td><span class="badge badge-<%= b.status %>" title="<%= billStatusHint %>"><%= b.status %></span></td>
               <td class="text-right">$<%= Number(b.total).toFixed(2) %></td>
               <td class="text-right">$<%= (Number(b.amount_paid) || 0).toFixed(2) %></td>
               <td class="text-right <%= bal > 0 ? 'text-recon-red font-medium' : '' %>">$<%= bal.toFixed(2) %></td>

@@ -36,7 +36,7 @@ function isOverdue(inv) {
         <% if (q || status) { %>
           No invoices match. <a href="/invoices" class="text-recon-red underline">Clear</a>
         <% } else { %>
-          No invoices yet. They get generated from completed <a href="/work-orders" class="text-recon-red underline">work orders</a>.
+          No invoices yet. Use the <a href="/invoices/new" class="text-recon-red underline">+ New invoice</a> button above, or convert an accepted <a href="/estimates" class="text-recon-red underline">estimate</a>.
         <% } %>
       </div>
     <% } else { %>
@@ -48,11 +48,17 @@ function isOverdue(inv) {
           <% invoices.forEach(function(i){ %>
             <% const balance = (Number(i.total)||0) - (Number(i.amount_paid)||0); %>
             <% const showStatus = isOverdue(i) ? 'overdue' : i.status; %>
+            <% const invStatusHint = showStatus === 'draft' ? 'Not sent yet. Edit freely.'
+                                  : showStatus === 'sent' ? 'Emailed to customer, awaiting payment.'
+                                  : showStatus === 'paid' ? 'Full payment recorded. Read-only.'
+                                  : showStatus === 'void' ? 'Cancelled. Does not count toward AR.'
+                                  : showStatus === 'overdue' ? 'Past due date and not paid. Send a reminder.'
+                                  : showStatus; %>
             <tr class="row-link" data-href="/invoices/<%= i.id %>">
               <td class="font-medium">INV-<%= i.wo_display_number %></td>
               <td>WO-<%= i.wo_display_number %></td>
               <td><%= i.customer_name %></td>
-              <td><span class="badge badge-<%= showStatus %>"><%= showStatus %></span></td>
+              <td><span class="badge badge-<%= showStatus %>" title="<%= invStatusHint %>"><%= showStatus %></span></td>
               <td class="text-right">$<%= fmt(i.total) %></td>
               <td class="text-right">$<%= fmt(i.amount_paid) %></td>
               <td class="text-right font-medium <%= balance > 0 ? 'text-recon-red' : 'text-recon-fog' %>">$<%= fmt(balance) %></td>

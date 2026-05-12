@@ -21,12 +21,16 @@
         <% if (errors.email) { %><p class="text-sm text-red-600 mt-1"><%= errors.email %></p><% } %>
       </div>
       <div>
-        <label class="label" for="phone">Phone</label>
+        <label class="label" for="phone">Phone
+          <span class="ml-1 text-recon-fog cursor-help" title="Optional cell number for the crew, used for on-site coordination.">ⓘ</span>
+        </label>
         <input type="tel" name="phone" id="phone" value="<%= user.phone || '' %>"
                class="input" placeholder="(555) 123-4567">
       </div>
       <div>
-        <label class="label" for="role">Role</label>
+        <label class="label" for="role">Role
+          <span class="ml-1 text-recon-fog cursor-help" title="Controls what this user can see and edit. Admin = full access, Office = customers/billing, Crew = assigned WOs only.">ⓘ</span>
+        </label>
         <select name="role" id="role" class="input">
           <% roles.forEach(function(r){ %>
             <option value="<%= r %>" <%= user.role === r ? 'selected' : '' %>><%= r %></option>

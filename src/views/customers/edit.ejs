@@ -14,7 +14,7 @@
     <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
     <p class="text-sm text-recon-fog mb-3">Deleting a customer is permanent and only allowed if they have no jobs.</p>
     <form action="/customers/<%= customer.id %>/delete" method="post" onsubmit="return confirm('Delete <%= customer.name %>? This cannot be undone.');" class="m-0">
-      <button type="submit" class="btn btn-danger">Delete customer</button>
+      <button type="submit" class="btn btn-danger" title="Permanently delete this customer. Only works if they have no work orders, estimates, or invoices.">Delete customer</button>
     </form>
   </div>
 </div>

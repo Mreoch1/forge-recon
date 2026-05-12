@@ -31,13 +31,14 @@
 </style>
 
 <div class="max-w-7xl mx-auto px-4 py-5">
-  <div class="flex items-baseline justify-between mb-2 flex-wrap gap-2">
+  <!-- R33: stack title and CTA on mobile -->
+  <div class="flex flex-col md:flex-row md:items-baseline md:justify-between mb-2 gap-2">
     <div>
       <h1 class="wol-h1">Work orders</h1>
       <p class="wol-sub mt-1"><%= total %> total<% if (q) { %> &middot; "<%= q %>"<% } %><% if (status) { %> &middot; <%= status.replace('_',' ') %><% } %></p>
     </div>
     <div class="flex gap-2">
-      <a href="/work-orders/new" class="btn btn-primary">+ New work order</a>
+      <a href="/work-orders/new" class="btn btn-primary min-h-[44px]">+ New work order</a>
     </div>
   </div>
 
@@ -70,11 +71,13 @@
       <% if (q || status) { %>
         No work orders match. <a href="/work-orders" class="text-recon-red underline">Clear filters</a>.
       <% } else { %>
-        No work orders yet. They get created from accepted <a href="/estimates" class="text-recon-red underline">estimates</a>.
+        No work orders yet. Use the <a href="/work-orders/new" class="text-recon-red underline">+ New work order</a> button above, or convert an accepted <a href="/estimates" class="text-recon-red underline">estimate</a>.
       <% } %>
     </div>
   <% } else { %>
-    <table class="wol-table">
+    <!-- R33: horizontal-scroll wrapper for narrow viewports -->
+    <div class="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0" style="-webkit-overflow-scrolling: touch;">
+    <table class="wol-table" style="min-width: 720px;">
       <thead>
         <tr>
           <th style="width:1.5rem;"></th>
@@ -92,6 +95,12 @@
                             : w.status === 'complete'    ? 'wol-dot-done'
                             : w.status === 'cancelled'   ? 'wol-dot-cancel'
                             :                              'wol-dot-sched';
+             const statusHint = w.status === 'scheduled' ? 'On the calendar but work has not started yet.'
+                              : w.status === 'in_progress' ? 'Crew has started work on this WO.'
+                              : w.status === 'complete' ? 'All work finished and signed off.'
+                              : w.status === 'cancelled' ? 'WO will not be performed. Read-only.'
+                              : w.status === 'on_hold' ? 'Paused for now. Resume by editing the WO.'
+                              : w.status;
         %>
           <tr class="row-link" data-href="/work-orders/<%= w.id %>">
             <td><span class="wol-dot <%= dotClass %>"></span></td>
@@ -100,7 +109,7 @@
               <span class="wol-customer"><%= w.customer_name %></span>
               <div class="wol-job-title"><%= w.job_title %></div>
             </td>
-            <td><span class="badge badge-<%= w.status %>"><%= w.status.replace('_',' ') %></span></td>
+            <td><span class="badge badge-<%= w.status %>" title="<%= statusHint %>"><%= w.status.replace('_',' ') %></span></td>
             <td class="wol-meta"><%= (w.scheduled_date || '—').slice(0,10) %></td>
             <td class="wol-meta"><%= w.assigned_to || '—' %></td>
             <td class="wol-meta"><%= (w.created_at || '').slice(0,10) %></td>
@@ -108,6 +117,7 @@
         <% }); %>
       </tbody>
     </table>
+    </div>
   <% } %>
 
   <% if (totalPages > 1) { %>

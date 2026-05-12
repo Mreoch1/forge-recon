@@ -1,6 +1,8 @@
-<div class="sc-sidebar">
+<div class="sc-sidebar" title="Work orders that don't have a date yet. Drag a pill onto the calendar to schedule it.">
   <div class="sc-sb-header">
-    <span class="sc-sb-title">Unscheduled</span>
+    <span class="sc-sb-title">Unscheduled
+      <span class="ml-1 text-recon-fog cursor-help" title="WOs without a scheduled date. Drag them onto the calendar to schedule. Drop a WO back here to unschedule it.">ⓘ</span>
+    </span>
     <span class="sc-sb-count"><%= unscheduled.length %></span>
   </div>
   <% if (unscheduled.length === 0) { %>

@@ -5,6 +5,14 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
 const balance = (Number(invoice.total) || 0) - (Number(invoice.amount_paid) || 0);
 const showCosts = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
 const margin = (Number(invoice.total) || 0) - (Number(invoice.cost_total) || 0);
+const INV_STATUS_HINTS = {
+  draft: 'Draft — not sent yet. Edit freely; only office can see it.',
+  sent: 'Sent — emailed to the customer, awaiting payment.',
+  paid: 'Paid — full payment recorded. Read-only.',
+  void: 'Void — cancelled. Read-only history, does not count toward AR.',
+  overdue: 'Overdue — past due date and not paid. Customer needs a reminder.'
+};
+const invStatusHint = INV_STATUS_HINTS[displayStatus] || displayStatus;
 %>
 
 <div class="max-w-5xl mx-auto px-4 py-6">
@@ -16,7 +24,7 @@ const margin = (Number(invoice.total) || 0) - (Number(invoice.cost_total) || 0);
     <div>
       <div class="flex items-center gap-3">
         <h1 class="page-h1"><%= invoice.display_number %></h1>
-        <span class="badge badge-<%= displayStatus %>"><%= displayStatus %></span>
+        <span class="badge badge-<%= displayStatus %>" title="<%= invStatusHint %>"><%= displayStatus %></span>
       </div>
       <p class="page-sub">
         WO: <a href="/work-orders/<%= invoice.wo_id %>" class="hover:text-recon-red">WO-<%= invoice.wo_display_number %></a>
@@ -25,25 +33,28 @@ const margin = (Number(invoice.total) || 0) - (Number(invoice.cost_total) || 0);
       </p>
     </div>
     <div class="flex flex-wrap gap-2">
-      <a href="/invoices/<%= invoice.id %>/pdf" class="btn btn-secondary" target="_blank" rel="noopener">View PDF</a>
-      <a href="/invoices/<%= invoice.id %>/pdf?download=1" class="btn btn-ghost">Download</a>
+      <a href="/invoices/<%= invoice.id %>/pdf" class="btn btn-secondary" target="_blank" rel="noopener"
+         title="Open the invoice PDF in a new tab. This is the version the customer sees.">View PDF</a>
+      <a href="/invoices/<%= invoice.id %>/pdf?download=1" class="btn btn-ghost"
+         title="Download the invoice PDF to your computer.">Download</a>
 
       <% if (invoice.status === 'draft') { %>
         <a href="/invoices/<%= invoice.id %>/edit" class="btn btn-secondary">Edit</a>
         <form action="/invoices/<%= invoice.id %>/send" method="post" class="m-0 inline">
-          <button class="btn btn-primary">Send invoice email</button>
+          <button class="btn btn-primary" title="Email this invoice to the customer's billing email with the PDF attached.">Send invoice email</button>
         </form>
       <% } else if (invoice.status === 'sent' || invoice.status === 'overdue') { %>
         <form action="/invoices/<%= invoice.id %>/send" method="post" class="m-0 inline">
-          <button class="btn btn-secondary">Send invoice email</button>
+          <button class="btn btn-secondary" title="Re-send the invoice email to the customer (e.g. payment reminder).">Send invoice email</button>
         </form>
-        <button type="button" onclick="document.getElementById('mark-paid-form').classList.toggle('hidden')" class="btn btn-primary">Mark paid</button>
+        <button type="button" onclick="document.getElementById('mark-paid-form').classList.toggle('hidden')" class="btn btn-primary"
+                title="Record a customer payment against this invoice. Supports full or partial payments.">Mark paid</button>
       <% } %>
 
       <% if (invoice.status !== 'paid' && invoice.status !== 'void') { %>
         <form action="/invoices/<%= invoice.id %>/void" method="post" class="m-0 inline"
               onsubmit="return confirm('Void this invoice?');">
-          <button class="btn btn-ghost">Void</button>
+          <button class="btn btn-ghost" title="Cancel this invoice without deleting it. Removes it from AR totals but keeps history.">Void</button>
         </form>
       <% } %>
     </div>
@@ -161,7 +172,7 @@ const margin = (Number(invoice.total) || 0) - (Number(invoice.cost_total) || 0);
       <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
       <form action="/invoices/<%= invoice.id %>/delete" method="post"
             onsubmit="return confirm('Delete <%= invoice.display_number %>?');" class="m-0">
-        <button type="submit" class="btn btn-danger">Delete</button>
+        <button type="submit" class="btn btn-danger" title="Permanently delete this invoice. Only allowed for draft or void invoices.">Delete</button>
       </form>
     </div>
   <% } %>

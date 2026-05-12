@@ -1,0 +1,108 @@
+<%
+// D-007 Financial Overview partial.
+// Inputs (locals): financials { contract_value, budget_mode,
+//   revenue_projected, revenue_billed, cost_committed, cost_actual,
+//   profit_projected, progress_percentage }
+// All numbers can be null/undefined — coerce defensively.
+function n(v) { var x = Number(v); return isFinite(x) ? x : 0; }
+function money(v) {
+  var x = n(v);
+  var neg = x < 0;
+  var s = Math.abs(x).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (neg ? '-$' : '$') + s;
+}
+function pct(num, den) {
+  if (!den) return 0;
+  return Math.min(999, (num / den) * 100);
+}
+var contract = n(financials.contract_value);
+var revProj = n(financials.revenue_projected);
+var revBilled = n(financials.revenue_billed);
+var costComm = n(financials.cost_committed);
+var costAct = n(financials.cost_actual);
+var profit = n(financials.profit_projected);
+var profitPct = contract > 0 ? (profit / contract) * 100 : 0;
+var revPct = revProj > 0 ? pct(revBilled, revProj) : 0;
+var costPct = costComm > 0 ? pct(costAct, costComm) : 0;
+var costOver = costComm > 0 && costAct > costComm;
+var progress = n(financials.progress_percentage);
+var profitPositive = profit >= 0;
+%>
+
+<div class="card overflow-hidden mb-6">
+  <div class="px-5 py-4 border-b border-recon-mist flex items-center justify-between bg-recon-charcoal text-white">
+    <div>
+      <h2 class="font-semibold text-lg">Financial Overview</h2>
+      <p class="text-xs text-recon-fog mt-0.5">Budget mode: <span class="uppercase tracking-wide"><%= financials.budget_mode || 'manual' %></span></p>
+    </div>
+    <div class="text-right">
+      <p class="text-[.65rem] uppercase tracking-wider text-recon-fog">Contract</p>
+      <p class="text-2xl font-bold text-white"><%= money(contract) %></p>
+    </div>
+  </div>
+
+  <div class="px-5 py-5 space-y-5">
+
+    <!-- Progress -->
+    <div>
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-sm font-medium text-recon-charcoal">Project progress</span>
+        <span class="text-sm font-semibold text-recon-charcoal"><%= progress.toFixed(1) %>%</span>
+      </div>
+      <div class="w-full h-2.5 bg-recon-mist rounded-full overflow-hidden">
+        <div class="h-full rounded-full transition-all"
+             style="width: <%= Math.min(100, progress) %>%; background: <%= progress >= 100 ? '#16a34a' : '#c0202b' %>;"></div>
+      </div>
+    </div>
+
+    <!-- Revenue -->
+    <div>
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-sm font-medium text-recon-charcoal">Revenue billed</span>
+        <span class="text-xs text-recon-fog"><%= money(revBilled) %> of <%= money(revProj) %></span>
+      </div>
+      <div class="w-full h-2.5 bg-recon-mist rounded-full overflow-hidden">
+        <div class="h-full bg-blue-600 rounded-full transition-all"
+             style="width: <%= Math.min(100, revPct) %>%;"></div>
+      </div>
+      <p class="text-[.7rem] text-recon-fog mt-1"><%= revPct.toFixed(1) %>% billed</p>
+    </div>
+
+    <!-- Cost -->
+    <div>
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-sm font-medium text-recon-charcoal">Cost actual vs committed</span>
+        <span class="text-xs <%= costOver ? 'text-red-700 font-semibold' : 'text-recon-fog' %>">
+          <%= money(costAct) %> of <%= money(costComm) %><% if (costOver) { %> &middot; OVER<% } %>
+        </span>
+      </div>
+      <div class="w-full h-2.5 bg-recon-mist rounded-full overflow-hidden">
+        <div class="h-full rounded-full transition-all"
+             style="width: <%= Math.min(100, costPct) %>%; background: <%= costOver ? '#c0202b' : '#16a34a' %>;"></div>
+      </div>
+      <p class="text-[.7rem] <%= costOver ? 'text-red-700' : 'text-recon-fog' %> mt-1"><%= costPct.toFixed(1) %>% of committed cost</p>
+    </div>
+
+    <!-- Profit + tiles -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 border-t border-recon-mist">
+      <div class="p-3 rounded-md border <%= profitPositive ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200' %>">
+        <p class="text-[.65rem] uppercase tracking-wider <%= profitPositive ? 'text-green-700' : 'text-red-700' %>">Projected profit</p>
+        <p class="text-xl font-bold <%= profitPositive ? 'text-green-700' : 'text-red-700' %> mt-1"><%= money(profit) %></p>
+        <p class="text-[.7rem] <%= profitPositive ? 'text-green-600' : 'text-red-600' %> mt-0.5"><%= profitPct.toFixed(1) %>% margin</p>
+      </div>
+      <div class="p-3 rounded-md border bg-white border-recon-mist">
+        <p class="text-[.65rem] uppercase tracking-wider text-recon-fog">Revenue projected</p>
+        <p class="text-base font-semibold text-recon-charcoal mt-1"><%= money(revProj) %></p>
+      </div>
+      <div class="p-3 rounded-md border bg-white border-recon-mist">
+        <p class="text-[.65rem] uppercase tracking-wider text-recon-fog">Cost committed</p>
+        <p class="text-base font-semibold text-recon-charcoal mt-1"><%= money(costComm) %></p>
+      </div>
+      <div class="p-3 rounded-md border bg-white border-recon-mist">
+        <p class="text-[.65rem] uppercase tracking-wider text-recon-fog">Cost actual</p>
+        <p class="text-base font-semibold <%= costOver ? 'text-red-700' : 'text-recon-charcoal' %> mt-1"><%= money(costAct) %></p>
+      </div>
+    </div>
+
+  </div>
+</div>

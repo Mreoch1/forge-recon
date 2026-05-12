@@ -22,13 +22,17 @@
         <% if (errors.email) { %><p class="text-sm text-red-600 mt-1"><%= errors.email %></p><% } %>
       </div>
       <div>
-        <label class="label" for="phone">Phone</label>
+        <label class="label" for="phone">Phone
+          <span class="ml-1 text-recon-fog cursor-help" title="Optional cell number for the crew, used for on-site coordination.">ⓘ</span>
+        </label>
         <input type="tel" name="phone" id="phone" value="<%= user.phone || '' %>"
                class="input" placeholder="(555) 123-4567">
       </div>
       <div class="grid grid-cols-2 gap-4">
         <div>
-          <label class="label" for="role">Role</label>
+          <label class="label" for="role">Role
+            <span class="ml-1 text-recon-fog cursor-help" title="Controls what this user can see and edit. Admin = full access, Office = customers/billing, Crew = assigned WOs only.">ⓘ</span>
+          </label>
           <select name="role" id="role" class="input <%= errors.role ? 'border-red-500' : '' %>">
             <% roles.forEach(function(r){ %>
               <option value="<%= r %>" <%= user.role === r ? 'selected' : '' %>><%= r %></option>
@@ -37,7 +41,9 @@
           <% if (errors.role) { %><p class="text-sm text-red-600 mt-1"><%= errors.role %></p><% } %>
         </div>
         <div>
-          <label class="label">Status</label>
+          <label class="label">Status
+            <span class="ml-1 text-recon-fog cursor-help" title="Inactive users keep their history but can't log in. Use this instead of deleting when someone leaves.">ⓘ</span>
+          </label>
           <label class="inline-flex items-center gap-2 input cursor-pointer">
             <input type="hidden" name="active" value="0">
             <input type="checkbox" name="active" value="1" <%= user.active ? 'checked' : '' %>>

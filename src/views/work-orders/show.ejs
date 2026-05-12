@@ -5,6 +5,14 @@ const completedCount = (wo.lines || []).filter(function(li){ return li.completed
 const totalCount = (wo.lines || []).length;
 const pct = totalCount > 0 ? Math.round(completedCount * 100 / totalCount) : 0;
 const live = wo.status === 'in_progress';
+const WO_STATUS_HINTS = {
+  scheduled: 'Scheduled — on the calendar but work has not started yet.',
+  in_progress: 'In progress — crew has started work on this WO.',
+  complete: 'Complete — all work finished and signed off.',
+  cancelled: 'Cancelled — WO will not be performed. Read-only.',
+  on_hold: 'On hold — paused for now. Resume by editing the WO.'
+};
+const woStatusHint = WO_STATUS_HINTS[wo.status] || wo.status;
 function fmtDate(d) { return d ? String(d).slice(0,10) : '—'; }
 function fmtTime(t) {
   if (!t) return '';
@@ -120,13 +128,13 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
   <!-- Back nav -->
   <div class="mb-2"><a href="/work-orders" class="ws-back">&larr; Work orders</a></div>
 
-  <!-- Header: WO# / status / customer / job / actions -->
-  <div class="flex items-start justify-between flex-wrap gap-3">
+  <!-- Header: WO# / status / customer / job / actions — R33: stack on mobile, actions become a scroll strip -->
+  <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
     <div>
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-3 flex-wrap">
         <span class="ws-dot <%= live ? 'ws-dot-live' : (wo.status === 'complete' ? 'ws-dot-done' : 'ws-dot-sched') %>"></span>
         <h1 class="ws-h1">WO-<%= wo.display_number %></h1>
-        <span class="ws-status-badge badge-<%= wo.status %>"><%= wo.status.replace('_',' ') %></span>
+        <span class="ws-status-badge badge-<%= wo.status %>" title="<%= woStatusHint %>"><%= wo.status.replace('_',' ') %></span>
       </div>
       <p class="text-sm text-recon-fog mt-1">
         <a href="/customers/<%= wo.customer_id %>" class="font-semibold text-recon-charcoal hover:text-recon-red"><%= wo.customer_name %></a>
@@ -135,29 +143,30 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
       </p>
     </div>
 
-    <div class="flex flex-wrap gap-2">
-      <a href="/work-orders/<%= wo.id %>/pdf" class="btn btn-secondary text-sm" target="_blank" rel="noopener">PDF</a>
+    <div class="flex flex-wrap gap-2 -mx-4 px-4 md:mx-0 md:px-0 overflow-x-auto md:overflow-visible md:flex-wrap" style="-webkit-overflow-scrolling: touch;">
+      <a href="/work-orders/<%= wo.id %>/pdf" class="btn btn-secondary text-sm" target="_blank" rel="noopener"
+         title="Open the WO PDF in a new tab. This is the version the crew and customer see.">PDF</a>
       <% if (wo.status === 'scheduled' || wo.status === 'in_progress') { %>
         <a href="/work-orders/<%= wo.id %>/edit" class="btn btn-secondary text-sm">Edit</a>
       <% } %>
       <% if (wo.status === 'scheduled') { %>
         <form action="/work-orders/<%= wo.id %>/start" method="post" class="m-0 inline">
-          <button class="btn btn-primary text-sm">Start work</button>
+          <button class="btn btn-primary text-sm" title="Mark this WO as in progress. Use when the crew has arrived on site and begun work.">Start work</button>
         </form>
       <% } else if (wo.status === 'in_progress') { %>
         <form action="/work-orders/<%= wo.id %>/complete" method="post" class="m-0 inline">
-          <button class="btn btn-primary text-sm">Mark complete</button>
+          <button class="btn btn-primary text-sm" title="Mark this WO complete. Locks the WO and makes it eligible to convert into an estimate or invoice.">Mark complete</button>
         </form>
       <% } %>
       <% if (wo.status !== 'cancelled' && !estimate) { %>
         <form action="/work-orders/<%= wo.id %>/create-estimate" method="post" class="m-0 inline">
-          <button class="btn btn-primary text-sm">Create estimate</button>
+          <button class="btn btn-primary text-sm" title="Create a customer-facing estimate from this WO's line items. You can edit before sending.">Create estimate</button>
         </form>
       <% } %>
       <% if (wo.status !== 'complete' && wo.status !== 'cancelled') { %>
         <form action="/work-orders/<%= wo.id %>/cancel" method="post" class="m-0 inline"
               onsubmit="return confirm('Cancel this work order?');">
-          <button class="btn btn-ghost text-sm">Cancel</button>
+          <button class="btn btn-ghost text-sm" title="Cancel this WO. Keeps it in history but marks it as not performed.">Cancel</button>
         </form>
       <% } %>
     </div>
@@ -281,9 +290,7 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
         <% }); %>
       <% } %>
 
-      <!-- Files -->
-      <h2 class="ws-h-secondary mt-8">Files</h2>
-      <p class="text-sm mb-3"><a href="/files/project/<%= wo.id %>" class="text-recon-red hover:underline">📁 Files (<%= typeof fileCount !== 'undefined' ? fileCount : 0 %>) →</a></p>
+      <!-- Files removed per user request -->
 
       <!-- Photo gallery -->
       <h2 class="ws-h-secondary mt-8">Photos</h2>
@@ -372,7 +379,7 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
         <p class="text-xs text-recon-fog mb-2">Allowed only when no estimate references this WO.</p>
         <form action="/work-orders/<%= wo.id %>/delete" method="post"
               onsubmit="return confirm('Delete WO-<%= wo.display_number %>?');" class="m-0">
-          <button type="submit" class="btn btn-danger text-sm">Delete</button>
+          <button type="submit" class="btn btn-danger text-sm" title="Permanently delete this WO. Only works if no estimate or invoice references it.">Delete</button>
         </form>
       <% } %>
     </div>

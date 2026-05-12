@@ -2,12 +2,12 @@
 
 <div class="max-w-3xl mx-auto px-4 py-6">
   <div class="mb-4">
-    <a href="/jobs" class="text-sm text-recon-fog hover:text-recon-red">&larr; Jobs</a>
+    <a href="/projects" class="text-sm text-recon-fog hover:text-recon-red">&larr; Projects</a>
   </div>
-  <h1 class="page-h1 mb-6">New job</h1>
+  <h1 class="page-h1 mb-6">New project</h1>
 
   <div class="card p-6">
-    <%- include('_form', { job: job, customers: customers, statuses: statuses, errors: errors, formAction: '/jobs', submitLabel: 'Create job' }) %>
+    <%- include('_form', { job: job, customers: customers, statuses: statuses, errors: errors, formAction: '/projects', submitLabel: 'Create project' }) %>
   </div>
 </div>
 

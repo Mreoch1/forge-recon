@@ -35,7 +35,9 @@ const selectedAssignees = wo.assignee_ids || [];
     <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Schedule</h3>
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
       <div>
-        <label class="label" for="display_number">WO Number</label>
+        <label class="label" for="display_number">WO Number
+          <span class="ml-1 text-recon-fog cursor-help" title="Auto-generated if left blank. Format: 0001-0000 (year-sequence).">ⓘ</span>
+        </label>
         <input type="text" name="display_number" id="display_number"
                value="<%= wo.display_number || '' %>"
                placeholder="<%= wo.suggested_display_number || '0001-0000' %>"
@@ -44,17 +46,23 @@ const selectedAssignees = wo.assignee_ids || [];
         <p class="text-xs text-recon-fog mt-1">Leave blank to auto-generate.</p>
       </div>
       <div>
-        <label class="label" for="unit_number">Unit / Apt</label>
+        <label class="label" for="unit_number">Unit / Apt
+          <span class="ml-1 text-recon-fog cursor-help" title="Apartment or suite number, e.g. Apt 101, Suite 200. Leave blank if not applicable.">ⓘ</span>
+        </label>
         <input type="text" name="unit_number" id="unit_number" value="<%= wo.unit_number || '' %>"
                class="input" placeholder="Apt 101, Suite 200">
       </div>
       <div>
-        <label class="label" for="scheduled_date">Date</label>
+        <label class="label" for="scheduled_date">Date
+          <span class="ml-1 text-recon-fog cursor-help" title="The day the crew should arrive on site.">ⓘ</span>
+        </label>
         <input type="date" name="scheduled_date" id="scheduled_date"
                value="<%= wo.scheduled_date ? String(wo.scheduled_date).slice(0,10) : '' %>" class="input">
       </div>
       <div>
-        <label class="label" for="scheduled_time">Time</label>
+        <label class="label" for="scheduled_time">Time
+          <span class="ml-1 text-recon-fog cursor-help" title="The time the crew should arrive on site.">ⓘ</span>
+        </label>
         <select name="scheduled_time" id="scheduled_time" class="input">
           <option value="">-- Select time --</option>
           <% for (var h = 0; h < 24; h++) {
@@ -73,7 +81,9 @@ const selectedAssignees = wo.assignee_ids || [];
 
   <!-- Multi-assignee -->
   <div class="card p-5">
-    <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Assignees</h3>
+    <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Assignees
+      <span class="ml-1 text-recon-fog cursor-help" title="Crew members who will receive an email with WO details + PDF when the WO is saved.">ⓘ</span>
+    </h3>
     <div class="space-y-2">
       <div class="flex flex-wrap gap-2" id="assignee-chips">
         <% selectedAssignees.forEach(function(aid){ %>
@@ -87,6 +97,9 @@ const selectedAssignees = wo.assignee_ids || [];
           <% } %>
         <% }); %>
       </div>
+      <% if (!selectedAssignees || selectedAssignees.length === 0) { %>
+        <p class="text-xs text-recon-fog">No assignees yet. Add crew members to send them email notifications + PDFs.</p>
+      <% } %>
       <select id="assignee-select" class="input">
         <option value="">-- Add assignee --</option>
         <% users.forEach(function(u){ %>
@@ -98,16 +111,20 @@ const selectedAssignees = wo.assignee_ids || [];
 
   <!-- Description -->
   <div class="card p-5">
-    <label class="label" for="description">Description</label>
-    <textarea name="description" id="description" rows="2" class="input"
-              placeholder="Brief description of the work"><%= wo.description || '' %></textarea>
+    <label class="label" for="description">Description
+      <span class="ml-1 text-recon-fog cursor-help" title="Customer-visible description of the work to be done. Appears on the WO PDF, the assignee email, and the WO show page.">ⓘ</span>
+    </label>
+    <textarea name="description" id="description" rows="3" class="input"
+              placeholder="Full description with all the details about the work"><%= wo.description || '' %></textarea>
   </div>
 
   <!-- Crew notes (internal) -->
   <div class="card p-5">
-    <label class="label" for="notes">Crew instructions <span class="text-xs text-recon-fog">(visible to assignees only)</span></label>
+    <label class="label" for="notes">Crew instructions <span class="text-xs text-recon-fog">(visible to assignees only)</span>
+      <span class="ml-1 text-recon-fog cursor-help" title="Internal-only notes for the field crew. NOT shown to customers or on PDFs/emails sent outside the company.">ⓘ</span>
+    </label>
     <textarea name="notes" id="notes" rows="3" class="input"
-              placeholder="Internal notes for the assigned crew..."><%= wo.notes || '' %></textarea>
+              placeholder="Important crew notes here"><%= wo.notes || '' %></textarea>
   </div>
 
   <div class="flex items-center gap-2 pt-2">

@@ -82,7 +82,9 @@
         <input id="email" name="email" type="email" class="input" value="<%= values.email || '' %>" required autocomplete="email">
       </div>
       <div>
-        <label for="password" class="label">Password</label>
+        <label for="password" class="label">Password
+          <span class="ml-1 text-gray-400 cursor-help" title="Must include uppercase, lowercase, a number, a special character, and be at least 8 characters long.">ⓘ</span>
+        </label>
         <div class="pw-wrapper">
           <input id="password" name="password" type="password" class="input" required autocomplete="new-password" oninput="checkPassword(this.value)">
           <button type="button" class="pw-toggle" onclick="togglePW('password', this)" tabindex="-1" aria-label="Show password">👁</button>
