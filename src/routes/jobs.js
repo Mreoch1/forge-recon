@@ -844,19 +844,23 @@ router.post('/:id/decisions/:dId/answer', async (req, res) => {
 router.get('/:id/export.xlsx', async (req, res) => {
   const id = req.params.id;
   const ExcelJS = require('exceljs');
-  const { data: job } = await supabase.from('jobs').select('*, customers!left(name, email)').eq('id', id).maybeSingle();
+  const { data: job, error: jobError } = await supabase.from('jobs').select('*, customers!left(name, email)').eq('id', id).maybeSingle();
+  if (jobError) throw jobError;
   if (!job) return res.status(404).send('Project not found');
   const [woRes, membersRes, vendorsRes] = await Promise.all([
     supabase.from('work_orders').select('display_number, description, status, scheduled_date, unit_number').eq('job_id', id).order('created_at'),
     supabase.from('job_members').select('role, users!inner(name, email)').eq('job_id', id),
     supabase.from('project_contractors').select('contract_amount, vendors!left(name)').eq('job_id', id),
   ]);
+  for (const result of [woRes, membersRes, vendorsRes]) {
+    if (result.error) throw result.error;
+  }
   const wb = new ExcelJS.Workbook();
   wb.creator = 'FORGE';
   const sh1 = wb.addWorksheet('Project');
   sh1.addRow(['Field', 'Value']);
   sh1.addRow(['Project', job.title]);
-  sh1.addRow(['Customer', job.customer_name || '']);
+  sh1.addRow(['Customer', job.customers?.name || job.client || '']);
   sh1.addRow(['Contract Value', job.contract_value || 0]);
   const sh2 = wb.addWorksheet('Work Orders');
   sh2.addRow(['Display #', 'Description', 'Status', 'Scheduled', 'Unit']);

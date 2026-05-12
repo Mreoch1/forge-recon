@@ -10,8 +10,9 @@ workOrders.filter(w => w.parent_wo_id).forEach(s => {
 %>
 
 <div class="max-w-7xl mx-auto px-4 py-6">
-  <div class="mb-4">
+  <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
     <a href="/projects" class="text-sm text-recon-fog hover:text-recon-red">&larr; Projects</a>
+    <a href="/projects/<%= job.id %>/export.xlsx" class="btn btn-secondary text-sm">Export Excel</a>
   </div>
 
   <!-- D-007: Project header partial -->
