@@ -519,15 +519,18 @@ MUTATION_TOOLS.create_customer = {
 MUTATION_TOOLS.send_estimate = {
   needs_user: 'write',
   async propose(args, ctx) {
-    const { data: est } = await supabase.from('estimates').select('id, status, total, work_order_id').eq('id', args.estimate_id).maybeSingle();
+    const { data: est, error: estError } = await supabase.from('estimates').select('id, status, total, work_order_id').eq('id', args.estimate_id).maybeSingle();
+    if (estError) return { error: estError.message };
     if (!est) return { error: 'Estimate not found.' };
     if (est.status !== 'draft') return { error: `Estimate is "${est.status}" — must be draft to send.` };
-    const { data: wo } = await supabase.from('work_orders').select('display_number').eq('id', est.work_order_id).maybeSingle();
+    const { data: wo, error: woError } = await supabase.from('work_orders').select('display_number').eq('id', est.work_order_id).maybeSingle();
+    if (woError) return { error: woError.message };
     const number = `EST-${wo ? wo.display_number : ''}`;
     return { summary_lines: [`Estimate: ${number}`, `Amount: $${Number(est.total).toFixed(2)}`, `Status: draft → sent`], args_normalized: args };
   },
   async execute(args, ctx) {
-    const { data: est } = await supabase.from('estimates').select('id, status').eq('id', args.estimate_id).maybeSingle();
+    const { data: est, error: estError } = await supabase.from('estimates').select('id, status').eq('id', args.estimate_id).maybeSingle();
+    if (estError) throw estError;
     if (!est) return { error: 'Estimate not found.' };
     if (est.status !== 'draft') return { error: `Estimate is "${est.status}" — must be draft to send.` };
     // Generate .eml via the shared service (async — wrap in promise)
@@ -537,7 +540,8 @@ MUTATION_TOOLS.send_estimate = {
         if (result.filepath) console.log('[ai-send-estimate] .eml saved:', result.filepath);
       }).catch(e => console.error('[ai-send-estimate] .eml failed:', e.message));
     } catch(e) { console.error('[ai-send-estimate] service error:', e.message); }
-    await supabase.from('estimates').update({ status: 'sent', sent_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', est.id);
+    const { error: updateError } = await supabase.from('estimates').update({ status: 'sent', sent_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', est.id);
+    if (updateError) throw updateError;
     await writeAudit({ entityType: 'estimate', entityId: est.id, action: 'sent_by_ai', before: { status: 'draft' }, after: { status: 'sent' }, source: 'ai', userId: ctx.userId });
     return { id: est.id, href: `/estimates/${est.id}` };
   }
