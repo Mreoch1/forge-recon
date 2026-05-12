@@ -69,6 +69,26 @@ function emptyToNull(v) {
   return t === '' ? null : t;
 }
 
+function isAssignedToCurrentUser(req, wo) {
+  if (!wo || req.session?.role !== 'worker') return true;
+  const userId = Number(req.session.userId);
+  const userName = req.res?.locals?.currentUser?.name || '';
+  return Number(wo.assigned_to_user_id) === userId ||
+    (wo.assigned_to && userName && String(wo.assigned_to).includes(userName));
+}
+
+function workerForbidden(res, message = 'You can only access work orders assigned to you.') {
+  return res.status(403).render('error', { title: 'Forbidden', code: 403, message });
+}
+
+function requireManagerRole(req, res) {
+  if (req.session?.role === 'worker') {
+    workerForbidden(res, 'Manager or admin access required.');
+    return false;
+  }
+  return true;
+}
+
 function asArray(input) {
   if (!input) return [];
   if (Array.isArray(input)) return input;
@@ -271,6 +291,12 @@ router.get('/', async (req, res) => {
   if (status && VALID_STATUSES.includes(status)) {
     query = query.eq('status', status);
   }
+  if (req.session.role === 'worker') {
+    const userName = res.locals.currentUser?.name || '';
+    query = userName
+      ? query.or(`assigned_to_user_id.eq.${req.session.userId},assigned_to.ilike.%${userName}%`)
+      : query.eq('assigned_to_user_id', req.session.userId);
+  }
 
   const { data: rows, count: total, error } = await query
     .order('wo_number_main', { ascending: false })
@@ -306,6 +332,8 @@ router.get('/', async (req, res) => {
 // --- new (must come before /:id) ---
 
 router.get('/new', async (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+
   const jobId = parseInt(req.query.job_id, 10);
   if (!jobId) {
     setFlash(req, 'error', 'Pick a job first to create a work order from.');
@@ -356,6 +384,8 @@ router.get('/new', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+
   const jobId = parseInt(req.body.job_id, 10);
   let job = null;
   if (jobId) {
@@ -448,6 +478,8 @@ router.post('/', async (req, res) => {
 // --- AI-assisted creation (must come before /:id) ---
 
 router.get('/ai-create', async (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+
   res.render('work-orders/ai-create', {
     title: 'AI-assisted work order', activeNav: 'work-orders',
     text: '', error: null
@@ -455,6 +487,8 @@ router.get('/ai-create', async (req, res) => {
 });
 
 router.post('/ai-create', async (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+
   const text = (req.body.description || '').trim();
   if (!text || text.length < 20) {
     return res.render('work-orders/ai-create', {
@@ -504,6 +538,8 @@ router.post('/ai-create', async (req, res) => {
 });
 
 router.post('/ai-finalize', async (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+
   const { customer_action, customer_name, customer_email, customer_id } = req.body;
   const jobTitle = (req.body.job_title || '').trim();
   const jobAddress = (req.body.job_address || '').trim();
@@ -628,6 +664,8 @@ router.post('/ai-finalize', async (req, res) => {
 // --- sub-WO ---
 
 router.get('/:id/sub/new', async (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+
   const parent = await loadWorkOrder(req.params.id);
   if (!parent) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Parent WO not found.' });
 
@@ -658,6 +696,8 @@ router.get('/:id/sub/new', async (req, res) => {
 });
 
 router.post('/:id/sub', async (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+
   const { data: parent, error: pErr } = await supabase
     .from('work_orders')
     .select('*')
@@ -738,6 +778,7 @@ router.post('/:id/sub', async (req, res) => {
 router.get('/:id', async (req, res) => {
   const wo = await loadWorkOrder(req.params.id);
   if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
+  if (!isAssignedToCurrentUser(req, wo)) return workerForbidden(res);
 
   // Sub-WOs
   const { data: subs } = await supabase
@@ -844,6 +885,7 @@ router.get('/:id', async (req, res) => {
 router.get('/:id/edit', async (req, res) => {
   const wo = await loadWorkOrder(req.params.id);
   if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
+  if (!isAssignedToCurrentUser(req, wo)) return workerForbidden(res);
   if (['complete', 'cancelled'].includes(wo.status)) {
     setFlash(req, 'error', `WO-${wo.display_number} is "${wo.status}" and cannot be edited.`);
     return res.redirect(`/work-orders/${wo.id}`);
@@ -863,6 +905,7 @@ router.get('/:id/edit', async (req, res) => {
 router.post('/:id', async (req, res) => {
   const existing = await loadWorkOrder(req.params.id);
   if (!existing) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
+  if (!isAssignedToCurrentUser(req, existing)) return workerForbidden(res);
   if (['complete', 'cancelled'].includes(existing.status)) {
     setFlash(req, 'error', `WO-${existing.display_number} is "${existing.status}" and cannot be edited.`);
     return res.redirect(`/work-orders/${existing.id}`);
@@ -940,6 +983,7 @@ function statusTransitionRoute(newStatus, friendlyVerb) {
       .maybeSingle();
     if (error) throw error;
     if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
+    if (!isAssignedToCurrentUser(req, wo)) return workerForbidden(res);
 
     const { error: rpcErr } = await supabase.rpc('transition_work_order_status', {
       wo_id: parseInt(wo.id, 10),
@@ -1146,6 +1190,7 @@ router.post('/:id/photos/:photoId/delete', async (req, res) => {
 router.get('/:id/pdf', async (req, res) => {
   const wo = await loadWorkOrder(req.params.id);
   if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
+  if (!isAssignedToCurrentUser(req, wo)) return workerForbidden(res);
 
   const { data: company } = await supabase
     .from('company_settings')
@@ -1178,6 +1223,8 @@ router.get('/:id/pdf', async (req, res) => {
 // --- delete ---
 
 router.post('/:id/delete', async (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+
   const id = parseInt(req.params.id, 10);
   const { data: wo, error: findErr } = await supabase
     .from('work_orders')
@@ -1234,6 +1281,8 @@ router.post('/:id/delete', async (req, res) => {
 // --- create estimate from WO (1:1) ---
 
 router.post('/:id/create-estimate', async (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+
   const { data: wo, error: woErr } = await supabase
     .from('work_orders')
     .select('*, work_order_line_items(*)')

@@ -38,10 +38,30 @@ const ENTITY_TYPES = [
   { key: 'global', label: 'Global', icon: '🌐', path: '/files/global' },
 ];
 
+function isWorker(req) {
+  return req.session?.role === 'worker';
+}
+
+function workerForbidden(res) {
+  return res.status(403).render('error', {
+    title: 'Forbidden',
+    code: 403,
+    message: 'Workers can only access their own worker files and assigned work-order files.'
+  });
+}
+
+function workerCanAccessEntity(req, entityType, entityId) {
+  if (!isWorker(req)) return true;
+  if (entityType === 'worker' || entityType === 'user') return Number(entityId) === Number(req.session.userId);
+  return false;
+}
+
 // ── ROUTES ────────────────────────────────────────────────────────────────────
 
 // GET / — index showing 5 buckets
 router.get('/', requireAuth, async (req, res) => {
+  if (isWorker(req)) return res.redirect('/files/workers/' + req.session.userId);
+
   res.render('files/index', {
     title: 'Files',
     activeNav: 'files',
@@ -56,8 +76,9 @@ router.get('/:entityType', requireAuth, async (req, res) => {
   const bucket = ENTITY_TYPES.find(b => b.key === entityType);
   if (!bucket) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Unknown entity type.' });
 
-  // Workers: only see themselves
-  if (entityType === 'worker' && req.session.role !== 'admin' && req.session.role !== 'manager') {
+  // Workers: only see themselves.
+  if (isWorker(req) && entityType !== 'worker') return workerForbidden(res);
+  if (entityType === 'worker' && isWorker(req)) {
     return res.redirect('/files/workers/' + req.session.userId);
   }
 
@@ -86,6 +107,7 @@ router.get('/:entityType', requireAuth, async (req, res) => {
 router.get('/folders/:folderId', requireAuth, async (req, res) => {
   const folder = await db.get('SELECT * FROM folders WHERE id = ?', [req.params.folderId]);
   if (!folder) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Folder not found.' });
+  if (!workerCanAccessEntity(req, folder.entity_type, folder.entity_id)) return workerForbidden(res);
   const contents = await filesService.getFolderContents(folder.id);
   res.render('files/folder', {
     title: folder.name + ' - Files',
@@ -195,6 +217,7 @@ router.get('/:entityType/:entityId', requireAuth, async (req, res) => {
   const entityType = req.params.entityType;
   const entityId = parseInt(req.params.entityId, 10);
   const mappedType = entityType === 'project' ? 'work_order' : entityType === 'worker' ? 'user' : entityType;
+  if (!workerCanAccessEntity(req, entityType, entityId)) return workerForbidden(res);
 
   const folder = await filesService.getRootFolder(mappedType, entityId);
   if (!folder) {

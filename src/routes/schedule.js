@@ -43,6 +43,23 @@ function getInitials(name) {
   return parts[0].slice(0, 2).toUpperCase();
 }
 
+async function workerScope(req) {
+  if (req.session?.role !== 'worker') return null;
+  let userName = '';
+  try {
+    const { data: user } = await supabase.from('users').select('name').eq('id', req.session.userId).maybeSingle();
+    userName = user?.name || '';
+  } catch (e) { /* best effort */ }
+  return { userId: req.session.userId, userName };
+}
+
+function applyWorkerScope(query, scope) {
+  if (!scope) return query;
+  return scope.userName
+    ? query.or(`assigned_to_user_id.eq.${scope.userId},assigned_to.ilike.%${scope.userName}%`)
+    : query.eq('assigned_to_user_id', scope.userId);
+}
+
 function mondayOfWeek(dateStr) {
   const d = new Date(dateStr + 'T12:00:00');
   const day = d.getDay();
@@ -89,6 +106,7 @@ router.get('/', async (req, res) => {
   const view = (req.query.view || 'week').trim();
   const rawDate = (req.query.date || '').trim() || today;
   const assigneeFilter = req.query.assignee ? parseInt(req.query.assignee, 10) : null;
+  const scope = await workerScope(req);
 
   let weekStart, weekEnd, days, prevDate, nextDate, prevLabel, nextLabel;
 
@@ -157,7 +175,9 @@ router.get('/', async (req, res) => {
     .order('scheduled_time', { ascending: true, nullsFirst: false })
     .order('display_number', { ascending: true });
 
-  if (assigneeFilter) {
+  if (scope) {
+    woQuery = applyWorkerScope(woQuery, scope);
+  } else if (assigneeFilter) {
     const { data: user } = await supabase.from('users').select('name').eq('id', assigneeFilter).maybeSingle();
     woQuery = woQuery.or(`assigned_to_user_id.eq.${assigneeFilter},assigned_to.ilike.%${user?.name || ''}%`);
   }
@@ -175,13 +195,15 @@ router.get('/', async (req, res) => {
   }));
 
   // Unscheduled WOs for sidebar
-  const { data: unscheduled } = await supabase
+  let unscheduledQuery = supabase
     .from('work_orders')
     .select('id, display_number, status, scheduled_date, scheduled_time, assigned_to_user_id, assigned_to, scheduled_end_time, jobs!inner(title, customers!inner(name)), assigned_to_user_id, users!left(name)')
     .is('scheduled_date', null)
     .in('status', ['scheduled', 'in_progress'])
     .order('created_at', { ascending: false })
     .limit(25);
+  unscheduledQuery = applyWorkerScope(unscheduledQuery, scope);
+  const { data: unscheduled } = await unscheduledQuery;
 
   const unschedMapped = (unscheduled || []).map(r => ({
     id: r.id, display_number: r.display_number, status: r.status,
@@ -319,6 +341,8 @@ function computeDefaultEndTime(timeStr) {
 
 // POST /schedule/:id/reschedule — reschedule a WO from drag-drop
 router.post('/:id/reschedule', async (req, res) => {
+  if (req.session?.role === 'worker') return res.status(403).json({ error: 'Manager or admin access required.' });
+
   const { data: wo, error: findError } = await supabase.from('work_orders').select('*').eq('id', req.params.id).maybeSingle();
   if (findError) throw findError;
   if (!wo) return res.status(404).json({ error: 'Work order not found.' });
