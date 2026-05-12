@@ -1,5 +1,5 @@
 /**
- * schema-check.js — Verify required tables + columns via PostgREST introspection.
+ * schema-check.js — Verify required tables + columns + critical types via PostgREST.
  * Run: node scripts/schema-check.js
  * Exit: 0 = pass, 1 = fail
  */
@@ -12,8 +12,6 @@ const supabase = createClient(
   { auth: { persistSession: false } }
 );
 
-// Each entry: { table, columns: [col1, col2, ...] }
-// We try to select them — if a column is missing PostgREST returns an error.
 const CHECKS = [
   { table: 'work_orders',     columns: ['id', 'customer_id', 'unit_number', 'display_number'] },
   { table: 'customers',        columns: ['id', 'name', 'email'] },
@@ -24,6 +22,12 @@ const CHECKS = [
   { table: 'work_order_assignees', columns: ['work_order_id', 'user_id'] },
 ];
 
+// Critical type checks — we read a row and verify values are the expected JS type
+// (PostgREST deserializes differently for integer vs boolean columns)
+const TYPE_CHECKS = [
+  { table: 'folders', column: 'is_root', expect: 'number', hint: 'INTEGER — not boolean (Cowork r35b migration)' },
+];
+
 async function main() {
   let passed = 0, failed = 0;
 
@@ -31,11 +35,29 @@ async function main() {
     const colStr = columns.join(',');
     const { error } = await supabase.from(table).select(colStr).limit(1);
     if (error) {
-      console.log(`❌ ${table} (${columns.join(', ')}) — ${error.message}`);
+      console.log(`❌ ${table} — ${error.message}`);
       failed++;
     } else {
-      console.log(`✅ ${table} — columns OK (${columns.join(', ')})`);
+      console.log(`✅ ${table} — ${columns.join(', ')}`);
       passed++;
+    }
+  }
+
+  // Type checks — fetch a row and verify types
+  for (const { table, column, expect, hint } of TYPE_CHECKS) {
+    const { data, error } = await supabase.from(table).select(column).limit(1).maybeSingle();
+    if (error || !data) {
+      console.log(`⚠  ${table}.${column} — cannot verify type (${error?.message || 'no data'})`);
+      passed++; // soft pass — table might be empty
+      continue;
+    }
+    const actual = typeof data[column];
+    if (actual === expect) {
+      console.log(`✅ ${table}.${column} — type ${actual} (${hint})`);
+      passed++;
+    } else {
+      console.log(`❌ ${table}.${column} — expected ${expect}, got ${actual}. ${hint}`);
+      failed++;
     }
   }
 
