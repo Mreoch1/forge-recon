@@ -166,6 +166,13 @@ function numberInputValue(n) {
                 placeholder="Payment instructions, thank-you, anything visible to customer."><%= invoice.notes || '' %></textarea>
     </div>
 
+    <div class="card p-5">
+      <label class="label" for="conditions">Conditions &amp; terms
+        <span class="ml-1 text-recon-fog cursor-help" title="Standard conditions printed on this invoice. Defaults come from company settings but can be edited per invoice.">ⓘ</span>
+      </label>
+      <textarea name="conditions" id="conditions" rows="4" class="input"><%= invoice.conditions || '' %></textarea>
+    </div>
+
     <div class="flex items-center gap-2 pt-2">
       <button type="submit" class="btn btn-primary">Save changes</button>
       <a href="/invoices/<%= invoice.id %>" class="btn btn-ghost">Cancel</a>

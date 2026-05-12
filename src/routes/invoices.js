@@ -151,7 +151,6 @@ function validateInvoice(body) {
   const taxRate = parseFloat(body.tax_rate);
   const taxRateNum = isFinite(taxRate) && taxRate >= 0 ? taxRate : 0;
   const paymentTerms = paymentTermsFromBody(body);
-  const notes = emptyToNull(body.notes);
 
   const rawItems = asArray(body.lines);
   const items = [];
@@ -163,7 +162,7 @@ function validateInvoice(body) {
 
   return {
     errors,
-    data: { due_date: dueDate, tax_rate: taxRateNum, payment_terms: paymentTerms, notes, lines: items }
+    data: { due_date: dueDate, tax_rate: taxRateNum, payment_terms: paymentTerms, notes: emptyToNull(body.notes), conditions: emptyToNull(body.conditions), lines: items }
   };
 }
 
