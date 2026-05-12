@@ -151,8 +151,7 @@ function drawLineItemsTable(doc, lines) {
   const right = doc.page.width - doc.page.margins.right;
   const tableWidth = right - left;
   const cols = [
-    { key: 'trade',       label: 'TRADE',       width: 70,  align: 'left' },
-    { key: 'description', label: 'DESCRIPTION', width: tableWidth - 70 - 50 - 50 - 65 - 70, align: 'left' },
+    { key: 'description', label: 'DESCRIPTION', width: tableWidth - 50 - 50 - 65 - 70, align: 'left' },
     { key: 'quantity',    label: 'QTY',         width: 50,  align: 'right' },
     { key: 'unit',        label: 'UNIT',        width: 50,  align: 'left' },
     { key: 'unit_price',  label: 'UNIT $',      width: 65,  align: 'right' },
