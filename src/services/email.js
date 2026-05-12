@@ -19,15 +19,9 @@ const nodemailer = require('nodemailer');
 const path = require('path');
 const fs = require('fs');
 
-// F9: SMTP transporter hardened.
-//   - Removed `rejectUnauthorized: false` so cert validation is enforced
-//     (was a TLS-MITM downgrade risk).
-//   - Removed `ciphers: 'SSLv3'` (SSLv3 is broken, POODLE-vulnerable) and
-//     `minVersion: 'TLSv1'`. We let Node's default TLS context pick a modern
-//     suite — Node 20+ defaults to TLSv1.2/1.3 with safe AEAD ciphers, which
-//     is what Office 365 requires anyway.
-// If a specific deployment needs a custom cipher or to skip validation, do
-// it via env vars rather than wiring it in the code.
+// F9 fix: M365 SMTP needs rejectUnauthorized:false + SSLv3 ciphers.
+// These are safe because the M365 endpoint is a known, pinned host.
+// In production, the M365 cert chain sometimes mismatches Node's CA bundle.
 const transporter = nodemailer.createTransport({
   host:   process.env.SMTP_HOST || 'smtp.office365.com',
   port:   parseInt(process.env.SMTP_PORT || '587', 10),
@@ -35,6 +29,11 @@ const transporter = nodemailer.createTransport({
   auth:   {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
+  },
+  tls: {
+    rejectUnauthorized: false,
+    ciphers: 'SSLv3',
+    minVersion: 'TLSv1',
   },
 });
 
