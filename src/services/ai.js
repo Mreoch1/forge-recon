@@ -31,6 +31,9 @@ const MAX_OUTPUT_TOKENS = 2000;
 function provider() {
   return (process.env.AI_PROVIDER || 'deepseek').toLowerCase();
 }
+function modelName() {
+  return process.env.AI_MODEL || process.env.DEEPSEEK_MODEL || PROVIDERS[provider()]?.model || '';
+}
 function apiKey() {
   return process.env.AI_API_KEY || '';
 }
@@ -44,7 +47,7 @@ const PROVIDERS = {
     model: 'deepseek-chat',
     auth: k => ({ Authorization: `Bearer ${k}` }),
     body: ({ system, user, json }) => ({
-      model: 'deepseek-chat',
+      model: modelName() || 'deepseek-chat',
       messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
       response_format: json ? { type: 'json_object' } : undefined,
       max_tokens: MAX_OUTPUT_TOKENS,
@@ -60,7 +63,7 @@ const PROVIDERS = {
     model: 'gpt-4o-mini',
     auth: k => ({ Authorization: `Bearer ${k}` }),
     body: ({ system, user, json }) => ({
-      model: 'gpt-4o-mini',
+      model: modelName() || 'gpt-4o-mini',
       messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
       response_format: json ? { type: 'json_object' } : undefined,
       max_tokens: MAX_OUTPUT_TOKENS,
@@ -76,7 +79,7 @@ const PROVIDERS = {
     model: 'claude-haiku-4-5',
     auth: k => ({ 'x-api-key': k, 'anthropic-version': '2023-06-01' }),
     body: ({ system, user }) => ({
-      model: 'claude-haiku-4-5',
+      model: modelName() || 'claude-haiku-4-5',
       max_tokens: MAX_OUTPUT_TOKENS,
       system,
       messages: [{ role: 'user', content: user }],
@@ -241,7 +244,7 @@ async function extractWorkOrder({ text, customers, users, userId }) {
 }
 
 module.exports = {
-  isConfigured, provider,
+  isConfigured, provider, modelName,
   suggest, extract,
   extractWorkOrder,
 };

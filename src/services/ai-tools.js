@@ -927,6 +927,9 @@ module.exports = {
   // Tier 3: execute a confirmed mutation
   async executeMutation(name, args, ctx) {
     if (!MUTATION_TOOLS[name]) return { ok: false, error: `Unknown mutation tool: ${name}` };
+    if (ctx.role === 'worker' && name !== 'add_wo_note') {
+      return { ok: false, error: 'Only managers and admins can perform this action.' };
+    }
     try {
       const result = await MUTATION_TOOLS[name].execute(args, ctx);
       return { ok: true, result };
