@@ -9,8 +9,13 @@
 </footer>
 
 <% if (typeof currentUser !== 'undefined' && currentUser) { %>
-  <div id="ai-chat-root"></div>
-  <script src="/js/ai-chat.js?v=mobile-fit-20260512b" defer></script>
+<div id="ai-chat-root"></div>
+<script src="/js/ai-chat.js?v=mobile-fit-20260512b" defer></script>
+
+<!-- Enable spellcheck on all input/textarea fields -->
+<script>
+(function(){ document.querySelectorAll('input:not([type=password]):not([type=email]):not([type=url]):not([type=search]), textarea').forEach(function(el){ el.spellcheck = true; }); })();
+</script>
 <% } %>
 
 </body>
