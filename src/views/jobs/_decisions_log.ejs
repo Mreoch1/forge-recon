@@ -67,7 +67,7 @@
             <% if (d.due_date) { %><span class="text-xs text-recon-fog">Due: <%= String(d.due_date).slice(0,10) %></span><% } %>
             <div class="flex-1 text-right">
               <form action="/projects/<%= jobId %>/decisions/<%= d.id %>/answer" method="post" class="inline-flex gap-1 items-center">
-                <input type="text" name="answer" class="input text-xs" style="width:120px;padding:.2rem .4rem" placeholder="Answer..." <%= d.answer ? 'value="' + d.answer + '"' : '' %>>
+                <input type="text" name="answer" class="input text-xs" style="width:120px;padding:.2rem .4rem" placeholder="Answer..." value="<%= d.answer || '' %>">
                 <select name="status" class="input text-xs" style="width:90px;padding:.2rem .4rem">
                   <option value="answered" <%= d.status === 'answered' ? 'selected' : '' %>>Answered</option>
                   <option value="approved" <%= d.status === 'approved' ? 'selected' : '' %>>Approved</option>

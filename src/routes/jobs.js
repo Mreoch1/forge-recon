@@ -802,10 +802,17 @@ router.post('/:id/decisions', async (req, res) => {
   const id = req.params.id;
   const { data: job } = await supabase.from('jobs').select('id').eq('id', id).maybeSingle();
   if (!job) return res.status(404).send('Project not found');
+  const decisionTypes = new Set(['rfi', 'submittal', 'field_decision']);
+  const decisionType = decisionTypes.has(req.body.decision_type) ? req.body.decision_type : 'rfi';
+  const question = String(req.body.question || '').trim();
+  if (!question) {
+    setFlash(req, 'error', 'Question / description is required.');
+    return res.redirect('/projects/' + id);
+  }
   const { error } = await supabase.from('project_decisions').insert({
     job_id: parseInt(id, 10),
-    decision_type: req.body.decision_type || 'rfi',
-    question: req.body.question,
+    decision_type: decisionType,
+    question,
     due_date: req.body.due_date || null,
     assigned_to_user_id: req.body.assigned_to_user_id ? parseInt(req.body.assigned_to_user_id, 10) : null,
     created_by_user_id: req.session.userId || null,
@@ -816,12 +823,18 @@ router.post('/:id/decisions', async (req, res) => {
 });
 
 router.post('/:id/decisions/:dId/answer', async (req, res) => {
-  const { error } = await supabase.from('project_decisions').update({
-    answer: req.body.answer || null,
-    status: req.body.status || 'answered',
+  const statuses = new Set(['open', 'answered', 'approved', 'rejected', 'closed']);
+  const nextStatus = statuses.has(req.body.status) ? req.body.status : 'answered';
+  const { error, count } = await supabase.from('project_decisions').update({
+    answer: String(req.body.answer || '').trim() || null,
+    status: nextStatus,
     answered_at: new Date(),
-  }).eq('id', req.params.dId).eq('job_id', req.params.id);
+  }, { count: 'exact' }).eq('id', req.params.dId).eq('job_id', req.params.id);
   if (error) throw error;
+  if (!count) {
+    setFlash(req, 'error', 'Decision item not found.');
+    return res.redirect('/projects/' + req.params.id);
+  }
   setFlash(req, 'success', 'Decision updated.');
   res.redirect('/projects/' + req.params.id);
 });
@@ -878,4 +891,3 @@ router.delete('/:id/members/:memberId', async (req, res) => {
 });
 
 module.exports = router;
-
