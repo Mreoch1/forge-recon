@@ -13,6 +13,7 @@
  * Financial tools (estimates, invoices, bills, dashboard_summary) are refused.
  */
 const db = require('../db/db');
+const supabase = require('../db/supabase');
 const { writeAudit } = require('./audit');
 const scheduling = require('./scheduling');
 
@@ -212,11 +213,11 @@ tools.get_dashboard_summary = {
   args: {},
   needs_user: 'read',
   handler: async (args, ctx) => {
-    const openEst = (await db.get("SELECT COUNT(*) AS n FROM estimates WHERE status IN ('draft','sent')") || {}).n || 0;
-    const activeWO = (await db.get("SELECT COUNT(*) AS n FROM work_orders WHERE status IN ('scheduled','in_progress')") || {}).n || 0;
-    const unpaid = (await db.all("SELECT total, amount_paid FROM invoices WHERE status IN ('draft','sent','overdue')"));
-    const arBalance = unpaid.reduce((s, inv) => s + (Number(inv.total) || 0) - (Number(inv.amount_paid) || 0), 0);
-    const overdueCount = (await db.get("SELECT COUNT(*) AS n FROM invoices WHERE status='overdue'") || {}).n || 0;
+    const { count: openEst } = await supabase.from('estimates').select('*', { count: 'exact', head: true }).in('status', ['draft','sent']);
+    const { count: activeWO } = await supabase.from('work_orders').select('*', { count: 'exact', head: true }).in('status', ['scheduled','in_progress']);
+    const { data: unpaid } = await supabase.from('invoices').select('total, amount_paid').in('status', ['draft','sent','overdue']);
+    const arBalance = (unpaid || []).reduce((s, inv) => s + (Number(inv.total) || 0) - (Number(inv.amount_paid) || 0), 0);
+    const { count: overdueCount } = await supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'overdue');
     return {
       open_estimates: openEst,
       active_work_orders: activeWO,
