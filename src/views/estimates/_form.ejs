@@ -71,9 +71,9 @@ function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed
             <th title="Customer-visible description of this line item. Appears on the estimate and invoice PDF.">Description</th>
             <th class="text-right" title="How many units of this item.">Qty</th>
             <th title="Unit of measure, e.g. ea (each), hr (hour), sf (square foot).">Unit</th>
-            <th class="text-right" title="Price per unit charged to the customer.">Unit $</th>
             <th class="text-right text-recon-fog" title="Internal cost per unit &mdash; not shown on customer PDFs. Used for margin reporting.">Cost</th>
-            <th class="text-right" title="Qty x Unit $ for this line.">Line $</th>
+            <th class="text-right" title="Price per unit charged to the customer.">Rate</th>
+            <th class="text-right" title="Qty x Rate for this line.">Line $</th>
             <th></th>
           </tr>
         </thead>
@@ -101,14 +101,14 @@ function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed
                 </select>
               </td>
               <td class="text-right">
-                <input type="number" step="0.01" min="0" name="lines[<%= idx %>][unit_price]" data-field="unit_price"
-                       value="<%= li.unit_price %>" class="input text-right" style="width: 7rem; min-width: 5.5rem;"
-                       onfocus="this.select()" inputmode="decimal">
-              </td>
-              <td class="text-right">
                 <input type="number" step="0.01" min="0" name="lines[<%= idx %>][cost]" data-field="cost"
                        value="<%= li.cost %>" class="input text-right text-recon-fog" style="width: 7rem; min-width: 5.5rem;"
                        title="Internal cost" onfocus="this.select()" inputmode="decimal">
+              </td>
+              <td class="text-right">
+                <input type="number" step="0.01" min="0" name="lines[<%= idx %>][unit_price]" data-field="unit_price"
+                       value="<%= li.unit_price %>" class="input text-right" style="width: 7rem; min-width: 5.5rem;"
+                       onfocus="this.select()" inputmode="decimal">
               </td>
               <td class="text-right font-medium" data-field="line_total"><%= moneyFmt(li.line_total) %></td>
               <td>
@@ -131,8 +131,8 @@ function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed
                 <% }); %>
               </select>
             </td>
-            <td class="text-right"><input type="number" step="0.01" min="0" name="lines[__IDX__][unit_price]" data-field="unit_price" value="0" class="input text-right" style="width: 7rem; min-width: 5.5rem;" onfocus="this.select()" inputmode="decimal"></td>
             <td class="text-right"><input type="number" step="0.01" min="0" name="lines[__IDX__][cost]" data-field="cost" value="0" class="input text-right text-recon-fog" style="width: 7rem; min-width: 5.5rem;" onfocus="this.select()" inputmode="decimal"></td>
+            <td class="text-right"><input type="number" step="0.01" min="0" name="lines[__IDX__][unit_price]" data-field="unit_price" value="0" class="input text-right" style="width: 7rem; min-width: 5.5rem;" onfocus="this.select()" inputmode="decimal"></td>
             <td class="text-right font-medium" data-field="line_total">0.00</td>
             <td><button type="button" data-remove-line class="text-recon-fog hover:text-recon-red text-sm">remove</button></td>
           </tr>
