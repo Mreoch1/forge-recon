@@ -503,13 +503,15 @@ MUTATION_TOOLS.create_customer = {
     return { summary_lines: lines, args_normalized: args };
   },
   async execute(args, ctx) {
-    const r = await db.run(`INSERT INTO customers (name, email, phone, address, city, state, zip, billing_email, notes, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, now())`,
-      [args.name.trim(), (args.email || '').trim() || null, (args.phone || '').trim() || null,
-       (args.address || '').trim() || null, (args.city || '').trim() || null, (args.state || '').trim() || null,
-       (args.zip || '').trim() || null, (args.billing_email || '').trim() || null, (args.notes || '').trim() || null]);
-    await writeAudit({ entityType: 'customer', entityId: r.lastInsertRowid, action: 'created_by_ai', before: null, after: { name: args.name.trim() }, source: 'ai', userId: ctx.userId });
-    return { id: r.lastInsertRowid, name: args.name.trim(), href: `/customers/${r.lastInsertRowid}` };
+    const { data: newCustomer } = await supabase.from('customers').insert({
+      name: args.name.trim(), email: (args.email || '').trim() || null,
+      phone: (args.phone || '').trim() || null, address: (args.address || '').trim() || null,
+      city: (args.city || '').trim() || null, state: (args.state || '').trim() || null,
+      zip: (args.zip || '').trim() || null, billing_email: (args.billing_email || '').trim() || null,
+      notes: (args.notes || '').trim() || null,
+    }).select('id').single();
+    await writeAudit({ entityType: 'customer', entityId: newCustomer?.id, action: 'created_by_ai', before: null, after: { name: args.name.trim() }, source: 'ai', userId: ctx.userId });
+    return { id: newCustomer?.id, name: args.name.trim(), href: `/customers/${newCustomer?.id}` };
   }
 };
 
