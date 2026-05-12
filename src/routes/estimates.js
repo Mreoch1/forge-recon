@@ -664,8 +664,12 @@ router.post('/:id/generate-invoice', async (req, res) => {
   }).eq('id', estimate.id);
   if (estUpdateError) console.warn('[estimates] invoice created but estimate timestamp update failed:', estUpdateError.message);
 
-  setFlash(req, 'success', `INV-${estimate.wo_display_number} created from ${selectedLines.length} approved item(s).`);
-  return res.redirect(`/invoices/${invResult}`);
+  // R37h: redirect to EDIT page so user lands on the editable form for tuning
+  // (description, line items, terms) before clicking Send. Eliminates the
+  // pre-send round-trip through /show → click Edit. GPT G-010 review caught
+  // that the original redirect change was lost in commit d48b8e1 — re-applied.
+  setFlash(req, 'success', `INV-${estimate.wo_display_number} created from ${selectedLines.length} approved item(s). Edit as needed and click Save.`);
+  return res.redirect(`/invoices/${invResult}/edit`);
 });
 
 // Select-for-invoice page — pick which lines to invoice
