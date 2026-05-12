@@ -6,7 +6,7 @@ const showCosts = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
 const costTotal = Number(estimate.cost_total) || 0;
 const subtotal = Number(estimate.subtotal) || 0;
 const margin = subtotal - costTotal;
-const roi = costTotal > 0 ? ((margin / costTotal) * 100).toFixed(1) : '&mdash;';
+const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '&mdash;';
 const EST_STATUS_HINTS = {
   draft: 'Draft — not sent yet. Edit freely; only office can see it.',
   sent: 'Sent — emailed to the customer, awaiting their decision.',
@@ -71,7 +71,7 @@ const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
       <div class="flex flex-wrap items-center gap-6 text-sm">
         <span><span class="text-recon-fog">Cost:</span> <strong>$<%= fmt(costTotal) %></strong></span>
         <span><span class="text-recon-fog">Profit:</span> <strong class="<%= margin >= 0 ? 'text-green-700' : 'text-recon-red' %>">$<%= fmt(margin) %></strong></span>
-        <span><span class="text-recon-fog">ROI:</span> <strong class="<%= roi !== '&mdash;' && parseFloat(roi) >= 0 ? 'text-green-700' : 'text-recon-red' %>"><%= roi %>%</strong></span>
+        <span><span class="text-recon-fog">Margin:</span> <strong class="<%= marginPct !== '&mdash;' && parseFloat(marginPct) >= 0 ? 'text-green-700' : 'text-recon-red' %>"><%= marginPct %>%</strong></span>
       </div>
       <p class="text-xs text-recon-fog mt-1">Internal &mdash; not shown on customer PDFs.</p>
     </div>
