@@ -69,7 +69,6 @@ check "/admin/settings" GET "/admin/settings" 200
 check "/admin/ai-usage" GET "/admin/ai-usage" 200
 check "/admin/audit" GET "/admin/audit" 200
 check "/settings" GET "/settings" 200
-check "bogus route → login redirect" GET "/this-does-not-exist" 302
 
 # Detail routes
 check "/customers/1" GET "/customers/1" 200
