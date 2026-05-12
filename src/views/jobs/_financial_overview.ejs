@@ -21,6 +21,9 @@ var revBilled = n(financials.revenue_billed);
 var costComm = n(financials.cost_committed);
 var costAct = n(financials.cost_actual);
 var profit = n(financials.profit_projected);
+var totalPaid = n(financials.total_paid);                    // R40
+var remainingBalance = n(financials.remaining_balance);      // R40: revProj - totalPaid
+var paidPct = revProj > 0 ? pct(totalPaid, revProj) : 0;     // R40
 var profitPct = contract > 0 ? (profit / contract) * 100 : 0;
 var revPct = revProj > 0 ? pct(revBilled, revProj) : 0;
 var costPct = costComm > 0 ? pct(costAct, costComm) : 0;
@@ -66,6 +69,25 @@ var profitPositive = profit >= 0;
              style="width: <%= Math.min(100, revPct) %>%;"></div>
       </div>
       <p class="text-[.7rem] text-recon-fog mt-1"><%= revPct.toFixed(1) %>% billed</p>
+    </div>
+
+    <!-- R40: Customer payments received + remaining balance -->
+    <div>
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-sm font-medium text-recon-charcoal">Customer paid</span>
+        <span class="text-xs text-recon-fog">
+          <%= money(totalPaid) %> of <%= money(revProj) %>
+          &middot;
+          <strong class="<%= remainingBalance > 0 ? 'text-recon-red' : 'text-green-700' %>">
+            <%= money(remainingBalance) %> remaining
+          </strong>
+        </span>
+      </div>
+      <div class="w-full h-2.5 bg-recon-mist rounded-full overflow-hidden">
+        <div class="h-full bg-green-600 rounded-full transition-all"
+             style="width: <%= Math.min(100, paidPct) %>%;"></div>
+      </div>
+      <p class="text-[.7rem] text-recon-fog mt-1"><%= paidPct.toFixed(1) %>% paid</p>
     </div>
 
     <!-- Cost -->

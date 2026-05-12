@@ -26,6 +26,13 @@ function emptyToNull(v) {
   return t === '' ? null : t;
 }
 
+// R40: parse numeric helper for contract_value + total_paid
+function emptyToNumber(v) {
+  if (v === undefined || v === null || v === '') return null;
+  const n = Number(String(v).replace(/[$,]/g, ''));
+  return isFinite(n) && n >= 0 ? n : null;
+}
+
 async function validateJob(body) {
   const errors = {};
   const title = emptyToNull(body.title);
@@ -71,6 +78,9 @@ async function validateJob(body) {
       scheduled_date: scheduledDate,
       scheduled_time: scheduledTime,
       assigned_to_user_id: assignedUserId,
+      // R40: contract_value + total_paid editable on project form
+      contract_value: emptyToNumber(body.contract_value),
+      total_paid: emptyToNumber(body.total_paid),
     }
   };
 }
@@ -383,16 +393,21 @@ router.post('/:id', async (req, res) => {
       job: { id: job.id, ...data }, customers: customers || [], users: users || [], errors, statuses: VALID_STATUSES
     });
   }
+  // R40: contract_value + total_paid are optional on edit. If not present in
+  // form body, leave the existing values untouched (don't overwrite to 0).
+  const updatePatch = {
+    customer_id: data.customer_id, title: data.title,
+    address: data.address, city: data.city, state: data.state, zip: data.zip,
+    description: data.description, status: data.status,
+    scheduled_date: data.scheduled_date, scheduled_time: data.scheduled_time,
+    assigned_to_user_id: data.assigned_to_user_id,
+    updated_at: new Date().toISOString()
+  };
+  if (data.contract_value !== null) updatePatch.contract_value = data.contract_value;
+  if (data.total_paid !== null) updatePatch.total_paid = data.total_paid;
   const { error: updateError } = await supabase
     .from('jobs')
-    .update({
-      customer_id: data.customer_id, title: data.title,
-      address: data.address, city: data.city, state: data.state, zip: data.zip,
-      description: data.description, status: data.status,
-      scheduled_date: data.scheduled_date, scheduled_time: data.scheduled_time,
-      assigned_to_user_id: data.assigned_to_user_id,
-      updated_at: new Date().toISOString()
-    })
+    .update(updatePatch)
     .eq('id', id);
   if (updateError) throw updateError;
   setFlash(req, 'success', `Project "${data.title}" updated.`);
