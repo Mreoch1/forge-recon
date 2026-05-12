@@ -9,6 +9,9 @@ const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
 require('express-async-errors');
+/* eslint-env node */
+if (!process.env.TZ) process.env.TZ = 'America/New_York';
+
 const express = require('express');
 const session = require('express-session');
 const helmet = require('helmet');
