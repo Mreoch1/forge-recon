@@ -35,7 +35,7 @@ function workOrderDisplayFields(row) {
 
 function colorForStatus(wo, woConflicts) {
   if (!wo) return null;
-  if (!wo.assigned_to_user_id && !wo.assigned_to) return null; // unassigned = hatched
+  if (!wo.assigned_to_user_id && !wo.assigned_to && (!wo.work_order_assignees || wo.work_order_assignees.length === 0)) return null; // unassigned = hatched
   // Urgent: has conflicts, or in_progress but past scheduled_end_time
   if (woConflicts && woConflicts[wo.id] && woConflicts[wo.id].length > 0) return STATUS_COLORS.urgent;
   if (wo.status === 'in_progress' && wo.scheduled_end_time) {
