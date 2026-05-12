@@ -435,11 +435,11 @@ function drawWOLineItems(doc, lines) {
 }
 
 function drawWOMeta(doc, wo) {
-  // 4-column meta strip: Status, Scheduled, Assigned to, Completed
+  // 3-column meta strip: Status, Scheduled, Assigned to
   const left = doc.page.margins.left;
   const right = doc.page.width - doc.page.margins.right;
   const tableWidth = right - left;
-  const cellW = tableWidth / 4;
+  const cellW = tableWidth / 3;
   let y = doc.y;
 
   doc.fillColor(COLOR.cloud).rect(left, y, tableWidth, 36).fill();
@@ -452,7 +452,6 @@ function drawWOMeta(doc, wo) {
   cell(0, 'Status', (wo.status || '').replace('_', ' '));
   cell(1, 'Scheduled', wo.scheduled_date ? String(wo.scheduled_date).slice(0,10) : '—');
   cell(2, 'Assigned to', wo.assigned_to || '—');
-  cell(3, 'Completed', wo.completed_date ? String(wo.completed_date).slice(0,10) : '—');
 
   doc.y = y + 36 + 12;
 }
