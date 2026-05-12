@@ -310,10 +310,12 @@ router.get('/ap-aging', async (req, res) => {
   }).filter(r => r.balance > 0);
 
   // Also check vendor_invoices (unpaid RPM imports)
-  const { data: vinvs } = await supabase
+  const { data: vinvs, error: viErr } = await supabase
     .from('vendor_invoices')
     .select('*, vendors!left(name)')
+    .eq('status', 'open')
     .order('created_at', { ascending: false });
+  if (viErr) throw viErr;
 
   const viRows = (vinvs || []).map(v => {
     const due = null; // vendor_invoices have no due_date
