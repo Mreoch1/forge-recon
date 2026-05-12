@@ -58,7 +58,10 @@ function idSetFromFormValue(value) {
   if (Array.isArray(value)) value.forEach(id => ids.add(String(id)));
   else if (typeof value === 'string') ids.add(value);
   else if (typeof value === 'number') ids.add(String(value));
-  else if (value && typeof value === 'object') Object.keys(value).forEach(id => ids.add(String(id)));
+  else if (value && typeof value === 'object') {
+    Object.keys(value).forEach(id => ids.add(String(id)));
+    Object.values(value).forEach(id => ids.add(String(id)));
+  }
   return ids;
 }
 
