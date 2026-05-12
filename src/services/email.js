@@ -2,6 +2,7 @@
  * Email service — nodemailer via SMTP (support@reconenterprises.net / M365).
  *
  * Exported functions:
+ *   sendEmail({ to, subject, text, html, attachments, replyTo, cc, bcc })  — generic
  *   sendVerificationEmail(email, name, token)
  *   sendPasswordResetEmail(email, name, token)
  *
@@ -46,6 +47,61 @@ function renderEmail(bodyHtml) {
   );
 }
 
+function logSmtpError(label, toEmail, err) {
+  console.error(
+    `[email] ${label} failed for`, toEmail, '|',
+    'message:', err.message, '|',
+    'code:', err.code || 'n/a', '|',
+    'response:', err.response || 'n/a', '|',
+    'responseCode:', err.responseCode || 'n/a', '|',
+    'command:', err.command || 'n/a'
+  );
+}
+
+/**
+ * Generic send. Used for transactional sends from app routes/services
+ * (estimate email, invoice email, anything that builds its own body).
+ *
+ * @param {Object} options
+ * @param {string|string[]} options.to
+ * @param {string} options.subject
+ * @param {string} [options.text]   - plain text body
+ * @param {string} [options.html]   - HTML body (rendered as-is, NOT auto-wrapped in brand layout)
+ * @param {string} [options.htmlBody] - HTML inner body (auto-wrapped in the branded email layout)
+ * @param {Array}  [options.attachments]
+ * @param {string} [options.replyTo]
+ * @param {string|string[]} [options.cc]
+ * @param {string|string[]} [options.bcc]
+ * @returns {Promise<{messageId: string, accepted: string[], rejected: string[], response: string}>}
+ */
+async function sendEmail({ to, subject, text, html, htmlBody, attachments, replyTo, cc, bcc }) {
+  if (!to) throw new Error('sendEmail: missing "to"');
+  if (!subject) throw new Error('sendEmail: missing "subject"');
+
+  // If a raw htmlBody is provided, wrap it in the branded layout.
+  // Otherwise use html as-is, or fall back to plain text.
+  const finalHtml = htmlBody ? renderEmail(htmlBody) : html;
+
+  try {
+    const info = await transporter.sendMail({
+      from: FROM,
+      to,
+      subject,
+      ...(text ? { text } : {}),
+      ...(finalHtml ? { html: finalHtml } : {}),
+      ...(attachments ? { attachments } : {}),
+      ...(replyTo ? { replyTo } : {}),
+      ...(cc ? { cc } : {}),
+      ...(bcc ? { bcc } : {}),
+    });
+    console.log('[email] sent to', to, 'subject:', subject, 'messageId:', info.messageId);
+    return info;
+  } catch (err) {
+    logSmtpError('sendEmail', to, err);
+    throw err;
+  }
+}
+
 /**
  * Send a verification email for new signups.
  */
@@ -67,7 +123,7 @@ async function sendVerificationEmail(toEmail, toName, token) {
     console.log('[email] verification sent to', toEmail, 'messageId:', info.messageId);
     return info;
   } catch (err) {
-    console.error('[email] sendVerificationEmail failed for', toEmail, ':', err.message);
+    logSmtpError('sendVerificationEmail', toEmail, err);
     throw err;
   }
 }
@@ -93,9 +149,9 @@ async function sendPasswordResetEmail(toEmail, toName, resetToken) {
     console.log('[email] password reset sent to', toEmail, 'messageId:', info.messageId);
     return info;
   } catch (err) {
-    console.error('[email] sendPasswordResetEmail failed for', toEmail, ':', err.message);
+    logSmtpError('sendPasswordResetEmail', toEmail, err);
     throw err;
   }
 }
 
-module.exports = { sendVerificationEmail, sendPasswordResetEmail };
+module.exports = { sendEmail, sendVerificationEmail, sendPasswordResetEmail };
