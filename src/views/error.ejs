@@ -9,7 +9,7 @@
     <% } else { %>
       <a href="/" class="btn btn-primary">Back to dashboard</a>
     <% } %>
-    <% if (code === 500) { %>
+    <% if (code === 500 || code === 404) { %>
       <form action="/report-error" method="post" class="mt-4">
         <input type="hidden" name="code" value="<%= code %>">
         <input type="hidden" name="message" value="<%= message %>">

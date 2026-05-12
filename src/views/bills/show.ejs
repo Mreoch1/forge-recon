@@ -3,6 +3,14 @@
 <%
 function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
 const bal = (Number(bill.total) || 0) - (Number(bill.amount_paid) || 0);
+const BILL_STATUS_HINTS = {
+  draft: 'Draft — awaiting approval. Edit freely.',
+  pending: 'Pending — awaiting approval before it can be paid.',
+  approved: 'Approved — cleared to pay. Counted in AP totals.',
+  paid: 'Paid — full payment recorded. Read-only.',
+  void: 'Void — cancelled. Does not count toward AP.'
+};
+const billStatusHint = BILL_STATUS_HINTS[bill.status] || bill.status;
 %>
 
 <div class="max-w-5xl mx-auto px-4 py-6">
@@ -14,7 +22,7 @@ const bal = (Number(bill.total) || 0) - (Number(bill.amount_paid) || 0);
     <div>
       <div class="flex items-center gap-3">
         <h1 class="page-h1"><%= bill.bill_number || '#' + bill.id %></h1>
-        <span class="badge badge-<%= bill.status %>"><%= bill.status %></span>
+        <span class="badge badge-<%= bill.status %>" title="<%= billStatusHint %>"><%= bill.status %></span>
       </div>
       <p class="page-sub">
         Vendor: <a href="/vendors/<%= bill.vendor_id %>" class="hover:text-recon-red"><%= bill.vendor_name || 'Vendor #' + bill.vendor_id %></a>
@@ -25,19 +33,16 @@ const bal = (Number(bill.total) || 0) - (Number(bill.amount_paid) || 0);
       <% if (bill.status === 'draft') { %>
         <a href="/bills/<%= bill.id %>/edit" class="btn btn-secondary">Edit</a>
         <form action="/bills/<%= bill.id %>/approve" method="post" class="m-0 inline">
-          <button class="btn btn-primary">Approve</button>
-        </form>
-        <form action="/bills/<%= bill.id %>/void" method="post" class="m-0 inline">
-          <button class="btn btn-danger">Void</button>
+          <button class="btn btn-primary" title="Approve this bill so it can be paid. Posts to AP and the general ledger.">Approve</button>
         </form>
       <% } else if (bill.status === 'approved') { %>
         <form action="/bills/<%= bill.id %>/pay" method="post" class="m-0 inline-flex items-center gap-2">
           <input type="number" step="0.01" min="0.01" name="amount"
                  value="<%= fmt(bal) %>" class="input text-right" style="width: 8rem;">
-          <button class="btn btn-primary">Record payment</button>
+          <button class="btn btn-primary" title="Record a payment against this bill. Supports full or partial payments.">Record payment</button>
         </form>
         <form action="/bills/<%= bill.id %>/void" method="post" class="m-0 inline">
-          <button class="btn btn-danger">Void</button>
+          <button class="btn btn-danger" title="Cancel this bill. Keeps the record but removes it from AP totals.">Void</button>
         </form>
       <% } else if (bill.status === 'void') { %>
       <% } %>
@@ -133,9 +138,12 @@ const bal = (Number(bill.total) || 0) - (Number(bill.amount_paid) || 0);
   <% if (bill.status === 'draft') { %>
     <div class="card p-5 border-red-200">
       <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
+      <form action="/bills/<%= bill.id %>/void" method="post" class="mb-3">
+        <button class="btn btn-danger" title="Cancel this bill. Keeps the record but removes it from AP totals.">Void bill</button>
+      </form>
       <form action="/bills/<%= bill.id %>/delete" method="post"
             onsubmit="return confirm('Delete this draft bill?');" class="m-0">
-        <button type="submit" class="btn btn-danger">Delete bill</button>
+        <button type="submit" class="btn btn-danger" title="Permanently delete this bill. Only allowed for draft or void bills.">Delete bill</button>
       </form>
     </div>
   <% } else if (bill.status === 'void') { %>
@@ -143,7 +151,7 @@ const bal = (Number(bill.total) || 0) - (Number(bill.amount_paid) || 0);
       <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
       <form action="/bills/<%= bill.id %>/delete" method="post"
             onsubmit="return confirm('Delete this voided bill?');" class="m-0">
-        <button type="submit" class="btn btn-danger">Delete bill</button>
+        <button type="submit" class="btn btn-danger" title="Permanently delete this bill. Only allowed for draft or void bills.">Delete bill</button>
       </form>
     </div>
   <% } %>
