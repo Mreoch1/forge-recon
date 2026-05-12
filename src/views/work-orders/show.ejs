@@ -141,6 +141,13 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
     <div class="flex flex-wrap gap-2 -mx-4 px-4 md:mx-0 md:px-0 overflow-x-auto md:overflow-visible md:flex-wrap" style="-webkit-overflow-scrolling: touch;">
       <a href="/work-orders/<%= wo.id %>/pdf" class="btn btn-secondary text-sm" target="_blank" rel="noopener"
          title="Open the WO PDF in a new tab. This is the version the crew and customer see.">PDF</a>
+      <% const hasAssigneeEmail = (wo.assignees && wo.assignees.some(function(a){ return a.email; })) || wo.assigned_to_user_id; %>
+      <% if (currentUser && currentUser.role !== 'worker' && hasAssigneeEmail) { %>
+        <form action="/work-orders/<%= wo.id %>/send" method="post" class="m-0 inline"
+              onsubmit="return confirm('Send WO-<%= wo.display_number %> to the assigned crew?');">
+          <button class="btn btn-primary text-sm" title="Email this WO and PDF to the assigned person or crew.">Send to assigned</button>
+        </form>
+      <% } %>
       <% if (wo.status === 'scheduled' || wo.status === 'in_progress') { %>
         <a href="/work-orders/<%= wo.id %>/edit" class="btn btn-secondary text-sm">Edit</a>
       <% } %>

@@ -172,7 +172,8 @@ async function loadWorkOrder(id) {
       jobs!left(id, title, address, city, state, zip,
         customers!left(id, name, email, billing_email, phone, address, city, state, zip)),
       users!left(name),
-      customers!left(id, name, email, billing_email, phone, address, city, state, zip)
+      customers!left(id, name, email, billing_email, phone, address, city, state, zip),
+      work_order_assignees(user_id, notified_at, users!work_order_assignees_user_id_fkey(id, name, email))
     `)
     .eq('id', id)
     .maybeSingle();
@@ -197,8 +198,17 @@ async function loadWorkOrder(id) {
   wo.customer_state = c ? c.state : null;
   wo.customer_zip = c ? c.zip : null;
   wo.assigned_user_name = wo.users ? wo.users.name : null;
+  wo.assignees = (wo.work_order_assignees || [])
+    .map(a => ({
+      id: a.user_id || a.users?.id,
+      name: a.users?.name || '',
+      email: a.users?.email || '',
+      notified_at: a.notified_at || null,
+    }))
+    .filter(a => a.id);
   delete wo.jobs;
   delete wo.users;
+  delete wo.work_order_assignees;
 
   // Parent display number (separate lookup — parent_wo_id is a self-FK)
   wo.parent_display_number = null;
@@ -324,6 +334,52 @@ async function saveAssigneesAndNotify({ workOrderId, assigneeIds, users = [], cu
       console.warn('[work-orders] assignee email failed for', assignee.email, ':', e.message);
     }
   }
+}
+
+async function sendWorkOrderToAssignedUsers(wo) {
+  const assigneeIds = normalizeAssigneeIds([
+    ...(wo.assignees || []).map(a => a.id),
+    wo.assigned_to_user_id,
+  ]);
+  if (!assigneeIds.length) return { sent: 0, skipped: true, reason: 'No assignees selected.' };
+
+  const { data: users, error: userErr } = await supabase
+    .from('users')
+    .select('id, name, email')
+    .in('id', assigneeIds);
+  if (userErr) throw userErr;
+
+  const usersWithEmail = (users || []).filter(u => u.email);
+  if (!usersWithEmail.length) return { sent: 0, skipped: true, reason: 'Assigned users do not have email addresses.' };
+
+  const pdfBuffer = await buildWorkOrderPdfBuffer(wo.id);
+  const sendWoEmail = require('../services/email').sendWorkOrderAssignedEmail;
+  let sent = 0;
+
+  for (const assignee of usersWithEmail) {
+    await sendWoEmail({
+      to: assignee.email,
+      toName: assignee.name,
+      woNumber: 'WO-' + wo.display_number,
+      woId: wo.id,
+      customerName: wo.customer_name || '',
+      address: [wo.customer_address || wo.job_address, wo.customer_city || wo.job_city, wo.customer_state || wo.job_state].filter(Boolean).join(', '),
+      unitNumber: wo.unit_number || '',
+      description: wo.description || '',
+      internalNotes: wo.notes || '',
+      scheduledDate: wo.scheduled_date || '',
+      scheduledTime: wo.scheduled_time || '',
+      pdfBuffer,
+    });
+    sent++;
+    await supabase
+      .from('work_order_assignees')
+      .update({ notified_at: new Date().toISOString() })
+      .eq('work_order_id', wo.id)
+      .eq('user_id', assignee.id);
+  }
+
+  return { sent, skipped: false };
 }
 
 async function createWorkOrderWithLines(woData, lines, userId) {
@@ -970,6 +1026,27 @@ router.post('/:id', async (req, res) => {
 
   setFlash(req, 'success', `WO-${newDisplay} updated.`);
   res.redirect(`/work-orders/${existing.id}`);
+});
+
+router.post('/:id/send', async (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+
+  const wo = await loadWorkOrder(req.params.id);
+  if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
+
+  try {
+    const result = await sendWorkOrderToAssignedUsers(wo);
+    if (result.skipped) {
+      setFlash(req, 'error', result.reason || `WO-${wo.display_number} was not sent.`);
+    } else {
+      setFlash(req, 'success', `WO-${wo.display_number} sent to ${result.sent} assigned ${result.sent === 1 ? 'person' : 'people'}.`);
+    }
+  } catch (err) {
+    console.error('[work-orders] manual send failed:', err);
+    setFlash(req, 'error', `Could not send WO-${wo.display_number}: ${err.message}`);
+  }
+
+  res.redirect(`/work-orders/${wo.id}`);
 });
 
 // --- status transitions (RPC handles status field, timestamps, audit) ---
