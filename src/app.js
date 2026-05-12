@@ -255,7 +255,7 @@ app.post('/report-error', async (req, res) => {
   try {
     const emailService = require('./services/email');
     await emailService.sendEmail({
-      to: 'mike@reconenterprises.net',
+      to: 'support@reconenterprises.net',
       subject,
       htmlBody: bodyHtml,
       text: `FORGE Error Report\n\nStatus: ${code}\nURL: ${url || 'unknown'}\nUser: ${ctx.user || user_email || 'unknown'}\nMethod: ${ctx.method || 'unknown'}\nTime: ${ctx.timestamp || 'unknown'}\n\nError: ${error_detail || message || 'none'}`,
@@ -294,7 +294,7 @@ app.post('/feedback', async (req, res) => {
   try {
     const emailService = require('./services/email');
     await emailService.sendEmail({
-      to: 'mike@reconenterprises.net',
+      to: 'support@reconenterprises.net',
       subject: `[FORGE Feedback] ${subject}`,
       html,
     });
