@@ -55,7 +55,7 @@ const selectedAssignees = wo.assignee_ids || [];
       </div>
       <div>
         <label class="label" for="scheduled_time">Time</label>
-        <input type="time" name="scheduled_time" id="scheduled_time"
+        <input type="time" name="scheduled_time" id="scheduled_time" step="1800"
                value="<%= wo.scheduled_time || '' %>" class="input">
       </div>
     </div>

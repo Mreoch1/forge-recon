@@ -95,7 +95,7 @@ const warnings = extracted.warnings || [];
         </div>
         <div>
           <label class="label">Scheduled time</label>
-          <input type="time" name="scheduled_time" value="<%= job.scheduled_time || '' %>" class="input">
+          <input type="time" name="scheduled_time" step="1800" value="<%= job.scheduled_time || '' %>" class="input">
         </div>
       </div>
     </div>
