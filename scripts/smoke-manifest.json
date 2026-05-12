@@ -45,5 +45,5 @@
   {"label":"/files/project/1","method":"GET","path":"/files/project/1","expect":200,"auth":true},
   {"label":"/files/vendor/1","method":"GET","path":"/files/vendor/1","expect":200,"auth":true},
   {"label":"/files/worker/1","method":"GET","path":"/files/worker/1","expect":200,"auth":true},
-  {"label":"/vendors/1 show (D-035)","method":"GET","path":"/vendors/1","expect":200,"auth":true}
+  {"label":"/vendors/2 show (D-035)","method":"GET","path":"/vendors/2","expect":200,"auth":true}
 ]
