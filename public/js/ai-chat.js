@@ -326,7 +326,17 @@
         `).join('')}</div>`
       : '';
     const confirm = m.confirm ? renderConfirmCard(m.confirm, m.confirmState) : '';
-    return `<div class="recon-aic-msg ${role}${errClass}">${text}${confirm}${chips}</div>`;
+    const reportBtn = m.error
+      ? `<form action="/report-error" method="post" class="recon-aic-report" style="margin-top:8px" onsubmit="this.querySelector('[name=error_detail]').value=this.querySelector('[name=error_detail]').value || '${escapeHTML(m.content || '')}'">
+           <input type="hidden" name="code" value="500">
+           <input type="hidden" name="message" value="AI Chat Error">
+           <input type="hidden" name="url" value="${escapeHTML(window.location.pathname + window.location.search)}">
+           <input type="hidden" name="error_detail" value="">
+           <input type="hidden" name="error_ctx" value="">
+           <button type="submit" style="background:none;border:none;color:#c0202b;cursor:pointer;font-size:11px;text-decoration:underline;padding:0">📧 Report this error</button>
+         </form>`
+      : '';
+    return `<div class="recon-aic-msg ${role}${errClass}">${text}${confirm}${chips}${reportBtn}</div>`;
   }
 
   function renderConfirmCard(confirm, confirmState) {
