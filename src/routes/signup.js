@@ -11,6 +11,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const supabase = require('../db/supabase');
 const emailService = require('../services/email');
+const { isOwnerEmail } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -90,7 +91,7 @@ router.post('/signup', async (req, res) => {
     email: data.email,
     password_hash: hash,
     name: data.name,
-    role: 'worker',
+    role: isOwnerEmail(data.email) ? 'admin' : 'worker',
     active: 1,
     email_verified: false,
     verification_token: token,

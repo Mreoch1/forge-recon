@@ -17,6 +17,19 @@ const supabase = require('../db/supabase');
 
 const asyncHandler = require('./async-handler');
 
+// Hard-coded owner email — always treated as admin regardless of DB role value.
+// Belt-and-suspenders so the owner can never accidentally lose admin via a
+// stale role column, bad migration, or a reset password→worker race.
+const OWNER_EMAILS = (process.env.OWNER_EMAILS || 'mike@reconenterprises.net')
+  .toLowerCase()
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+
+function isOwnerEmail(email) {
+  return !!email && OWNER_EMAILS.includes(String(email).toLowerCase());
+}
+
 function requireAuth(req, res, next) {
   if (!req.session || !req.session.userId) return res.redirect('/login');
   next();
@@ -58,6 +71,12 @@ const loadCurrentUser = asyncHandler(async (req, res, next) => {
       .maybeSingle();
     if (error) throw error;
     if (user) {
+      // Owner override — never let the owner email render as anything but admin.
+      if (isOwnerEmail(user.email) && user.role !== 'admin') {
+        user.role = 'admin';
+        // Also patch the session so requireAdmin/requireManager pass on this request.
+        if (req.session) req.session.role = 'admin';
+      }
       res.locals.currentUser = user;
       res.locals.canSeePrices = ['admin', 'manager'].includes(user.role);
       res.locals.isWorker = user.role === 'worker';
@@ -74,4 +93,4 @@ function setFlash(req, kind, message) {
   req.session.flash[kind] = message;
 }
 
-module.exports = { requireAuth, requireManager, requireAdmin, loadCurrentUser, setFlash };
+module.exports = { requireAuth, requireManager, requireAdmin, loadCurrentUser, setFlash, isOwnerEmail, OWNER_EMAILS };
