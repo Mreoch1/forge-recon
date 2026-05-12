@@ -9,6 +9,8 @@
  *   GET  /ai-create                 AI-assisted WO form
  *   POST /ai-create                 parse free text into structured WO + render preview
  *   POST /ai-finalize               commit the AI extraction (RPC)
+ */
+
 // --- new (must come before /:id) ---
 
 const express = require('express');
