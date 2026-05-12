@@ -378,27 +378,33 @@ tools.search_bills = {
 
 tools.get_schedule = {
   description: 'Get work orders scheduled within a date range, grouped by date.',
-  args: { date_start: 'string (required) — YYYY-MM-DD', date_end: 'string (required) — YYYY-MM-DD' },
+  args: { start_date: 'string (optional) — YYYY-MM-DD', end_date: 'string (optional) — YYYY-MM-DD', status: 'string (optional)', scheduled_date: 'string (optional)' },
   needs_user: 'read',
-  handler: async ({ date_start, date_end }, ctx) => {
-    const conds = ['w.scheduled_date >= ? AND w.scheduled_date <= ?'];
-    const params = [date_start || '2026-01-01', date_end || '2027-01-01'];
-    if (ctx.role === 'worker' && ctx.userId) {
-      conds.push('(w.assigned_to_user_id = ? OR w.assigned_to ILIKE ?)');
-      params.push(ctx.userId, `%${ctx.userName}%`);
-    }
-    const rows = await db.all(`SELECT w.id, w.display_number, w.status, w.scheduled_date, w.scheduled_time,
-      w.assigned_to, u.name AS assigned_user_name,
-      j.title AS job_title, c.name AS customer_name
-      FROM work_orders w
-      JOIN jobs j ON j.id = w.job_id
-      JOIN customers c ON c.id = j.customer_id
-      LEFT JOIN users u ON u.id = w.assigned_to_user_id
-      WHERE ${conds.join(' AND ')}
-      ORDER BY w.scheduled_date ASC, w.scheduled_time ASC`, params);
+  handler: async ({ start_date, end_date, status, scheduled_date }, ctx) => {
+    const conds = [];
+    if (scheduled_date) conds.push(`scheduled_date.eq.${scheduled_date}`);
+    if (status) conds.push(`status.eq.${status}`);
+    if (start_date) conds.push(`scheduled_date.gte.${start_date}`);
+    if (end_date) conds.push(`scheduled_date.lte.${end_date}`);
 
+    let q = supabase.from('work_orders').select(`
+      id, display_number, status, scheduled_date, scheduled_time, assigned_to, assigned_to_user_id,
+      jobs!left(title, customers!left(name)),
+      customers!left(name),
+      users!left(name)
+    `).order('scheduled_date', { ascending: true }).order('scheduled_time', { ascending: true });
+
+    if (conds.length) q = q.or(conds.join(','));
+    if (ctx.role === 'worker' && ctx.userId) {
+      const workerIds = await assignedWorkOrderIdsForWorker(ctx);
+      if (workerIds.length) q = q.in('id', workerIds);
+      else return {};
+    }
+
+    const { data: rows } = await q;
     const grouped = {};
-    rows.forEach(r => {
+    (rows || []).forEach(r => {
+      const customer = r.customers || r.jobs?.customers || {};
       const date = r.scheduled_date ? String(r.scheduled_date).slice(0,10) : 'unscheduled';
       if (!grouped[date]) grouped[date] = [];
       grouped[date].push({
