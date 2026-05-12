@@ -1,94 +1,155 @@
 /**
- * timeline.js — Build a unified day timeline from WO schedule + audit + notes + photos.
+ * timeline.js - Build a unified day timeline from WO schedule + audit + notes + photos.
  *
- * buildDayTimeline({ date, userId, workerOnly }) → array of WO objects with events[].
+ * buildDayTimeline({ date, userId, workerOnly }) -> array of WO objects with events[].
  */
-const db = require('../db/db');
+const supabase = require('../db/supabase');
 
 function pad2(n) { return String(n).padStart(2, '0'); }
 
+function dateOnly(ts) {
+  // Return YYYY-MM-DD portion of an ISO/SQL timestamp string.
+  return String(ts || '').slice(0, 10);
+}
+
 /**
  * Build the timeline for a single day.
- * @param {string} date  — 'YYYY-MM-DD'
- * @param {number|null} userId — session user ID (for worker filtering)
- * @param {boolean} workerOnly — if true, only return WOs assigned to this user
+ * @param {string} date  - 'YYYY-MM-DD'
+ * @param {number|null} userId - session user ID (for worker filtering)
+ * @param {boolean} workerOnly - if true, only return WOs assigned to this user
  * @returns {Array} [{ wo_id, display_number, scheduled_time, status, customer_name, job_title, address, assignee_name, events: [...] }]
  */
 async function buildDayTimeline({ date, userId = null, workerOnly = false }) {
-  // ── Step 1: Get WOs scheduled for this day ──
-  const woConds = ['w.scheduled_date = ?'];
-  const woParams = [date];
+  // Step 1: Get WOs scheduled for this day
+  let woQuery = supabase
+    .from('work_orders')
+    .select(`
+      id, display_number, scheduled_time, status,
+      assigned_to_user_id, assigned_to,
+      jobs!inner ( id, title, address, city, customers!inner ( id, name ) ),
+      users:assigned_to_user_id ( name )
+    `)
+    .eq('scheduled_date', date)
+    .in('status', ['scheduled', 'in_progress', 'complete']);
 
   if (workerOnly && userId) {
-    woConds.push('(w.assigned_to_user_id = ? OR w.assigned_to LIKE ?)');
-    const userName = await (async () => {
-      try { const u = await db.get('SELECT name FROM users WHERE id = ?', [userId]); return u ? u.name : ''; } catch(e) { return ''; }
-    })();
-    woParams.push(userId, `%${userName}%`);
+    let userName = '';
+    try {
+      const { data: u } = await supabase.from('users').select('name').eq('id', userId).maybeSingle();
+      userName = u ? (u.name || '') : '';
+    } catch (e) { /* best effort */ }
+    if (userName) {
+      woQuery = woQuery.or(`assigned_to_user_id.eq.${userId},assigned_to.ilike.%${userName}%`);
+    } else {
+      woQuery = woQuery.eq('assigned_to_user_id', userId);
+    }
   }
 
-  const wos = await db.all(`
-    SELECT w.id, w.display_number, w.scheduled_time, w.status,
-           w.assigned_to_user_id, w.assigned_to,
-           j.id AS job_id, j.title AS job_title,
-           j.address AS job_address, j.city AS job_city,
-           c.id AS customer_id, c.name AS customer_name,
-           u.name AS assigned_user_name
-    FROM work_orders w
-    JOIN jobs j ON j.id = w.job_id
-    JOIN customers c ON c.id = j.customer_id
-    LEFT JOIN users u ON u.id = w.assigned_to_user_id
-    WHERE ${woConds.join(' AND ')}
-      AND w.status IN ('scheduled','in_progress','complete')
-    ORDER BY COALESCE(w.scheduled_time, '99:99'), w.display_number
-  `, woParams);
+  const { data: woRows, error: woErr } = await woQuery;
+  if (woErr) throw woErr;
+
+  // Flatten nested rows to legacy shape used by callers
+  const wos = (woRows || []).map(r => ({
+    id: r.id,
+    display_number: r.display_number,
+    scheduled_time: r.scheduled_time,
+    status: r.status,
+    assigned_to_user_id: r.assigned_to_user_id,
+    assigned_to: r.assigned_to,
+    job_id: r.jobs?.id,
+    job_title: r.jobs?.title,
+    job_address: r.jobs?.address,
+    job_city: r.jobs?.city,
+    customer_id: r.jobs?.customers?.id,
+    customer_name: r.jobs?.customers?.name,
+    assigned_user_name: r.users?.name || null,
+  }));
+
+  wos.sort((a, b) => {
+    const at = a.scheduled_time || '99:99';
+    const bt = b.scheduled_time || '99:99';
+    if (at !== bt) return at.localeCompare(bt);
+    return String(a.display_number || '').localeCompare(String(b.display_number || ''));
+  });
 
   if (wos.length === 0) return [];
 
-  // ── Step 2: Gather events for each WO ──
+  // Step 2: Gather events for each WO
   const woIds = wos.map(w => w.id);
+  const dayStart = `${date}T00:00:00`;
+  const dayEnd = `${date}T23:59:59.999`;
 
   // 2a. wo_notes today
-  const notes = await db.all(`
-    SELECT wn.work_order_id, wn.body, wn.created_at, u.name AS actor_name
-    FROM wo_notes wn
-    LEFT JOIN users u ON u.id = wn.user_id
-    WHERE wn.work_order_id IN (${woIds.map(() => '?').join(',')})
-      AND date(wn.created_at) = date(?)
-    ORDER BY wn.created_at ASC
-  `, [...woIds, date]);
+  const { data: notesRaw, error: notesErr } = await supabase
+    .from('wo_notes')
+    .select('work_order_id, body, created_at, users:user_id ( name )')
+    .in('work_order_id', woIds)
+    .gte('created_at', dayStart)
+    .lt('created_at', dayEnd)
+    .order('created_at', { ascending: true });
+  if (notesErr) throw notesErr;
+  const notes = (notesRaw || []).map(n => ({
+    work_order_id: n.work_order_id,
+    body: n.body,
+    created_at: n.created_at,
+    actor_name: n.users?.name || null,
+  }));
 
   // 2b. Audit logs for work order status changes today
-  const auditEvents = await db.all(`
-    SELECT al.entity_id, al.action, al.after_json, al.created_at, u.name AS actor_name
-    FROM audit_logs al
-    LEFT JOIN users u ON u.id = al.user_id
-    WHERE al.entity_type = 'work_order'
-      AND al.entity_id IN (${woIds.map(() => '?').join(',')})
-      AND date(al.created_at) = date(?)
-      AND al.action IN ('started','completed','cancelled','status_transition')
-    ORDER BY al.created_at ASC
-  `, [...woIds, date]);
+  const { data: auditRaw, error: auditErr } = await supabase
+    .from('audit_logs')
+    .select('entity_id, action, after_json, created_at, users:user_id ( name )')
+    .eq('entity_type', 'work_order')
+    .in('entity_id', woIds.map(String))
+    .gte('created_at', dayStart)
+    .lt('created_at', dayEnd)
+    .in('action', ['started', 'completed', 'cancelled', 'status_transition'])
+    .order('created_at', { ascending: true });
+  if (auditErr) throw auditErr;
+  const auditEvents = (auditRaw || []).map(a => ({
+    entity_id: typeof a.entity_id === 'string' ? parseInt(a.entity_id, 10) : a.entity_id,
+    action: a.action,
+    after_json: a.after_json,
+    created_at: a.created_at,
+    actor_name: a.users?.name || null,
+  }));
 
   // 2b2. Item-completion audit events (work_order_line_item)
-  const itemEvents = await db.all(`
-    SELECT al.entity_id, al.action, al.after_json, al.created_at, u.name AS actor_name
-    FROM audit_logs al
-    LEFT JOIN users u ON u.id = al.user_id
-    WHERE al.entity_type = 'work_order_line_item'
-      AND date(al.created_at) = date(?)
-      AND al.action = 'item_completed'
-    ORDER BY al.created_at ASC
-  `, [date]);
+  const { data: itemRaw, error: itemErr } = await supabase
+    .from('audit_logs')
+    .select('entity_id, action, after_json, created_at, users:user_id ( name )')
+    .eq('entity_type', 'work_order_line_item')
+    .eq('action', 'item_completed')
+    .gte('created_at', dayStart)
+    .lt('created_at', dayEnd)
+    .order('created_at', { ascending: true });
+  if (itemErr) throw itemErr;
+  const itemEvents = (itemRaw || []).map(a => ({
+    entity_id: typeof a.entity_id === 'string' ? parseInt(a.entity_id, 10) : a.entity_id,
+    action: a.action,
+    after_json: a.after_json,
+    created_at: a.created_at,
+    actor_name: a.users?.name || null,
+  }));
 
   // 2c. Audit logs for linked estimates/invoices today
-  const woToEstInv = await db.all(`
-    SELECT e.id AS est_id, e.work_order_id,
-           i.id AS inv_id
-    FROM estimates e
-    LEFT JOIN invoices i ON i.estimate_id = e.id
-    WHERE e.work_order_id IN (${woIds.map(() => '?').join(',')})
-  `, woIds);
+  const { data: estLinks, error: estLinksErr } = await supabase
+    .from('estimates')
+    .select('id, work_order_id, invoices ( id )')
+    .in('work_order_id', woIds);
+  if (estLinksErr) throw estLinksErr;
+
+  const woToEstInv = [];
+  (estLinks || []).forEach(e => {
+    const invs = Array.isArray(e.invoices) ? e.invoices : (e.invoices ? [e.invoices] : []);
+    if (invs.length === 0) {
+      woToEstInv.push({ est_id: e.id, work_order_id: e.work_order_id, inv_id: null });
+    } else {
+      invs.forEach(inv => {
+        woToEstInv.push({ est_id: e.id, work_order_id: e.work_order_id, inv_id: inv?.id || null });
+      });
+    }
+  });
 
   const estIds = woToEstInv.map(r => r.est_id).filter(Boolean);
   const invIds = woToEstInv.map(r => r.inv_id).filter(Boolean);
@@ -96,53 +157,56 @@ async function buildDayTimeline({ date, userId = null, workerOnly = false }) {
   let estAuditEvents = [];
   let invAuditEvents = [];
   if (estIds.length > 0) {
-    estAuditEvents = await db.all(`
-      SELECT al.entity_id, al.action, al.after_json, al.created_at
-      FROM audit_logs al
-      WHERE al.entity_type = 'estimate'
-        AND al.entity_id IN (${estIds.map(() => '?').join(',')})
-        AND date(al.created_at) = date(?)
-        AND al.action IN ('sent','accepted','rejected')
-      ORDER BY al.created_at ASC
-    `, [...estIds, date]);
+    const { data, error } = await supabase
+      .from('audit_logs')
+      .select('entity_id, action, after_json, created_at')
+      .eq('entity_type', 'estimate')
+      .in('entity_id', estIds.map(String))
+      .gte('created_at', dayStart)
+      .lt('created_at', dayEnd)
+      .in('action', ['sent', 'accepted', 'rejected'])
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    estAuditEvents = (data || []).map(a => ({
+      entity_id: typeof a.entity_id === 'string' ? parseInt(a.entity_id, 10) : a.entity_id,
+      action: a.action,
+      after_json: a.after_json,
+      created_at: a.created_at,
+    }));
   }
   if (invIds.length > 0) {
-    invAuditEvents = await db.all(`
-      SELECT al.entity_id, al.action, al.after_json, al.created_at
-      FROM audit_logs al
-      WHERE al.entity_type = 'invoice'
-        AND al.entity_id IN (${invIds.map(() => '?').join(',')})
-        AND date(al.created_at) = date(?)
-        AND al.action IN ('sent','paid','payment_received')
-      ORDER BY al.created_at ASC
-    `, [...invIds, date]);
+    const { data, error } = await supabase
+      .from('audit_logs')
+      .select('entity_id, action, after_json, created_at')
+      .eq('entity_type', 'invoice')
+      .in('entity_id', invIds.map(String))
+      .gte('created_at', dayStart)
+      .lt('created_at', dayEnd)
+      .in('action', ['sent', 'paid', 'payment_received'])
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    invAuditEvents = (data || []).map(a => ({
+      entity_id: typeof a.entity_id === 'string' ? parseInt(a.entity_id, 10) : a.entity_id,
+      action: a.action,
+      after_json: a.after_json,
+      created_at: a.created_at,
+    }));
   }
 
   // 2d. wo_photos (placeholder)
-  // Not implemented yet — photos table exists but no photo upload UI.
-  // When implemented, query by work_order_id + date(created_at), group 5-min buckets.
+  // Not implemented yet - photos table exists but no photo upload UI.
 
-  // ── Step 3: Build per-WO event lists ──
+  // Step 3: Build per-WO event lists
   const eventsByWO = {};
-
   wos.forEach(wo => { eventsByWO[wo.id] = []; });
 
   // Group consecutive item completions on the same WO within 5 minutes
-  const groupedItems = {};
-  itemEvents.forEach(ie => {
-    const ts = String(ie.created_at || '').slice(0, 16); // YYYY-MM-DD HH:MM (minute precision)
-    const bucket = `${ie.entity_id}_${ts}`;
-    if (!groupedItems[bucket]) groupedItems[bucket] = [];
-    groupedItems[bucket].push(ie);
-  });
-
-  // Merge adjacent buckets within 5 minutes on same WO
-  const mergedGroups = [];
   const sortedItems = [...itemEvents].sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
+  const mergedGroups = [];
   let currentGroup = null;
   sortedItems.forEach(ie => {
     try {
-      const after = JSON.parse(ie.after_json || '{}');
+      const after = typeof ie.after_json === 'string' ? JSON.parse(ie.after_json || '{}') : (ie.after_json || {});
       const woId = after.wo_id;
       if (!currentGroup || currentGroup.wo_id !== woId) {
         if (currentGroup) mergedGroups.push(currentGroup);
@@ -156,11 +220,10 @@ async function buildDayTimeline({ date, userId = null, workerOnly = false }) {
           currentGroup = { wo_id: woId, events: [ie], startTime: ie.created_at };
         }
       }
-    } catch(e) { /* skip unparseable */ }
+    } catch (e) { /* skip unparseable */ }
   });
   if (currentGroup) mergedGroups.push(currentGroup);
 
-  // Convert groups to timeline events
   mergedGroups.forEach(group => {
     if (!eventsByWO[group.wo_id]) return;
     const count = group.events.length;
@@ -170,16 +233,15 @@ async function buildDayTimeline({ date, userId = null, workerOnly = false }) {
     let label = '';
     if (count === 1) {
       try {
-        const after = JSON.parse(firstEvent.after_json || '{}');
+        const after = typeof firstEvent.after_json === 'string' ? JSON.parse(firstEvent.after_json || '{}') : (firstEvent.after_json || {});
         label = `Marked done: ${after.description || 'item'}`;
-      } catch(e) { label = 'Marked 1 item done'; }
+      } catch (e) { label = 'Marked 1 item done'; }
     } else {
       label = `Marked ${count} items done`;
     }
     eventsByWO[group.wo_id].push({ type: 'item_completed', ts, label, actor });
   });
 
-  // Add audit events for WO status changes
   auditEvents.forEach(ae => {
     const ts = String(ae.created_at || '').slice(11, 16);
     const actor = ae.actor_name || 'System';
@@ -189,28 +251,33 @@ async function buildDayTimeline({ date, userId = null, workerOnly = false }) {
     else if (ae.action === 'cancelled') label = `${actor} cancelled WO`;
     else if (ae.action === 'photo_uploaded') {
       let cnt = '';
-      try { const a = JSON.parse(ae.after_json || '{}'); cnt = a.count ? ` ${a.count}` : ''; } catch(e) {}
+      try {
+        const a = typeof ae.after_json === 'string' ? JSON.parse(ae.after_json || '{}') : (ae.after_json || {});
+        cnt = a.count ? ` ${a.count}` : '';
+      } catch (e) { /* ignore */ }
       label = `${actor} uploaded${cnt} photo${cnt === ' 1' ? '' : 's'}`;
     } else if (ae.action === 'status_transition') {
       try {
         const after = typeof ae.after_json === 'string' ? JSON.parse(ae.after_json) : (ae.after_json || {});
-        label = `Status: ${(after.status || '').replace('_',' ')}`;
-      } catch(e) { label = `Status changed by ${actor}`; }
-    } else { label = `${actor} — ${ae.action}`; }
+        label = `Status: ${(after.status || '').replace('_', ' ')}`;
+      } catch (e) { label = `Status changed by ${actor}`; }
+    } else {
+      label = `${actor} - ${ae.action}`;
+    }
     if (eventsByWO[ae.entity_id]) {
       eventsByWO[ae.entity_id].push({ type: ae.action, ts, label, actor });
     }
   });
 
-  // Add notes
   notes.forEach(n => {
     const ts = String(n.created_at || '').slice(11, 16);
     const body = (n.body || '').length > 80 ? (n.body || '').slice(0, 80) + '...' : (n.body || '');
     const actor = n.actor_name || '';
-    eventsByWO[n.work_order_id].push({ type: 'note', ts, label: body, actor });
+    if (eventsByWO[n.work_order_id]) {
+      eventsByWO[n.work_order_id].push({ type: 'note', ts, label: body, actor });
+    }
   });
 
-  // Add estimate events
   estAuditEvents.forEach(ae => {
     const ts = String(ae.created_at || '').slice(11, 16);
     const wo = woToEstInv.find(r => r.est_id === ae.entity_id);
@@ -223,7 +290,6 @@ async function buildDayTimeline({ date, userId = null, workerOnly = false }) {
     }
   });
 
-  // Add invoice events
   invAuditEvents.forEach(ae => {
     const ts = String(ae.created_at || '').slice(11, 16);
     const wo = woToEstInv.find(r => r.inv_id === ae.entity_id);
@@ -233,19 +299,21 @@ async function buildDayTimeline({ date, userId = null, workerOnly = false }) {
       else if (ae.action === 'paid') label = 'Invoice paid';
       else if (ae.action === 'payment_received') {
         let amt = '';
-        try { const after = typeof ae.after_json === 'string' ? JSON.parse(ae.after_json) : (ae.after_json || {}); amt = after.amount ? ` $${Number(after.amount).toFixed(2)}` : ''; } catch(e) {}
+        try {
+          const after = typeof ae.after_json === 'string' ? JSON.parse(ae.after_json) : (ae.after_json || {});
+          amt = after.amount ? ` $${Number(after.amount).toFixed(2)}` : '';
+        } catch (e) { /* ignore */ }
         label = `Payment received${amt}`;
       }
       eventsByWO[wo.work_order_id].push({ type: `invoice_${ae.action}`, ts, label, actor: 'System' });
     }
   });
 
-  // Sort events per WO by timestamp
   Object.values(eventsByWO).forEach(evts => {
     evts.sort((a, b) => (a.ts || '99:99').localeCompare(b.ts || '99:99'));
   });
 
-  // ── Step 4: Build final output ──
+  // Step 4: Build final output
   const result = wos.map(wo => ({
     wo_id: wo.id,
     display_number: wo.display_number,
@@ -260,8 +328,6 @@ async function buildDayTimeline({ date, userId = null, workerOnly = false }) {
     events: eventsByWO[wo.id] || [],
   }));
 
-  // Sort WOs by earliest event time (scheduled_time for WOs with no events,
-  // or the first event ts for those with events)
   result.sort((a, b) => {
     const aTime = a.events.length > 0 ? a.events[0].ts : (a.scheduled_time || '99:99');
     const bTime = b.events.length > 0 ? b.events[0].ts : (b.scheduled_time || '99:99');

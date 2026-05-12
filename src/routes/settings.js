@@ -1,5 +1,5 @@
 /**
- * Settings route — per-role settings page.
+ * Settings route - per-role settings page.
  *
  *   GET   /settings                   settings page (role-adaptive)
  *   POST  /settings/profile           update own profile (name, phone, email)
@@ -9,7 +9,7 @@
  */
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const db = require('../db/db');
+const supabase = require('../db/supabase');
 const { setFlash } = require('../middleware/auth');
 
 const router = express.Router();
@@ -17,7 +17,12 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   const userId = req.session.userId;
   const role = req.session.role;
-  const user = await db.get('SELECT id, name, email, phone, role FROM users WHERE id = ?', [userId]);
+  const { data: user, error: userErr } = await supabase
+    .from('users')
+    .select('id, name, email, phone, role')
+    .eq('id', userId)
+    .maybeSingle();
+  if (userErr) throw userErr;
 
   // Common locals
   const locals = {
@@ -28,16 +33,28 @@ router.get('/', async (req, res) => {
 
   // Manager sees team list
   if (role === 'admin' || role === 'manager') {
-    locals.team = await db.all('SELECT id, name, email, role, active FROM users ORDER BY name COLLATE NOCASE ASC');
+    const { data: team, error: teamErr } = await supabase
+      .from('users')
+      .select('id, name, email, role, active')
+      .order('name', { ascending: true });
+    if (teamErr) throw teamErr;
+    locals.team = team || [];
   }
 
   // Admin-only sections
   if (role === 'admin') {
-    locals.userCount = (await db.get('SELECT COUNT(*) AS n FROM users WHERE active = 1') || {}).n || 0;
-    locals.closureCount = (await db.get('SELECT COUNT(*) AS n FROM closures') || {}).n || 0;
-    locals.holidayCount = (await db.get("SELECT COUNT(*) AS n FROM closures WHERE type = 'holiday'") || {}).n || 0;
-    locals.customCount = locals.closureCount - locals.holidayCount;
-    locals.closures = await db.all('SELECT * FROM closures ORDER BY date_start ASC');
+    const [{ count: userCount }, { count: closureCount }, { count: holidayCount }, { data: closures, error: closuresErr }] = await Promise.all([
+      supabase.from('users').select('*', { count: 'exact', head: true }).eq('active', true),
+      supabase.from('closures').select('*', { count: 'exact', head: true }),
+      supabase.from('closures').select('*', { count: 'exact', head: true }).eq('type', 'holiday'),
+      supabase.from('closures').select('*').order('date_start', { ascending: true }),
+    ]);
+    if (closuresErr) throw closuresErr;
+    locals.userCount = userCount || 0;
+    locals.closureCount = closureCount || 0;
+    locals.holidayCount = holidayCount || 0;
+    locals.customCount = (closureCount || 0) - (holidayCount || 0);
+    locals.closures = closures || [];
   }
 
   res.render('settings/index', locals);
@@ -45,7 +62,12 @@ router.get('/', async (req, res) => {
 
 router.post('/profile', async (req, res) => {
   const userId = req.session.userId;
-  const user = await db.get('SELECT id, name, email FROM users WHERE id = ?', [userId]);
+  const { data: user, error: findErr } = await supabase
+    .from('users')
+    .select('id, name, email')
+    .eq('id', userId)
+    .maybeSingle();
+  if (findErr) throw findErr;
   if (!user) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'User not found.' });
 
   const name = (req.body.name || '').trim();
@@ -56,15 +78,36 @@ router.post('/profile', async (req, res) => {
 
   // Check email uniqueness
   if (email && email !== user.email) {
-    const dup = await db.get('SELECT id FROM users WHERE email = ? AND id != ?', [email, userId]);
+    const { data: dup, error: dupErr } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .neq('id', userId)
+      .maybeSingle();
+    if (dupErr) throw dupErr;
     if (dup) { setFlash(req, 'error', 'Email already in use.'); return res.redirect('/settings'); }
   }
 
-  await db.run('UPDATE users SET name=?, phone=?, email=?, updated_at=now() WHERE id=?', [name, phone || null, email || user.email, userId]);
+  const { error: updErr } = await supabase
+    .from('users')
+    .update({
+      name,
+      phone: phone || null,
+      email: email || user.email,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', userId);
+  if (updErr) throw updErr;
+
   try {
     const { writeAudit } = require('../services/audit');
-    writeAudit({ entityType: 'user', entityId: userId, action: 'profile_updated', before: { name: user.name, email: user.email }, after: { name, email }, source: 'web', userId });
-  } catch(e) { console.error('audit failed:', e.message); }
+    await writeAudit({
+      entityType: 'user', entityId: userId, action: 'profile_updated',
+      before: { name: user.name, email: user.email },
+      after: { name, email },
+      source: 'web', userId,
+    });
+  } catch (e) { console.error('audit failed:', e.message); }
 
   setFlash(req, 'success', 'Profile updated.');
   res.redirect('/settings');
@@ -72,7 +115,12 @@ router.post('/profile', async (req, res) => {
 
 router.post('/password', async (req, res) => {
   const userId = req.session.userId;
-  const user = await db.get('SELECT id, password_hash FROM users WHERE id = ?', [userId]);
+  const { data: user, error: findErr } = await supabase
+    .from('users')
+    .select('id, password_hash')
+    .eq('id', userId)
+    .maybeSingle();
+  if (findErr) throw findErr;
   if (!user) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'User not found.' });
 
   const currentPassword = req.body.current_password || '';
@@ -102,11 +150,19 @@ router.post('/password', async (req, res) => {
   }
 
   const hash = await bcrypt.hash(newPassword, 10);
-  await db.run('UPDATE users SET password_hash=?, updated_at=now() WHERE id=?', [hash, userId]);
+  const { error: updErr } = await supabase
+    .from('users')
+    .update({ password_hash: hash, updated_at: new Date().toISOString() })
+    .eq('id', userId);
+  if (updErr) throw updErr;
+
   try {
     const { writeAudit } = require('../services/audit');
-    writeAudit({ entityType: 'user', entityId: userId, action: 'password_changed', before: {}, after: {}, source: 'web', userId });
-  } catch(e) { console.error('audit failed:', e.message); }
+    await writeAudit({
+      entityType: 'user', entityId: userId, action: 'password_changed',
+      before: {}, after: {}, source: 'web', userId,
+    });
+  } catch (e) { console.error('audit failed:', e.message); }
 
   setFlash(req, 'success', 'Password changed.');
   res.redirect('/settings');

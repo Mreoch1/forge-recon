@@ -1,123 +1,180 @@
 /**
- * Accounting module routes (v0.6).
+ * Accounting module routes (v0.6) - Supabase SDK.
  *
  * All gated by requireManager in server.js.
  *
- *   GET  /accounting                       — hub page with KPIs
- *   GET  /accounting/accounts              — chart of accounts list
- *   GET  /accounting/journal               — journal entries list (with lines)
- *   GET  /accounting/journal/:id           — single JE detail
- *   GET  /accounting/reports/trial-balance — real trial balance from journal_lines
- *   GET  /accounting/reports/profit-loss   — real P&L from revenue + expense accounts
- *   GET  /accounting/reports/balance-sheet — real balance sheet from asset/liability/equity
+ *   GET  /accounting                       - hub page with KPIs
+ *   GET  /accounting/accounts              - chart of accounts list
+ *   GET  /accounting/journal               - journal entries list (with lines)
+ *   GET  /accounting/journal/:id           - single JE detail
+ *   GET  /accounting/reports/trial-balance - real trial balance from journal_lines
+ *   GET  /accounting/reports/profit-loss   - real P&L from revenue + expense accounts
+ *   GET  /accounting/reports/balance-sheet - real balance sheet from asset/liability/equity
  */
 
 const express = require('express');
-const db = require('../db/db');
+const supabase = require('../db/supabase');
 
 const router = express.Router();
 
 function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
 
+// Helper: sum debit for a JE id by fetching its lines and reducing in JS.
+async function totalDebitsForEntry(jeId) {
+  const { data, error } = await supabase
+    .from('journal_lines')
+    .select('debit')
+    .eq('journal_entry_id', jeId);
+  if (error) throw error;
+  return (data || []).reduce((s, r) => s + Number(r.debit || 0), 0);
+}
+
 // --- hub ---
 
 router.get('/', async (req, res) => {
-  // Top-level KPIs from the GL
-  const accountsCount = (await db.get('SELECT COUNT(*) AS n FROM accounts') || {}).n || 0;
-  const jeCount = (await db.get('SELECT COUNT(*) AS n FROM journal_entries') || {}).n || 0;
-  const billCount = (await db.get('SELECT COUNT(*) AS n FROM bills') || {}).n || 0;
-  const vendorCount = (await db.get('SELECT COUNT(*) AS n FROM vendors WHERE archived = 0') || {}).n || 0;
+  const [{ count: accountsCount }, { count: jeCount }, { count: billCount }, { count: vendorCount },
+         { data: entries, error: entriesErr }] = await Promise.all([
+    supabase.from('accounts').select('*', { count: 'exact', head: true }),
+    supabase.from('journal_entries').select('*', { count: 'exact', head: true }),
+    supabase.from('bills').select('*', { count: 'exact', head: true }),
+    supabase.from('vendors').select('*', { count: 'exact', head: true }).eq('archived', false),
+    supabase.from('journal_entries')
+      .select('id, entry_date, description, source_type, created_at')
+      .order('entry_date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(10),
+  ]);
+  if (entriesErr) throw entriesErr;
 
-  const recentEntries = await db.all(
-    `SELECT je.id, je.entry_date, je.description, je.source_type, je.created_at,
-            (SELECT COALESCE(SUM(debit), 0) FROM journal_lines WHERE journal_entry_id = je.id) AS total
-     FROM journal_entries je
-     ORDER BY je.entry_date DESC, je.created_at DESC
-     LIMIT 10`
-  );
+  const recentEntries = [];
+  for (const e of (entries || [])) {
+    const total = await totalDebitsForEntry(e.id);
+    recentEntries.push({ ...e, total });
+  }
 
   res.render('accounting/index', {
     title: 'Accounting', activeNav: 'accounting',
-    accountsCount, jeCount, billCount, vendorCount, recentEntries
+    accountsCount: accountsCount || 0,
+    jeCount: jeCount || 0,
+    billCount: billCount || 0,
+    vendorCount: vendorCount || 0,
+    recentEntries,
   });
 });
 
 // --- chart of accounts ---
 
 router.get('/accounts', async (req, res) => {
-  const accounts = await db.all('SELECT * FROM accounts ORDER BY code ASC');
+  const { data: accounts, error } = await supabase
+    .from('accounts')
+    .select('*')
+    .order('code', { ascending: true });
+  if (error) throw error;
 
-  // Group by type for display
   const grouped = { asset: [], liability: [], equity: [], revenue: [], expense: [] };
-  accounts.forEach(a => { (grouped[a.type] = grouped[a.type] || []).push(a); });
+  (accounts || []).forEach(a => { (grouped[a.type] = grouped[a.type] || []).push(a); });
 
   res.render('accounting/accounts', {
     title: 'Chart of accounts', activeNav: 'accounting',
-    accounts, grouped
+    accounts: accounts || [], grouped,
   });
 });
 
 // --- journal ---
 
 router.get('/journal', async (req, res) => {
-  const entries = await db.all(
-    `SELECT je.*, u.name AS created_by_name,
-            (SELECT COALESCE(SUM(debit), 0) FROM journal_lines WHERE journal_entry_id = je.id) AS total_debits
-     FROM journal_entries je
-     LEFT JOIN users u ON u.id = je.created_by_user_id
-     ORDER BY je.entry_date DESC, je.created_at DESC
-     LIMIT 100`
-  );
+  const { data: rawEntries, error } = await supabase
+    .from('journal_entries')
+    .select('*, users:created_by_user_id ( name )')
+    .order('entry_date', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(100);
+  if (error) throw error;
+
+  const entries = [];
+  for (const je of (rawEntries || [])) {
+    const total_debits = await totalDebitsForEntry(je.id);
+    const { users, ...rest } = je;
+    entries.push({
+      ...rest,
+      created_by_name: users?.name || null,
+      total_debits,
+    });
+  }
+
   res.render('accounting/journal', {
     title: 'Journal entries', activeNav: 'accounting',
-    entries
+    entries,
   });
 });
 
 router.get('/journal/:id', async (req, res) => {
-  const entry = await db.get(
-    `SELECT je.*, u.name AS created_by_name
-     FROM journal_entries je LEFT JOIN users u ON u.id = je.created_by_user_id
-     WHERE je.id = ?`,
-    [req.params.id]
-  );
-  if (!entry) {
+  const { data: raw, error: entryErr } = await supabase
+    .from('journal_entries')
+    .select('*, users:created_by_user_id ( name )')
+    .eq('id', req.params.id)
+    .maybeSingle();
+  if (entryErr) throw entryErr;
+  if (!raw) {
     return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Journal entry not found.' });
   }
-  const lines = await db.all(
-    `SELECT jl.*, a.code AS account_code, a.name AS account_name, a.type AS account_type
-     FROM journal_lines jl
-     JOIN accounts a ON a.id = jl.account_id
-     WHERE jl.journal_entry_id = ?
-     ORDER BY jl.id ASC`,
-    [req.params.id]
-  );
+  const { users, ...rest } = raw;
+  const entry = { ...rest, created_by_name: users?.name || null };
+
+  const { data: rawLines, error: linesErr } = await supabase
+    .from('journal_lines')
+    .select('*, accounts!inner ( code, name, type )')
+    .eq('journal_entry_id', req.params.id)
+    .order('id', { ascending: true });
+  if (linesErr) throw linesErr;
+
+  const lines = (rawLines || []).map(l => {
+    const { accounts: acct, ...lineRest } = l;
+    return {
+      ...lineRest,
+      account_code: acct?.code,
+      account_name: acct?.name,
+      account_type: acct?.type,
+    };
+  });
+
   res.render('accounting/journal-detail', {
     title: `Journal #${entry.id}`, activeNav: 'accounting',
-    entry, lines
+    entry, lines,
   });
 });
 
 // --- reports ---
 
 async function computeTrialBalance() {
-  // For each active account: sum of debits and credits from journal_lines.
-  return await db.all(`
-    SELECT a.id, a.code, a.name, a.type,
-           COALESCE(SUM(jl.debit), 0) AS total_debits,
-           COALESCE(SUM(jl.credit), 0) AS total_credits,
-           COALESCE(SUM(jl.debit) - SUM(jl.credit), 0) AS balance
-    FROM accounts a
-    LEFT JOIN journal_lines jl ON jl.account_id = a.id
-    WHERE a.active = 1
-    GROUP BY a.id
-    ORDER BY a.code ASC
-  `);
+  const [{ data: accounts, error: aErr }, { data: lines, error: lErr }] = await Promise.all([
+    supabase.from('accounts').select('id, code, name, type').eq('active', true).order('code', { ascending: true }),
+    supabase.from('journal_lines').select('account_id, debit, credit'),
+  ]);
+  if (aErr) throw aErr;
+  if (lErr) throw lErr;
+
+  const totals = {};
+  (lines || []).forEach(l => {
+    const aid = l.account_id;
+    if (!totals[aid]) totals[aid] = { debits: 0, credits: 0 };
+    totals[aid].debits += Number(l.debit || 0);
+    totals[aid].credits += Number(l.credit || 0);
+  });
+
+  return (accounts || []).map(a => {
+    const t = totals[a.id] || { debits: 0, credits: 0 };
+    return {
+      id: a.id, code: a.code, name: a.name, type: a.type,
+      total_debits: t.debits,
+      total_credits: t.credits,
+      balance: t.debits - t.credits,
+    };
+  });
 }
 
 router.get('/reports/trial-balance', async (req, res) => {
-  const rows = computeTrialBalance();
-  // Sum debit/credit balances
+  const rows = await computeTrialBalance();
   let totalDr = 0, totalCr = 0;
   rows.forEach(r => {
     if (r.balance > 0) totalDr += r.balance;
@@ -125,12 +182,12 @@ router.get('/reports/trial-balance', async (req, res) => {
   });
   res.render('accounting/reports/trial-balance', {
     title: 'Trial balance', activeNav: 'accounting',
-    rows, totalDr, totalCr, fmt
+    rows, totalDr, totalCr, fmt,
   });
 });
 
 router.get('/reports/profit-loss', async (req, res) => {
-  const rows = computeTrialBalance();
+  const rows = await computeTrialBalance();
   const revenue = rows.filter(r => r.type === 'revenue');
   const expenses = rows.filter(r => r.type === 'expense');
 
@@ -144,23 +201,20 @@ router.get('/reports/profit-loss', async (req, res) => {
 
   res.render('accounting/reports/profit-loss', {
     title: 'Profit & loss', activeNav: 'accounting',
-    revenueRows, expenseRows, totalRevenue, totalExpenses, netIncome, fmt
+    revenueRows, expenseRows, totalRevenue, totalExpenses, netIncome, fmt,
   });
 });
 
 router.get('/reports/balance-sheet', async (req, res) => {
-  const rows = computeTrialBalance();
+  const rows = await computeTrialBalance();
   const assets = rows.filter(r => r.type === 'asset').map(r => ({ ...r, amount: r.balance }));
-  // Liabilities + equity are naturally credit balances; flip for positive display.
   const liabilities = rows.filter(r => r.type === 'liability').map(r => ({ ...r, amount: -r.balance }));
   const equity = rows.filter(r => r.type === 'equity').map(r => ({ ...r, amount: -r.balance }));
 
-  // Net income from current period flows into equity for the bal-sheet check
   const totalAssets = assets.reduce((s, r) => s + r.amount, 0);
   const totalLiabilities = liabilities.reduce((s, r) => s + r.amount, 0);
   const totalEquity = equity.reduce((s, r) => s + r.amount, 0);
 
-  // Compute current-period net income (revenue - expenses) and add to equity total
   const revenue = rows.filter(r => r.type === 'revenue').reduce((s, r) => s + (-r.balance), 0);
   const expenses = rows.filter(r => r.type === 'expense').reduce((s, r) => s + r.balance, 0);
   const netIncome = revenue - expenses;
@@ -171,7 +225,7 @@ router.get('/reports/balance-sheet', async (req, res) => {
     assets, liabilities, equity, netIncome,
     totalAssets, totalLiabilities, totalEquity: totalEquityWithIncome,
     balanced: Math.abs(totalAssets - (totalLiabilities + totalEquityWithIncome)) < 0.01,
-    fmt
+    fmt,
   });
 });
 
