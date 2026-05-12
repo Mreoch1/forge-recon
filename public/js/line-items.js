@@ -47,21 +47,46 @@
     return total;
   }
 
+  function calcCost(row) {
+    const q = parseFloat($('[data-field=quantity]', row).value) || 0;
+    const cInput = $('[data-field=cost]', row);
+    const c = parseFloat(cInput ? cInput.value : 0) || 0;
+    return q * c;
+  }
+
   function calcAll() {
     const table = $(TABLE_SEL);
     if (!table) return;
     let subtotal = 0;
-    $$('.line-row', table).forEach(row => { subtotal += calcRow(row); });
+    let costTotal = 0;
+    $$('.line-row', table).forEach(row => {
+      subtotal += calcRow(row);
+      costTotal += calcCost(row);
+    });
     const subEl = $('[data-totals=subtotal]');
     const taxRateEl = $('[data-totals=tax_rate]');
     const taxAmountEl = $('[data-totals=tax_amount]');
     const totalEl = $('[data-totals=total]');
+    const profitEl = $('[data-totals=profit]');
+    const roiEl = $('[data-totals=roi]');
     const rate = parseFloat(taxRateEl ? taxRateEl.value : 0) || 0;
     const taxAmt = subtotal * (rate / 100);
     const total = subtotal + taxAmt;
+    const profit = subtotal - costTotal;
+    const roi = costTotal > 0 ? (profit / costTotal) * 100 : null;
     if (subEl) subEl.textContent = fmtMoney(subtotal);
     if (taxAmountEl) taxAmountEl.textContent = fmtMoney(taxAmt);
     if (totalEl) totalEl.textContent = fmtMoney(total);
+    if (profitEl) {
+      profitEl.textContent = fmtMoney(profit);
+      profitEl.classList.toggle('text-green-700', profit >= 0);
+      profitEl.classList.toggle('text-recon-red', profit < 0);
+    }
+    if (roiEl) {
+      roiEl.textContent = roi === null ? '--' : `${roi.toFixed(1)}%`;
+      roiEl.classList.toggle('text-green-700', roi !== null && roi >= 0);
+      roiEl.classList.toggle('text-recon-red', roi !== null && roi < 0);
+    }
   }
 
   function makeRow(template, idx) {
@@ -77,7 +102,7 @@
         input.name = input.name.replace(/^lines\[[^\]]+\]/, `lines[${idx}]`);
       }
       if (input.dataset.field === 'quantity') input.value = '1';
-      else if (input.dataset.field === 'unit_price') input.value = '0';
+      else if (input.dataset.field === 'unit_price' || input.dataset.field === 'cost') input.value = '';
       else if (input.dataset.field === 'description') input.value = '';
     });
     const totalCell = $('[data-field=line_total]', row);
@@ -101,7 +126,7 @@
           $$('input, select', row).forEach(input => {
             if (input.dataset.field === 'description') input.value = '';
             else if (input.dataset.field === 'quantity') input.value = '1';
-            else if (input.dataset.field === 'unit_price') input.value = '0';
+            else if (input.dataset.field === 'unit_price' || input.dataset.field === 'cost') input.value = '';
           });
         } else {
           row.remove();
