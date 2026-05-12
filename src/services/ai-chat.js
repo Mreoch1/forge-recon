@@ -509,7 +509,7 @@ function buildGuidedErrorReply(tool, error) {
 const MUTATION_PATTERNS = [
   {
     tool: 'create_customer',
-    patterns: [/add\s+(?:a\s+)?customer/i, /create\s+(?:a\s+)?customer/i, /new\s+customer/i],
+    patterns: [/add\s+(?:a\s+)?(?:new\s+)?customer/i, /create\s+(?:a\s+)?(?:new\s+)?customer/i, /new\s+customer/i],
     extract: (msg) => {
       return parseCustomerArgs(msg, { allowLeadingName: false });
     }

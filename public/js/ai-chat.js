@@ -122,7 +122,7 @@
       .recon-aic-input textarea {
         flex: 1; resize: none; border: 1px solid #d0d0d0; border-radius: 4px;
         padding: .45rem .55rem; font-size: .85rem; font-family: inherit;
-        outline: none; max-height: 100px; min-height: 38px;
+        outline: none; max-height: 100px; min-height: 38px; min-width: 0;
       }
       .recon-aic-input textarea:focus { border-color: #c0202b; box-shadow: 0 0 0 2px rgba(192,32,43,.12); }
       .recon-aic-input button {
@@ -131,6 +131,7 @@
       }
       .recon-aic-input button:hover { background: #8a0e16; }
       .recon-aic-input button:disabled { background: #999; cursor: not-allowed; }
+      .recon-aic-input button { flex: 0 0 auto; }
       .recon-aic-input .mic {
         width: 42px; padding: 0; background: #f3f4f6; color: #1a1a1a;
         border: 1px solid #d0d0d0;
@@ -211,6 +212,23 @@
         background: #92400e; /* darker amber to acknowledge the override */
       }
       .recon-aic-confirm.has-warnings .actions .confirm:hover { background: #78350f; }
+
+      @media (max-width: 640px) {
+        .recon-aic-pill {
+          left: .75rem; right: .75rem; bottom: calc(.75rem + env(safe-area-inset-bottom, 0px));
+          justify-content: center;
+        }
+        .recon-aic-panel {
+          left: .5rem; right: .5rem; bottom: calc(.5rem + env(safe-area-inset-bottom, 0px));
+          width: auto; height: min(78dvh, 560px); max-height: calc(100dvh - 1rem - env(safe-area-inset-bottom, 0px));
+          border-radius: 6px;
+        }
+        .recon-aic-msgs { padding: .65rem; }
+        .recon-aic-msg { max-width: 94%; font-size: .82rem; }
+        .recon-aic-input { padding: .5rem; gap: .35rem; }
+        .recon-aic-input button { padding: 0 .65rem; min-width: 44px; }
+        .recon-aic-input .mic { width: 44px; }
+      }
     `;
     document.head.appendChild(style);
   }
