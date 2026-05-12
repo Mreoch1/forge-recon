@@ -331,3 +331,53 @@ html, body {
 html.dark .ws-note-body { color: var(--dark-text) !important; }
 html.dark .ws-description { color: var(--dark-text) !important; }
 html.dark div[style*="color:#1a1a1a"] { color: var(--dark-text) !important; }
+
+/* ============================================================
+   R33b — DARK MODE TEXT CONTRAST PASS (2026-05-12)
+   Audit found many hand-written inline <style> blocks using
+   hardcoded #1a1a1a / #333 / #555 / #444 / #888 for text. These
+   selectors override those classes so text is readable in dark mode.
+   ============================================================ */
+
+/* WO show page (ws-* classes) — inline <style> in show.ejs */
+html.dark .ws-h1,
+html.dark .ws-strip-value,
+html.dark .ws-strip-value a,
+html.dark .ws-h-primary,
+html.dark .ws-items .desc-cell,
+html.dark .ws-cust {
+  color: var(--dark-text) !important;
+}
+html.dark .ws-h-primary {
+  border-bottom-color: var(--dark-border-strong) !important;
+}
+
+/* WO list page (wol-* classes) */
+html.dark .wol-h1,
+html.dark .wol-num,
+html.dark .wol-customer {
+  color: var(--dark-text) !important;
+}
+
+/* Schedule views (week / 2week / month) — sc-* classes */
+html.dark .sc-day-header .sc-day-num,
+html.dark .sc-confirm-card .scc-header,
+html.dark .sc-confirm-card .scc-date-display,
+html.dark .sc-sb-pill-customer,
+html.dark .sc-day-num {
+  color: var(--dark-text) !important;
+}
+
+/* Dashboard v2 — missing dv2-* selectors */
+html.dark .dv2-sched-time,
+html.dark .dv2-sched-assignee strong {
+  color: var(--dark-text-muted) !important;
+}
+
+/* Generic inline-style guard — extend #1a1a1a catch to any tag
+   (the earlier line 333 rule only matched <div>) and handle the
+   "color: #1a1a1a" variant with a space after the colon. */
+html.dark [style*="color:#1a1a1a"],
+html.dark [style*="color: #1a1a1a"] {
+  color: var(--dark-text) !important;
+}
