@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION public.update_estimate_with_lines(estimate_id bigint, estimate_data jsonb, lines jsonb)
+CREATE OR REPLACE FUNCTION public.update_estimate_with_lines(p_estimate_id bigint, estimate_data jsonb, lines jsonb)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
   UPDATE estimates SET
@@ -10,10 +10,10 @@ BEGIN
     total = (estimate_data->>'total')::numeric,
     cost_total = (estimate_data->>'cost_total')::numeric,
     updated_at = now()
-  WHERE id = estimate_id;
-  DELETE FROM estimate_line_items WHERE estimate_id = estimate_id;
+  WHERE id = p_estimate_id;
+  DELETE FROM estimate_line_items WHERE estimate_id = p_estimate_id;
   INSERT INTO estimate_line_items (estimate_id, description, quantity, unit, unit_price, cost, line_total, selected, sort_order)
-  SELECT estimate_id, line->>'description', (line->>'quantity')::numeric, line->>'unit',
+  SELECT p_estimate_id, line->>'description', (line->>'quantity')::numeric, line->>'unit',
     (line->>'unit_price')::numeric, (line->>'cost')::numeric, (line->>'line_total')::numeric,
     COALESCE((line->>'selected')::int, 1), COALESCE((line->>'sort_order')::int, 0)
   FROM jsonb_array_elements(lines) AS line;

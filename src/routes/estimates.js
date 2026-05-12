@@ -308,7 +308,7 @@ router.post('/:id', async (req, res) => {
   const t = calc.totals(data.lines, data.tax_rate);
   const costTotal = data.lines.reduce((s, li) => s + (Number(li.cost) || 0) * (Number(li.quantity) || 0), 0);
   const { error: rpcError } = await supabase.rpc('update_estimate_with_lines', {
-    estimate_id: existing.id,
+    p_estimate_id: existing.id,
     estimate_data: {
       work_order_id: existing.wo_id,
       subtotal: t.subtotal, tax_rate: data.tax_rate, tax_amount: t.taxAmount,
