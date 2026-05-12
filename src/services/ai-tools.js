@@ -50,7 +50,7 @@ async function vendorIdsByName(term) {
   return idsFrom(data);
 }
 
-async function workOrderIdsForInvoiceSearch(term) {
+async function workOrderIdsForFinancialSearch(term) {
   const like = resolveQuery(term);
   if (!like) return [];
   const ids = new Set();
@@ -157,15 +157,32 @@ tools.search_estimates = {
     `).order('created_at', { ascending: false }).limit(10);
 
     if (status) q = q.eq('status', status);
-    if (query) q = q.or(`id.ilike.%${query}%,work_orders.jobs.title.ilike.%${query}%,work_orders.customers.name.ilike.%${query}%,work_orders.jobs.customers.name.ilike.%${query}%`);
+    if (query) {
+      const workOrderIds = await workOrderIdsForFinancialSearch(query);
+      const estimateId = Number.parseInt(String(query).trim(), 10);
+      const exactEstimateId = Number.isInteger(estimateId) && String(estimateId) === String(query).trim();
+      if (workOrderIds.length && exactEstimateId) {
+        q = q.or(`id.eq.${estimateId},work_order_id.in.(${workOrderIds.join(',')})`);
+      } else if (workOrderIds.length) {
+        q = q.in('work_order_id', workOrderIds);
+      } else if (exactEstimateId) {
+        q = q.eq('id', estimateId);
+      } else {
+        return [];
+      }
+    }
 
-    const { data: rows } = await q;
+    const { data: rows, error } = await q;
+    if (error) throw error;
     return (rows || []).map(r => {
-      const wo = r.work_orders;
-      const customer = wo.customers || wo.jobs?.customers || {};
+      const wo = oneEmbedded(r.work_orders);
+      const job = oneEmbedded(wo.jobs);
+      const directCustomer = oneEmbedded(wo.customers);
+      const jobCustomer = oneEmbedded(job.customers);
+      const customer = directCustomer.name ? directCustomer : jobCustomer;
       return {
         id: r.id, number: `EST-${wo.display_number || ''}`, status: r.status,
-        total: Number(r.total) || 0, job_title: wo.jobs?.title || '',
+        total: Number(r.total) || 0, job_title: job.title || '',
         customer_name: customer.name || '', days_old: daysAgo(r.created_at)
       };
     });
@@ -188,7 +205,7 @@ tools.search_invoices = {
 
     if (status) q = q.eq('status', status);
     if (query) {
-      const workOrderIds = await workOrderIdsForInvoiceSearch(query);
+      const workOrderIds = await workOrderIdsForFinancialSearch(query);
       const invoiceId = Number.parseInt(String(query).trim(), 10);
       const exactInvoiceId = Number.isInteger(invoiceId) && String(invoiceId) === String(query).trim();
       if (workOrderIds.length && exactInvoiceId) {
