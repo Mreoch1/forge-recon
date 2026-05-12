@@ -8,7 +8,8 @@
   "main": "src/server.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node src/app.js",
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
     "e2e": "bash scripts/e2e-smoke.sh",
     "schema:check": "node scripts/schema-check.js",
     "init-db": "node src/db/init.js",
