@@ -53,6 +53,7 @@ check "/bills list" GET "/bills" 200
 check "/vendors list" GET "/vendors" 200
 check "/schedule week" GET "/schedule?view=week" 200
 check "/schedule 2week" GET "/schedule?view=2week" 200
+check "/schedule month" GET "/schedule?view=month" 200
 check "/files" GET "/files" 200
 check "/files/customers" GET "/files/customers" 200
 check "/files/projects" GET "/files/projects" 200
