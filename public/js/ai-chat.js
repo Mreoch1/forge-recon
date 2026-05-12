@@ -559,6 +559,10 @@
       e.preventDefault();
       send(target.dataset.q);
     }
+    if (action === 'voice') {
+      e.preventDefault();
+      toggleVoice();
+    }
     if (action === 'ai-confirm') {
       e.preventDefault();
       resolveConfirmation(target.dataset.cid, true);
