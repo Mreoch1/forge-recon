@@ -43,7 +43,13 @@ function fetch(method, path, data) {
 
 async function login() {
   console.log('  Logging in as admin...');
-  const res = await fetch('POST', '/login', formData({ email: 'admin@recon.local', password: 'changeme123' }));
+  let res = await fetch('POST', '/login', formData({ email: 'admin@recon.local', password: 'changeme123' }));
+  // Rate-limit backoff
+  if (res.status === 429) {
+    console.log('  ⏳ Rate limited. Waiting 15s...');
+    await new Promise(r => setTimeout(r, 15000));
+    res = await fetch('POST', '/login', formData({ email: 'admin@recon.local', password: 'changeme123' }));
+  }
   if (res.status !== 302 || !COOKIE_JAR[new URL(base).hostname]) {
     throw new Error(`Login failed: expected 302 with session cookie, got ${res.status}`);
   }

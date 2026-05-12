@@ -50,6 +50,34 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION public.convert_estimate_to_invoice TO service_role;
 
+-- MISSING RPC: create_estimate_with_lines — called by work-orders.js create-estimate route
+CREATE OR REPLACE FUNCTION public.create_estimate_with_lines(estimate_data jsonb, lines jsonb, user_id bigint DEFAULT NULL)
+RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  new_id bigint;
+BEGIN
+  INSERT INTO estimates (work_order_id, status, subtotal, tax_rate, tax_amount, total, cost_total, payment_terms, created_by_user_id)
+  VALUES (
+    (estimate_data->>'work_order_id')::bigint,
+    COALESCE(estimate_data->>'status', 'draft'),
+    (estimate_data->>'subtotal')::numeric,
+    (estimate_data->>'tax_rate')::numeric,
+    (estimate_data->>'tax_amount')::numeric,
+    (estimate_data->>'total')::numeric,
+    (estimate_data->>'cost_total')::numeric,
+    COALESCE(estimate_data->>'payment_terms', 'Net 30'),
+    user_id
+  ) RETURNING id INTO new_id;
+  INSERT INTO estimate_line_items (estimate_id, description, quantity, unit, unit_price, cost, line_total, selected, sort_order)
+  SELECT new_id, line->>'description', (line->>'quantity')::numeric, line->>'unit',
+    (line->>'unit_price')::numeric, (line->>'cost')::numeric, (line->>'line_total')::numeric,
+    COALESCE((line->>'selected')::int, 1), COALESCE((line->>'sort_order')::int, 0)
+  FROM jsonb_array_elements(lines) AS line;
+  RETURN new_id;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.create_estimate_with_lines TO service_role;
+
 CREATE OR REPLACE FUNCTION public.create_invoice_with_lines(invoice_data jsonb, lines jsonb)
 RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
