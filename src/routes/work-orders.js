@@ -169,9 +169,10 @@ async function loadWorkOrder(id) {
     .from('work_orders')
     .select(`
       *,
-      jobs!inner(id, title, address, city, state, zip,
-        customers!inner(id, name, email, billing_email, phone, address, city, state, zip)),
-      users!left(name)
+      jobs!left(id, title, address, city, state, zip,
+        customers!left(id, name, email, billing_email, phone, address, city, state, zip)),
+      users!left(name),
+      customers!left(id, name, email, billing_email, phone, address, city, state, zip)
     `)
     .eq('id', id)
     .maybeSingle();
@@ -180,13 +181,13 @@ async function loadWorkOrder(id) {
 
   // Flatten nested joins to match view expectations
   const j = wo.jobs;
-  const c = j ? j.customers : null;
+  const c = j ? j.customers : wo.customers;
   wo.job_title = j ? j.title : null;
   wo.job_address = j ? j.address : null;
   wo.job_city = j ? j.city : null;
   wo.job_state = j ? j.state : null;
   wo.job_zip = j ? j.zip : null;
-  wo.customer_id = c ? c.id : null;
+  wo.customer_id = c ? c.id : wo.customer_id;
   wo.customer_name = c ? c.name : null;
   wo.customer_email = c ? c.email : null;
   wo.customer_billing_email = c ? c.billing_email : null;
@@ -658,7 +659,6 @@ router.get('/:id', async (req, res) => {
   if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
   if (!isAssignedToCurrentUser(req, wo)) return workerForbidden(res);
 
-  const { data: woPhosts } = await supabase
   const { data: estimate } = await supabase
     .from('estimates')
     .select('id, status')
