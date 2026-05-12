@@ -255,6 +255,7 @@ router.get('/:id', async (req, res) => {
     { data: projectContractors },
     { data: payments },
     { data: sovItems },
+    { data: decisions },
   ] = await Promise.all([
     supabase
       .from('work_orders')
@@ -301,6 +302,11 @@ router.get('/:id', async (req, res) => {
       .eq('job_id', id)
       .order('sort_order', { ascending: true })
       .order('id', { ascending: true }),
+    supabase
+      .from('project_decisions')
+      .select('*, users!project_decisions_assigned_to_user_id_fkey(name)')
+      .eq('job_id', id)
+      .order('created_at', { ascending: false }),
   ]);
 
   const paymentTotal = (payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
@@ -397,6 +403,11 @@ router.get('/:id', async (req, res) => {
     sovTotalPrev: (sovItems || []).reduce((s, i) => s + Number(i.previous_billed || 0), 0),
     sovTotalCurrent: (sovItems || []).reduce((s, i) => s + Number(i.current_billed || 0), 0),
     sovFmt: function(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; },
+    // D-024c: RFI / decision log
+    decisions: (decisions || []).map(function(d) {
+      var usr = d.users || {};
+      return { ...d, assigned_to_name: usr.name || null };
+    }),
   });
 });
 
@@ -783,6 +794,36 @@ router.post('/:id/draws/generate', async (req, res) => {
   }
   setFlash(req, 'success', 'Draw #' + drawNum + ' generated.');
   res.redirect('/projects/' + id);
+});
+
+// ---------- Decisions (D-024c) ----------
+
+router.post('/:id/decisions', async (req, res) => {
+  const id = req.params.id;
+  const { data: job } = await supabase.from('jobs').select('id').eq('id', id).maybeSingle();
+  if (!job) return res.status(404).send('Project not found');
+  const { error } = await supabase.from('project_decisions').insert({
+    job_id: parseInt(id, 10),
+    decision_type: req.body.decision_type || 'rfi',
+    question: req.body.question,
+    due_date: req.body.due_date || null,
+    assigned_to_user_id: req.body.assigned_to_user_id ? parseInt(req.body.assigned_to_user_id, 10) : null,
+    created_by_user_id: req.session.userId || null,
+  });
+  if (error) throw error;
+  setFlash(req, 'success', 'Decision item added.');
+  res.redirect('/projects/' + id);
+});
+
+router.post('/:id/decisions/:dId/answer', async (req, res) => {
+  const { error } = await supabase.from('project_decisions').update({
+    answer: req.body.answer || null,
+    status: req.body.status || 'answered',
+    answered_at: new Date(),
+  }).eq('id', req.params.dId).eq('job_id', req.params.id);
+  if (error) throw error;
+  setFlash(req, 'success', 'Decision updated.');
+  res.redirect('/projects/' + req.params.id);
 });
 
 // ---------- Members ----------

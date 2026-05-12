@@ -1,0 +1,115 @@
+<%# D-024c: RFI / submittal / decision log — unified view with type-filter chips. %>
+
+<section id="decisions-section" class="card mb-6">
+  <header class="px-5 py-3 border-b border-recon-mist flex flex-wrap items-baseline justify-between gap-2">
+    <div>
+      <h3 class="font-semibold">RFI &amp; Decision log</h3>
+      <p class="text-xs text-recon-fog mt-0.5"><%= decisions.length %> item<%= decisions.length === 1 ? '' : 's' %></p>
+    </div>
+  </header>
+
+  <!-- Type-filter chips -->
+  <div class="px-5 py-2 border-b border-recon-mist flex flex-wrap gap-2 items-center">
+    <% var types = ['rfi', 'submittal', 'field_decision']; %>
+    <% var typeLabels = { rfi: 'RFI', submittal: 'Submittal', field_decision: 'Field decision' }; %>
+    <% types.forEach(function(t){ %>
+      <button type="button" class="dc-filter-chip text-xs px-3 py-1 rounded-full border <%= t === 'rfi' ? 'bg-recon-red text-white border-recon-red' : 'bg-white text-recon-fog border-recon-mist hover:border-recon-charcoal' %>" data-type="<%= t %>"><%= typeLabels[t] %></button>
+    <% }); %>
+    <button type="button" class="dc-filter-chip text-xs px-3 py-1 rounded-full border bg-white text-recon-fog border-recon-mist hover:border-recon-charcoal" data-type="all">All</button>
+  </div>
+
+  <!-- Add form -->
+  <details class="border-b border-recon-mist">
+    <summary class="px-5 py-2 cursor-pointer text-xs font-medium text-recon-fog hover:text-recon-red">+ New <%= 'item' %></summary>
+    <div class="px-5 py-3 bg-recon-cloud">
+      <form action="/projects/<%= jobId %>/decisions" method="post" class="flex flex-wrap items-end gap-3">
+        <div class="min-w-[120px]">
+          <label class="text-xs text-recon-fog block mb-1">Type</label>
+          <select name="decision_type" class="input text-sm">
+            <option value="rfi">RFI</option>
+            <option value="submittal">Submittal</option>
+            <option value="field_decision">Field decision</option>
+          </select>
+        </div>
+        <div class="flex-1 min-w-[200px]">
+          <label class="text-xs text-recon-fog block mb-1">Question / description</label>
+          <input type="text" name="question" class="input text-sm" required placeholder="Describe the question or item">
+        </div>
+        <div class="min-w-[120px]">
+          <label class="text-xs text-recon-fog block mb-1">Due date</label>
+          <input type="date" name="due_date" class="input text-sm">
+        </div>
+        <div class="min-w-[140px]">
+          <label class="text-xs text-recon-fog block mb-1">Assigned to</label>
+          <select name="assigned_to_user_id" class="input text-sm">
+            <option value="">—</option>
+            <% (users || []).forEach(function(u){ %>
+              <option value="<%= u.id %>"><%= u.name %></option>
+            <% }); %>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary text-sm" style="margin-bottom:1px">Add</button>
+      </form>
+    </div>
+  </details>
+
+  <% if (decisions.length === 0) { %>
+    <div class="p-6 text-center text-recon-fog text-sm italic">No RFIs or decisions yet.</div>
+  <% } else { %>
+    <div class="divide-y divide-recon-mist" id="decisions-list">
+      <% decisions.forEach(function(d){ %>
+        <div class="dc-item px-5 py-3" data-type="<%= d.decision_type %>" data-status="<%= d.status %>">
+          <div class="flex flex-wrap items-start gap-2 mb-1">
+            <span class="badge <%= d.decision_type === 'rfi' ? 'badge-info' : d.decision_type === 'submittal' ? 'badge-warning' : 'badge-secondary' %> text-xs">
+              <%= {rfi:'RFI',submittal:'Submittal',field_decision:'Field decision'}[d.decision_type] || d.decision_type %>
+            </span>
+            <span class="badge <%= d.status === 'open' ? 'badge-danger' : d.status === 'answered' ? 'badge-success' : d.status === 'approved' ? 'badge-success' : 'badge-secondary' %> text-xs"><%= d.status %></span>
+            <% if (d.due_date) { %><span class="text-xs text-recon-fog">Due: <%= String(d.due_date).slice(0,10) %></span><% } %>
+            <div class="flex-1 text-right">
+              <form action="/projects/<%= jobId %>/decisions/<%= d.id %>/answer" method="post" class="inline-flex gap-1 items-center">
+                <input type="text" name="answer" class="input text-xs" style="width:120px;padding:.2rem .4rem" placeholder="Answer..." <%= d.answer ? 'value="' + d.answer + '"' : '' %>>
+                <select name="status" class="input text-xs" style="width:90px;padding:.2rem .4rem">
+                  <option value="answered" <%= d.status === 'answered' ? 'selected' : '' %>>Answered</option>
+                  <option value="approved" <%= d.status === 'approved' ? 'selected' : '' %>>Approved</option>
+                  <option value="rejected" <%= d.status === 'rejected' ? 'selected' : '' %>>Rejected</option>
+                  <option value="closed" <%= d.status === 'closed' ? 'selected' : '' %>>Closed</option>
+                </select>
+                <button type="submit" class="text-xs text-recon-red hover:underline">Update</button>
+              </form>
+            </div>
+          </div>
+          <p class="text-sm text-recon-charcoal m-0"><%= d.question %></p>
+          <% if (d.answer) { %><p class="text-sm text-green-700 mt-1 m-0"><strong>Answer:</strong> <%= d.answer %></p><% } %>
+          <% if (d.assigned_to_name) { %><p class="text-xs text-recon-fog mt-1 m-0">Assigned to: <%= d.assigned_to_name %></p><% } %>
+          <% if (d.due_date) { %><p class="text-xs text-recon-fog mt-1 m-0">Due: <%= String(d.due_date).slice(0,10) %></p><% } %>
+        </div>
+      <% }); %>
+    </div>
+  <% } %>
+</section>
+
+<script>
+(function(){
+  // Type-filter chips
+  document.querySelectorAll('#decisions-section .dc-filter-chip').forEach(function(chip){
+    chip.addEventListener('click', function(){
+      var type = chip.getAttribute('data-type');
+      // Update chip styles
+      document.querySelectorAll('#decisions-section .dc-filter-chip').forEach(function(c){
+        c.className = c.className.replace(/bg-recon-red text-white border-recon-red/g, 'bg-white text-recon-fog border-recon-mist');
+      });
+      if (type !== 'all') {
+        chip.className = chip.className.replace(/bg-white text-recon-fog border-recon-mist/g, 'bg-recon-red text-white border-recon-red');
+      }
+      // Filter items
+      document.querySelectorAll('#decisions-list .dc-item').forEach(function(item){
+        if (type === 'all' || item.getAttribute('data-type') === type) {
+          item.style.display = '';
+        } else {
+          item.style.display = 'none';
+        }
+      });
+    });
+  });
+})();
+</script>
