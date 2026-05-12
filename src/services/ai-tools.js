@@ -653,7 +653,7 @@ module.exports = {
     }
     try {
       let result = await tool.handler(args || {}, ctx);
-      result = filterForWorker(result, ctx.role);
+      result = await filterForWorker(result, ctx.role);
       return { ok: true, result };
     } catch (e) {
       return { ok: false, error: e.message };
