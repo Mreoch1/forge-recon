@@ -157,8 +157,13 @@ app.use('/', requireAuth, dashboardRoutes);
 app.use((req, res) => { res.status(404).render('error', { title: 'Not found', code: 404, message: 'That page does not exist.' }); });
 app.use((err, req, res, next) => {
   console.error(err);
-  const message = process.env.NODE_ENV === 'production' ? 'Server error' : (err && err.message) || 'Server error';
-  res.status(500).render('error', { title: 'Server error', code: 500, message });
+  const status = err.status || err.statusCode || 500;
+  const safeStatus = status >= 400 && status < 600 ? status : 500;
+  const title = safeStatus === 500 ? 'Server error' : 'Bad request';
+  const message = process.env.NODE_ENV === 'production'
+    ? (safeStatus === 500 ? 'Server error' : 'Bad request')
+    : (err && err.message) || title;
+  res.status(safeStatus).render('error', { title, code: safeStatus, message });
 });
 
 module.exports = app;

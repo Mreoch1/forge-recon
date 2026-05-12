@@ -14,6 +14,8 @@ const router = express.Router();
 
 // Classic dashboard handler (was the original "/")
 router.get('/dashboard-classic', async (req, res) => {
+  if (req.session?.role === 'worker') return res.redirect('/work-orders');
+
   const today = new Date().toISOString().slice(0, 10);
   const currentMonth = today.slice(0, 7);
   const currentYear = today.slice(0, 4);
@@ -84,6 +86,8 @@ router.get('/dashboard-classic', async (req, res) => {
 // The earlier KPI-card dashboard is at /dashboard-classic.
 // =============================================================================
 router.get('/', async (req, res) => {
+  if (req.session?.role === 'worker') return res.redirect('/work-orders');
+
   const today = new Date().toISOString().slice(0, 10);
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const currentMonth = today.slice(0, 7);
