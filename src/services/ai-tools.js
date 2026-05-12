@@ -597,17 +597,22 @@ MUTATION_TOOLS.approve_bill = {
 MUTATION_TOOLS.add_wo_note = {
   needs_user: 'write',
   async propose(args, ctx) {
-    const { data: wo } = await supabase.from('work_orders').select('id, display_number, assigned_to_user_id, assigned_to').eq('id', args.wo_id).maybeSingle();
+    const { data: wo, error } = await supabase.from('work_orders').select('id, display_number, assigned_to_user_id, assigned_to').eq('id', args.wo_id).maybeSingle();
+    if (error) return { error: error.message };
     if (!wo) return { error: 'Work order not found.' };
     if (ctx.role === 'worker') {
-      const isAssigned = wo.assigned_to_user_id == ctx.userId || (wo.assigned_to && wo.assigned_to.includes(ctx.userName));
+      const assignedIds = await assignedWorkOrderIdsForWorker(ctx);
+      const isAssigned = assignedIds.includes(Number(wo.id));
       if (!isAssigned) return { error: 'You can only add notes to work orders assigned to you.' };
     }
     if (!args.body || args.body.trim().length < 2) return { error: 'Note body is required (min 2 chars).' };
     return { summary_lines: [`WO: ${wo.display_number ? 'WO-' + wo.display_number : '#' + wo.id}`, `Note: ${args.body.trim().slice(0, 100)}`], args_normalized: args };
   },
   async execute(args, ctx) {
-    await supabase.from('wo_notes').insert({ work_order_id: args.wo_id, user_id: ctx.userId, body: args.body.trim(), created_at: new Date().toISOString() });
+    const proposal = await MUTATION_TOOLS.add_wo_note.propose(args, ctx);
+    if (proposal.error) return { error: proposal.error };
+    const { error } = await supabase.from('wo_notes').insert({ work_order_id: args.wo_id, user_id: ctx.userId, body: args.body.trim(), created_at: new Date().toISOString() });
+    if (error) throw error;
     await writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'note_added_by_ai', before: null, after: { note: args.body.trim().slice(0,100) }, source: 'ai', userId: ctx.userId });
     return { id: args.wo_id, href: `/work-orders/${args.wo_id}` };
   }
