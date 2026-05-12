@@ -1217,7 +1217,6 @@ router.post('/:id/create-estimate', async (req, res) => {
       cost_total: costTotal,
     },
     lines: linePayload,
-    user_id: req.session.userId || null,
   });
   if (rpcErr) throw rpcErr;
 
