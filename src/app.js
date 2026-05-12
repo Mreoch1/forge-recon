@@ -17,7 +17,8 @@ const session = require('express-session');
 const helmet = require('helmet');
 const morgan = require('morgan');
 
-const { loadCurrentUser, requireAuth, requireManager, requireAdmin } = require('./middleware/auth');
+const { loadCurrentUser, requireAuth, requireManager, requireAdmin, setFlash } = require('./middleware/auth');
+const supabase = require('./db/supabase');
 const authRoutes = require('./routes/auth');
 const customersRoutes = require('./routes/customers');
 const estimatesRoutes = require('./routes/estimates');
