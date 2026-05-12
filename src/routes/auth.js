@@ -87,7 +87,7 @@ router.post('/login', async (req, res) => {
       // audit_logs.after_json for forensics.
       writeAudit({
         entityType: 'user',
-        entityId: user ? user.id : null,
+        entityId: user ? user.id : 0,
         action: 'login_failed',
         before: null,
         after: { email, ip: req.ip, ua: req.get('user-agent') || '' },
