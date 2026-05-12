@@ -11,8 +11,7 @@
 const ai = require('./ai');
 const tools = require('./ai-tools');
 const { writeAudit } = require('./audit');
-const db = require('../db/db');
-
+const supabase = require('../db/supabase');
 const MAX_HISTORY = 20;
 
 const FALSE_PROMISE_PATTERNS = [
@@ -134,10 +133,15 @@ async function chat({ message, history, ctx }) {
     }
 
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-    const r = await db.run(`INSERT INTO pending_confirmations (user_id, tool, args, summary, created_at, expires_at)
-      VALUES (?, ?, ?, ?, now(), ?)`,
-      [ctx.userId, mutationIntent.tool, JSON.stringify(proposeResult.args_normalized || mutationIntent.args),
-       JSON.stringify(proposeResult.summary_lines), expiresAt]);
+    const { data: r, error: insErr } = await supabase.from('pending_confirmations').insert({
+      user_id: ctx.userId,
+      tool: mutationIntent.tool,
+      args: JSON.stringify(proposeResult.args_normalized || mutationIntent.args),
+      summary: JSON.stringify(proposeResult.summary_lines),
+      created_at: new Date().toISOString(),
+      expires_at: expiresAt,
+    }).select().single();
+    if (insErr) throw insErr;
 
     return {
       reply: proposeResult.summary_lines.length > 0
@@ -148,7 +152,7 @@ async function chat({ message, history, ctx }) {
       tokens_used: 0,
       latency_ms: Date.now() - startTime,
       confirm: {
-        confirmation_id: r.lastInsertRowid,
+        confirmation_id: r.id,
         tool: mutationIntent.tool,
         summary_lines: proposeResult.summary_lines,
         warnings: proposeResult.warnings || [],
@@ -196,11 +200,16 @@ async function chat({ message, history, ctx }) {
       } else {
         // Create pending confirmation
         const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-        const r = await db.run(`INSERT INTO pending_confirmations (user_id, tool, args, summary, created_at, expires_at)
-          VALUES (?, ?, ?, ?, now(), ?)`,
-          [ctx.userId, mc.tool, JSON.stringify(proposeResult.args_normalized || mc.args),
-           JSON.stringify(proposeResult.summary_lines), expiresAt]);
-        const confirmationId = r.lastInsertRowid;
+        const { data: r2, error: insErr } = await supabase.from('pending_confirmations').insert({
+          user_id: ctx.userId,
+          tool: mc.tool,
+          args: JSON.stringify(proposeResult.args_normalized || mc.args),
+          summary: JSON.stringify(proposeResult.summary_lines),
+          created_at: new Date().toISOString(),
+          expires_at: expiresAt,
+        }).select().single();
+        if (insErr) throw insErr;
+        const confirmationId = r2.id;
 
         confirmPayload = {
           confirmation_id: confirmationId,
