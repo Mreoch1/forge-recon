@@ -13,6 +13,7 @@ const tools = require('./ai-tools');
 const { writeAudit } = require('./audit');
 const supabase = require('../db/supabase');
 const MAX_HISTORY = 20;
+const WORKER_ALLOWED_TOOLS = ['search_work_orders', 'get_schedule', 'navigate', 'search_customers'];
 
 const FALSE_PROMISE_PATTERNS = [
   /let me (check|look|search|find|see)/i,
@@ -31,7 +32,11 @@ function todayStr() {
 }
 
 function buildSystemPrompt(ctx) {
-  const toolList = tools.list().filter(t => t.needs_user !== 'write');
+  const toolList = tools.list().filter(t => {
+    if (t.needs_user === 'write') return false;
+    if (ctx.role === 'worker') return WORKER_ALLOWED_TOOLS.includes(t.name);
+    return true;
+  });
   const toolDesc = toolList.map(t =>
     `- ${t.name}(${JSON.stringify(t.args)}) — ${t.description}`
   ).join('\n');
