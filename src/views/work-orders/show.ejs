@@ -133,7 +133,7 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
       </div>
       <p class="text-sm text-recon-fog mt-1">
         <a href="/customers/<%= wo.customer_id %>" class="font-semibold text-recon-charcoal hover:text-recon-red"><%= wo.customer_name %></a>
-        <% if (wo.unit_number) { %><span class="text-recon-fog">· Unit <%= wo.unit_number %></span><% } %>
+        <% if (wo.unit_number) { %><span class="text-recon-fog">· <%= wo.unit_number %></span><% } %>
         <% if (addr) { %><span class="text-recon-fog">· <%= addr %></span><% } %>
       </p>
     </div>
