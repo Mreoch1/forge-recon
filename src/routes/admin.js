@@ -78,7 +78,13 @@ router.post('/users/:id', async (req, res) => {
   const email = (emptyToNull(req.body.email) || '').toLowerCase();
   const name = emptyToNull(req.body.name);
   const role = emptyToNull(req.body.role) || target.role;
-  const active = req.body.active === '1' || req.body.active === 'on' ? 1 : 0;
+  // R37k: edit form posts BOTH a hidden input (value=0) and a checkbox (value=1)
+  // for the active field so unchecked state still submits. Express collects both
+  // as an array ['0','1']. Previous strict === '1' check returned 0 for the array,
+  // disabling every user on every save. Take the last value (checkbox wins when checked).
+  const activeRaw = req.body.active;
+  const activeStr = Array.isArray(activeRaw) ? activeRaw[activeRaw.length - 1] : activeRaw;
+  const active = activeStr === '1' || activeStr === 'on' || activeStr === 1 ? 1 : 0;
   if (!email) errors.email = 'Email required.';
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'Invalid email format.';
   else { const { data: dup } = await supabase.from('users').select('id').eq('email', email).neq('id', targetId).maybeSingle(); if (dup) errors.email = 'Email already in use.'; }
