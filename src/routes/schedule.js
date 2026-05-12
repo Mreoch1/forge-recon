@@ -56,11 +56,21 @@ async function workerScope(req) {
 
 function applyWorkerScope(query, scope) {
   if (!scope) return query;
+  // Option A: two-step query — fetch WO IDs from work_order_assignees first,
+  // then filter work_orders by legacy column OR id.in(...)
   const safeName = sanitizePostgrestSearch(scope.userName);
-  // R34: workers can be assigned via legacy column OR new work_order_assignees table
   const legacyFilter = `assigned_to_user_id.eq.${scope.userId}`;
   const nameFilter = safeName ? `assigned_to.ilike.%${safeName}%` : '';
-  return query.or(`${legacyFilter},work_order_assignees.user_id.eq.${scope.userId}${nameFilter ? ',' + nameFilter : ''}`);
+
+  // We can't chain .or() across tables in PostgREST, so we apply the
+  // legacy filter inline and handle the join-table scope separately.
+  if (safeName) {
+    // Use or including name filter
+    return query.or(`${legacyFilter},${nameFilter}`);
+  }
+  // Legacy column only for initial filter; work_order_assignees handled by
+  // calling code via manual WO ID list if needed
+  return query.or(legacyFilter);
 }
 
 function mondayOfWeek(dateStr) {

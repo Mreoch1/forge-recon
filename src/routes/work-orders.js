@@ -124,20 +124,6 @@ function validateWorkOrder(body) {
   if (scheduledTime && !/^\d{2}:\d{2}$/.test(scheduledTime)) errors.scheduled_time = 'Use HH:MM.';
   const scheduledEndTime = emptyToNull(body.scheduled_end_time);
   if (scheduledEndTime && !/^\d{2}:\d{2}$/.test(scheduledEndTime)) errors.scheduled_end_time = 'Use HH:MM.';
-  const assignedUserId = body.assigned_to_user_id ? parseInt(body.assigned_to_user_id, 10) : null;
-  const assignedToText = emptyToNull(body.assigned_to);
-
-  // Optional editable display number override
-  let mainOverride = null, subOverride = null;
-  const numOverride = emptyToNull(body.display_number);
-  if (numOverride) {
-    const parsed = numbering.parseDisplay(numOverride);
-    if (!parsed) errors.display_number = 'Use format 0001-0000';
-    else {
-      mainOverride = parsed.main;
-      subOverride = parsed.sub;
-    }
-  }
 
   const rawItems = asArray(body.lines);
   const items = [];
@@ -146,14 +132,23 @@ function validateWorkOrder(body) {
     items.push(validateLineItem(li).data);
   });
 
+  // Optional editable display number override
+  let mainOverride = null, subOverride = null;
+  const numOverride = emptyToNull(body.display_number);
+  if (numOverride) {
+    const parsed = numbering.parseDisplay(numOverride);
+    if (!parsed) errors.display_number = 'Use format 0001-0000';
+    else { mainOverride = parsed.main; subOverride = parsed.sub; }
+  }
+
   return {
     errors,
     data: {
       scheduled_date: scheduledDate,
       scheduled_time: scheduledTime,
       scheduled_end_time: scheduledEndTime,
-      assigned_to_user_id: assignedUserId,
-      assigned_to: assignedToText,
+      description: emptyToNull(body.description) || '',
+      unit_number: (body.unit_number || '').trim(),
       notes: emptyToNull(body.notes),
       display_number_override: numOverride ? { main: mainOverride, sub: subOverride } : null,
       lines: items,
