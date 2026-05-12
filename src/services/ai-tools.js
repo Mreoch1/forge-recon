@@ -592,7 +592,7 @@ MUTATION_TOOLS.approve_bill = {
 MUTATION_TOOLS.add_wo_note = {
   needs_user: 'write',
   async propose(args, ctx) {
-    const wo = await db.get('SELECT * FROM work_orders WHERE id = ?', [args.wo_id]);
+    const { data: wo } = await supabase.from('work_orders').select('id, display_number, assigned_to_user_id, assigned_to').eq('id', args.wo_id).maybeSingle();
     if (!wo) return { error: 'Work order not found.' };
     if (ctx.role === 'worker') {
       const isAssigned = wo.assigned_to_user_id == ctx.userId || (wo.assigned_to && wo.assigned_to.includes(ctx.userName));
@@ -602,7 +602,7 @@ MUTATION_TOOLS.add_wo_note = {
     return { summary_lines: [`WO: ${wo.display_number ? 'WO-' + wo.display_number : '#' + wo.id}`, `Note: ${args.body.trim().slice(0, 100)}`], args_normalized: args };
   },
   async execute(args, ctx) {
-    await db.run(`INSERT INTO wo_notes (work_order_id, user_id, body, created_at) VALUES (?, ?, ?, now())`, [args.wo_id, ctx.userId, args.body.trim()]);
+    await supabase.from('wo_notes').insert({ work_order_id: args.wo_id, user_id: ctx.userId, body: args.body.trim(), created_at: new Date().toISOString() });
     await writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'note_added_by_ai', before: null, after: { note: args.body.trim().slice(0,100) }, source: 'ai', userId: ctx.userId });
     return { id: args.wo_id, href: `/work-orders/${args.wo_id}` };
   }
