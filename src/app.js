@@ -206,19 +206,7 @@ app.get('/ai/chat/health', (req, res) => { const enabled = process.env.AI_CHAT_E
 app.use('/ai', requireAuth, aiChatRoutes);
 app.use('/', requireAuth, dashboardRoutes);
 
-app.use((req, res) => { res.status(404).render('error', { title: 'Not found', code: 404, message: 'That page does not exist.' }); });
-app.use((err, req, res, next) => {
-  console.error(err);
-  const status = err.status || err.statusCode || 500;
-  const safeStatus = status >= 400 && status < 600 ? status : 500;
-  const title = safeStatus === 500 ? 'Server error' : 'Bad request';
-  const safeMsg = title;
-  // Store real error detail for the report-error button
-  const errorDetail = err && err.message ? err.message.slice(0, 500) : '';
-  res.status(safeStatus).render('error', { title, code: safeStatus, message: safeMsg, currentUrl: req.originalUrl, errorDetail });
-});
-
-// POST /report-error — user-triggered error report email
+// POST /report-error — user-triggered error report email (must be before 404 handler)
 app.post('/report-error', async (req, res) => {
   const { code, message, url, user_email, error_detail } = req.body;
   const subject = `[FORGE Error Report] ${code} on ${url || 'unknown page'}`;
@@ -236,6 +224,18 @@ app.post('/report-error', async (req, res) => {
     console.error('[report-error] send failed:', e.message);
     res.redirect(url || '/');
   }
+});
+
+app.use((req, res) => { res.status(404).render('error', { title: 'Not found', code: 404, message: 'That page does not exist.' }); });
+app.use((err, req, res, next) => {
+  console.error(err);
+  const status = err.status || err.statusCode || 500;
+  const safeStatus = status >= 400 && status < 600 ? status : 500;
+  const title = safeStatus === 500 ? 'Server error' : 'Bad request';
+  const safeMsg = title;
+  // Store real error detail for the report-error button
+  const errorDetail = err && err.message ? err.message.slice(0, 500) : '';
+  res.status(safeStatus).render('error', { title, code: safeStatus, message: safeMsg, currentUrl: req.originalUrl, errorDetail });
 });
 
 module.exports = app;
