@@ -87,6 +87,11 @@ async function ensureDbInit(req, res, next) {
 
 const app = express();
 
+// Trust the first proxy hop (Vercel terminates TLS at the edge and forwards HTTP to the Lambda).
+// REQUIRED for cookie-session with `secure: true` — without this, Express reads req.protocol as
+// 'http' and cookie-session refuses to emit the cookie, breaking login + session entirely.
+app.set('trust proxy', 1);
+
 app.set('view engine', 'ejs');
 app.set('views', VIEWS_DIR);
 app.use(helmet({ contentSecurityPolicy: false }));
