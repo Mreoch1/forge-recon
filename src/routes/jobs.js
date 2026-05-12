@@ -613,15 +613,43 @@ router.delete('/:id/line-items/:itemId', async (req, res) => {
 
 router.post('/:id/vendor-invoices', async (req, res) => {
   const id = req.params.id;
+  const jobId = parseInt(id, 10);
   const { data: job } = await supabase.from('jobs').select('id').eq('id', id).maybeSingle();
   if (!job) return res.status(404).send('Project not found');
   const vendorName = emptyToNull(req.body.vendor_name);
   if (!vendorName) return res.status(400).send('Vendor name required');
   const amount = req.body.amount === '' || req.body.amount == null ? null : Number(req.body.amount);
   if (!amount || amount <= 0) return res.status(400).send('Valid amount required');
+
+  // R37q-fix (GPT G-010 P0): vendor_invoices.vendor_id is FK, not vendor_name.
+  // Resolve vendor by exact-name match (case-insensitive), creating if missing.
+  // Also auto-link to project_contractors so the new vendor shows up in the
+  // datalist on next render.
+  let vendorId = null;
+  const { data: existing } = await supabase
+    .from('vendors')
+    .select('id')
+    .ilike('name', vendorName)
+    .maybeSingle();
+  if (existing) {
+    vendorId = existing.id;
+  } else {
+    const { data: created, error: cErr } = await supabase
+      .from('vendors')
+      .insert({ name: vendorName, mock: 0 })
+      .select('id')
+      .single();
+    if (cErr) throw cErr;
+    vendorId = created.id;
+  }
+  // Ensure project_contractor link exists (idempotent).
+  await supabase
+    .from('project_contractors')
+    .upsert({ job_id: jobId, vendor_id: vendorId }, { onConflict: 'job_id,vendor_id', ignoreDuplicates: true });
+
   const { error } = await supabase.from('vendor_invoices').insert({
-    job_id: parseInt(id, 10),
-    vendor_name: vendorName,
+    job_id: jobId,
+    vendor_id: vendorId,
     invoice_number: emptyToNull(req.body.invoice_number),
     description: emptyToNull(req.body.description),
     amount,
