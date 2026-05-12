@@ -9,7 +9,7 @@
     <div class="sc-sb-list">
       <% unscheduled.forEach(function(wo){
         var sColor = colorForStatus(wo, woConflicts);
-        var sName = wo.assigned_user_name || wo.assigned_to || '';
+        var sName = wo.assignee_display_name || wo.assigned_user_name || wo.assigned_to || '';
       %>
         <div class="sc-sb-pill" style="border-left:3px solid <%= sColor || '#9ca3af' %>"
              data-wo-id="<%= wo.id %>"

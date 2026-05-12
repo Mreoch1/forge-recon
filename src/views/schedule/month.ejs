@@ -153,7 +153,7 @@
                  data-current-time="<%= wo.scheduled_time || '' %>"
                  data-end-time="<%= wo.scheduled_end_time || '' %>"
                  data-assignee-id="<%= wo.assigned_to_user_id || '' %>">
-                <% var pillName = wo.assigned_user_name||wo.assigned_to||''; %>
+                <% var pillName = wo.assignee_display_name||wo.assigned_user_name||wo.assigned_to||''; %>
                 <span class="sc-pill-num">WO-<%= wo.display_number %></span>
                 <% if (pillName) { %><span class="sc-pill-init"><%= getInitials(pillName) %></span><% } else { %><span class="sc-pill-init">?</span><% } %>
               </a>
@@ -162,7 +162,7 @@
                 <div class="wo-hc-customer"><%= (wo.customer_name || '') %></div>
                 <div class="wo-hc-job"><%= (wo.job_title || '') %></div>
                 <div class="wo-hc-row"><span class="wo-hc-label">Time:</span> <%= fmtTime(wo.scheduled_time) %><% if (wo.scheduled_end_time) { %> – <%= fmtTime(wo.scheduled_end_time) %><% } %></div>
-                <div class="wo-hc-row"><span class="wo-hc-label">Assignee:</span> <%= wo.assigned_user_name || wo.assigned_to || 'Unassigned' %></div>
+                <div class="wo-hc-row"><span class="wo-hc-label">Assignee:</span> <%= wo.assignee_display_name || wo.assigned_user_name || wo.assigned_to || 'Unassigned' %></div>
                 <span class="wo-hc-badge wo-hc-badge-<%= wo.status %>"><%= (wo.status || '').replace('_', ' ') %></span>
               </div>
             </div>

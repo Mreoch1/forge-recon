@@ -232,7 +232,7 @@
               }
               var color = colorForStatus(wo, woConflicts);
               var hasConflict = !!woConflicts[wo.id];
-              var isUnassigned = !wo.assigned_to_user_id && !wo.assigned_to;
+              var isUnassigned = !wo.assigned_to_user_id && !wo.assigned_to && (!wo.work_order_assignees || wo.work_order_assignees.length === 0);
           %>
             <div class="sc-wo-wrap" style="top:<%= topPct.toFixed(1) %>; height:<%= Math.max(heightPct, 3).toFixed(1) %>%"
                <% var o = woOverlaps[wo.id]; if (o && o.overlapCount > 1) { %>data-overlap-count="<%= o.overlapCount %>" data-overlap-index="<%= o.overlapIndex %>"<% } %>>
@@ -254,7 +254,7 @@
                     </span>
                   </span>
                 <% } %>
-                <% var assigneeName = wo.assigned_user_name || wo.assigned_to || ''; %>
+                <% var assigneeName = wo.assignee_display_name || wo.assigned_user_name || wo.assigned_to || ''; %>
                 <% if (assigneeName) { %><div class="sc-init-chip"><%= getInitials(assigneeName) %></div><% } %>
                 <div class="sc-wo-num">WO-<%= wo.display_number %></div>
                 <div class="sc-wo-customer"><%= (wo.customer_name || '').slice(0, 30) %></div>
@@ -265,7 +265,7 @@
                 <div class="wo-hc-customer"><%= (wo.customer_name || '') %></div>
                 <div class="wo-hc-job"><%= (wo.job_title || '') %></div>
                 <div class="wo-hc-row"><span class="wo-hc-label">Time:</span> <%= fmtTime(wo.scheduled_time) %><% if (wo.scheduled_end_time) { %> – <%= fmtTime(wo.scheduled_end_time) %><% } %></div>
-                <div class="wo-hc-row"><span class="wo-hc-label">Assignee:</span> <%= wo.assigned_user_name || wo.assigned_to || 'Unassigned' %></div>
+                <div class="wo-hc-row"><span class="wo-hc-label">Assignee:</span> <%= wo.assignee_display_name || wo.assigned_user_name || wo.assigned_to || 'Unassigned' %></div>
                 <span class="wo-hc-badge wo-hc-badge-<%= wo.status %>"><%= (wo.status || '').replace('_', ' ') %></span>
               </div>
             </div>

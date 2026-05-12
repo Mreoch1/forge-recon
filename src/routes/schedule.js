@@ -33,6 +33,27 @@ function workOrderDisplayFields(row) {
   };
 }
 
+function assigneeNames(row) {
+  return (row.work_order_assignees || [])
+    .map(a => a.users?.name)
+    .filter(Boolean);
+}
+
+function mapScheduleWorkOrder(row) {
+  const names = assigneeNames(row);
+  const joinedNames = names.join(', ');
+  return {
+    id: row.id, display_number: row.display_number, status: row.status,
+    scheduled_date: row.scheduled_date, scheduled_time: row.scheduled_time,
+    assigned_to_user_id: row.assigned_to_user_id, assigned_to: row.assigned_to,
+    scheduled_end_time: row.scheduled_end_time,
+    work_order_assignees: row.work_order_assignees || [],
+    ...workOrderDisplayFields(row),
+    assignee_user_name: row.users?.name || joinedNames,
+    assignee_display_name: row.users?.name || row.assigned_to || joinedNames,
+  };
+}
+
 function colorForStatus(wo, woConflicts) {
   if (!wo) return null;
   if (!wo.assigned_to_user_id && !wo.assigned_to && (!wo.work_order_assignees || wo.work_order_assignees.length === 0)) return null; // unassigned = hatched
@@ -210,14 +231,7 @@ router.get('/', async (req, res) => {
   const { data: wos } = await woQuery;
 
   // Map to flat structure
-  const wosMapped = (wos || []).map(r => ({
-    id: r.id, display_number: r.display_number, status: r.status,
-    scheduled_date: r.scheduled_date, scheduled_time: r.scheduled_time,
-    assigned_to_user_id: r.assigned_to_user_id, assigned_to: r.assigned_to,
-    scheduled_end_time: r.scheduled_end_time,
-    ...workOrderDisplayFields(r),
-    assignee_user_name: r.users?.name,
-  }));
+  const wosMapped = (wos || []).map(mapScheduleWorkOrder);
 
   // Unscheduled WOs for sidebar
   let unscheduledQuery = supabase
@@ -230,14 +244,7 @@ router.get('/', async (req, res) => {
   unscheduledQuery = applyWorkerScope(unscheduledQuery, scope);
   const { data: unscheduled } = await unscheduledQuery;
 
-  const unschedMapped = (unscheduled || []).map(r => ({
-    id: r.id, display_number: r.display_number, status: r.status,
-    scheduled_date: r.scheduled_date, scheduled_time: r.scheduled_time,
-    assigned_to_user_id: r.assigned_to_user_id, assigned_to: r.assigned_to,
-    scheduled_end_time: r.scheduled_end_time,
-    ...workOrderDisplayFields(r),
-    assignee_user_name: r.users?.name,
-  }));
+  const unschedMapped = (unscheduled || []).map(mapScheduleWorkOrder);
 
   // Query closures intersecting the visible range
   const { data: closures } = await supabase
