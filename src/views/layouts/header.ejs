@@ -204,6 +204,10 @@
               <a href="/vendors" class="block px-4 py-2 text-sm text-recon-mist hover:bg-recon-ash transition<%= typeof activeNav !== 'undefined' && activeNav === 'vendors' ? ' bg-recon-red text-white hover:bg-recon-red' : '' %>">Vendors</a>
               <a href="/bills" class="block px-4 py-2 text-sm text-recon-mist hover:bg-recon-ash transition<%= typeof activeNav !== 'undefined' && activeNav === 'bills' ? ' bg-recon-red text-white hover:bg-recon-red' : '' %>">Bills</a>
               <a href="/accounting" class="block px-4 py-2 text-sm text-recon-mist hover:bg-recon-ash transition<%= typeof activeNav !== 'undefined' && activeNav === 'accounting' ? ' bg-recon-red text-white hover:bg-recon-red' : '' %>">Accounting</a>
+              <% if (currentUser && currentUser.role === 'admin') { %>
+                <div class="border-t border-recon-ash my-1"></div>
+                <a href="/admin/users" class="block px-4 py-2 text-sm text-recon-mist hover:bg-recon-ash transition<%= typeof activeNav !== 'undefined' && activeNav === 'admin' ? ' bg-recon-red text-white hover:bg-recon-red' : '' %>">Admin</a>
+              <% } %>
             </div>
           </div>
         </div>
@@ -234,6 +238,9 @@
         <a href="/vendors" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'vendors' ? ' active' : '' %>">Vendors</a>
         <a href="/bills" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'bills' ? ' active' : '' %>">Bills</a>
         <a href="/accounting" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'accounting' ? ' active' : '' %>">Accounting</a>
+        <% if (currentUser && currentUser.role === 'admin') { %>
+          <a href="/admin/users" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'admin' ? ' active' : '' %>">Admin</a>
+        <% } %>
         <div class="border-t border-recon-ash mt-1 pt-2 flex items-center justify-between text-xs text-recon-fog">
           <span><%= currentUser.name %> <span class="opacity-70">(<%= currentUser.role %>)</span></span>
           <form action="/logout" method="post" class="m-0 p-0">

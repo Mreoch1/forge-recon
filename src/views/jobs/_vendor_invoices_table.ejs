@@ -1,0 +1,104 @@
+<%# R37n: Vendor spend rollup — groups vendor_invoices by vendor, shows running
+       total per vendor, expandable per-invoice list. Designed to handle the
+       RPM-imported projects (Plymouth Square has 233 invoices across 17 vendors). %>
+
+<%
+function vfmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
+%>
+
+<section id="vendor-spend-section" class="card mb-6">
+  <header class="px-5 py-3 border-b border-recon-mist flex flex-wrap items-baseline justify-between gap-2">
+    <div>
+      <h3 class="font-semibold">Vendor spend</h3>
+      <p class="text-xs text-recon-fog mt-0.5">
+        <%= vendorInvoiceCount %> invoice<%= vendorInvoiceCount === 1 ? '' : 's' %> across
+        <%= vendorSpend.length %> vendor<%= vendorSpend.length === 1 ? '' : 's' %>
+        — total <strong class="text-recon-charcoal">$<%= vfmt(vendorInvoiceGrandTotal) %></strong>
+      </p>
+    </div>
+  </header>
+
+  <% if (vendorSpend.length === 0) { %>
+    <div class="p-6 text-center text-recon-fog text-sm italic">No vendor invoices on this project yet.</div>
+  <% } else { %>
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Vendor</th>
+          <th class="text-right">Invoices</th>
+          <th class="text-right">Total billed</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% vendorSpend.forEach(function(v, idx){ %>
+          <tr class="row-link cursor-pointer" data-toggle="vs-rows-<%= idx %>">
+            <td class="font-medium"><%= v.vendor_name %></td>
+            <td class="text-right text-recon-fog text-sm"><%= v.invoices.length %></td>
+            <td class="text-right font-semibold">$<%= vfmt(v.total) %></td>
+            <td class="text-right text-sm text-recon-fog">
+              <button type="button" class="vs-toggle-btn" data-target="vs-rows-<%= idx %>">▼ details</button>
+            </td>
+          </tr>
+          <tr id="vs-rows-<%= idx %>" class="vs-detail-row" style="display:none;">
+            <td colspan="4" class="bg-recon-cloud p-0">
+              <table class="data" style="margin:0; box-shadow:none; background:transparent;">
+                <thead>
+                  <tr class="text-xs">
+                    <th>Invoice #</th>
+                    <th>Description</th>
+                    <th class="text-right">Amount</th>
+                    <th class="text-right">Logged</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% v.invoices.forEach(function(inv){ %>
+                    <tr>
+                      <td class="font-mono text-xs"><%= inv.invoice_number || '—' %></td>
+                      <td class="text-sm"><%= (inv.description || '').slice(0, 80) %></td>
+                      <td class="text-right text-sm">$<%= vfmt(inv.amount) %></td>
+                      <td class="text-right text-xs text-recon-fog">
+                        <%= inv.created_at ? String(inv.created_at).slice(0,10) : '—' %>
+                      </td>
+                    </tr>
+                  <% }); %>
+                </tbody>
+              </table>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+      <tfoot class="bg-recon-cloud">
+        <tr>
+          <td class="text-right text-sm font-medium" colspan="2">Grand total</td>
+          <td class="text-right font-bold text-recon-red">$<%= vfmt(vendorInvoiceGrandTotal) %></td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  <% } %>
+</section>
+
+<script>
+(function(){
+  document.querySelectorAll('#vendor-spend-section .vs-toggle-btn').forEach(function(btn){
+    btn.addEventListener('click', function(ev){
+      ev.stopPropagation();
+      var id = btn.getAttribute('data-target');
+      var row = document.getElementById(id);
+      if (!row) return;
+      var open = row.style.display !== 'none';
+      row.style.display = open ? 'none' : '';
+      btn.textContent = open ? '▼ details' : '▲ hide';
+    });
+  });
+  // Allow clicking the summary row itself to toggle too
+  document.querySelectorAll('#vendor-spend-section tr.row-link').forEach(function(tr){
+    tr.addEventListener('click', function(ev){
+      if (ev.target.closest('.vs-toggle-btn')) return;
+      var btn = tr.querySelector('.vs-toggle-btn');
+      if (btn) btn.click();
+    });
+  });
+})();
+</script>

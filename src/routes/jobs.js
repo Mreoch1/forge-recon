@@ -231,6 +231,9 @@ router.get('/:id', async (req, res) => {
     progress_percentage: job.progress_percentage || 0,
   };
 
+  // R37n: load vendor_invoices + project_contractors (RPM-style data) alongside
+  // FORGE-native tables. Plymouth Square (and future RPM imports) carry 200+
+  // vendor invoices that need to render on the project show page.
   const [
     { data: workOrders },
     { data: changeOrders },
@@ -238,6 +241,8 @@ router.get('/:id', async (req, res) => {
     { data: members },
     { data: vendors },
     { data: users },
+    { data: vendorInvoices },
+    { data: projectContractors },
   ] = await Promise.all([
     supabase
       .from('work_orders')
@@ -263,6 +268,15 @@ router.get('/:id', async (req, res) => {
       .order('id', { ascending: true }),
     supabase.from('vendors').select('id, name').order('name'),
     supabase.from('users').select('id, name').eq('active', 1).order('name'),
+    supabase
+      .from('vendor_invoices')
+      .select('id, amount, description, invoice_number, vendor_id, created_at, vendors!left(name)')
+      .eq('job_id', id)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('project_contractors')
+      .select('id, vendor_id, vendors!left(name)')
+      .eq('job_id', id),
   ]);
 
   // Resolve approver names for change orders (avoid ambiguous users FK alias).
@@ -284,6 +298,28 @@ router.get('/:id', async (req, res) => {
     projectManager = pm;
   }
 
+  // R37n: aggregate vendor_invoices by vendor for the vendor-spend table.
+  // Each group has running total + per-invoice list. Orphan invoices (no vendor)
+  // get grouped under "Unknown vendor" so they don't disappear from the view.
+  const invoicesByVendor = {};
+  (vendorInvoices || []).forEach(vi => {
+    const vKey = vi.vendor_id || 0;
+    const vName = vi.vendors?.name || 'Unknown vendor';
+    if (!invoicesByVendor[vKey]) {
+      invoicesByVendor[vKey] = { vendor_id: vKey, vendor_name: vName, invoices: [], total: 0 };
+    }
+    invoicesByVendor[vKey].invoices.push({
+      id: vi.id,
+      amount: Number(vi.amount) || 0,
+      description: vi.description || '',
+      invoice_number: vi.invoice_number || '',
+      created_at: vi.created_at,
+    });
+    invoicesByVendor[vKey].total += Number(vi.amount) || 0;
+  });
+  const vendorSpend = Object.values(invoicesByVendor).sort((a, b) => b.total - a.total);
+  const vendorInvoiceGrandTotal = vendorSpend.reduce((s, v) => s + v.total, 0);
+
   res.render('jobs/show', {
     title: job.title, activeNav: 'projects',
     job, financials, projectManager,
@@ -304,6 +340,15 @@ router.get('/:id', async (req, res) => {
       ...m,
       user_name: m.users?.name,
       user_email: m.users?.email,
+    })),
+    // R37n: RPM-style vendor invoice rollup.
+    vendorSpend,
+    vendorInvoiceGrandTotal,
+    vendorInvoiceCount: (vendorInvoices || []).length,
+    projectContractors: (projectContractors || []).map(pc => ({
+      id: pc.id,
+      vendor_id: pc.vendor_id,
+      vendor_name: pc.vendors?.name || '—',
     })),
   });
 });
