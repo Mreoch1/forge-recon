@@ -368,9 +368,10 @@ function generateEstimatePDF(estimate, company, stream) {
     estimate.customer_phone,
   ], [
     estimate.job_title,
+    estimate.unit_number ? `Unit ${estimate.unit_number}` : '',  // R37j: surface unit on estimate PDF
     estimate.job_address || '',
     [estimate.job_city, estimate.job_state, estimate.job_zip].filter(Boolean).join(', '),
-  ]);
+  ].filter(Boolean));
 
   drawLineItemsTable(doc, estimate.lines || []);
 
@@ -546,9 +547,10 @@ function generateInvoicePDF(invoice, company, stream) {
     invoice.customer_phone,
   ], [
     invoice.job_title,
+    invoice.unit_number ? `Unit ${invoice.unit_number}` : '',  // R37j: surface unit on invoice PDF
     invoice.job_address || '',
     [invoice.job_city, invoice.job_state, invoice.job_zip].filter(Boolean).join(', '),
-  ]);
+  ].filter(Boolean));
 
   drawInvoiceMeta(doc, invoice);
   drawLineItemsTable(doc, (invoice.lines || []).map(li => ({

@@ -98,6 +98,14 @@ function buildInvoiceEmailBody(invoice, company = {}) {
     </tr>
   `).join('');
 
+  // R37j: surface unit_number + job site as a Job Site block, and put Due date on its own line.
+  const safeUnit = escapeHtml(invoice.unit_number || '');
+  const jobAddress = invoice.job_address || invoice.customer_address || '';
+  const jobCSZ = [invoice.job_city || invoice.customer_city, invoice.job_state || invoice.customer_state, invoice.job_zip || invoice.customer_zip].filter(Boolean).join(', ');
+  const safeJobAddress = escapeHtml(jobAddress);
+  const safeJobCSZ = escapeHtml(jobCSZ);
+  const safeJobTitle = escapeHtml(invoice.job_title || '');
+
   return `
     <p style="margin-top:0;">Hi ${safeCustomer},</p>
     <p>${safeCompany} prepared invoice <strong>${safeInvoiceNumber}</strong>${safeWoNumber ? ` for work order <strong>${safeWoNumber}</strong>` : ''}. The full invoice PDF is attached.</p>
@@ -106,10 +114,24 @@ function buildInvoiceEmailBody(invoice, company = {}) {
         <td style="padding:14px 16px;background:#f5f5f5;border-radius:6px;">
           <span style="display:block;color:#777;font-size:12px;text-transform:uppercase;letter-spacing:.08em;">Amount due</span>
           <span style="display:block;color:#c0202b;font-size:28px;font-weight:800;line-height:1.2;">${fmtMoney(balance)}</span>
-          <span style="display:block;color:#777;font-size:13px;margin-top:4px;">Terms: ${terms}${due ? ` - Due ${due}` : ''}</span>
+          <span style="display:block;color:#777;font-size:13px;margin-top:6px;">Terms: ${terms}</span>
+          ${due ? `<span style="display:block;color:#c0202b;font-size:14px;font-weight:700;margin-top:4px;">Due: ${due}</span>` : ''}
         </td>
       </tr>
     </table>
+    ${(safeUnit || safeJobAddress || safeJobTitle) ? `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;border-collapse:collapse;">
+        <tr>
+          <td style="padding:10px 14px;background:#fafafa;border-left:3px solid #c0202b;border-radius:4px;font-size:13px;color:#444;">
+            <span style="display:block;color:#777;font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Job site</span>
+            ${safeJobTitle ? `<span style="display:block;font-weight:600;color:#1a1a1a;">${safeJobTitle}</span>` : ''}
+            ${safeUnit ? `<span style="display:block;">Unit ${safeUnit}</span>` : ''}
+            ${safeJobAddress ? `<span style="display:block;">${safeJobAddress}</span>` : ''}
+            ${safeJobCSZ ? `<span style="display:block;">${safeJobCSZ}</span>` : ''}
+          </td>
+        </tr>
+      </table>
+    ` : ''}
     ${rows ? `
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:18px 0;">
         <thead>
@@ -189,6 +211,7 @@ async function loadInvoice(id) {
   const c = w?.customers || j?.customers;
   inv.wo_id = w?.id;
   inv.wo_display_number = w?.display_number;
+  inv.unit_number = w?.unit_number || null;  // R37j: surface WO unit_number for invoice PDF/email
   inv.job_id = j?.id;
   inv.job_title = j?.title || (c?.name ? `${c.name} work order` : 'Customer work order');
   inv.job_address = j?.address;
