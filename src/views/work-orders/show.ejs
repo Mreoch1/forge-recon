@@ -149,11 +149,7 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
       <% if (wo.status === 'scheduled' || wo.status === 'in_progress') { %>
         <a href="/work-orders/<%= wo.id %>/edit" class="btn btn-secondary text-sm">Edit</a>
       <% } %>
-      <% if (wo.status === 'scheduled') { %>
-        <form action="/work-orders/<%= wo.id %>/start" method="post" class="m-0 inline">
-          <button class="btn btn-primary text-sm" title="Mark this WO as in progress. Use when the crew has arrived on site and begun work.">Start work</button>
-        </form>
-      <% } else if (wo.status === 'in_progress') { %>
+      <% if (wo.status === 'scheduled' || wo.status === 'in_progress') { %>
         <form action="/work-orders/<%= wo.id %>/complete" method="post" class="m-0 inline">
           <button class="btn btn-primary text-sm" title="Mark this WO complete. Locks the WO and makes it eligible to convert into an estimate or invoice.">Mark complete</button>
         </form>

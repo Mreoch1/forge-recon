@@ -214,7 +214,7 @@
         <form action="/logout" method="post" class="m-0 p-0 hidden sm:block">
           <button type="submit" class="text-sm text-recon-fog hover:text-white transition">Logout</button>
         </form>
-        <button id="theme-toggle" class="text-base text-recon-fog hover:text-white transition w-9 h-9 flex items-center justify-center rounded" title="Toggle dark mode">☀</button>
+        <button id="theme-toggle" class="text-base text-recon-fog hover:text-white transition w-11 h-11 flex items-center justify-center rounded" title="Toggle dark mode" aria-label="Toggle dark mode">☀</button>
         <!-- R33: hamburger label (mobile only) — the actual toggle is the hidden checkbox above the toolbar -->
         <label for="r33-nav-toggle" class="r33-hamburger md:hidden" aria-label="Toggle menu">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
@@ -244,17 +244,28 @@
     </div>
   </nav>
 <script>
-// Theme toggle
+// Theme toggle (also updates iOS Safari status bar tint via meta theme-color)
 (function(){
   const html = document.documentElement;
   const btn = document.getElementById('theme-toggle');
-  const saved = localStorage.getItem('forge-theme');
-  if (saved === 'dark') { html.classList.add('dark'); btn.textContent = '☾'; }
+  const metaTheme = document.querySelector('meta[name="theme-color"]');
+  const LIGHT_TINT = '#c0202b';
+  const DARK_TINT  = '#0b1020';
+  function applyTheme(isDark) {
+    if (isDark) { html.classList.add('dark'); btn.textContent = '☾'; }
+    else        { html.classList.remove('dark'); btn.textContent = '☀'; }
+    if (metaTheme) metaTheme.setAttribute('content', isDark ? DARK_TINT : LIGHT_TINT);
+  }
+  // Restore preference (or honor system if unset)
+  let saved = localStorage.getItem('forge-theme');
+  if (!saved && window.matchMedia) {
+    saved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  applyTheme(saved === 'dark');
   btn.addEventListener('click', function(){
-    html.classList.toggle('dark');
-    const isDark = html.classList.contains('dark');
-    btn.textContent = isDark ? '☾' : '☀';
-    localStorage.setItem('forge-theme', isDark ? 'dark' : 'light');
+    const next = !html.classList.contains('dark');
+    applyTheme(next);
+    localStorage.setItem('forge-theme', next ? 'dark' : 'light');
   });
 })();
 (function(){

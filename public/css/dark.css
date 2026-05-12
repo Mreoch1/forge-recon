@@ -1,60 +1,164 @@
 /* FORGE Dark Theme — applied when <html class="dark">
-   Tailwind CDN handles most dark variants via `dark:` prefix.
-   This file adds overrides for elements Tailwind can't easily style. */
+   Tailwind CDN handles `dark:` variants where the templates use them.
+   This file overrides every hardcoded color in header.ejs's inline <style>
+   block so the page actually goes dark (not just SOME elements).
+
+   All overrides use !important because the inline <style> rules sit inside
+   the document head and we need to win regardless of source order on iOS. */
 
 :root {
-  --dark-bg: #1a1a2e;
-  --dark-surface: #16213e;
-  --dark-card: #0f3460;
+  --dark-bg: #0b1020;        /* page background */
+  --dark-surface: #16213e;   /* cards, table headers */
+  --dark-elevated: #1a2238;  /* inputs, table cells */
+  --dark-card: #121829;
   --dark-border: #2a2a4a;
-  --dark-text: #e0e0e0;
-  --dark-text-muted: #a0a0b0;
+  --dark-border-strong: #334155;
+  --dark-text: #f1f5f9;
+  --dark-text-muted: #94a3b8;
+  --dark-link: #6ab0f3;
+  --dark-hover: #1f2937;
 }
 
+/* ============================================================
+   PAGE-LEVEL — body + main backgrounds
+   ============================================================ */
+html.dark,
 html.dark body {
-  background-color: var(--dark-bg);
-  color: var(--dark-text);
+  background-color: var(--dark-bg) !important;
+  color: var(--dark-text) !important;
 }
 
+html.dark main {
+  background-color: transparent !important;
+}
+
+/* ============================================================
+   CARDS + SURFACES — anything that looks like a "card" should
+   darken. Covers .card, raw bg-white, gray-50/100, etc.
+   ============================================================ */
 html.dark .card,
 html.dark .bg-white,
 html.dark .bg-gray-50,
-html.dark .bg-gray-100 {
+html.dark .bg-gray-100,
+html.dark .bg-recon-cloud,
+html.dark .bg-recon-mist {
   background-color: var(--dark-surface) !important;
+  border-color: var(--dark-border) !important;
+  color: var(--dark-text) !important;
 }
 
+/* ============================================================
+   BORDERS
+   ============================================================ */
 html.dark .border,
+html.dark .border-gray-100,
 html.dark .border-gray-200,
-html.dark .border-gray-300 {
+html.dark .border-gray-300,
+html.dark .border-recon-mist {
   border-color: var(--dark-border) !important;
 }
 
+html.dark .border-t,
+html.dark .border-b,
+html.dark .border-l,
+html.dark .border-r {
+  border-color: var(--dark-border) !important;
+}
+
+/* ============================================================
+   FORM CONTROLS — inputs, selects, textareas
+   ============================================================ */
 html.dark input,
 html.dark select,
-html.dark textarea {
-  background-color: var(--dark-card) !important;
+html.dark textarea,
+html.dark .input,
+html.dark .list-utility-bar .list-search,
+html.dark .list-utility-bar .list-filter {
+  background-color: var(--dark-elevated) !important;
   color: var(--dark-text) !important;
-  border-color: var(--dark-border) !important;
+  border-color: var(--dark-border-strong) !important;
 }
 
-html.dark th {
-  background-color: var(--dark-surface) !important;
-  color: var(--dark-text) !important;
-}
-
-html.dark td {
-  background-color: var(--dark-card) !important;
-  color: var(--dark-text) !important;
-}
-
-html.dark .text-gray-500,
-html.dark .text-gray-600,
-html.dark .text-gray-700 {
+html.dark input::placeholder,
+html.dark textarea::placeholder {
   color: var(--dark-text-muted) !important;
 }
 
-html.dark .page-h1,
-html.dark .label {
+html.dark .label,
+html.dark label {
+  color: var(--dark-text) !important;
+}
+
+/* ============================================================
+   BUTTONS — keep recon-red primary, darken ghost/secondary
+   ============================================================ */
+html.dark .btn-ghost {
+  background: transparent !important;
+  color: var(--dark-text) !important;
+}
+html.dark .btn-ghost:hover {
+  background: var(--dark-hover) !important;
+}
+html.dark .btn-secondary {
+  background: var(--dark-elevated) !important;
+  color: var(--dark-text) !important;
+}
+html.dark .btn-secondary:hover {
+  background: var(--dark-hover) !important;
+}
+html.dark .btn-danger {
+  background: var(--dark-card) !important;
+  color: #e63946 !important;
+  border-color: #e63946 !important;
+}
+html.dark .btn-danger:hover {
+  background: #c0202b !important;
+  color: #fff !important;
+}
+
+/* ============================================================
+   TABLES — including the .data class used across list pages
+   ============================================================ */
+html.dark table.data,
+html.dark table {
+  background-color: var(--dark-surface) !important;
+}
+html.dark table.data th,
+html.dark th {
+  background-color: var(--dark-surface) !important;
+  color: var(--dark-text-muted) !important;
+  border-bottom-color: var(--dark-border) !important;
+}
+html.dark table.data td,
+html.dark td {
+  background-color: transparent !important;
+  color: var(--dark-text) !important;
+  border-bottom-color: var(--dark-border) !important;
+}
+html.dark table.data tr:hover td,
+html.dark tr.row-link:hover {
+  background-color: var(--dark-hover) !important;
+}
+html.dark tr.row-link:hover td {
+  background-color: var(--dark-hover) !important;
+}
+
+/* ============================================================
+   TEXT COLORS — gray-* utilities + Recon-specific
+   ============================================================ */
+html.dark .text-gray-400,
+html.dark .text-gray-500,
+html.dark .text-gray-600,
+html.dark .text-gray-700,
+html.dark .text-gray-800,
+html.dark .text-recon-fog {
+  color: var(--dark-text-muted) !important;
+}
+
+html.dark .text-recon-charcoal,
+html.dark .text-recon-steel,
+html.dark .text-black,
+html.dark .page-h1 {
   color: var(--dark-text) !important;
 }
 
@@ -62,6 +166,65 @@ html.dark .page-sub {
   color: var(--dark-text-muted) !important;
 }
 
-html.dark main a:not(.btn):not(.navlink):not(.no-dark) {
-  color: #6ab0f3;
+/* ============================================================
+   LINKS — inside main content (not nav/buttons)
+   ============================================================ */
+html.dark main a:not(.btn):not(.navlink):not(.no-dark):not(.tab):not(.tag) {
+  color: var(--dark-link);
+}
+
+/* ============================================================
+   BADGES — keep them readable in dark mode by darkening the bg
+   only slightly (badge colors are already semantic)
+   ============================================================ */
+html.dark .badge-draft {
+  background-color: var(--dark-border) !important;
+  color: var(--dark-text) !important;
+}
+html.dark .badge-lead {
+  background-color: var(--dark-border) !important;
+  color: var(--dark-text-muted) !important;
+}
+
+/* ============================================================
+   R33 mobile bits — keep dark-friendly. Mobile panel is already
+   recon-steel which is dark, but verify hamburger hover sits.
+   ============================================================ */
+html.dark .r33-hamburger:hover {
+  background-color: var(--dark-hover) !important;
+}
+
+/* ============================================================
+   STATUS DOTS / Dashboard widgets — don't accidentally darken
+   the colored status pills + KPI numbers
+   ============================================================ */
+html.dark .badge-accepted,
+html.dark .badge-paid,
+html.dark .badge-complete,
+html.dark .badge-sent,
+html.dark .badge-rejected,
+html.dark .badge-cancelled,
+html.dark .badge-void,
+html.dark .badge-overdue,
+html.dark .badge-expired,
+html.dark .badge-scheduled,
+html.dark .badge-in_progress,
+html.dark .badge-estimating {
+  /* keep their semantic colors as-is */
+}
+
+/* ============================================================
+   FILES / FOLDERS workspace
+   ============================================================ */
+html.dark .file-item:hover,
+html.dark .folder-item:hover {
+  background-color: var(--dark-hover) !important;
+}
+
+/* ============================================================
+   AI chat widget — usually has its own dark theme but ensure
+   the root container blends
+   ============================================================ */
+html.dark #ai-chat-root .bg-white {
+  background-color: var(--dark-surface) !important;
 }
