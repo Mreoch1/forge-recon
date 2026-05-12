@@ -21,6 +21,7 @@
     "test": "node --test test/"
   },
   "dependencies": {
+    "@azure/msal-node": "^5.2.1",
     "@supabase/supabase-js": "^2.105.4",
     "bcryptjs": "^3.0.3",
     "connect-pg-simple": "^10.0.0",
