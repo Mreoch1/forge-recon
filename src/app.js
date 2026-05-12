@@ -159,6 +159,7 @@ app.get('/ping', (req, res) => { res.json({ ok: true, ts: new Date().toISOString
 // Health / version endpoint — public, returns deploy info for agent handoffs
 app.get('/health/version', async (req, res) => {
   let sha = process.env.VERCEL_GIT_COMMIT_SHA || 'unknown';
+  const buildTime = null;
   // Remove git exec — not available on Vercel Lambda or build env
   res.json({
     app: 'forge',
