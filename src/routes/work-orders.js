@@ -1347,7 +1347,7 @@ router.post('/:id/create-estimate', async (req, res) => {
   await supabase.from('estimates').update({ valid_until: thirtyDays }).eq('id', newId);
 
   setFlash(req, 'success', `Estimate EST-${wo.display_number} created from WO-${wo.display_number}.`);
-  res.redirect(`/estimates/${newId}`);
+  res.redirect(`/estimates/${newId}/edit`);
 });
 
 module.exports = router;
