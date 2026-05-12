@@ -108,8 +108,8 @@ const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
             <th>Description</th>
             <th class="text-right">Qty</th>
             <th>Unit</th>
-            <th class="text-right">Unit $</th>
             <% if (showCosts) { %><th class="text-right text-recon-fog">Cost</th><% } %>
+            <th class="text-right">Rate</th>
             <th class="text-right">Line $</th>
           </tr>
         </thead>
@@ -122,8 +122,8 @@ const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
               <td><%= li.description %></td>
               <td class="text-right"><%= li.quantity %></td>
               <td><%= li.unit %></td>
-              <td class="text-right">$<%= fmt(li.unit_price) %></td>
               <% if (showCosts) { %><td class="text-right text-recon-fog">$<%= fmt(li.cost) %></td><% } %>
+              <td class="text-right">$<%= fmt(li.unit_price) %></td>
               <td class="text-right font-medium">$<%= fmt(li.line_total) %></td>
             </tr>
           <% }); %>
