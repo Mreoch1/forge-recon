@@ -12,7 +12,7 @@
  *   POST  /:id/accept          sent -> accepted
  *   POST  /:id/reject          sent -> rejected
  *   GET   /:id/create-invoice  review approved lines before creating invoice
- *   POST  /:id/create-invoice  save approvals, then review invoice draft source
+ *   POST  /:id/create-invoice  save approvals, then review invoice source
  *   POST  /:id/generate-invoice  accepted -> creates invoice with approved lines
  *   GET   /:id/pdf             PDF
  *   POST  /:id/delete          delete (only when no invoice references it)
@@ -27,6 +27,7 @@ const { setFlash } = require('../middleware/auth');
 const calc = require('../services/calculations');
 const pdf = require('../services/pdf');
 const email = require('../services/email');
+const posting = require('../services/accounting-posting');
 const { sanitizePostgrestSearch } = require('../services/sanitize');
 
 const router = express.Router();
@@ -349,6 +350,7 @@ async function statusTransition(req, res, fromStatus, toStatus, timestampField) 
     const { writeAudit } = require('../services/audit');
     writeAudit({ entityType: 'estimate', entityId: est.id, action: toStatus, before: { status: est.status }, after: { status: toStatus }, source: 'user', userId: req.session.userId });
   } catch(e) { console.error('audit failed:', e.message); }
+
   setFlash(req, 'success', `${est.display_number} marked ${toStatus}.`);
   res.redirect(`/estimates/${est.id}`);
 }
@@ -608,16 +610,25 @@ router.post('/:id/generate-invoice', async (req, res) => {
     });
   } catch(e) { console.error('audit failed:', e.message); }
 
+  try {
+    await posting.postInvoiceSent({
+      id: invResult,
+      subtotal: totals.subtotal,
+      tax_amount: totals.taxAmount,
+      total: totals.total,
+      display_number: `INV-${estimate.wo_display_number}`,
+    }, { userId: req.session.userId });
+  } catch (e) {
+    console.error('JE post failed (invoice create) - continuing:', e.message);
+  }
+
   const { error: estUpdateError } = await supabase.from('estimates').update({
     updated_at: now,
   }).eq('id', estimate.id);
   if (estUpdateError) console.warn('[estimates] invoice created but estimate timestamp update failed:', estUpdateError.message);
 
-  // R37h: land on the EDIT page so user can immediately tune the invoice
-  // (description copy, line items, terms) before sending. Saves the
-  // pre-send round-trip to /show → click Edit.
-  setFlash(req, 'success', `INV-${estimate.wo_display_number} created from ${selectedLines.length} approved item(s). Edit as needed and click Save.`);
-  return res.redirect(`/invoices/${invResult}/edit`);
+  setFlash(req, 'success', `INV-${estimate.wo_display_number} created from ${selectedLines.length} approved item(s).`);
+  return res.redirect(`/invoices/${invResult}`);
 });
 
 // Select-for-invoice page — pick which lines to invoice

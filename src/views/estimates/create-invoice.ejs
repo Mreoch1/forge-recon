@@ -13,7 +13,7 @@ const billToEmail = estimate.customer_billing_email || estimate.customer_email |
   <div class="flex items-start justify-between gap-4 mb-6 flex-wrap">
     <div>
       <h1 class="page-h1">Create invoice</h1>
-      <p class="page-sub">Approved scope from <%= estimate.display_number %> will transfer to a new draft invoice.</p>
+      <p class="page-sub">Approved scope from <%= estimate.display_number %> will transfer to a new invoice.</p>
     </div>
     <span class="badge badge-<%= estimate.status %>"><%= estimate.status %></span>
   </div>
@@ -90,7 +90,7 @@ const billToEmail = estimate.customer_billing_email || estimate.customer_email |
       <p class="text-sm text-recon-fog">Only these approved scope items will appear on the invoice.</p>
       <div class="flex items-center gap-2">
         <a href="/estimates/<%= estimate.id %>" class="btn btn-ghost">Back</a>
-        <button type="submit" class="btn btn-primary">Create draft invoice</button>
+        <button type="submit" class="btn btn-primary">Create invoice</button>
       </div>
     </div>
   </form>

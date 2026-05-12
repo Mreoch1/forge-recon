@@ -8,6 +8,30 @@
   <span class="text-[.7rem]">brought to you by <span class="font-bold tracking-[.06em] text-recon-red">Recon Enterprises</span></span>
 </footer>
 
+<!-- Password show/hide toggle -->
+<style>
+  .pw-wrap { position: relative; display: block; }
+  .pw-toggle { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 14px; color: #888; padding: 4px 6px; line-height: 1; z-index: 1; }
+  .pw-toggle:hover { color: #c0202b; }
+</style>
+<script>
+(function(){ document.querySelectorAll('input[type="password"]').forEach(function(el){
+  if (el.closest('.pw-wrap')) return;
+  var wrap = document.createElement('span');
+  wrap.className = 'pw-wrap';
+  el.parentNode.insertBefore(wrap, el);
+  wrap.appendChild(el);
+  var btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'pw-toggle'; btn.textContent = '👁';
+  btn.tabIndex = -1;
+  btn.addEventListener('click', function(){
+    if (el.type === 'password') { el.type = 'text'; btn.textContent = '🙈'; }
+    else { el.type = 'password'; btn.textContent = '👁'; }
+  });
+  wrap.appendChild(btn);
+}); })();
+</script>
+
 <% if (typeof currentUser !== 'undefined' && currentUser) { %>
 <div id="ai-chat-root"></div>
 <script src="/js/ai-chat.js?v=mobile-fit-20260512b" defer></script>

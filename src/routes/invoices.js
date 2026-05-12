@@ -8,13 +8,13 @@
  *
  *   GET   /                    list (with overdue display)
  *   GET   /:id                 show
- *   GET   /:id/edit            edit (draft only)
+ *   GET   /:id/edit            edit open invoices
  *   POST  /:id                 update
- *   POST  /:id/send            draft -> sent (PDF emailed to billing_email)
+ *   POST  /:id/send            email PDF to billing_email
  *   POST  /:id/mark-paid       sent|overdue -> paid (or partial; stays sent)
  *   POST  /:id/void            any non-paid -> void
  *   GET   /:id/pdf             PDF
- *   POST  /:id/delete          draft or void only
+ *   POST  /:id/delete          void only
  */
 
 const express = require('express');
@@ -30,7 +30,7 @@ const { sanitizePostgrestSearch } = require('../services/sanitize');
 const router = express.Router();
 
 const PAGE_SIZE = 25;
-const VALID_STATUSES = ['draft', 'sent', 'paid', 'overdue', 'void'];
+const VALID_STATUSES = ['sent', 'paid', 'overdue', 'void'];
 const VALID_UNITS = ['ea', 'hr', 'sqft', 'lf', 'ton', 'lot'];
 const PAYMENT_TERMS_PRESETS = ['Due on receipt', 'Net 15', 'Net 30', 'Net 45', 'Net 60'];
 
@@ -316,7 +316,7 @@ router.get('/:id', async (req, res) => {
 router.get('/:id/edit', async (req, res) => {
   const invoice = await loadInvoice(req.params.id);
   if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
-  if (invoice.status !== 'draft') {
+  if (['paid', 'void'].includes(invoice.status)) {
     setFlash(req, 'error', `${invoice.display_number} is "${invoice.status}" — cannot edit.`);
     return res.redirect(`/invoices/${invoice.id}`);
   }
@@ -329,7 +329,7 @@ router.get('/:id/edit', async (req, res) => {
 router.post('/:id', async (req, res) => {
   const existing = await loadInvoice(req.params.id);
   if (!existing) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
-  if (existing.status !== 'draft') {
+  if (['paid', 'void'].includes(existing.status)) {
     setFlash(req, 'error', `${existing.display_number} is "${existing.status}" — cannot edit.`);
     return res.redirect(`/invoices/${existing.id}`);
   }
@@ -391,7 +391,7 @@ router.post('/:id', async (req, res) => {
 router.post('/:id/send', async (req, res, next) => {
   const invoice = await loadInvoice(req.params.id);
   if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
-  if (!['draft', 'sent', 'overdue'].includes(invoice.status)) {
+  if (!['sent', 'overdue'].includes(invoice.status)) {
     setFlash(req, 'error', `${invoice.display_number} is "${invoice.status}" - cannot send email.`);
     return res.redirect(`/invoices/${invoice.id}`);
   }
@@ -412,11 +412,9 @@ router.post('/:id/send', async (req, res, next) => {
       attachments: [{ filename: `${invoice.display_number}.pdf`, content: buf, contentType: 'application/pdf' }]
     });
 
-    const nextStatus = invoice.status === 'draft' ? 'sent' : invoice.status;
     const { error: updErr } = await supabase
       .from('invoices')
       .update({
-        status: nextStatus,
         sent_at: new Date().toISOString(),
         sent_by_user_id: req.session.userId,
         sent_to_email: recipient,
@@ -428,18 +426,12 @@ router.post('/:id/send', async (req, res, next) => {
 
     try {
       await writeAudit({
-        entityType: 'invoice', entityId: invoice.id, action: invoice.status === 'draft' ? 'send' : 'resend',
+        entityType: 'invoice', entityId: invoice.id, action: invoice.sent_at ? 'resend' : 'send',
         before: { status: invoice.status },
-        after: { status: nextStatus, recipient, sent_at: new Date().toISOString() },
+        after: { status: invoice.status, recipient, sent_at: new Date().toISOString() },
         source: 'user', userId: req.session.userId,
       });
     } catch (e) { /* best-effort */ }
-
-    try {
-      if (invoice.status === 'draft') await posting.postInvoiceSent(invoice, { userId: req.session.userId });
-    } catch (e) {
-      console.error('JE post failed (invoice send) - continuing:', e.message);
-    }
 
     const note = sent.mode === 'file' ? ` Email saved to ${sent.filepath}.` : '';
     setFlash(req, 'success', `${invoice.display_number} email sent to ${recipient}.${note}`);
@@ -555,7 +547,7 @@ router.post('/:id/delete', async (req, res) => {
     .maybeSingle();
   if (findErr) throw findErr;
   if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
-  if (!['draft', 'void'].includes(invoice.status)) {
+  if (invoice.status !== 'void') {
     setFlash(req, 'error', `Cannot delete invoice in status "${invoice.status}". Void it first.`);
     return res.redirect(`/invoices/${invoice.id}`);
   }

@@ -29,14 +29,13 @@ function isOverdue(inv) {
     <% if (q || status) { %>
       <a href="/invoices" class="list-clear">Clear</a>
     <% } %>
-    <a href="/invoices/new" class="btn btn-primary">+ New invoice</a>
   </form>
     <% if (invoices.length === 0) { %>
       <div class="p-8 text-center text-recon-fog">
         <% if (q || status) { %>
           No invoices match. <a href="/invoices" class="text-recon-red underline">Clear</a>
         <% } else { %>
-          No invoices yet. Use the <a href="/invoices/new" class="text-recon-red underline">+ New invoice</a> button above, or convert an accepted <a href="/estimates" class="text-recon-red underline">estimate</a>.
+          No invoices yet. Convert an accepted <a href="/estimates" class="text-recon-red underline">estimate</a>.
         <% } %>
       </div>
     <% } else { %>
@@ -48,8 +47,7 @@ function isOverdue(inv) {
           <% invoices.forEach(function(i){ %>
             <% const balance = (Number(i.total)||0) - (Number(i.amount_paid)||0); %>
             <% const showStatus = isOverdue(i) ? 'overdue' : i.status; %>
-            <% const invStatusHint = showStatus === 'draft' ? 'Not sent yet. Edit freely.'
-                                  : showStatus === 'sent' ? 'Emailed to customer, awaiting payment.'
+            <% const invStatusHint = showStatus === 'sent' ? 'Invoice created, awaiting payment.'
                                   : showStatus === 'paid' ? 'Full payment recorded. Read-only.'
                                   : showStatus === 'void' ? 'Cancelled. Does not count toward AR.'
                                   : showStatus === 'overdue' ? 'Past due date and not paid. Send a reminder.'

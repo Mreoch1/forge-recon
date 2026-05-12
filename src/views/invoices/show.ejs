@@ -26,32 +26,19 @@ const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '&mdas
         &middot; Customer: <a href="/customers/<%= invoice.customer_id %>" class="hover:text-recon-red"><%= invoice.customer_name %></a>
       </p>
     </div>
-    <%# R37h: Invoice button row — matches estimate pattern.
-        LEFT group  — document action: View PDF only (no Download, View PDF handles both).
-        RIGHT group — workflow actions, left-to-right escalation, single primary CTA per status:
-            draft       → [Edit (secondary)]  [Send invoice email (primary)]
-            sent/over   → [Send again (secondary, re-send)]  [Mark paid (primary)]
-            paid/void   → read-only (no action buttons)
-    %>
     <div class="flex flex-wrap items-center gap-2">
       <a href="/invoices/<%= invoice.id %>/pdf" class="btn btn-ghost" target="_blank" rel="noopener"
          title="Open the invoice PDF in a new tab.">View PDF</a>
 
-      <% if (invoice.status === 'draft' || invoice.status === 'sent' || invoice.status === 'overdue') { %>
+      <% if (invoice.status === 'sent' || invoice.status === 'overdue') { %>
         <span class="hidden md:inline text-recon-mist px-1" aria-hidden="true">|</span>
 
-        <% if (invoice.status === 'draft') { %>
-          <a href="/invoices/<%= invoice.id %>/edit" class="btn btn-secondary">Edit</a>
-          <form action="/invoices/<%= invoice.id %>/send" method="post" class="m-0 inline">
-            <button class="btn btn-primary" title="Email this invoice to the customer's billing email with the PDF attached.">Send invoice email</button>
-          </form>
-        <% } else { %>
-          <form action="/invoices/<%= invoice.id %>/send" method="post" class="m-0 inline">
-            <button class="btn btn-secondary" title="Re-send the invoice email (e.g. payment reminder).">Send again</button>
-          </form>
-          <button type="button" onclick="document.getElementById('mark-paid-form').classList.toggle('hidden')" class="btn btn-primary"
-                  title="Record a customer payment against this invoice. Supports full or partial payments.">Mark paid</button>
-        <% } %>
+        <a href="/invoices/<%= invoice.id %>/edit" class="btn btn-secondary">Edit</a>
+        <form action="/invoices/<%= invoice.id %>/send" method="post" class="m-0 inline">
+          <button class="btn btn-secondary" title="Email this invoice to the customer billing email with the PDF attached."><%= invoice.sent_at ? 'Send again' : 'Send invoice email' %></button>
+        </form>
+        <button type="button" onclick="document.getElementById('mark-paid-form').classList.toggle('hidden')" class="btn btn-primary"
+                title="Record a customer payment against this invoice. Supports full or partial payments.">Mark paid</button>
       <% } %>
     </div>
   </div>
@@ -206,10 +193,10 @@ const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '&mdas
           <button class="btn btn-danger" title="Cancel this invoice without deleting it. Removes it from AR totals but keeps history.">Void invoice</button>
         </form>
       <% } %>
-      <% if (invoice.status === 'draft' || invoice.status === 'void') { %>
+      <% if (invoice.status === 'void') { %>
         <form action="/invoices/<%= invoice.id %>/delete" method="post"
               onsubmit="return confirm('Delete <%= invoice.display_number %>?');" class="m-0">
-          <button type="submit" class="btn btn-danger" title="Permanently delete this invoice. Only allowed for draft or void invoices.">Delete invoice</button>
+          <button type="submit" class="btn btn-danger" title="Permanently delete this void invoice.">Delete invoice</button>
         </form>
       <% } %>
     </div>
