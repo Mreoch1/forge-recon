@@ -38,3 +38,20 @@ test('workers cannot execute privileged confirmed AI mutations', async () => {
   assert.equal(result.ok, false);
   assert.match(result.error, /managers and admins/i);
 });
+
+test('AI chat routes work-order creation to the guided builder', () => {
+  const intent = chat._internal.detectMutationIntent('I need you to help me create a work order');
+
+  assert.equal(intent.tool, 'navigate');
+  assert.equal(intent.args.path, '/work-orders/ai-create');
+  assert.match(chat._internal.buildMissingMutationReply(intent), /work order/i);
+  assert.equal(chat._internal.buildMissingMutationChips(intent)[0].href, '/work-orders/ai-create');
+});
+
+test('AI chat carries actual work-order details into the builder draft', () => {
+  const intent = chat._internal.detectMutationIntent('create a work order for Tower 7 unit 2B leaking sink tomorrow');
+
+  assert.equal(intent.tool, 'navigate');
+  assert.match(intent.args.path, /^\/work-orders\/ai-create\?draft=/);
+  assert.match(decodeURIComponent(intent.args.path), /Tower 7 unit 2B/);
+});

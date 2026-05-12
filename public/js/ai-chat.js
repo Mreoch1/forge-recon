@@ -56,6 +56,7 @@
       .recon-aic-panel {
         position: fixed; bottom: 1rem; right: 1rem; z-index: 9001;
         width: 380px; height: 500px; max-height: calc(100vh - 2rem);
+        box-sizing: border-box;
         background: #fff; border: 1px solid #d0d0d0; border-radius: 6px;
         box-shadow: 0 14px 40px rgba(0,0,0,.18);
         display: flex; flex-direction: column;
@@ -118,6 +119,7 @@
       .recon-aic-input {
         border-top: 1px solid #e5e5e5; padding: .55rem .65rem;
         display: flex; gap: .4rem; background: #fff;
+        box-sizing: border-box;
       }
       .recon-aic-input textarea {
         flex: 1; resize: none; border: 1px solid #d0d0d0; border-radius: 4px;
@@ -214,22 +216,32 @@
       .recon-aic-confirm.has-warnings .actions .confirm:hover { background: #78350f; }
 
       @media (max-width: 640px) {
+        .recon-aic-panel, .recon-aic-panel * { box-sizing: border-box; }
         .recon-aic-pill {
-          left: .75rem; right: .75rem; bottom: calc(var(--recon-aic-keyboard-bottom, 0px) + .75rem + env(safe-area-inset-bottom, 0px));
+          left: 12px; right: 12px; bottom: 12px;
           justify-content: center;
         }
         .recon-aic-panel {
-          left: .5rem; right: .5rem;
-          top: calc(var(--recon-aic-offset-top, 0px) + .5rem);
-          bottom: calc(var(--recon-aic-keyboard-bottom, 0px) + .5rem + env(safe-area-inset-bottom, 0px));
-          width: auto; height: auto; max-height: none;
+          left: 8px; right: 8px; top: auto; bottom: 8px;
+          width: calc(100vw - 16px); max-width: calc(100vw - 16px);
+          height: min(500px, calc(100svh - 24px)); max-height: calc(100svh - 24px);
           border-radius: 6px;
         }
         .recon-aic-msgs { padding: .65rem; }
-        .recon-aic-msg { max-width: 94%; font-size: .82rem; }
-        .recon-aic-input { padding: .5rem; gap: .35rem; }
-        .recon-aic-input button { padding: 0 .65rem; min-width: 44px; }
-        .recon-aic-input .mic { width: 44px; }
+        .recon-aic-msg { max-width: 94%; font-size: 15px; overflow-wrap: anywhere; }
+        .recon-aic-input {
+          display: grid; grid-template-columns: minmax(0, 1fr) 52px 54px;
+          padding: 8px; gap: 6px; width: 100%;
+        }
+        .recon-aic-input textarea {
+          width: 100%; font-size: 16px; line-height: 1.25;
+          min-height: 44px; max-height: 96px;
+        }
+        .recon-aic-input button {
+          width: 100%; min-width: 0; min-height: 44px;
+          padding: 0; font-size: 14px;
+        }
+        .recon-aic-input .mic { width: 100%; }
       }
     `;
     document.head.appendChild(style);

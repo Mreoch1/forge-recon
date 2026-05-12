@@ -122,9 +122,10 @@ async function chat({ message, history, ctx }) {
 
     const missingReply = buildMissingMutationReply(mutationIntent);
     if (missingReply) {
+      const missingChips = buildMissingMutationChips(mutationIntent);
       return {
         reply: missingReply,
-        chips: [],
+        chips: missingChips,
         tool_calls: allToolCalls,
         tokens_used: 0,
         latency_ms: Date.now() - startTime,
@@ -455,6 +456,9 @@ function detectGuidedContinuation(message, history) {
   if (/to create a customer/i.test(last)) {
     return { tool: 'create_customer', args: parseCustomerArgs(message, { allowLeadingName: true }) };
   }
+  if (/create the work order/i.test(last)) {
+    return { tool: 'navigate', args: { path: `/work-orders/ai-create?draft=${encodeURIComponent(String(message || '').trim())}` } };
+  }
   if (/which estimate/i.test(last)) {
     const idMatch = String(message || '').match(/EST[-\s]*(\d+)/i) || String(message || '').match(/estimate[#\s]*(\d+)/i) || String(message || '').match(/^#?(\d+)$/);
     if (idMatch) return { tool: 'send_estimate', args: { estimate_id: parseInt(idMatch[1], 10) } };
@@ -471,6 +475,9 @@ function buildMissingMutationReply(intent) {
   const args = (intent && intent.args) || {};
   if (tool === 'create_customer' && (!args.name || args.name.trim().length < 2)) {
     return 'Absolutely. I can create the customer in FORGE. Give me the customer name first. You can include email, phone, billing email, and address in the same message if you have them.';
+  }
+  if (tool === 'navigate' && args.path && String(args.path).startsWith('/work-orders/ai-create')) {
+    return 'Absolutely. I can create the work order in FORGE. Give me the customer or property, unit if there is one, the scope of work, and any schedule or assignee details. I will open the AI work-order builder with that draft.';
   }
   if (tool === 'send_estimate' && !Number(args.estimate_id)) {
     return 'Which estimate should I send? Give me the estimate number, like EST-12, or the customer/job name so I can find it.';
@@ -500,6 +507,15 @@ function buildMissingMutationReply(intent) {
   return null;
 }
 
+function buildMissingMutationChips(intent) {
+  const tool = intent && intent.tool;
+  const args = (intent && intent.args) || {};
+  if (tool === 'navigate' && args.path && String(args.path).startsWith('/work-orders/ai-create')) {
+    return [{ label: 'Open work-order builder', href: args.path }];
+  }
+  return [];
+}
+
 function buildGuidedErrorReply(tool, error) {
   const text = String(error || '');
   if (/not found/i.test(text)) {
@@ -512,7 +528,24 @@ function buildGuidedErrorReply(tool, error) {
   return null;
 }
 
+function workOrderBuilderPath(message) {
+  const draft = String(message || '')
+    .replace(/^(?:can you|could you|please|i need you to|help me|i need to|we need to)\s+/i, '')
+    .replace(/^(?:help me\s+)?(?:create|make|add)\s+(?:a\s+)?(?:new\s+)?work\s*order\s*(?:for|to|:)?\s*/i, '')
+    .trim();
+  return draft.length >= 8
+    ? `/work-orders/ai-create?draft=${encodeURIComponent(draft)}`
+    : '/work-orders/ai-create';
+}
+
 const MUTATION_PATTERNS = [
+  {
+    tool: 'navigate',
+    patterns: [/create\s+(?:a\s+)?(?:new\s+)?work\s*order/i, /new\s+work\s*order/i, /make\s+(?:a\s+)?work\s*order/i],
+    extract: (msg) => {
+      return { path: workOrderBuilderPath(msg) };
+    }
+  },
   {
     tool: 'create_customer',
     patterns: [/add\s+(?:a\s+)?(?:new\s+)?customer/i, /create\s+(?:a\s+)?(?:new\s+)?customer/i, /new\s+customer/i],
@@ -666,6 +699,8 @@ module.exports._internal = {
   parseCustomerArgs,
   detectGuidedContinuation,
   buildMissingMutationReply,
+  buildMissingMutationChips,
   buildGuidedErrorReply,
   detectMutationIntent,
+  workOrderBuilderPath,
 };
