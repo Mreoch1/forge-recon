@@ -417,6 +417,8 @@ function parseCustomerArgs(message, opts = {}) {
   const phoneMatch = msg.match(/(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}/);
   const billingEmailMatch = msg.match(/billing\s+email\s+(?:is\s+)?([\w._%+-]+@[\w.-]+\.[A-Za-z]{2,})/i);
   const addrMatch = msg.match(/(?:address\s+(?:is\s+)?|from|in|at)\s+(.+?)(?:,?\s+(?:email|phone|billing|notes?)\b|[.;]|$)/i);
+  const billingAddressMatch = msg.match(/billing\s+address\s+(?:is\s+)?(.+?)(?:,?\s+(?:email|phone|address|contact|manager|notes?)\b|[.;]|$)/i);
+  const contactMatch = msg.match(/(?:contact|manager|property manager)\s+(?:is\s+)?(.+?)(?:,?\s+(?:email|phone|address|billing|notes?)\b|[.;]|$)/i);
 
   let name = extractNamedValue(msg);
   if (!name && opts.allowLeadingName) {
@@ -443,7 +445,24 @@ function parseCustomerArgs(message, opts = {}) {
       args.address = addr;
     }
   }
+  const notes = [];
+  if (billingAddressMatch && billingAddressMatch[1].trim().length < 160) notes.push(`Billing address: ${billingAddressMatch[1].trim()}`);
+  if (contactMatch && contactMatch[1].trim().length < 120) notes.push(`Contact/manager: ${contactMatch[1].trim()}`);
+  if (notes.length) args.notes = notes.join('\n');
   return args;
+}
+
+function mergeCustomerArgs(base, next) {
+  const merged = { ...(base || {}) };
+  Object.entries(next || {}).forEach(([key, value]) => {
+    if (!value) return;
+    if (key === 'notes' && merged.notes && value !== merged.notes) {
+      merged.notes = `${merged.notes}\n${value}`;
+    } else {
+      merged[key] = value;
+    }
+  });
+  return merged;
 }
 
 function lastAssistantText(history) {
@@ -454,8 +473,32 @@ function lastAssistantText(history) {
   return '';
 }
 
+function customerDraftFromHistory(history) {
+  const rows = Array.isArray(history) ? history : [];
+  let draft = {};
+  let active = false;
+  for (const row of rows) {
+    if (!row || typeof row.content !== 'string') continue;
+    if (row.role === 'assistant' && /customer/i.test(row.content) && (/customer name/i.test(row.content) || /email|phone|billing|address|contact|manager/i.test(row.content))) {
+      active = true;
+      continue;
+    }
+    if (active && row.role === 'user') {
+      draft = mergeCustomerArgs(draft, parseCustomerArgs(row.content, { allowLeadingName: !draft.name }));
+    }
+  }
+  return draft;
+}
+
 function detectGuidedContinuation(message, history) {
   const last = lastAssistantText(history);
+  if (isAwaitingCustomerDetails(last)) {
+    const existing = customerDraftFromHistory(history);
+    const incoming = parseCustomerArgs(message, { allowLeadingName: !existing.name });
+    const args = mergeCustomerArgs(existing, incoming);
+    if (isCustomerSkipReply(message)) args._customer_skip_missing = true;
+    return { tool: 'create_customer', args };
+  }
   if (isAwaitingCustomerName(last)) {
     return { tool: 'create_customer', args: parseCustomerArgs(message, { allowLeadingName: true }) };
   }
@@ -485,11 +528,42 @@ function isAwaitingCustomerName(text) {
     );
 }
 
+function isAwaitingCustomerDetails(text) {
+  const last = String(text || '');
+  return /customer/i.test(last)
+    && (/do you know/i.test(last) || /not sure/i.test(last) || /what we have/i.test(last));
+}
+
+function isCustomerSkipReply(message) {
+  return /^(no|nope|not sure|unsure|idk|i don't know|i dont know|unknown|skip|none|not now)\b/i.test(String(message || '').trim());
+}
+
+function customerMissingFields(args) {
+  const missing = [];
+  if (!args.email) missing.push('email');
+  if (!args.phone) missing.push('phone');
+  if (!args.address && !args.city && !args.state && !args.zip) missing.push('service address');
+  if (!args.billing_email && !/billing address:/i.test(args.notes || '')) missing.push('billing email or billing address');
+  if (!/contact\/manager:/i.test(args.notes || '')) missing.push('contact or manager name');
+  return missing;
+}
+
+function customerIntakeReply(args) {
+  const name = args.name ? ` for ${args.name}` : '';
+  const missing = customerMissingFields(args);
+  if (!missing.length || args._customer_skip_missing) return null;
+  return `Got the customer name${name}. Do you know the ${missing.join(', ')}? Send whatever you have, or say "not sure" and I will create the customer with what we have.`;
+}
+
 function buildMissingMutationReply(intent) {
   const tool = intent && intent.tool;
   const args = (intent && intent.args) || {};
   if (tool === 'create_customer' && (!args.name || args.name.trim().length < 2)) {
     return 'Absolutely. I can create the customer in FORGE. Give me the customer name first. You can include email, phone, billing email, and address in the same message if you have them.';
+  }
+  if (tool === 'create_customer') {
+    const intakeReply = customerIntakeReply(args);
+    if (intakeReply) return intakeReply;
   }
   if (tool === 'navigate' && args.path && String(args.path).startsWith('/work-orders/ai-create')) {
     return 'Absolutely. I can create the work order in FORGE. Give me the customer or property, unit if there is one, the scope of work, and any schedule or assignee details. I will open the AI work-order builder with that draft.';
@@ -719,4 +793,8 @@ module.exports._internal = {
   detectMutationIntent,
   workOrderBuilderPath,
   isAwaitingCustomerName,
+  isAwaitingCustomerDetails,
+  customerDraftFromHistory,
+  customerMissingFields,
+  isCustomerSkipReply,
 };

@@ -41,6 +41,7 @@ function validateCustomer(body) {
       name,
       email,
       billing_email,
+      contact_name: emptyToNull(body.contact_name),
       phone: emptyToNull(body.phone),
       address: emptyToNull(body.address),
       city: emptyToNull(body.city),

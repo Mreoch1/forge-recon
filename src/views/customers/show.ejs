@@ -31,6 +31,9 @@
           <% if (customer.phone) { %>
             <div><dt class="text-recon-fog text-xs">Phone</dt><dd><a href="tel:<%= customer.phone %>" class="text-recon-charcoal hover:text-recon-red"><%= customer.phone %></a></dd></div>
           <% } %>
+          <% if (customer.contact_name) { %>
+            <div><dt class="text-recon-fog text-xs">Contact person</dt><dd class="font-medium"><%= customer.contact_name %></dd></div>
+          <% } %>
           <% if (customer.address || customer.city) { %>
             <div>
               <dt class="text-recon-fog text-xs">Address</dt>

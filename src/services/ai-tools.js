@@ -490,17 +490,19 @@ const MUTATION_TOOLS = {};
 MUTATION_TOOLS.create_customer = {
   needs_user: 'write',
   async propose(args, ctx) {
-    if (!args.name || args.name.trim().length < 2) return { error: 'Customer name is required (min 2 chars).' };
+    const cleanArgs = { ...(args || {}) };
+    delete cleanArgs._customer_skip_missing;
+    if (!cleanArgs.name || cleanArgs.name.trim().length < 2) return { error: 'Customer name is required (min 2 chars).' };
     const lines = [];
-    lines.push(`Name: ${args.name.trim()}`);
-    if (args.email) lines.push(`Email: ${args.email.trim()}`);
-    if (args.phone) lines.push(`Phone: ${args.phone.trim()}`);
-    if (args.address || args.city || args.state || args.zip) {
-      lines.push(`Address: ${[args.address, args.city, args.state, args.zip].filter(Boolean).join(', ')}`);
+    lines.push(`Name: ${cleanArgs.name.trim()}`);
+    if (cleanArgs.email) lines.push(`Email: ${cleanArgs.email.trim()}`);
+    if (cleanArgs.phone) lines.push(`Phone: ${cleanArgs.phone.trim()}`);
+    if (cleanArgs.address || cleanArgs.city || cleanArgs.state || cleanArgs.zip) {
+      lines.push(`Address: ${[cleanArgs.address, cleanArgs.city, cleanArgs.state, cleanArgs.zip].filter(Boolean).join(', ')}`);
     }
-    if (args.billing_email) lines.push(`Billing email: ${args.billing_email.trim()}`);
-    if (args.notes) lines.push(`Notes: ${args.notes.trim()}`);
-    return { summary_lines: lines, args_normalized: args };
+    if (cleanArgs.billing_email) lines.push(`Billing email: ${cleanArgs.billing_email.trim()}`);
+    if (cleanArgs.notes) lines.push(`Notes: ${cleanArgs.notes.trim()}`);
+    return { summary_lines: lines, args_normalized: cleanArgs };
   },
   async execute(args, ctx) {
     const { data: newCustomer, error } = await supabase.from('customers').insert({
