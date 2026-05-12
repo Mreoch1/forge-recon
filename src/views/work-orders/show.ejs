@@ -149,12 +149,6 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
           <button class="btn btn-primary text-sm" title="Create a customer-facing estimate from this WO's line items. You can edit before sending.">Create estimate</button>
         </form>
       <% } %>
-      <% if (wo.status !== 'complete' && wo.status !== 'cancelled') { %>
-        <form action="/work-orders/<%= wo.id %>/cancel" method="post" class="m-0 inline"
-              onsubmit="return confirm('Cancel this work order?');">
-          <button class="btn btn-ghost text-sm" title="Cancel this WO. Keeps it in history but marks it as not performed.">Cancel</button>
-        </form>
-      <% } %>
     </div>
   </div>
 
@@ -279,7 +273,7 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
       <% } %>
     </div>
 
-    <!-- RIGHT: customer + documents + danger zone -->
+    <!-- RIGHT: customer + documents -->
     <div>
 
       <!-- Customer card -->
@@ -324,18 +318,27 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
           <% } %>
         </div>
       <% } %>
+    </div>
+  </div>
 
-      <!-- Danger zone (only when relevant) -->
+  <% if (wo.status !== 'complete' || wo.status === 'cancelled') { %>
+    <div class="card p-5 border-red-200 mt-8">
+      <h2 class="ws-h-secondary text-recon-red" style="border-color:#fca5a5;">Danger zone</h2>
+      <% if (wo.status !== 'complete' && wo.status !== 'cancelled') { %>
+        <form action="/work-orders/<%= wo.id %>/cancel" method="post" class="mb-3"
+              onsubmit="return confirm('Cancel this work order?');">
+          <button class="btn btn-danger text-sm" title="Cancel this WO. Keeps it in history but marks it as not performed.">Cancel work order</button>
+        </form>
+      <% } %>
       <% if (wo.status === 'scheduled' || wo.status === 'cancelled') { %>
-        <h2 class="ws-h-secondary text-recon-red" style="border-color:#fca5a5;">Danger zone</h2>
-        <p class="text-xs text-recon-fog mb-2">Allowed only when no estimate references this WO.</p>
+        <p class="text-xs text-recon-fog mb-2">Delete is allowed only when no estimate references this WO.</p>
         <form action="/work-orders/<%= wo.id %>/delete" method="post"
               onsubmit="return confirm('Delete WO-<%= wo.display_number %>?');" class="m-0">
-          <button type="submit" class="btn btn-danger text-sm" title="Permanently delete this WO. Only works if no estimate or invoice references it.">Delete</button>
+          <button type="submit" class="btn btn-danger text-sm" title="Permanently delete this WO. Only works if no estimate or invoice references it.">Delete work order</button>
         </form>
       <% } %>
     </div>
-  </div>
+  <% } %>
 </div>
 
 <%- include('../layouts/footer') %>

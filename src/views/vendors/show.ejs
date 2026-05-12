@@ -19,7 +19,7 @@
       <% bills.forEach(function(b) { %><tr><td><%= b.bill_number || '-' %></td><td><%= b.status %></td><td><%= (b.created_at || '').slice(0,10) %></td></tr><% }); %>
     </tbody></table><% } %>
   </div>
-</div>
+
   <div class="card p-5 border-red-200 mt-6">
     <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
     <form action="/vendors/<%= vendor.id %>/delete" method="post" onsubmit="return confirm('Delete this vendor?');" class="m-0">

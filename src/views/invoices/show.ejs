@@ -51,12 +51,6 @@ const invStatusHint = INV_STATUS_HINTS[displayStatus] || displayStatus;
                 title="Record a customer payment against this invoice. Supports full or partial payments.">Mark paid</button>
       <% } %>
 
-      <% if (invoice.status !== 'paid' && invoice.status !== 'void') { %>
-        <form action="/invoices/<%= invoice.id %>/void" method="post" class="m-0 inline"
-              onsubmit="return confirm('Void this invoice?');">
-          <button class="btn btn-ghost" title="Cancel this invoice without deleting it. Removes it from AR totals but keeps history.">Void</button>
-        </form>
-      <% } %>
     </div>
   </div>
 
@@ -167,13 +161,21 @@ const invStatusHint = INV_STATUS_HINTS[displayStatus] || displayStatus;
     <% } %>
   </div>
 
-  <% if (invoice.status === 'draft' || invoice.status === 'void') { %>
+  <% if (invoice.status !== 'paid') { %>
     <div class="card p-5 border-red-200">
       <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
-      <form action="/invoices/<%= invoice.id %>/delete" method="post"
-            onsubmit="return confirm('Delete <%= invoice.display_number %>?');" class="m-0">
-        <button type="submit" class="btn btn-danger" title="Permanently delete this invoice. Only allowed for draft or void invoices.">Delete</button>
-      </form>
+      <% if (invoice.status !== 'void') { %>
+        <form action="/invoices/<%= invoice.id %>/void" method="post" class="mb-3"
+              onsubmit="return confirm('Void this invoice?');">
+          <button class="btn btn-danger" title="Cancel this invoice without deleting it. Removes it from AR totals but keeps history.">Void invoice</button>
+        </form>
+      <% } %>
+      <% if (invoice.status === 'draft' || invoice.status === 'void') { %>
+        <form action="/invoices/<%= invoice.id %>/delete" method="post"
+              onsubmit="return confirm('Delete <%= invoice.display_number %>?');" class="m-0">
+          <button type="submit" class="btn btn-danger" title="Permanently delete this invoice. Only allowed for draft or void invoices.">Delete invoice</button>
+        </form>
+      <% } %>
     </div>
   <% } %>
 </div>

@@ -58,9 +58,6 @@ const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
         <form action="/estimates/<%= estimate.id %>/accept" method="post" class="m-0 inline">
           <button class="btn btn-primary" title="Customer approved — mark accepted so it can be converted to an invoice.">Mark accepted</button>
         </form>
-        <form action="/estimates/<%= estimate.id %>/reject" method="post" class="m-0 inline">
-          <button class="btn btn-danger" title="Customer declined — mark rejected. Estimate becomes read-only history.">Mark rejected</button>
-        </form>
       <% } %>
       <% if (['sent','accepted'].includes(estimate.status) && !invoice && estimate.lines.length > 0) { %>
         <button form="line-approvals-form" formaction="/estimates/<%= estimate.id %>/create-invoice" formmethod="post" class="btn btn-primary"
@@ -177,6 +174,13 @@ const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
 
   <div class="card p-5 border-red-200">
     <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
+
+    <% if (estimate.status === 'sent') { %>
+      <form action="/estimates/<%= estimate.id %>/reject" method="post" class="mb-3"
+            onsubmit="return confirm('Mark <%= estimate.display_number %> rejected?');">
+        <button class="btn btn-danger" title="Customer declined - mark rejected. Estimate becomes read-only history.">Mark rejected</button>
+      </form>
+    <% } %>
 
     <% if (!estimate.archived_at) { %>
       <form action="/estimates/<%= estimate.id %>/archive" method="post" class="mb-3"

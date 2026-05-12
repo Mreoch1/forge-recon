@@ -41,9 +41,6 @@ const billStatusHint = BILL_STATUS_HINTS[bill.status] || bill.status;
                  value="<%= fmt(bal) %>" class="input text-right" style="width: 8rem;">
           <button class="btn btn-primary" title="Record a payment against this bill. Supports full or partial payments.">Record payment</button>
         </form>
-        <form action="/bills/<%= bill.id %>/void" method="post" class="m-0 inline">
-          <button class="btn btn-danger" title="Cancel this bill. Keeps the record but removes it from AP totals.">Void</button>
-        </form>
       <% } else if (bill.status === 'void') { %>
       <% } %>
     </div>
@@ -135,24 +132,21 @@ const billStatusHint = BILL_STATUS_HINTS[bill.status] || bill.status;
     <% } %>
   </div>
 
-  <% if (bill.status === 'draft') { %>
+  <% if (['draft', 'approved', 'void'].includes(bill.status)) { %>
     <div class="card p-5 border-red-200">
       <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
-      <form action="/bills/<%= bill.id %>/void" method="post" class="mb-3">
-        <button class="btn btn-danger" title="Cancel this bill. Keeps the record but removes it from AP totals.">Void bill</button>
-      </form>
-      <form action="/bills/<%= bill.id %>/delete" method="post"
-            onsubmit="return confirm('Delete this draft bill?');" class="m-0">
-        <button type="submit" class="btn btn-danger" title="Permanently delete this bill. Only allowed for draft or void bills.">Delete bill</button>
-      </form>
-    </div>
-  <% } else if (bill.status === 'void') { %>
-    <div class="card p-5 border-red-200">
-      <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
-      <form action="/bills/<%= bill.id %>/delete" method="post"
-            onsubmit="return confirm('Delete this voided bill?');" class="m-0">
-        <button type="submit" class="btn btn-danger" title="Permanently delete this bill. Only allowed for draft or void bills.">Delete bill</button>
-      </form>
+      <% if (bill.status === 'draft' || bill.status === 'approved') { %>
+        <form action="/bills/<%= bill.id %>/void" method="post" class="mb-3"
+              onsubmit="return confirm('Void this bill?');">
+          <button class="btn btn-danger" title="Cancel this bill. Keeps the record but removes it from AP totals.">Void bill</button>
+        </form>
+      <% } %>
+      <% if (bill.status === 'draft' || bill.status === 'void') { %>
+        <form action="/bills/<%= bill.id %>/delete" method="post"
+              onsubmit="return confirm('Delete this <%= bill.status %> bill?');" class="m-0">
+          <button type="submit" class="btn btn-danger" title="Permanently delete this bill. Only allowed for draft or void bills.">Delete bill</button>
+        </form>
+      <% } %>
     </div>
   <% } %>
 </div>
