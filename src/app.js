@@ -310,6 +310,20 @@ app.post('/feedback', async (req, res) => {
   res.redirect(req.headers.referer || '/');
 });
 
+// POST /account/ack-email-warning — dismiss the email warning modal
+app.post('/account/ack-email-warning', async (req, res) => {
+  if (!req.session.userId) return res.status(401).redirect('/login');
+  try {
+    const supabase = require('./db/supabase');
+    await supabase.from('users').update({ acknowledged_live_email_warning_at: new Date() }).eq('id', req.session.userId);
+    req.flash('success', 'Email warning acknowledged.');
+  } catch (e) {
+    console.warn('[account] ack-email-warning failed:', e.message);
+  }
+  const referer = req.headers.referer || '/';
+  res.redirect(referer);
+});
+
 app.use((req, res) => {
   const errorCtx = { method: req.method, user: req.currentUser?.email || req.session?.email || 'unknown', timestamp: new Date().toISOString() };
   res.status(404).render('error', { title: 'Not found', code: 404, message: 'That page does not exist.', currentUrl: req.originalUrl, errorCtx });
