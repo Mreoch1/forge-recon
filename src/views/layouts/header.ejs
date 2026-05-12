@@ -239,18 +239,19 @@
           <form action="/logout" method="post" class="m-0 p-0">
             <button type="submit" class="text-recon-fog hover:text-white transition px-2 py-1">Logout</button>
           </form>
-        </div>
-      </div>
     </div>
-  </nav>
-
-  <!-- FORGE early-adopter banner -->
-  <div class="bg-gradient-to-r from-recon-red via-red-700 to-recon-red-dark text-white text-center text-sm py-2.5 px-4 shadow-md" style="background:linear-gradient(135deg,#c0202b 0%,#8a0e16 50%,#5a5a5a 100%)">
-    <span class="font-semibold tracking-wide">🔧 FORGE is under construction.</span>
-    <span class="opacity-90">Run into an issue? Hit the <span class="font-mono text-xs bg-black/20 px-1.5 py-0.5 rounded">📧 Report this error</span> button and we'll fix it. You're one of the first to use FORGE — <span class="font-semibold">thank you</span> for helping shape it. 🚀</span>
   </div>
+</div>
+<% } %>
+
+<!-- FORGE early-adopter banner (shown to all users) -->
+<div class="bg-gradient-to-r from-recon-red via-red-700 to-recon-red-dark text-white text-center text-sm py-2.5 px-4 shadow-md" style="background:linear-gradient(135deg,#c0202b 0%,#8a0e16 50%,#5a5a5a 100%)">
+  <span class="font-semibold tracking-wide">🔧 FORGE is under construction.</span>
+  <span class="opacity-90">Run into an issue? Hit the <span class="font-mono text-xs bg-black/20 px-1.5 py-0.5 rounded">📧 Report this error</span> button and we'll fix it. You're one of the first to use FORGE — <span class="font-semibold">thank you</span> for helping shape it. 🚀</span>
+</div>
 
 <script>
+// Theme toggle (also updates iOS Safari status bar tint via meta theme-color)
 // Theme toggle (also updates iOS Safari status bar tint via meta theme-color)
 (function(){
   const html = document.documentElement;
