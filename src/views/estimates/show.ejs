@@ -55,17 +55,6 @@ const roi = costTotal > 0 ? ((margin / costTotal) * 100).toFixed(1) : '&mdash;';
       <% if (['sent','accepted'].includes(estimate.status) && !invoice && estimate.lines.length > 0) { %>
         <button form="line-approvals-form" formaction="/estimates/<%= estimate.id %>/generate-invoice" formmethod="post" class="btn btn-primary">Create invoice</button>
       <% } %>
-      <% if (!estimate.archived_at) { %>
-        <form action="/estimates/<%= estimate.id %>/archive" method="post" class="m-0 inline"
-              onsubmit="return confirm('Close <%= estimate.display_number %>?');">
-          <button class="btn btn-danger">Close estimate</button>
-        </form>
-      <% } else if (currentUser.role === 'admin') { %>
-        <form action="/estimates/<%= estimate.id %>/unarchive" method="post" class="m-0 inline"
-              onsubmit="return confirm('Unarchive <%= estimate.display_number %>?');">
-          <button class="btn btn-ghost">Unarchive</button>
-        </form>
-      <% } %>
     </div>
   </div>
 
@@ -175,15 +164,28 @@ const roi = costTotal > 0 ? ((margin / costTotal) * 100).toFixed(1) : '&mdash;';
     <% } %>
   </div>
 
-  <% if (estimate.status === 'draft' && !invoice) { %>
-    <div class="card p-5 border-red-200">
-      <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
+  <div class="card p-5 border-red-200">
+    <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
+
+    <% if (!estimate.archived_at) { %>
+      <form action="/estimates/<%= estimate.id %>/archive" method="post" class="mb-3"
+            onsubmit="return confirm('Close <%= estimate.display_number %>?');">
+        <button type="submit" class="btn btn-danger">Close estimate</button>
+      </form>
+    <% } else if (currentUser && currentUser.role === 'admin') { %>
+      <form action="/estimates/<%= estimate.id %>/unarchive" method="post" class="mb-3"
+            onsubmit="return confirm('Unarchive <%= estimate.display_number %>?');">
+        <button type="submit" class="btn btn-ghost">Unarchive</button>
+      </form>
+    <% } %>
+
+    <% if (estimate.status === 'draft' && !invoice) { %>
       <form action="/estimates/<%= estimate.id %>/delete" method="post"
             onsubmit="return confirm('Delete <%= estimate.display_number %>?');" class="m-0">
         <button type="submit" class="btn btn-danger">Delete estimate</button>
       </form>
-    </div>
-  <% } %>
+    <% } %>
+  </div>
 </div>
 
 <%- include('../layouts/footer') %>
