@@ -169,7 +169,7 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
     </div>
     <div class="ws-strip-cell">
       <div class="ws-strip-label">Assignee</div>
-      <div class="ws-strip-value"><%= wo.assigned_user_name || wo.assigned_to || '—' %></div>
+      <div class="ws-strip-value"><% if (wo.assignees && wo.assignees.length) { %><%= wo.assignees.map(function(a){ return a.name; }).join(', ') %><% } else { %><%= wo.assigned_user_name || wo.assigned_to || '—' %><% } %></div>
     </div>
     <% if (estimate) { %>
       <div class="ws-strip-cell">

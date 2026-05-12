@@ -846,6 +846,22 @@ router.post('/:id', async (req, res) => {
   });
   if (rpcErr) throw rpcErr;
 
+  // Update work_order_assignees
+  const newAssigneeIds = normalizeArr(req.body.assignee_ids);
+  const { data: currentAssignees } = await supabase.from('work_order_assignees').select('user_id').eq('work_order_id', existing.id);
+  const currentIds = (currentAssignees || []).map(a => a.user_id);
+  const toAdd = newAssigneeIds.filter(id => !currentIds.includes(parseInt(id, 10)));
+  const toRemove = currentIds.filter(id => !newAssigneeIds.includes(String(id)));
+  for (const uid of toRemove) {
+    await supabase.from('work_order_assignees').delete().eq('work_order_id', existing.id).eq('user_id', uid);
+  }
+  for (const uid of toAdd) {
+    await supabase.from('work_order_assignees').insert({
+      work_order_id: existing.id, user_id: parseInt(uid, 10),
+      assigned_at: new Date().toISOString(), assigned_by_user_id: req.session.userId || null,
+    });
+  }
+
   setFlash(req, 'success', `WO-${newDisplay} updated.`);
   res.redirect(`/work-orders/${existing.id}`);
 });
