@@ -1,0 +1,58 @@
+/* FORGE Dark Theme — applied when <html class="dark">
+   Tailwind CDN handles most dark variants via `dark:` prefix.
+   This file adds overrides for elements Tailwind can't easily style. */
+
+:root {
+  --dark-bg: #1a1a2e;
+  --dark-surface: #16213e;
+  --dark-card: #0f3460;
+  --dark-border: #2a2a4a;
+  --dark-text: #e0e0e0;
+  --dark-text-muted: #a0a0b0;
+}
+
+html.dark body {
+  background-color: var(--dark-bg);
+  color: var(--dark-text);
+}
+
+html.dark .card,
+html.dark .bg-white,
+html.dark .bg-gray-50,
+html.dark .bg-gray-100 {
+  background-color: var(--dark-surface) !important;
+}
+
+html.dark .border,
+html.dark .border-gray-200,
+html.dark .border-gray-300 {
+  border-color: var(--dark-border) !important;
+}
+
+html.dark input,
+html.dark select,
+html.dark textarea {
+  background-color: var(--dark-card) !important;
+  color: var(--dark-text) !important;
+  border-color: var(--dark-border) !important;
+}
+
+html.dark th {
+  background-color: var(--dark-surface) !important;
+  color: var(--dark-text) !important;
+}
+
+html.dark td {
+  background-color: var(--dark-card) !important;
+  color: var(--dark-text) !important;
+}
+
+html.dark .text-gray-500,
+html.dark .text-gray-600,
+html.dark .text-gray-700 {
+  color: var(--dark-text-muted) !important;
+}
+
+html.dark a:not(.btn):not(button):not(.no-dark) {
+  color: #6ab0f3;
+}

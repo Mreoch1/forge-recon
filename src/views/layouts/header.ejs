@@ -12,6 +12,7 @@
   <meta name="theme-color" content="#c0202b">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/htmx.org@2.0.3"></script>
+  <link rel="stylesheet" href="/css/dark.css">
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -184,10 +185,24 @@
         <form action="/logout" method="post" class="m-0 p-0">
           <button type="submit" class="text-sm text-recon-fog hover:text-white transition">Logout</button>
         </form>
+        <button id="theme-toggle" class="text-sm text-recon-fog hover:text-white transition" title="Toggle dark mode">☀</button>
       </div>
     </div>
   </nav>
 <script>
+// Theme toggle
+(function(){
+  const html = document.documentElement;
+  const btn = document.getElementById('theme-toggle');
+  const saved = localStorage.getItem('forge-theme');
+  if (saved === 'dark') { html.classList.add('dark'); btn.textContent = '☾'; }
+  btn.addEventListener('click', function(){
+    html.classList.toggle('dark');
+    const isDark = html.classList.contains('dark');
+    btn.textContent = isDark ? '☾' : '☀';
+    localStorage.setItem('forge-theme', isDark ? 'dark' : 'light');
+  });
+})();
 (function(){
   var moreBtn = document.querySelector('.more-toggle');
   var moreMenu = document.querySelector('.more-menu');
