@@ -825,6 +825,8 @@ router.post('/:id', async (req, res) => {
     });
   }
 
+  const linesForUpdate = req.body.lines === undefined ? (existing.lines || []) : data.lines;
+
   const { error: rpcErr } = await supabase.rpc('update_work_order_with_lines', {
     wo_id: parseInt(existing.id, 10),
     wo_data: {
@@ -838,7 +840,7 @@ router.post('/:id', async (req, res) => {
       assigned_to: data.assigned_to,
       notes: data.notes,
     },
-    lines: buildLineRows(data.lines),
+    lines: buildLineRows(linesForUpdate),
     user_id: req.session.userId || null,
   });
   if (rpcErr) throw rpcErr;
