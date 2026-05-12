@@ -158,6 +158,28 @@ app.use(async (req, res, next) => {
 app.use(loadCurrentUser);
 app.get('/ping', (req, res) => { res.json({ ok: true, ts: new Date().toISOString() }); });
 
+// Health / version endpoint — public, returns deploy info for agent handoffs
+app.get('/health/version', async (req, res) => {
+  let sha = process.env.VERCEL_GIT_COMMIT_SHA || 'unknown';
+  let buildTime = null;
+  // Fallback for local dev: read git SHA
+  if (sha === 'unknown') {
+    try {
+      sha = require('child_process').execSync('git rev-parse HEAD', { encoding: 'utf8', timeout: 3000 }).trim();
+    } catch (e) { /* best-effort */ }
+  }
+  res.json({
+    app: 'forge',
+    version: sha,
+    build_time: buildTime,
+    deployed: new Date().toISOString(),
+    node: process.version,
+    env: process.env.NODE_ENV || 'production',
+    vercel_url: process.env.VERCEL_URL || null,
+    deployment_id: process.env.VERCEL_DEPLOYMENT_ID || null,
+  });
+});
+
 // F2: apply rate limiters BEFORE the auth/signup routers see the request.
 // 5/15min on login + signup; 3/15min on forgot-password + resend-verification +
 // reset-password POST. Only POST is rate-limited so GET pages still render.
