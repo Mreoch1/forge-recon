@@ -22,7 +22,11 @@
         <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Contact</h3>
         <dl class="space-y-2 text-sm">
           <% if (customer.email) { %>
-            <div><dt class="text-recon-fog text-xs">Email</dt><dd><a href="mailto:<%= customer.email %>" class="text-recon-charcoal hover:text-recon-red"><%= customer.email %></a></dd></div>
+            <div><dt class="text-recon-fog text-xs">Email <span class="font-normal">(estimates)</span></dt><dd><a href="mailto:<%= customer.email %>" class="text-recon-charcoal hover:text-recon-red"><%= customer.email %></a></dd></div>
+          <% } %>
+          <% var custBillEmail = customer.billing_email || customer.email; %>
+          <% if (custBillEmail) { %>
+            <div><dt class="text-recon-fog text-xs">Billing email <span class="font-normal">(invoices)</span></dt><dd><a href="mailto:<%= custBillEmail %>" class="text-recon-charcoal hover:text-recon-red"><%= custBillEmail %></a><% if (!customer.billing_email) { %> <span class="text-xs text-recon-fog">(same as primary)</span><% } %></dd></div>
           <% } %>
           <% if (customer.phone) { %>
             <div><dt class="text-recon-fog text-xs">Phone</dt><dd><a href="tel:<%= customer.phone %>" class="text-recon-charcoal hover:text-recon-red"><%= customer.phone %></a></dd></div>
