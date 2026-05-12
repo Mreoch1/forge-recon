@@ -128,8 +128,12 @@ router.get('/:id', async (req, res) => {
   if (custError) throw custError;
   if (!customer) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Customer not found.' });
 
-  const [{ data: jobs }, { count: fileCountCust }] = await Promise.all([
-    supabase.from('jobs').select('id, title, status, address, city, state, created_at').eq('customer_id', id).order('created_at', { ascending: false }),
+  const [{ data: workOrders }, { count: fileCountCust }] = await Promise.all([
+    supabase
+      .from('work_orders')
+      .select('id, display_number, status, unit_number, description, scheduled_date, scheduled_time, created_at')
+      .eq('customer_id', id)
+      .order('created_at', { ascending: false }),
     supabase.from('files')
       .select('id', { count: 'exact', head: true })
       .eq('folder.entity_type', 'customer')
@@ -140,7 +144,7 @@ router.get('/:id', async (req, res) => {
 
   res.render('customers/show', {
     title: customer.name, activeNav: 'customers',
-    customer, jobs: jobs || [], fileCount
+    customer, workOrders: workOrders || [], fileCount
   });
 });
 
@@ -179,9 +183,9 @@ router.post('/:id/delete', async (req, res) => {
   const { data: customer, error: findError } = await supabase.from('customers').select('id, name').eq('id', id).maybeSingle();
   if (findError) throw findError;
   if (!customer) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Customer not found.' });
-  const { count: jobCount } = await supabase.from('jobs').select('*', { count: 'exact', head: true }).eq('customer_id', id);
-  if (jobCount > 0) {
-    setFlash(req, 'error', `Cannot delete "${customer.name}" — they still have ${jobCount} legacy job record(s).`);
+  const { count: workOrderCount } = await supabase.from('work_orders').select('*', { count: 'exact', head: true }).eq('customer_id', id);
+  if (workOrderCount > 0) {
+    setFlash(req, 'error', `Cannot delete "${customer.name}" because they still have ${workOrderCount} work order(s).`);
     return res.redirect(`/customers/${id}`);
   }
   const { error: deleteError } = await supabase.from('customers').delete().eq('id', id);
