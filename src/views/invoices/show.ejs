@@ -4,7 +4,10 @@
 function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
 const balance = (Number(invoice.total) || 0) - (Number(invoice.amount_paid) || 0);
 const showCosts = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
-const margin = (Number(invoice.total) || 0) - (Number(invoice.cost_total) || 0);
+const costTotal = Number(invoice.cost_total) || 0;
+const subtotal = Number(invoice.subtotal) || 0;
+const margin = subtotal - costTotal;
+const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '&mdash;';
 const INV_STATUS_HINTS = {
   draft: 'Draft — not sent yet. Edit freely; only office can see it.',
   sent: 'Sent — emailed to the customer, awaiting payment.',
@@ -87,18 +90,19 @@ const invStatusHint = INV_STATUS_HINTS[displayStatus] || displayStatus;
     </div>
   </div>
 
-  <% if (showCosts) { %>
+  <% if (showCosts && costTotal > 0) { %>
     <div class="card p-4 mb-6 bg-recon-cloud">
       <div class="flex flex-wrap items-center gap-6 text-sm">
-        <span><span class="text-recon-fog">Cost total:</span> <strong>$<%= fmt(invoice.cost_total) %></strong></span>
-        <span><span class="text-recon-fog">Margin:</span> <strong class="<%= margin >= 0 ? 'text-green-700' : 'text-recon-red' %>">$<%= fmt(margin) %></strong></span>
+        <span><span class="text-recon-fog">Cost:</span> <strong>$<%= fmt(costTotal) %></strong></span>
+        <span><span class="text-recon-fog">Profit:</span> <strong class="<%= margin >= 0 ? 'text-green-700' : 'text-recon-red' %>">$<%= fmt(margin) %></strong></span>
+        <span><span class="text-recon-fog">Margin:</span> <strong class="<%= marginPct !== '&mdash;' && parseFloat(marginPct) >= 0 ? 'text-green-700' : 'text-recon-red' %>"><%= marginPct %>%</strong></span>
         <span><span class="text-recon-fog">Terms:</span> <strong><%= invoice.payment_terms %></strong></span>
         <span><span class="text-recon-fog">Recipient:</span> <strong><%= invoice.customer_billing_email || invoice.customer_email || '—' %></strong></span>
         <% if (invoice.customer_email && invoice.customer_billing_email && invoice.customer_billing_email !== invoice.customer_email) { %>
           <span class="text-xs text-recon-fog ml-1">(estimates go to: <%= invoice.customer_email %>)</span>
         <% } %>
       </div>
-      <p class="text-xs text-recon-fog mt-1">Cost + margin are internal — not on customer PDFs.</p>
+      <p class="text-xs text-recon-fog mt-1">Internal &mdash; not shown on customer PDFs.</p>
     </div>
   <% } %>
 
@@ -115,8 +119,8 @@ const invStatusHint = INV_STATUS_HINTS[displayStatus] || displayStatus;
             <th>Description</th>
             <th class="text-right">Qty</th>
             <th>Unit</th>
-            <th class="text-right">Unit $</th>
             <% if (showCosts) { %><th class="text-right text-recon-fog">Cost</th><% } %>
+            <th class="text-right">Rate</th>
             <th class="text-right">Line $</th>
           </tr>
         </thead>
@@ -126,12 +130,38 @@ const invStatusHint = INV_STATUS_HINTS[displayStatus] || displayStatus;
               <td><%= li.description %></td>
               <td class="text-right"><%= li.quantity %></td>
               <td><%= li.unit %></td>
-              <td class="text-right">$<%= fmt(li.unit_price) %></td>
               <% if (showCosts) { %><td class="text-right text-recon-fog">$<%= fmt(li.cost) %></td><% } %>
+              <td class="text-right">$<%= fmt(li.unit_price) %></td>
               <td class="text-right font-medium">$<%= fmt(li.line_total) %></td>
             </tr>
           <% }); %>
         </tbody>
+        <tfoot class="bg-recon-cloud">
+          <tr>
+            <td colspan="<%= showCosts ? 5 : 4 %>" class="text-right text-sm font-medium">Subtotal</td>
+            <td class="text-right font-semibold">$<%= fmt(subtotal) %></td>
+          </tr>
+          <% if (showCosts) { %>
+            <tr>
+              <td colspan="5" class="text-right text-sm font-medium text-recon-fog">Cost <span class="text-xs">(internal)</span></td>
+              <td class="text-right font-semibold text-recon-fog">$<%= fmt(costTotal) %></td>
+            </tr>
+          <% } %>
+          <tr>
+            <td colspan="<%= showCosts ? 5 : 4 %>" class="text-right text-sm font-medium">Tax (<%= fmt(invoice.tax_rate) %>%)</td>
+            <td class="text-right font-semibold">$<%= fmt(invoice.tax_amount) %></td>
+          </tr>
+          <tr>
+            <td colspan="<%= showCosts ? 5 : 4 %>" class="text-right text-sm font-semibold uppercase">Total</td>
+            <td class="text-right text-lg font-bold text-recon-red">$<%= fmt(invoice.total) %></td>
+          </tr>
+          <% if (showCosts) { %>
+            <tr>
+              <td colspan="5" class="text-right text-sm font-medium text-recon-fog">Margin <span class="text-xs">(internal, <%= marginPct %>%)</span></td>
+              <td class="text-right font-semibold <%= margin >= 0 ? 'text-green-700' : 'text-recon-red' %>">$<%= fmt(margin) %></td>
+            </tr>
+          <% } %>
+        </tfoot>
       </table>
     <% } %>
   </div>
