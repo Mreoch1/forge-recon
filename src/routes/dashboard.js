@@ -103,7 +103,7 @@ router.get('/', async (req, res) => {
   // ---------- Schedule: tomorrow preview ----------
   const { data: tomorrowWOs } = await supabase
     .from('work_orders')
-    .select('id, display_number, scheduled_time, jobs!inner(title, customers!inner(name)), assigned_to_user_id, users!left(name)')
+    .select('id, display_number, scheduled_time, jobs!inner(title, customers!inner(name)), assigned_to_user_id, users!left(name), work_order_assignees(users!work_order_assignees_user_id_fkey(id, name)))')
     .eq('scheduled_date', tomorrow)
     .in('status', ['scheduled', 'in_progress'])
     .order('scheduled_time', { ascending: true, nullsFirst: false });
