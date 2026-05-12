@@ -42,7 +42,11 @@ function buildSystemPrompt(ctx) {
   ).join('\n');
 
   // Add mutation tools separately — LLM sees these but knows they require confirmation
-  const mutationTools = tools.list().filter(t => t.needs_user === 'write');
+  const mutationTools = tools.list().filter(t => {
+    if (t.needs_user !== 'write') return false;
+    if (ctx.role === 'worker') return t.name === 'add_wo_note';
+    return true;
+  });
   const mutationDesc = mutationTools.map(t =>
     `- ${t.name}(${JSON.stringify(t.args)}) — ${t.description}`
   ).join('\n');
@@ -52,6 +56,8 @@ function buildSystemPrompt(ctx) {
 CURRENT CONTEXT:
 - Today's date: ${todayStr()}
 - You: ${ctx.userName || 'Unknown'} (role: ${ctx.role || 'admin'})
+- FORGE mode: act as an operations engine, not a generic chatbot. Guide the user through missing details, validate, summarize, and require explicit confirmation before writes.
+- Access tier: ${ctx.role === 'worker' ? 'worker - assigned work only, no financial/cost data, no privileged writes except adding notes to assigned work orders' : ctx.role === 'manager' ? 'manager - operational and financial workflows, no admin-only settings' : 'admin - full app administration'}
 
 AVAILABLE TOOLS:
 ${toolDesc}
@@ -78,6 +84,9 @@ RULES:
 6. If off-topic, say "I can only answer questions about Recon's operations data" politely.
 7. Use the navigate tool when the user asks to "open", "go to", "show me the page for" something.
 8. For mutation requests (add/change/send/mark/approve anything), include the relevant search tool call FIRST to find the entity ID, then the orchestrator will handle the confirmation.
+9. Stay inside the user's tier. Never expose cost, invoice, estimate, bill, admin, or other privileged data to a worker. Never help bypass permissions.
+10. Refuse illegal, unsafe, or immoral requests. You cannot create images or media for the user.
+11. If the user gives incomplete action details, ask one clear follow-up question and keep the draft context alive.
 
 Respond ONLY with a JSON object:
 {
@@ -106,15 +115,29 @@ async function chat({ message, history, ctx }) {
   let tokensUsed = 0;
   let confirmPayload = null;
 
-  // Pre-chat: check for mutation intent via keyword matching (more reliable than LLM)
-  const mutationIntent = detectMutationIntent(message, ctx);
+  // Pre-chat: keep guided write flows deterministic before falling back to the LLM.
+  const mutationIntent = detectGuidedContinuation(message, history) || detectMutationIntent(message, ctx);
   if (mutationIntent) {
     allToolCalls.push({ tool: mutationIntent.tool, args: mutationIntent.args });
 
+    const missingReply = buildMissingMutationReply(mutationIntent);
+    if (missingReply) {
+      return {
+        reply: missingReply,
+        chips: [],
+        tool_calls: allToolCalls,
+        tokens_used: 0,
+        latency_ms: Date.now() - startTime,
+        confirm: null,
+        audit_id: `${ctx.userId || 0}_${Date.now()}`
+      };
+    }
+
     const proposeResult = await tools.propose(mutationIntent.tool, mutationIntent.args, ctx);
     if (proposeResult.error) {
+      const guidedError = buildGuidedErrorReply(mutationIntent.tool, proposeResult.error);
       return {
-        reply: proposeResult.error,
+        reply: guidedError || proposeResult.error,
         chips: [], tool_calls: allToolCalls, tokens_used: 0,
         latency_ms: Date.now() - startTime, confirm: null,
         audit_id: `${ctx.userId || 0}_${Date.now()}`
@@ -370,25 +393,125 @@ function extractNamedValue(message) {
     .trim();
 }
 
+function cleanLooseName(value) {
+  return String(value || '')
+    .replace(/^[,.;:\s]+|[,.;:\s]+$/g, '')
+    .replace(/\b(email|phone|address|billing email|billing)\b.*$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function parseCustomerArgs(message, opts = {}) {
+  const msg = String(message || '');
+  const emailMatch = msg.match(/([\w._%+-]+@[\w.-]+\.[A-Za-z]{2,})/);
+  const phoneMatch = msg.match(/(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}/);
+  const billingEmailMatch = msg.match(/billing\s+email\s+(?:is\s+)?([\w._%+-]+@[\w.-]+\.[A-Za-z]{2,})/i);
+  const addrMatch = msg.match(/(?:address\s+(?:is\s+)?|from|in|at)\s+(.+?)(?:,?\s+(?:email|phone|billing|notes?)\b|[.;]|$)/i);
+
+  let name = extractNamedValue(msg);
+  if (!name && opts.allowLeadingName) {
+    let leading = msg
+      .replace(/([\w._%+-]+@[\w.-]+\.[A-Za-z]{2,})/g, '')
+      .replace(/(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}/g, '')
+      .replace(/\b(?:email|phone|address|billing email|billing|notes?)\b.*$/i, '');
+    const split = leading.split(/[,;]|\s+-\s+/)[0];
+    name = cleanLooseName(split);
+  }
+
+  const args = { name: cleanLooseName(name) };
+  if (emailMatch) args.email = emailMatch[1];
+  if (phoneMatch) args.phone = phoneMatch[0].trim();
+  if (billingEmailMatch) args.billing_email = billingEmailMatch[1];
+  if (addrMatch && addrMatch[1].trim().length < 120) {
+    const addr = addrMatch[1].trim();
+    const csMatch = addr.match(/^(.+?),\s*([A-Z]{2})\s*(\d{5})?$/);
+    if (csMatch) {
+      args.city = csMatch[1].trim();
+      args.state = csMatch[2];
+      if (csMatch[3]) args.zip = csMatch[3];
+    } else {
+      args.address = addr;
+    }
+  }
+  return args;
+}
+
+function lastAssistantText(history) {
+  const rows = Array.isArray(history) ? history : [];
+  for (let i = rows.length - 1; i >= 0; i--) {
+    if (rows[i] && rows[i].role === 'assistant') return String(rows[i].content || '');
+  }
+  return '';
+}
+
+function detectGuidedContinuation(message, history) {
+  const last = lastAssistantText(history);
+  if (/to create a customer/i.test(last)) {
+    return { tool: 'create_customer', args: parseCustomerArgs(message, { allowLeadingName: true }) };
+  }
+  if (/which estimate/i.test(last)) {
+    const idMatch = String(message || '').match(/EST[-\s]*(\d+)/i) || String(message || '').match(/estimate[#\s]*(\d+)/i) || String(message || '').match(/^#?(\d+)$/);
+    if (idMatch) return { tool: 'send_estimate', args: { estimate_id: parseInt(idMatch[1], 10) } };
+  }
+  if (/which invoice/i.test(last)) {
+    const idMatch = String(message || '').match(/INV[-\s]*(\d+)/i) || String(message || '').match(/invoice[#\s]*(\d+)/i) || String(message || '').match(/^#?(\d+)$/);
+    if (idMatch) return { tool: 'mark_invoice_paid', args: { invoice_id: parseInt(idMatch[1], 10) } };
+  }
+  return null;
+}
+
+function buildMissingMutationReply(intent) {
+  const tool = intent && intent.tool;
+  const args = (intent && intent.args) || {};
+  if (tool === 'create_customer' && (!args.name || args.name.trim().length < 2)) {
+    return 'To create a customer, I need at least the customer name. You can send it like: "John Smith, john@email.com, 555-123-4567, 12 Main St."';
+  }
+  if (tool === 'send_estimate' && !Number(args.estimate_id)) {
+    return 'Which estimate should I send? Give me the estimate number, like EST-12, or the customer/job name so I can find it.';
+  }
+  if (tool === 'mark_invoice_paid' && !Number(args.invoice_id)) {
+    return 'Which invoice should I mark paid? Give me the invoice number, like INV-12. If it is a partial payment, include the amount too.';
+  }
+  if (tool === 'approve_bill' && !Number(args.bill_id)) {
+    return 'Which bill should I approve? Give me the bill number or bill ID.';
+  }
+  if (tool === 'add_wo_note') {
+    if (!Number(args.wo_id)) return 'Which work order should I add the note to? Give me the WO number and the note text.';
+    if (!args.body || args.body.trim().length < 2) return `What note should I add to WO-${args.wo_id}?`;
+  }
+  if (tool === 'schedule_wo') {
+    if (!Number(args.wo_id)) return 'Which work order should I schedule? Give me the WO number, date, time, and assignee if needed.';
+    if (!args.date) return `What date should I schedule WO-${args.wo_id} for?`;
+  }
+  if (tool === 'reschedule_wo') {
+    if (!Number(args.wo_id)) return 'Which work order should I reschedule? Give me the WO number and the new date.';
+    if (!args.new_date) return `What new date should I move WO-${args.wo_id} to?`;
+  }
+  if (tool === 'assign_wo') {
+    if (!Number(args.wo_id)) return 'Which work order should I assign? Give me the WO number and assignee name.';
+    if (!args.assignee_user_id && !args.assignee_name) return `Who should I assign WO-${args.wo_id} to?`;
+  }
+  return null;
+}
+
+function buildGuidedErrorReply(tool, error) {
+  const text = String(error || '');
+  if (/not found/i.test(text)) {
+    if (tool === 'send_estimate') return 'I could not find that estimate. Send me the estimate number or customer/job name and I will look it up.';
+    if (tool === 'mark_invoice_paid') return 'I could not find that invoice. Send me the invoice number or customer/job name and I will look it up.';
+    if (tool === 'approve_bill') return 'I could not find that bill. Send me the bill number, vendor, or bill ID.';
+    if (/wo|work/i.test(tool)) return 'I could not find that work order. Send me the WO number or customer/job name.';
+  }
+  if (/required/i.test(text)) return `${text} Send that detail and I will keep going.`;
+  return null;
+}
+
 const MUTATION_PATTERNS = [
   {
     tool: 'create_customer',
     patterns: [/add\s+(?:a\s+)?customer/i, /create\s+(?:a\s+)?customer/i, /new\s+customer/i],
     extract: (msg) => {
-      const emailMatch = msg.match(/([\w._%+-]+@[\w.-]+\.[A-Za-z]{2,})/);
-      const phoneMatch = msg.match(/(?:\d{3}[-.]?\d{3}[-.]?\d{4})/);
-      const addrMatch = msg.match(/(?:from|in|at)\s+(.+?)(?:,|\.|\s+email|\s+phone|$)/);
-      const args = { name: extractNamedValue(msg) };
-      if (emailMatch) args.email = emailMatch[1];
-      if (phoneMatch) args.phone = phoneMatch[0];
-      if (addrMatch && addrMatch[1].trim().length < 80) {
-        const addr = addrMatch[1].trim();
-        // Try to split city/state
-        const csMatch = addr.match(/^(.+?),\s*([A-Z]{2})\s*(\d{5})?$/);
-        if (csMatch) { args.city = csMatch[1].trim(); args.state = csMatch[2]; if (csMatch[3]) args.zip = csMatch[3]; }
-        else { args.address = addr; }
-      }
-      return args;
+      return parseCustomerArgs(msg, { allowLeadingName: false });
     }
   },
   {
@@ -532,3 +655,11 @@ function detectMutationIntent(message, ctx) {
   }
   return null;
 }
+
+module.exports._internal = {
+  parseCustomerArgs,
+  detectGuidedContinuation,
+  buildMissingMutationReply,
+  buildGuidedErrorReply,
+  detectMutationIntent,
+};
