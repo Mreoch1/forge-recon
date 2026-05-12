@@ -388,13 +388,12 @@ function generateEstimatePDF(estimate, company, stream) {
 // --- public: work order ---
 
 function drawWOLineItems(doc, lines) {
-  // WO line items -- scope sheet, no pricing.
+  // WO line items — description only, no pricing or checkboxes.
   const left = doc.page.margins.left;
   const right = doc.page.width - doc.page.margins.right;
   const tableWidth = right - left;
   const cols = [
-    { key: 'completed',   label: 'DONE',        width: 36,  align: 'center' },
-    { key: 'description', label: 'DESCRIPTION', width: tableWidth - 36 - 50 - 50, align: 'left' },
+    { key: 'description', label: 'DESCRIPTION', width: tableWidth - 50 - 50, align: 'left' },
     { key: 'quantity',    label: 'QTY',         width: 50,  align: 'right' },
     { key: 'unit',        label: 'UNIT',        width: 50,  align: 'left' },
   ];
@@ -421,8 +420,7 @@ function drawWOLineItems(doc, lines) {
     cx = left;
     cols.forEach(c => {
       let val;
-      if (c.key === 'completed')      val = li.completed ? 'X' : '';
-      else if (c.key === 'unit_price' || c.key === 'line_total') val = fmtMoney(li[c.key]);
+      if (c.key === 'unit_price' || c.key === 'line_total') val = fmtMoney(li[c.key]);
       else if (c.key === 'quantity')  val = String(li.quantity);
       else                            val = String(li[c.key] == null ? '' : li[c.key]);
       doc.text(val, cx + 6, y + 5, { width: c.width - 12, align: c.align });
@@ -477,15 +475,15 @@ function generateWorkOrderPDF(wo, company, stream) {
     wo.customer_email,
     wo.customer_phone,
   ], [
-    wo.job_title,
-    wo.job_address || '',
-    [wo.job_city, wo.job_state, wo.job_zip].filter(Boolean).join(', '),
+    wo.job_title || (wo.customer_name ? wo.customer_name + ' (job site)' : 'Job Site'),
+    (wo.job_address || wo.customer_address || ''),
+    ([wo.job_city || wo.customer_city, wo.job_state || wo.customer_state, wo.job_zip || wo.customer_zip].filter(Boolean).join(', ')),
   ]);
 
   drawWOMeta(doc, wo);
-  drawWOLineItems(doc, wo.lines || []);
-
-  if (wo.notes) drawNotes(doc, wo.notes);
+  // Remove completed column from WO line items — WOs use descriptions, not checklists
+  drawWOLineItems(doc, (wo.lines || []).map(li => ({ ...li, completed: undefined })));
+  if (wo.description) drawNotes(doc, 'Description: ' + wo.description);
 
   const footerLines = [];
   if (wo.created_at) footerLines.push(`Issued: ${String(wo.created_at).slice(0,10)}`);
