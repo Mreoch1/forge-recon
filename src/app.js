@@ -34,21 +34,40 @@ const filesRoutes = require('./routes/files');
 const settingsRoutes = require('./routes/settings');
 const signupRoutes = require('./routes/signup');
 
+// F2: rate limiters for auth endpoints to slow credential stuffing,
+// account enumeration, and password reset spam.
+const rateLimit = require('express-rate-limit');
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many attempts from this IP. Try again in 15 minutes.',
+  skip: (req) => req.method !== 'POST',
+});
+const lowLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many requests from this IP. Try again in 15 minutes.',
+  skip: (req) => req.method !== 'POST',
+});
+
 const PORT = parseInt(process.env.PORT, 10) || 3001;
-const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
+// F6: No fallback. SESSION_SECRET MUST be set at boot in every environment.
+// Without a secret, session cookies cannot be signed safely, so we fail-fast
+// rather than silently accept a known/default value that an attacker could use
+// to forge sessions.
+if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 16) {
+  throw new Error('FATAL: SESSION_SECRET must be set to a strong (>=16 chars) random value before boot.');
+}
+const SESSION_SECRET = process.env.SESSION_SECRET;
 const SESSIONS_DIR = process.env.NODE_ENV === 'production'
   ? '/tmp/forge-sessions'
   : path.join(__dirname, '..', 'sessions');
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const VIEWS_DIR = path.join(__dirname, 'views');
-
-// Production safety: SESSION_SECRET must be set
-if (process.env.NODE_ENV === 'production') {
-  const secret = process.env.SESSION_SECRET;
-  if (!secret || secret === 'dev-secret-change-me') {
-    throw new Error('FATAL: SESSION_SECRET must be set in production. Set a strong random value.');
-  }
-}
 
 let dbReady = false;
 
@@ -135,6 +154,16 @@ app.use(async (req, res, next) => {
 
 app.use(loadCurrentUser);
 app.get('/ping', (req, res) => { res.json({ ok: true, ts: new Date().toISOString() }); });
+
+// F2: apply rate limiters BEFORE the auth/signup routers see the request.
+// 5/15min on login + signup; 3/15min on forgot-password + resend-verification +
+// reset-password POST. Only POST is rate-limited so GET pages still render.
+app.use('/login', authLimiter);
+app.use('/signup', authLimiter);
+app.use('/forgot-password', lowLimiter);
+app.use('/resend-verification', lowLimiter);
+app.use('/reset-password', lowLimiter);
+
 app.use('/', authRoutes);
 app.use('/', signupRoutes);
 app.use('/customers', requireAuth, requireManager, customersRoutes);

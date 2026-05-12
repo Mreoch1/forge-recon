@@ -19,6 +19,13 @@ const router = express.Router();
 
 const HOST = process.env.APP_HOST || null; // resolved per-request when null
 
+// F5: pre-computed bcrypt hash to compare against when the user is not found,
+// equalizing response time and preventing email enumeration via timing.
+// This is the bcrypt hash of a long random string the attacker cannot guess —
+// real submitted passwords will never match it, but the compare still takes
+// the same ~80-120ms a real compare takes, masking the absence of a user row.
+const DUMMY_BCRYPT_HASH = '$2b$10$CwTycUXWue0Thq9StjUM0uJ8.OZi/HfksZSAGgaJTNZWmHmiyOXKK';
+
 // ── Login ─────────────────────────────────────────────────────────────────────
 
 router.get('/login', async (req, res) => {
@@ -61,8 +68,35 @@ router.post('/login', async (req, res) => {
     .maybeSingle();
   if (error) throw error;
 
-  const ok = user ? await bcrypt.compare(password, user.password_hash) : false;
-  if (!user || !ok) {
+  // F5: Always run bcrypt.compare to equalize response time. If `user` is
+  // null we still compare against a fixed dummy hash so the timing of a
+  // missing user matches that of an existing user with the wrong password.
+  const hashToCheck = user ? user.password_hash : DUMMY_BCRYPT_HASH;
+  const passwordMatches = await bcrypt.compare(password, hashToCheck);
+  const ok = !!user && passwordMatches;
+
+  if (!ok) {
+    // F10: audit failed login attempts so we have a forensic trail for
+    // credential-stuffing or brute-force attempts. We do NOT branch on whether
+    // the user existed — that branch is what F5 just equalized. Logged
+    // server-side only; nothing is returned to the client beyond the generic
+    // error message.
+    try {
+      const { writeAudit } = require('../services/audit');
+      // writeAudit's schema doesn't have a generic metadata column — we pack
+      // the IP/UA/email into the `after` JSON snapshot so it lands in
+      // audit_logs.after_json for forensics.
+      writeAudit({
+        entityType: 'user',
+        entityId: user ? user.id : null,
+        action: 'login_failed',
+        before: null,
+        after: { email, ip: req.ip, ua: req.get('user-agent') || '' },
+        source: 'web',
+        userId: null,
+      });
+    } catch (_) { /* never let auditing break a login */ }
+
     return res.status(401).render('auth/login', {
       title: 'Sign in',
       error: 'Invalid email or password.',
@@ -236,3 +270,4 @@ router.post('/reset-password/:token', async (req, res) => {
 });
 
 module.exports = router;
+

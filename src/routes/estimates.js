@@ -25,6 +25,7 @@ const { setFlash } = require('../middleware/auth');
 const calc = require('../services/calculations');
 const pdf = require('../services/pdf');
 const email = require('../services/email');
+const { sanitizePostgrestSearch } = require('../services/sanitize');
 
 const router = express.Router();
 
@@ -129,7 +130,8 @@ async function loadEstimate(id) {
 }
 
 router.get('/', async (req, res) => {
-  const q = (req.query.q || '').trim();
+  // F4: sanitize before interpolating into PostgREST .or() filter.
+  const q = sanitizePostgrestSearch((req.query.q || '').trim());
   const status = (req.query.status || '').trim();
   const archiveFilter = (req.query.archived || '0');
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
@@ -435,3 +437,4 @@ router.post('/:id/delete', async (req, res) => {
 });
 
 module.exports = router;
+

@@ -25,6 +25,7 @@ const pdf = require('../services/pdf');
 const email = require('../services/email');
 const posting = require('../services/accounting-posting');
 const { writeAudit } = require('../services/audit');
+const { sanitizePostgrestSearch } = require('../services/sanitize');
 
 const router = express.Router();
 
@@ -151,7 +152,8 @@ async function loadCompanySettings() {
 }
 
 router.get('/', async (req, res) => {
-  const q = (req.query.q || '').trim();
+  // F4: sanitize before interpolating into PostgREST .or() filter.
+  const q = sanitizePostgrestSearch((req.query.q || '').trim());
   const status = (req.query.status || '').trim();
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
@@ -474,3 +476,4 @@ router.post('/:id/delete', async (req, res) => {
 });
 
 module.exports = router;
+

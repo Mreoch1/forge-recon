@@ -15,6 +15,7 @@
 const express = require('express');
 const supabase = require('../db/supabase');
 const { setFlash } = require('../middleware/auth');
+const { sanitizePostgrestSearch } = require('../services/sanitize');
 
 const router = express.Router();
 const PAGE_SIZE = 25;
@@ -48,7 +49,8 @@ function validate(body) {
 }
 
 router.get('/', async (req, res) => {
-  const q = (req.query.q || '').trim();
+  // F4: sanitize before interpolating into PostgREST .or() filter.
+  const q = sanitizePostgrestSearch((req.query.q || '').trim());
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
 
@@ -152,3 +154,4 @@ router.post('/:id/delete', async (req, res) => {
 });
 
 module.exports = router;
+

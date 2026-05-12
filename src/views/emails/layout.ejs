@@ -33,6 +33,12 @@
           <!-- Body -->
           <tr>
             <td style="padding:32px;font-size:15px;line-height:1.6;color:#1a1a1a;">
+              <%# F8: raw render — `body` is the inner HTML passed by
+                  services/email.js renderEmail(). It is built from
+                  hard-coded HTML strings in email.js (verification,
+                  password reset, estimate/invoice send), never from user
+                  input. If you ever add a user-controlled value to body,
+                  escape it at the call site. %>
               <%- body %>
             </td>
           </tr>

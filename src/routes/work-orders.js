@@ -267,6 +267,13 @@ function buildLineRows(lines) {
   }));
 }
 
+/** Normalize a POST body field that could be a single value or array into a proper array. */
+function normalizeArr(v) {
+  if (v == null) return [];
+  if (Array.isArray(v)) return v;
+  return [v];
+}
+
 async function createWorkOrderWithLines(woData, lines, userId) {
   const { data: wo, error: woErr } = await supabase
     .from('work_orders')
@@ -390,63 +397,41 @@ router.get('/new', async (req, res) => {
 router.post('/', async (req, res) => {
   if (!requireManagerRole(req, res)) return;
 
-  const jobId = parseInt(req.body.job_id, 10);
-  let job = null;
-  if (jobId) {
-    const { data, error } = await supabase
-      .from('jobs')
-      .select('*, customers!inner(id, name)')
-      .eq('id', jobId)
-      .maybeSingle();
+  const customerId = parseInt(req.body.customer_id, 10);
+  let customer = null;
+  if (customerId) {
+    const { data, error } = await supabase.from('customers').select('id, name, email, phone, address, city, state, zip').eq('id', customerId).maybeSingle();
     if (error) throw error;
-    if (data) {
-      data.customer_id = data.customers ? data.customers.id : null;
-      data.customer_name = data.customers ? data.customers.name : null;
-      delete data.customers;
-      job = data;
-    }
+    customer = data;
   }
 
-  const { data: users } = await supabase
-    .from('users')
-    .select('id, name')
-    .eq('active', 1)
-    .order('name');
+  const { data: users } = await supabase.from('users').select('id, name, email').eq('active', 1).order('name');
 
   const { errors, data } = validateWorkOrder(req.body);
-  if (!job) errors.job_id = 'Job is required.';
+  if (!customer) errors.customer_id = 'Customer is required.';
 
   if (Object.keys(errors).length) {
+    const { data: allCustomers } = await supabase.from('customers').select('id, name, email, phone, address, city, state, zip').order('name');
     return res.status(400).render('work-orders/new', {
       title: 'New work order', activeNav: 'work-orders',
-      wo: {
-        id: null, job_id: jobId, parent_wo_id: null, ...data,
-        display_number: req.body.display_number || ''
-      },
-      job: job || { id: jobId }, users: users || [], errors,
-      units: VALID_UNITS, isSubWO: false
+      wo: { id: null, customer_id: customerId, unit_number: data.unit_number || '', display_number: req.body.display_number || '', suggested_display_number: '', scheduled_date: data.scheduled_date || '', scheduled_time: data.scheduled_time || '', notes: data.notes || '', description: data.description || '', assignee_ids: normalizeArr(req.body.assignee_ids), lines: data.lines || [] },
+      customers: allCustomers || [], users: users || [], customerName: customer?.name || '', errors, units: VALID_UNITS,
     });
   }
 
-  // Resolve numbering: either honor override (after dup check) or auto-advance
+  // Resolve numbering
   let main, sub, display;
   if (data.display_number_override) {
     ({ main, sub } = data.display_number_override);
     display = numbering.formatDisplay(main, sub);
-    const { data: dup } = await supabase
-      .from('work_orders')
-      .select('id')
-      .eq('display_number', display)
-      .maybeSingle();
+    const { data: dup } = await supabase.from('work_orders').select('id').eq('display_number', display).maybeSingle();
     if (dup) {
       errors.display_number = `WO ${display} already exists.`;
+      const { data: allCustomers } = await supabase.from('customers').select('id, name, email, phone, address, city, state, zip').order('name');
       return res.status(400).render('work-orders/new', {
         title: 'New work order', activeNav: 'work-orders',
-        wo: {
-          id: null, job_id: jobId, parent_wo_id: null, ...data,
-          display_number: req.body.display_number || ''
-        },
-        job, users: users || [], errors, units: VALID_UNITS, isSubWO: false
+        wo: { id: null, customer_id: customerId, unit_number: data.unit_number || '', display_number: req.body.display_number || '', suggested_display_number: '', scheduled_date: data.scheduled_date || '', scheduled_time: data.scheduled_time || '', notes: data.notes || '', description: data.description || '', assignee_ids: normalizeArr(req.body.assignee_ids), lines: data.lines || [] },
+        customers: allCustomers || [], users: users || [], customerName: customer?.name || '', errors, units: VALID_UNITS,
       });
     }
   } else {
@@ -456,7 +441,9 @@ router.post('/', async (req, res) => {
 
   const newId = await createWorkOrderWithLines(
     {
-      job_id: job.id,
+      customer_id: customerId,
+      unit_number: (req.body.unit_number || '').trim(),
+      job_id: null,
       parent_wo_id: null,
       wo_number_main: main,
       wo_number_sub: sub,
@@ -464,14 +451,47 @@ router.post('/', async (req, res) => {
       status: 'scheduled',
       scheduled_date: data.scheduled_date,
       scheduled_time: data.scheduled_time,
-      scheduled_end_time: data.scheduled_end_time,
-      assigned_to_user_id: data.assigned_to_user_id,
-      assigned_to: data.assigned_to,
-      notes: data.notes,
+      scheduled_end_time: null,
+      assigned_to_user_id: null,
+      assigned_to: null,
+      notes: data.notes || null,
     },
     buildLineRows(data.lines),
     req.session.userId || null
   );
+
+  // Insert work_order_assignees + email
+  const assigneeIds = normalizeArr(req.body.assignee_ids);
+  for (const uid of assigneeIds) {
+    const { error: insErr } = await supabase.from('work_order_assignees').insert({
+      work_order_id: newId, user_id: parseInt(uid, 10),
+      assigned_at: new Date().toISOString(),
+      assigned_by_user_id: req.session.userId || null,
+    });
+    if (insErr) { console.warn('[r34] assignee insert failed for uid', uid, ':', insErr.message); continue; }
+    // Email the assignee (best-effort)
+    try {
+      const assignee = users.find(u => u.id == uid);
+      if (assignee && assignee.email) {
+        const sendWoEmail = require('../services/email').sendWorkOrderAssignedEmail;
+        sendWoEmail({
+          to: assignee.email,
+          toName: assignee.name,
+          woNumber: 'WO-' + display,
+          woId: newId,
+          customerName: customer?.name || '',
+          address: [customer?.address, customer?.city, customer?.state].filter(Boolean).join(', '),
+          unitNumber: req.body.unit_number || '',
+          description: (req.body.description || '').trim(),
+          internalNotes: data.notes || '',
+          scheduledDate: data.scheduled_date || '',
+          scheduledTime: data.scheduled_time || '',
+        }).then(() => {
+          supabase.from('work_order_assignees').update({ notified_at: new Date().toISOString() }).eq('work_order_id', newId).eq('user_id', uid).then().catch(() => {});
+        }).catch(e => console.warn('[r34] assignee email failed for', assignee.email, ':', e.message));
+      }
+    } catch (e) { console.warn('[r34] assignee email setup failed:', e.message); }
+  }
 
   setFlash(req, 'success', `Work order WO-${display} created.`);
   res.redirect(`/work-orders/${newId}`);
