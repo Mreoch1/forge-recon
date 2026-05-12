@@ -266,6 +266,37 @@ function buildLineRows(lines) {
   }));
 }
 
+async function createWorkOrderWithLines(woData, lines, userId) {
+  const { data: wo, error: woErr } = await supabase
+    .from('work_orders')
+    .insert(woData)
+    .select('id, display_number')
+    .single();
+  if (woErr) throw woErr;
+
+  const lineRows = (lines || []).map(line => ({ ...line, work_order_id: wo.id }));
+  if (lineRows.length) {
+    const { error: lineErr } = await supabase.from('work_order_line_items').insert(lineRows);
+    if (lineErr) throw lineErr;
+  }
+
+  try {
+    await supabase.from('audit_logs').insert({
+      entity_type: 'work_order',
+      entity_id: wo.id,
+      action: 'create',
+      before_json: null,
+      after_json: { ...woData, lines: lineRows.length },
+      source: 'user',
+      user_id: userId || null,
+    });
+  } catch (e) {
+    console.warn('[work-orders] audit create failed:', e.message);
+  }
+
+  return wo.id;
+}
+
 // --- list ---
 
 router.get('/', async (req, res) => {
@@ -450,8 +481,8 @@ router.post('/', async (req, res) => {
     main = next.main; sub = next.sub; display = next.display;
   }
 
-  const { data: newId, error: rpcErr } = await supabase.rpc('create_work_order_with_lines', {
-    wo_data: {
+  const newId = await createWorkOrderWithLines(
+    {
       job_id: job.id,
       parent_wo_id: null,
       wo_number_main: main,
@@ -464,12 +495,10 @@ router.post('/', async (req, res) => {
       assigned_to_user_id: data.assigned_to_user_id,
       assigned_to: data.assigned_to,
       notes: data.notes,
-      mock: 0,
     },
-    lines: buildLineRows(data.lines),
-    user_id: req.session.userId || null,
-  });
-  if (rpcErr) throw rpcErr;
+    buildLineRows(data.lines),
+    req.session.userId || null
+  );
 
   setFlash(req, 'success', `Work order WO-${display} created.`);
   res.redirect(`/work-orders/${newId}`);
@@ -636,8 +665,8 @@ router.post('/ai-finalize', async (req, res) => {
   // Resolve numbering (advance counter)
   const next = await nextRootWoDisplay();
 
-  const { data: newId, error: rpcErr } = await supabase.rpc('create_work_order_with_lines', {
-    wo_data: {
+  const newId = await createWorkOrderWithLines(
+    {
       job_id: jobId,
       parent_wo_id: null,
       wo_number_main: next.main,
@@ -650,12 +679,10 @@ router.post('/ai-finalize', async (req, res) => {
       assigned_to_user_id: assignedUserId,
       assigned_to: assignedToText,
       notes,
-      mock: 0,
     },
     lines,
-    user_id: req.session.userId || null,
-  });
-  if (rpcErr) throw rpcErr;
+    req.session.userId || null
+  );
 
   setFlash(req, 'success', `WO-${next.display} created from AI extraction.`);
   res.redirect(`/work-orders/${newId}`);
@@ -748,8 +775,8 @@ router.post('/:id/sub', async (req, res) => {
     });
   }
 
-  const { data: newId, error: rpcErr } = await supabase.rpc('create_work_order_with_lines', {
-    wo_data: {
+  const newId = await createWorkOrderWithLines(
+    {
       job_id: parent.job_id,
       parent_wo_id: parent.id,
       wo_number_main: main,
@@ -762,12 +789,10 @@ router.post('/:id/sub', async (req, res) => {
       assigned_to_user_id: data.assigned_to_user_id,
       assigned_to: data.assigned_to,
       notes: data.notes,
-      mock: 0,
     },
-    lines: buildLineRows(data.lines),
-    user_id: req.session.userId || null,
-  });
-  if (rpcErr) throw rpcErr;
+    buildLineRows(data.lines),
+    req.session.userId || null
+  );
 
   setFlash(req, 'success', `Sub-WO WO-${display} created.`);
   res.redirect(`/work-orders/${newId}`);
