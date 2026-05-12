@@ -38,9 +38,14 @@ const signupRoutes = require('./routes/signup');
 // F2: rate limiters for auth endpoints to slow credential stuffing,
 // account enumeration, and password reset spam.
 const rateLimit = require('express-rate-limit');
+// R37o: bumped limits because office IPs serve multiple users behind NAT — the
+// original 5/15min per-IP was eating real-user budgets (e.g. Chris locked out
+// after a forgot-password + retry combo). Per-user keying would be ideal but
+// requires reading req.body.email which the limiter middleware runs BEFORE the
+// body parser by default. Quick fix: more generous IP-wide limits.
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 15,
   standardHeaders: true,
   legacyHeaders: false,
   message: 'Too many attempts from this IP. Try again in 15 minutes.',
@@ -48,7 +53,7 @@ const authLimiter = rateLimit({
 });
 const lowLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 3,
+  max: 10,
   standardHeaders: true,
   legacyHeaders: false,
   message: 'Too many requests from this IP. Try again in 15 minutes.',
