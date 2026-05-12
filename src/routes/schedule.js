@@ -11,6 +11,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../db/supabase');
 const scheduling = require('../services/scheduling');
+const { sanitizePostgrestSearch } = require('../services/sanitize');
 
 const PALETTE = ['#4A90D9','#8BC34A','#9C76D9','#26A69A','#EF7E6B','#A5D6A7','#78909C','#FFCC80'];
 function colorForUser(userId) { return userId ? PALETTE[Number(userId) % PALETTE.length] : null; }
@@ -55,8 +56,11 @@ async function workerScope(req) {
 
 function applyWorkerScope(query, scope) {
   if (!scope) return query;
-  return scope.userName
-    ? query.or(`assigned_to_user_id.eq.${scope.userId},assigned_to.ilike.%${scope.userName}%`)
+  // F4: sanitize before interpolation — names with `,` `(` `)` `:` would
+  // otherwise break the PostgREST .or() filter or inject extra clauses.
+  const safeName = sanitizePostgrestSearch(scope.userName);
+  return safeName
+    ? query.or(`assigned_to_user_id.eq.${scope.userId},assigned_to.ilike.%${safeName}%`)
     : query.eq('assigned_to_user_id', scope.userId);
 }
 
@@ -167,7 +171,7 @@ router.get('/', async (req, res) => {
   // Query WOs in range
   let woQuery = supabase
     .from('work_orders')
-    .select('id, display_number, status, scheduled_date, scheduled_time, assigned_to_user_id, assigned_to, scheduled_end_time, jobs!inner(title, customers!inner(name)), assigned_to_user_id, users!left(name)')
+    .select('id, display_number, status, scheduled_date, scheduled_time, assigned_to_user_id, assigned_to, scheduled_end_time, jobs!inner(title, customers!inner(name)), users!left(name), work_order_assignees(users!work_order_assignees_user_id_fkey(id, name)))')
     .gte('scheduled_date', weekStart)
     .lte('scheduled_date', weekEnd)
     .in('status', ['scheduled', 'in_progress'])
@@ -179,7 +183,9 @@ router.get('/', async (req, res) => {
     woQuery = applyWorkerScope(woQuery, scope);
   } else if (assigneeFilter) {
     const { data: user } = await supabase.from('users').select('name').eq('id', assigneeFilter).maybeSingle();
-    woQuery = woQuery.or(`assigned_to_user_id.eq.${assigneeFilter},assigned_to.ilike.%${user?.name || ''}%`);
+    // F4: sanitize before interpolating into PostgREST .or() filter.
+    const safeName = sanitizePostgrestSearch(user?.name || '');
+    woQuery = woQuery.or(`assigned_to_user_id.eq.${assigneeFilter},assigned_to.ilike.%${safeName}%`);
   }
 
   const { data: wos } = await woQuery;
@@ -197,7 +203,7 @@ router.get('/', async (req, res) => {
   // Unscheduled WOs for sidebar
   let unscheduledQuery = supabase
     .from('work_orders')
-    .select('id, display_number, status, scheduled_date, scheduled_time, assigned_to_user_id, assigned_to, scheduled_end_time, jobs!inner(title, customers!inner(name)), assigned_to_user_id, users!left(name)')
+    .select('id, display_number, status, scheduled_date, scheduled_time, assigned_to_user_id, assigned_to, scheduled_end_time, jobs!inner(title, customers!inner(name)), users!left(name), work_order_assignees(users!work_order_assignees_user_id_fkey(id, name)))')
     .is('scheduled_date', null)
     .in('status', ['scheduled', 'in_progress'])
     .order('created_at', { ascending: false })
@@ -373,3 +379,4 @@ router.post('/:id/reschedule', async (req, res) => {
 });
 
 module.exports = router;
+

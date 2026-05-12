@@ -198,3 +198,4 @@ async function sendWorkOrderAssignedEmail({ to, toName, woNumber, woId, customer
 }
 
 module.exports = { sendEmail, sendVerificationEmail, sendPasswordResetEmail, sendWorkOrderAssignedEmail };
+
