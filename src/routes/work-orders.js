@@ -414,6 +414,7 @@ router.post('/', async (req, res) => {
     {
       customer_id: customerId,
       unit_number: (req.body.unit_number || '').trim(),
+      description: data.description || '',
       job_id: null,
       parent_wo_id: null,
       wo_number_main: main,
