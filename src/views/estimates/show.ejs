@@ -38,9 +38,8 @@ const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
       <p class="page-sub">
         <a href="/work-orders/<%= estimate.wo_id %>" class="hover:text-recon-red font-medium">&larr; WO-<%= estimate.wo_display_number %></a>
         &middot; Customer: <a href="/customers/<%= estimate.customer_id %>" class="hover:text-recon-red"><%= estimate.customer_name %></a>
-        <% var esEmail = estimate.customer_billing_email || estimate.customer_email; %>
-        <% if (esEmail) { %>
-          &middot; Invoice to: <a href="mailto:<%= esEmail %>" class="hover:text-recon-red"><%= esEmail %></a>
+        <% if (estimate.customer_email) { %>
+          &middot; Send estimate to: <a href="mailto:<%= estimate.customer_email %>" class="hover:text-recon-red"><%= estimate.customer_email %></a>
         <% } %>
       </p>
     </div>
