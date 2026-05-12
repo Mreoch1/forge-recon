@@ -27,7 +27,8 @@ router.get('/login', async (req, res) => {
     title: 'Sign in',
     error: null,
     email: '',
-    verified: req.query.verified === '1'
+    verified: req.query.verified === '1',
+    alreadyVerified: req.query.already_verified === '1'
   });
 });
 

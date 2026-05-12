@@ -156,18 +156,23 @@ router.post('/resend-verification', async (req, res) => {
     });
   }
 
-  // No-enumeration: always show success
-  const token = crypto.randomBytes(48).toString('hex');
-  const expiresAt = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
-
+  // Look up the user (any verification state) — we differentiate verified vs unverified responses.
+  // Non-existent emails fall through to the generic "check your email" page (no-enumeration preserved).
   const { data: user } = await supabase
     .from('users')
-    .select('id, name')
+    .select('id, name, email_verified')
     .eq('email', email)
-    .eq('email_verified', false)
     .maybeSingle();
 
-  if (user) {
+  // Already verified → send them to login with a helpful banner instead of pretending we sent a mail.
+  if (user && user.email_verified === true) {
+    return res.redirect('/login?already_verified=1');
+  }
+
+  if (user && user.email_verified === false) {
+    const token = crypto.randomBytes(48).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+
     await supabase
       .from('users')
       .update({ verification_token: token, verification_expires_at: expiresAt })
@@ -184,6 +189,7 @@ router.post('/resend-verification', async (req, res) => {
     }
   }
 
+  // No-enumeration: when the email isn't in our system, we still render check-email.
   res.render('auth/check-email', {
     title: 'Check your email — FORGE',
     email,

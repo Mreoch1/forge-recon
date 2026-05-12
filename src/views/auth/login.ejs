@@ -20,6 +20,12 @@
       </div>
     <% } %>
 
+    <% if (typeof alreadyVerified !== 'undefined' && alreadyVerified) { %>
+      <div class="mb-4 p-3 rounded bg-blue-50 border border-blue-200 text-blue-800 text-sm">
+        This email is already verified — sign in below.
+      </div>
+    <% } %>
+
     <form action="/login" method="post" class="space-y-4" autocomplete="on">
       <div>
         <label for="email" class="label">Email</label>
