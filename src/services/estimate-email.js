@@ -43,6 +43,11 @@ function buildEstimateEmailBody(est, company = {}) {
   const safeWoNumber = escapeHtml(est.wo_display_number || '');
   const safeValidUntil = est.valid_until ? escapeHtml(String(est.valid_until).slice(0, 10)) : '';
   const safeTerms = escapeHtml(est.payment_terms || company.default_payment_terms || 'Net 30');
+  // R37j: surface unit_number + job site as a Job Site block on the estimate email.
+  const safeUnit = escapeHtml(est.unit_number || '');
+  const safeJobTitle = escapeHtml(est.job_title || '');
+  const safeJobAddress = escapeHtml(est.job_address || est.customer_address || '');
+  const safeJobCSZ = escapeHtml([est.job_city || est.customer_city, est.job_state || est.customer_state, est.job_zip || est.customer_zip].filter(Boolean).join(', '));
   const rows = (est.lines || []).map(li => `
     <tr>
       <td style="padding:10px 0;border-bottom:1px solid #eeeeee;">${escapeHtml(li.description || '')}</td>
@@ -64,6 +69,19 @@ function buildEstimateEmailBody(est, company = {}) {
         </td>
       </tr>
     </table>
+    ${(safeUnit || safeJobAddress || safeJobTitle) ? `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;border-collapse:collapse;">
+        <tr>
+          <td style="padding:10px 14px;background:#fafafa;border-left:3px solid #c0202b;border-radius:4px;font-size:13px;color:#444;">
+            <span style="display:block;color:#777;font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Job site</span>
+            ${safeJobTitle ? `<span style="display:block;font-weight:600;color:#1a1a1a;">${safeJobTitle}</span>` : ''}
+            ${safeUnit ? `<span style="display:block;">Unit ${safeUnit}</span>` : ''}
+            ${safeJobAddress ? `<span style="display:block;">${safeJobAddress}</span>` : ''}
+            ${safeJobCSZ ? `<span style="display:block;">${safeJobCSZ}</span>` : ''}
+          </td>
+        </tr>
+      </table>
+    ` : ''}
     ${rows ? `
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:18px 0;">
         <thead>
@@ -161,6 +179,7 @@ async function loadEstimateForEmail(id) {
   est.wo_display_number = wo.display_number;
   est.wo_number_main = wo.wo_number_main;
   est.wo_number_sub = wo.wo_number_sub;
+  est.unit_number = wo.unit_number || null;  // R37j: surface unit_number for estimate email Job Site block
   est.job_title = wo.jobs?.title || null;
   est.job_address = wo.jobs?.address || customer?.address || null;
   est.job_city = wo.jobs?.city || customer?.city || null;
