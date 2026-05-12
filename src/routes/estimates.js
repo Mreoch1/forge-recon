@@ -383,6 +383,43 @@ router.post('/:id/send', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// R37l: Mark sent manually — flips draft→sent WITHOUT firing the email.
+// Use when the customer was emailed/printed/delivered outside FORGE and you
+// just need to record that this estimate has gone out so it can move to
+// accepted/rejected later.
+router.post('/:id/mark-sent', async (req, res) => {
+  const estimate = await loadEstimate(req.params.id);
+  if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
+  if (estimate.status !== 'draft') {
+    setFlash(req, 'error', `${estimate.display_number} is "${estimate.status}" — already marked sent.`);
+    return res.redirect(`/estimates/${estimate.id}`);
+  }
+  const recipient = estimate.customer_email || estimate.customer_billing_email || null;
+  const now = new Date().toISOString();
+  const { error: updateError } = await supabase.from('estimates').update({
+    status: 'sent',
+    sent_at: now,
+    sent_by_user_id: req.session.userId,
+    sent_to_email: recipient,
+    sent_to_name: estimate.customer_name || null,
+    updated_at: now,
+  }).eq('id', estimate.id);
+  if (updateError) throw updateError;
+  try {
+    const { writeAudit } = require('../services/audit');
+    writeAudit({
+      entityType: 'estimate', entityId: estimate.id,
+      action: 'marked_sent_manually',
+      before: { status: 'draft' },
+      after: { status: 'sent', sent_at: now },
+      source: 'user',
+      userId: req.session.userId,
+    });
+  } catch(e) { console.error('audit failed:', e.message); }
+  setFlash(req, 'success', `${estimate.display_number} marked as sent (no email fired).`);
+  res.redirect(`/estimates/${estimate.id}`);
+});
+
 router.post('/:id/accept', (req, res) => statusTransition(req, res, 'sent', 'accepted', 'accepted_at'));
 router.post('/:id/reject', (req, res) => statusTransition(req, res, 'sent', 'rejected', null));
 
