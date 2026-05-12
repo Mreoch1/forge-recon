@@ -9,21 +9,7 @@
  *   GET  /ai-create                 AI-assisted WO form
  *   POST /ai-create                 parse free text into structured WO + render preview
  *   POST /ai-finalize               commit the AI extraction (RPC)
- *   GET  /:id/sub/new               sub-WO form (parent prefilled)
- *   POST /:id/sub                   create sub-WO (RPC)
- *   GET  /:id                       show
- *   GET  /:id/edit                  edit (allowed when scheduled or in_progress)
- *   POST /:id                       update (RPC)
- *   POST /:id/start                 scheduled -> in_progress (RPC)
- *   POST /:id/complete              in_progress -> complete (RPC)
- *   POST /:id/cancel                scheduled|in_progress -> cancelled (RPC)
- *   POST /:id/notes                 append a note to wo_notes
- *   POST /:id/photos                upload one or more photos (Supabase Storage)
- *   POST /:id/photos/:pid/delete    remove photo (Storage + row)
- *   GET  /:id/pdf                   PDF
- *   POST /:id/delete                delete with FK guards
- *   POST /:id/create-estimate       create 1:1 estimate from WO
- */
+// --- new (must come before /:id) ---
 
 const express = require('express');
 const path = require('path');
@@ -174,20 +160,7 @@ async function nextRootWoDisplay() {
   return { main, sub: 0, display: numbering.formatDisplay(main, 0) };
 }
 
-/** Next sub-WO under a given parent (by main + max(sub)+1). */
-async function nextSubWoDisplay(parentMain) {
-  const { data: siblings, error } = await supabase
-    .from('work_orders')
-    .select('wo_number_sub')
-    .eq('wo_number_main', parentMain)
-    .order('wo_number_sub', { ascending: false })
-    .limit(1);
-  if (error) throw error;
-  const maxSub = (siblings && siblings[0] && siblings[0].wo_number_sub) || 0;
-  const sub = maxSub + 1;
-  return { main: parentMain, sub, display: numbering.formatDisplay(parentMain, sub) };
-}
-
+/** Read + advance company_settings counter (auto-increment on create). */
 /** Load a single WO with joined job/customer/assignee/parent + line items. */
 async function loadWorkOrder(id) {
   const { data: wo, error } = await supabase
@@ -676,116 +649,6 @@ router.post('/ai-finalize', async (req, res) => {
   res.redirect(`/work-orders/${newId}`);
 });
 
-// --- sub-WO ---
-
-router.get('/:id/sub/new', async (req, res) => {
-  if (!requireManagerRole(req, res)) return;
-
-  const parent = await loadWorkOrder(req.params.id);
-  if (!parent) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Parent WO not found.' });
-
-  const { data: job } = await supabase
-    .from('jobs')
-    .select('id, title')
-    .eq('id', parent.job_id)
-    .maybeSingle();
-
-  const next = await nextSubWoDisplay(parent.wo_number_main);
-  const wo = {
-    id: null, job_id: parent.job_id, parent_wo_id: parent.id,
-    display_number: '', suggested_display_number: next.display,
-    status: 'scheduled',
-    scheduled_date: '', scheduled_time: '', scheduled_end_time: '',
-    assigned_to_user_id: null, assigned_to: '', notes: '', lines: []
-  };
-  const { data: users } = await supabase
-    .from('users')
-    .select('id, name')
-    .eq('active', 1)
-    .order('name');
-
-  res.render('work-orders/new', {
-    title: `Sub-WO under ${parent.display_number}`, activeNav: 'work-orders',
-    wo, job, users: users || [], errors: {}, units: VALID_UNITS, isSubWO: true, parent
-  });
-});
-
-router.post('/:id/sub', async (req, res) => {
-  if (!requireManagerRole(req, res)) return;
-
-  const { data: parent, error: pErr } = await supabase
-    .from('work_orders')
-    .select('*')
-    .eq('id', req.params.id)
-    .maybeSingle();
-  if (pErr) throw pErr;
-  if (!parent) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Parent WO not found.' });
-
-  const { errors, data } = validateWorkOrder(req.body);
-  let main, sub, display;
-  if (data.display_number_override) {
-    ({ main, sub } = data.display_number_override);
-    if (main !== parent.wo_number_main) {
-      errors.display_number = `Sub-WO must use main ${numbering.pad(parent.wo_number_main, 4)} (parent's).`;
-    } else {
-      display = numbering.formatDisplay(main, sub);
-      const { data: dup } = await supabase
-        .from('work_orders')
-        .select('id')
-        .eq('display_number', display)
-        .maybeSingle();
-      if (dup) errors.display_number = `WO ${display} already exists.`;
-    }
-  } else {
-    const next = await nextSubWoDisplay(parent.wo_number_main);
-    main = next.main; sub = next.sub; display = next.display;
-  }
-
-  if (Object.keys(errors).length) {
-    const { data: job } = await supabase
-      .from('jobs')
-      .select('id, title')
-      .eq('id', parent.job_id)
-      .maybeSingle();
-    const { data: users } = await supabase
-      .from('users')
-      .select('id, name')
-      .eq('active', 1)
-      .order('name');
-
-    return res.status(400).render('work-orders/new', {
-      title: `Sub-WO under ${parent.display_number}`, activeNav: 'work-orders',
-      wo: {
-        id: null, job_id: parent.job_id, parent_wo_id: parent.id, ...data,
-        display_number: req.body.display_number || ''
-      },
-      job, users: users || [], errors, units: VALID_UNITS, isSubWO: true, parent
-    });
-  }
-
-  const newId = await createWorkOrderWithLines(
-    {
-      job_id: parent.job_id,
-      parent_wo_id: parent.id,
-      wo_number_main: main,
-      wo_number_sub: sub,
-      display_number: display,
-      status: 'scheduled',
-      scheduled_date: data.scheduled_date,
-      scheduled_time: data.scheduled_time,
-      scheduled_end_time: data.scheduled_end_time,
-      assigned_to_user_id: data.assigned_to_user_id,
-      assigned_to: data.assigned_to,
-      notes: data.notes,
-    },
-    buildLineRows(data.lines),
-    req.session.userId || null
-  );
-
-  setFlash(req, 'success', `Sub-WO WO-${display} created.`);
-  res.redirect(`/work-orders/${newId}`);
-});
-
 // --- show ---
 
 router.get('/:id', async (req, res) => {
@@ -793,14 +656,7 @@ router.get('/:id', async (req, res) => {
   if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
   if (!isAssignedToCurrentUser(req, wo)) return workerForbidden(res);
 
-  // Sub-WOs
-  const { data: subs } = await supabase
-    .from('work_orders')
-    .select('id, display_number, wo_number_sub, status, scheduled_date, completed_date, created_at')
-    .eq('parent_wo_id', wo.id)
-    .order('wo_number_sub', { ascending: true });
-
-  // Related estimate + invoice (1:1 chain)
+  const { data: woPhosts } = await supabase
   const { data: estimate } = await supabase
     .from('estimates')
     .select('id, status')
