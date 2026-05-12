@@ -1,4 +1,4 @@
-const { PublicClientApplication } = require('@azure/msal-node');
+const { PublicClientApplication, TokenCache } = require('@azure/msal-node');
 const fs = require('fs');
 const path = require('path');
 
@@ -6,16 +6,52 @@ const CLIENT_ID = 'e1c0fc4e-ecd1-455a-8dc2-e9d86f650d93';
 const TENANT = '168f7184-878a-473d-8175-02882b27b76a';
 const SCOPES = ['Mail.Read', 'Mail.ReadWrite', 'offline_access'];
 const TOKEN_FILE = path.join(__dirname, '..', '.m365-token.json');
+const CACHE_FILE = path.join(__dirname, '..', '.m365-cache.json');
+
+// Load persisted cache or start fresh
+let cacheData = {};
+if (fs.existsSync(CACHE_FILE)) {
+  try { cacheData = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8')); } catch(e) {}
+}
 
 const pca = new PublicClientApplication({
   auth: {
     clientId: CLIENT_ID,
     authority: `https://login.microsoftonline.com/${TENANT}`,
   },
+  cache: {
+    cacheLocation: 'file',
+    cachePlugin: {
+      beforeCacheAccess: async (cacheContext) => {
+        cacheContext.tokenCache.deserialize(JSON.stringify(cacheData));
+      },
+      afterCacheAccess: async (cacheContext) => {
+        if (cacheContext.cacheHasChanged) {
+          cacheData = JSON.parse(cacheContext.tokenCache.serialize());
+          fs.writeFileSync(CACHE_FILE, JSON.stringify(cacheData, null, 2));
+        }
+      },
+    },
+  },
 });
 
 async function getToken() {
-  // Check existing token
+  // Try to find an existing account in the cache
+  const accounts = await pca.getTokenCache().getAllAccounts();
+  if (accounts.length > 0) {
+    try {
+      const result = await pca.acquireTokenSilent({
+        account: accounts[0],
+        scopes: SCOPES,
+      });
+      console.log('[m365] Token refreshed from cache');
+      return result.accessToken;
+    } catch (e) {
+      console.warn('[m365] Silent refresh failed:', e.message);
+    }
+  }
+
+  // Check legacy simple token file (if it exists from a prior version)
   if (fs.existsSync(TOKEN_FILE)) {
     const cached = JSON.parse(fs.readFileSync(TOKEN_FILE, 'utf8'));
     if (cached.refreshToken) {
@@ -24,22 +60,14 @@ async function getToken() {
           refreshToken: cached.refreshToken,
           scopes: SCOPES,
         });
-        if (!result || !result.accessToken) throw new Error('Refresh returned no access token');
-        fs.writeFileSync(TOKEN_FILE, JSON.stringify({
-          accessToken: result.accessToken,
-          refreshToken: result.refreshToken || cached.refreshToken,
-          expiresOn: result.expiresOn,
-          homeAccountId: result.account?.homeAccountId || cached.homeAccountId || null,
-          username: result.account?.username || cached.username || null,
-        }, null, 2));
         return result.accessToken;
       } catch (e) {
-        console.warn('[m365] Refresh token expired, re-authenticating...');
+        console.warn('[m365] Legacy refresh token expired');
       }
     }
   }
 
-  // Device code flow
+  // Device code flow — stores result in MSAL cache automatically
   const deviceCodes = await pca.acquireTokenByDeviceCode({
     deviceCodeCallback: (response) => {
       console.log('\n==========================================');
@@ -54,16 +82,7 @@ async function getToken() {
     scopes: SCOPES,
   });
 
-  // Store token — device code flow always returns refreshToken for M365 work accounts
-  fs.writeFileSync(TOKEN_FILE, JSON.stringify({
-    accessToken: deviceCodes.accessToken,
-    refreshToken: deviceCodes.refreshToken,
-    expiresOn: deviceCodes.expiresOn,
-    homeAccountId: deviceCodes.account?.homeAccountId || null,
-    username: deviceCodes.account?.username || null,
-  }, null, 2));
-
-  console.log('[m365] Token stored in .m365-token.json');
+  console.log('[m365] Token stored in MSAL cache');
   return deviceCodes.accessToken;
 }
 
