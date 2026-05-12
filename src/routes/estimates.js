@@ -11,6 +11,8 @@
  *   POST  /:id/send            draft -> sent (PDF emailed to customer.email)
  *   POST  /:id/accept          sent -> accepted
  *   POST  /:id/reject          sent -> rejected
+ *   GET   /:id/create-invoice  review approved lines before creating invoice
+ *   POST  /:id/create-invoice  save approvals, then review invoice draft source
  *   POST  /:id/generate-invoice  accepted -> creates invoice with approved lines
  *   GET   /:id/pdf             PDF
  *   POST  /:id/delete          delete (only when no invoice references it)
@@ -55,8 +57,33 @@ function idSetFromFormValue(value) {
   const ids = new Set();
   if (Array.isArray(value)) value.forEach(id => ids.add(String(id)));
   else if (typeof value === 'string') ids.add(value);
+  else if (typeof value === 'number') ids.add(String(value));
   else if (value && typeof value === 'object') Object.keys(value).forEach(id => ids.add(String(id)));
   return ids;
+}
+
+async function saveApprovalForm(estimate, approvedLinesValue) {
+  const approvedIds = idSetFromFormValue(approvedLinesValue);
+  const updates = await Promise.all((estimate.lines || []).map(li => supabase
+    .from('estimate_line_items')
+    .update({ selected: approvedIds.has(String(li.id)) ? 1 : 0 })
+    .eq('id', li.id)
+    .eq('estimate_id', estimate.id)
+  ));
+  const updateError = updates.find(result => result.error)?.error;
+  if (updateError) throw updateError;
+  return approvedIds;
+}
+
+function approvedInvoiceLines(estimate) {
+  return (estimate.lines || []).filter(isLineApproved);
+}
+
+function invoicePreviewTotals(lines, taxRate) {
+  const subtotal = lines.reduce((sum, li) => sum + (Number(li.line_total) || 0), 0);
+  const rate = Number(taxRate) || 0;
+  const taxAmount = subtotal * rate / 100;
+  return { subtotal, taxRate: rate, taxAmount, total: subtotal + taxAmount };
 }
 
 function paymentTermsFromBody(body, fallback = 'Net 30') {
@@ -362,16 +389,7 @@ router.post('/:id/line-approvals', async (req, res) => {
     return res.redirect(`/estimates/${estimate.id}`);
   }
 
-  const approvedIds = idSetFromFormValue(req.body.approved_lines);
-
-  const updates = await Promise.all((estimate.lines || []).map(li => supabase
-    .from('estimate_line_items')
-    .update({ selected: approvedIds.has(String(li.id)) ? 1 : 0 })
-    .eq('id', li.id)
-    .eq('estimate_id', estimate.id)
-  ));
-  const updateError = updates.find(result => result.error)?.error;
-  if (updateError) throw updateError;
+  const approvedIds = await saveApprovalForm(estimate, req.body.approved_lines);
 
   try {
     const { writeAudit } = require('../services/audit');
@@ -388,6 +406,45 @@ router.post('/:id/line-approvals', async (req, res) => {
 
   setFlash(req, 'success', 'Approved estimate items updated.');
   res.redirect(`/estimates/${estimate.id}`);
+});
+
+router.post('/:id/create-invoice', async (req, res) => {
+  const estimate = await loadEstimate(req.params.id);
+  if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
+  if (!['sent', 'accepted'].includes(estimate.status)) {
+    setFlash(req, 'error', `Estimate must be sent or accepted before invoicing. Current: ${estimate.status}.`);
+    return res.redirect(`/estimates/${estimate.id}`);
+  }
+  if (req.body.approval_form === '1') {
+    await saveApprovalForm(estimate, req.body.approved_lines);
+  }
+  return res.redirect(`/estimates/${estimate.id}/create-invoice`);
+});
+
+router.get('/:id/create-invoice', async (req, res) => {
+  const estimate = await loadEstimate(req.params.id);
+  if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
+  if (!['sent', 'accepted'].includes(estimate.status)) {
+    setFlash(req, 'error', `Estimate must be sent or accepted before invoicing. Current: ${estimate.status}.`);
+    return res.redirect(`/estimates/${estimate.id}`);
+  }
+  const { data: existingInv } = await supabase.from('invoices').select('id').eq('estimate_id', estimate.id).maybeSingle();
+  if (existingInv) {
+    setFlash(req, 'info', `Invoice already exists for ${estimate.display_number}.`);
+    return res.redirect(`/invoices/${existingInv.id}`);
+  }
+  const approvedLines = approvedInvoiceLines(estimate);
+  if (approvedLines.length === 0) {
+    setFlash(req, 'error', 'Approve at least one estimate item before creating an invoice.');
+    return res.redirect(`/estimates/${estimate.id}`);
+  }
+  res.render('estimates/create-invoice', {
+    title: `Create invoice from ${estimate.display_number}`,
+    activeNav: 'estimates',
+    estimate,
+    approvedLines,
+    totals: invoicePreviewTotals(approvedLines, estimate.tax_rate),
+  });
 });
 
 // Archive / close
@@ -451,15 +508,7 @@ router.post('/:id/generate-invoice', async (req, res) => {
   let approvedLines = estimate.lines.filter(isLineApproved);
 
   if (req.body.approval_form === '1') {
-    const approvedIds = idSetFromFormValue(req.body.approved_lines);
-    const updates = await Promise.all((estimate.lines || []).map(li => supabase
-      .from('estimate_line_items')
-      .update({ selected: approvedIds.has(String(li.id)) ? 1 : 0 })
-      .eq('id', li.id)
-      .eq('estimate_id', estimate.id)
-    ));
-    const updateError = updates.find(result => result.error)?.error;
-    if (updateError) throw updateError;
+    const approvedIds = await saveApprovalForm(estimate, req.body.approved_lines);
     approvedLines = estimate.lines.filter(li => approvedIds.has(String(li.id)));
   }
 
@@ -481,17 +530,59 @@ router.post('/:id/generate-invoice', async (req, res) => {
     }
   }
 
-  const { data: invResult, error: rpcErr } = await supabase.rpc('convert_estimate_to_invoice', {
+  const totals = invoicePreviewTotals(selectedLines, estimate.tax_rate);
+  const costTotal = selectedLines.reduce((sum, li) => sum + (Number(li.cost) || 0) * (Number(li.quantity) || 0), 0);
+  const now = new Date().toISOString();
+  const { data: invoice, error: invError } = await supabase.from('invoices').insert({
     estimate_id: estimate.id,
-    selected_line_ids: selectedLines.map(li => li.id),
-  });
-  if (rpcErr) throw rpcErr;
+    work_order_id: estimate.wo_id,
+    status: 'draft',
+    subtotal: totals.subtotal,
+    tax_rate: totals.taxRate,
+    tax_amount: totals.taxAmount,
+    total: totals.total,
+    cost_total: costTotal,
+    payment_terms: estimate.payment_terms || 'Net 30',
+    notes: estimate.notes || null,
+    created_at: now,
+    updated_at: now,
+  }).select('id').single();
+  if (invError) throw invError;
 
-  const { error: invTermsError } = await supabase
-    .from('invoices')
-    .update({ payment_terms: estimate.payment_terms || 'Net 30' })
-    .eq('id', invResult);
-  if (invTermsError) throw invTermsError;
+  const invResult = invoice.id;
+  const { error: lineError } = await supabase.from('invoice_line_items').insert(selectedLines.map((li, idx) => ({
+    invoice_id: invResult,
+    description: li.description,
+    quantity: li.quantity,
+    unit: li.unit,
+    unit_price: li.unit_price,
+    cost: li.cost || 0,
+    line_total: li.line_total,
+    sort_order: idx,
+  })));
+  if (lineError) {
+    await supabase.from('invoice_line_items').delete().eq('invoice_id', invResult);
+    await supabase.from('invoices').delete().eq('id', invResult);
+    throw lineError;
+  }
+
+  try {
+    const { writeAudit } = require('../services/audit');
+    writeAudit({
+      entityType: 'invoice',
+      entityId: invResult,
+      action: 'create_from_estimate',
+      before: null,
+      after: { estimate_id: estimate.id, line_count: selectedLines.length, total: totals.total },
+      source: 'user',
+      userId: req.session.userId,
+    });
+  } catch(e) { console.error('audit failed:', e.message); }
+
+  const { error: estUpdateError } = await supabase.from('estimates').update({
+    updated_at: now,
+  }).eq('id', estimate.id);
+  if (estUpdateError) console.warn('[estimates] invoice created but estimate timestamp update failed:', estUpdateError.message);
 
   setFlash(req, 'success', `INV-${estimate.wo_display_number} created from ${selectedLines.length} approved item(s).`);
   return res.redirect(`/invoices/${invResult}`);
@@ -499,21 +590,7 @@ router.post('/:id/generate-invoice', async (req, res) => {
 
 // Select-for-invoice page — pick which lines to invoice
 router.get('/:id/select-for-invoice', async (req, res) => {
-  const estimate = await loadEstimate(req.params.id);
-  if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
-  if (!['sent', 'accepted'].includes(estimate.status)) {
-    setFlash(req, 'error', `Estimate must be sent or accepted. Current: ${estimate.status}.`);
-    return res.redirect(`/estimates/${estimate.id}`);
-  }
-  const { data: existingInv } = await supabase.from('invoices').select('id').eq('estimate_id', estimate.id).maybeSingle();
-  if (existingInv) {
-    setFlash(req, 'info', `Invoice already exists.`);
-    return res.redirect(`/invoices/${existingInv.id}`);
-  }
-  res.render('estimates/select-for-invoice', {
-    title: `Select lines to invoice`, activeNav: 'estimates',
-    estimate
-  });
+  res.redirect(`/estimates/${req.params.id}/create-invoice`);
 });
 
 router.get('/:id/pdf', async (req, res) => {
