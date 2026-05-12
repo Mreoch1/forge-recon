@@ -218,3 +218,8 @@ BEGIN
 END;
 $$;
 GRANT EXECUTE ON FUNCTION public.pay_bill TO service_role;
+
+-- Make sure audit_logs source constraint allows 'web' (used by RPCs)
+ALTER TABLE IF EXISTS audit_logs DROP CONSTRAINT IF EXISTS audit_logs_source_check;
+ALTER TABLE IF EXISTS audit_logs ADD CONSTRAINT audit_logs_source_check
+  CHECK (source = ANY (ARRAY['user'::text, 'ai'::text, 'stripe'::text, 'plaid'::text, 'system'::text, 'web'::text]));
