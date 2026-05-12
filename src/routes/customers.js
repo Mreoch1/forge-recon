@@ -112,7 +112,7 @@ router.post('/', async (req, res) => {
   // Auto-create root folder
   try {
     const filesSvc = require('../services/files');
-    filesSvc.ensureRootFolder('customer', newCustomer.id, req.session.userId);
+    await filesSvc.ensureRootFolder('customer', newCustomer.id, req.session.userId).catch(e => console.warn('[files] ensureRootFolder:', e.message));
   } catch(e) { /* folder creation best effort */ }
   setFlash(req, 'success', `Customer "${data.name}" created.`);
   res.redirect(`/customers/${newCustomer.id}`);

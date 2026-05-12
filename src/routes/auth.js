@@ -44,6 +44,15 @@ router.post('/login', async (req, res) => {
     });
   }
 
+  // Input hardening: reject malformed email before any Supabase query
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(401).render('auth/login', {
+      title: 'Sign in',
+      error: 'Invalid email or password.',
+      email
+    });
+  }
+
   const { data: user, error } = await supabase
     .from('users')
     .select('*')
@@ -102,6 +111,13 @@ router.post('/forgot-password', async (req, res) => {
     return res.render('auth/forgot-password', {
       title: 'Forgot password',
       errors: { email: 'Email is required.' }
+    });
+  }
+
+  // Input hardening: reject malformed email before any Supabase query
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.render('auth/forgot-password', {
+      title: 'Forgot password', errors: { email: 'Invalid email format.' }
     });
   }
 
