@@ -91,6 +91,17 @@ workOrders.filter(w => w.parent_wo_id).forEach(s => {
     </details>
   <% } %>
 
+  <!-- D-024b: Schedule of Values -->
+  <div class="mb-6">
+    <%- include('_sov_table', {
+      jobId: job.id, sovItems: sovItems || [],
+      sovTotalScheduled: sovTotalScheduled || 0,
+      sovTotalPrev: sovTotalPrev || 0,
+      sovTotalCurrent: sovTotalCurrent || 0,
+      sovFmt: typeof sovFmt !== 'undefined' ? sovFmt : function(n){var num=Number(n);return isFinite(num)?num.toFixed(2):'0.00';}
+    }) %>
+  </div>
+
   <!-- D-024a: Customer payments -->
   <div class="mb-6">
     <%- include('_payments_timeline', {

@@ -254,6 +254,7 @@ router.get('/:id', async (req, res) => {
     { data: vendorInvoices },
     { data: projectContractors },
     { data: payments },
+    { data: sovItems },
   ] = await Promise.all([
     supabase
       .from('work_orders')
@@ -294,6 +295,12 @@ router.get('/:id', async (req, res) => {
       .eq('job_id', id)
       .order('payment_date', { ascending: false })
       .order('created_at', { ascending: false }),
+    supabase
+      .from('project_sov_items')
+      .select('*')
+      .eq('job_id', id)
+      .order('sort_order', { ascending: true })
+      .order('id', { ascending: true }),
   ]);
 
   const paymentTotal = (payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
@@ -384,6 +391,12 @@ router.get('/:id', async (req, res) => {
     // D-024a: customer payment ledger
     payments: (payments || []).map(p => ({ ...p })),
     paymentTotal: paymentTotal || 0,
+    // D-024b: Schedule of Values
+    sovItems: sovItems || [],
+    sovTotalScheduled: (sovItems || []).reduce((s, i) => s + Number(i.scheduled_value || 0), 0),
+    sovTotalPrev: (sovItems || []).reduce((s, i) => s + Number(i.previous_billed || 0), 0),
+    sovTotalCurrent: (sovItems || []).reduce((s, i) => s + Number(i.current_billed || 0), 0),
+    sovFmt: function(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; },
   });
 });
 
@@ -725,6 +738,51 @@ router.post('/:id/payments', async (req, res) => {
   await supabase.from('jobs').update({ total_paid: total }).eq('id', id);
   setFlash(req, 'success', `Payment of $${amount.toFixed(2)} recorded.`);
   res.redirect(`/projects/${id}`);
+});
+
+// ---------- SOV (D-024b) ----------
+
+router.post('/:id/sov-items', async (req, res) => {
+  const id = req.params.id;
+  const { data: job } = await supabase.from('jobs').select('id').eq('id', id).maybeSingle();
+  if (!job) return res.status(404).send('Project not found');
+  const { error } = await supabase.from('project_sov_items').insert({
+    job_id: parseInt(id, 10),
+    code: req.body.code || null,
+    description: req.body.description,
+    scheduled_value: Number(req.body.scheduled_value) || 0,
+    percent_complete: Number(req.body.percent_complete) || 0,
+    retainage_rate: Number(req.body.retainage_rate) || 0,
+    sort_order: 0,
+  });
+  if (error) throw error;
+  setFlash(req, 'success', 'SOV item added.');
+  res.redirect('/projects/' + id);
+});
+
+router.post('/:id/sov-items/:itemId/delete', async (req, res) => {
+  await supabase.from('project_sov_items').delete().eq('id', req.params.itemId).eq('job_id', req.params.id);
+  setFlash(req, 'success', 'SOV item deleted.');
+  res.redirect('/projects/' + req.params.id);
+});
+
+router.post('/:id/draws/generate', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const { data: items } = await supabase.from('project_sov_items').select('*').eq('job_id', id).order('id');
+  if (!items || items.length === 0) { setFlash(req, 'error', 'No SOV items to bill.'); return res.redirect('/projects/' + id); }
+  const { data: draws } = await supabase.from('project_draws').select('draw_number').eq('job_id', id).order('draw_number', { ascending: false }).limit(1);
+  const drawNum = (draws && draws.length > 0 ? draws[0].draw_number : 0) + 1;
+  await supabase.from('project_draws').insert({ job_id: id, draw_number: drawNum, status: 'draft' });
+  for (const item of items) {
+    if (item.current_billed > 0) {
+      await supabase.from('project_sov_items').update({
+        previous_billed: Number(item.previous_billed) + Number(item.current_billed),
+        current_billed: 0,
+      }).eq('id', item.id);
+    }
+  }
+  setFlash(req, 'success', 'Draw #' + drawNum + ' generated.');
+  res.redirect('/projects/' + id);
 });
 
 // ---------- Members ----------
