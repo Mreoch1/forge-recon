@@ -36,6 +36,9 @@
       <h1 class="wol-h1">Work orders</h1>
       <p class="wol-sub mt-1"><%= total %> total<% if (q) { %> &middot; "<%= q %>"<% } %><% if (status) { %> &middot; <%= status.replace('_',' ') %><% } %></p>
     </div>
+    <div class="flex gap-2">
+      <a href="/work-orders/new" class="btn btn-primary">+ New work order</a>
+    </div>
   </div>
 
   <%
