@@ -202,7 +202,19 @@ app.use('/work-orders', requireAuth, workOrdersRoutes);
 app.use('/schedule', requireAuth, scheduleRoutes);
 app.use('/accounting', requireAuth, requireManager, accountingRoutes);
 app.use('/vendors', requireAuth, requireManager, vendorsRoutes);
-app.get('/ai/chat/health', (req, res) => { const ai = require('./services/ai'); const enabled = process.env.AI_CHAT_ENABLED === undefined || process.env.AI_CHAT_ENABLED === '' || process.env.AI_CHAT_ENABLED === '1' || process.env.AI_CHAT_ENABLED === 'true'; res.json({ enabled, model: ai.modelName() || 'deepseek-chat', provider: ai.provider() }); });
+app.get('/ai/chat/health', (req, res) => {
+  const ai = require('./services/ai');
+  const enabled = process.env.AI_CHAT_ENABLED === undefined
+    || process.env.AI_CHAT_ENABLED === ''
+    || process.env.AI_CHAT_ENABLED === '1'
+    || process.env.AI_CHAT_ENABLED === 'true';
+  res.json({
+    enabled,
+    model: ai.modelName(ai.provider()) || 'deepseek-chat',
+    provider: ai.provider(),
+    configured_providers: ai.configuredProviders ? ai.configuredProviders() : [],
+  });
+});
 app.use('/ai', requireAuth, aiChatRoutes);
 app.use('/', requireAuth, dashboardRoutes);
 

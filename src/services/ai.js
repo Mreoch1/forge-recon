@@ -31,18 +31,38 @@ const MAX_OUTPUT_TOKENS = 2000;
 function provider() {
   return (process.env.AI_PROVIDER || 'deepseek').toLowerCase();
 }
-function modelName() {
-  return process.env.AI_MODEL || process.env.DEEPSEEK_MODEL || PROVIDERS[provider()]?.model || '';
+function modelName(prov = provider()) {
+  const modelMap = {
+    deepseek: process.env.DEEPSEEK_MODEL || process.env.AI_MODEL,
+    openai: process.env.OPENAI_MODEL || process.env.GPT_MODEL,
+    anthropic: process.env.ANTHROPIC_MODEL,
+  };
+  return modelMap[prov] || PROVIDERS[prov]?.model || '';
 }
 function apiKey() {
-  return process.env.AI_API_KEY || '';
+  return providerKey(provider());
 }
 function providerKey(prov) {
-  const keyMap = { deepseek: 'AI_API_KEY', openai: 'OPENAI_API_KEY', anthropic: 'ANTHROPIC_API_KEY' };
-  return process.env[keyMap[prov] || 'AI_API_KEY'] || '';
+  if (prov === 'deepseek') return process.env.DEEPSEEK_API_KEY || process.env.AI_API_KEY || '';
+  if (prov === 'openai') return process.env.OPENAI_API_KEY || process.env.GPT_API_KEY || '';
+  if (prov === 'anthropic') return process.env.ANTHROPIC_API_KEY || '';
+  return '';
 }
 function isConfigured() {
-  return !!apiKey();
+  return configuredProviders().length > 0;
+}
+function configuredProviders() {
+  return Object.keys(PROVIDERS).filter(providerKey);
+}
+function providerForTask(taskName = '') {
+  const task = String(taskName || '').toLowerCase();
+  const preferred = provider();
+  if (/vision|image|photo|ocr|pdf-image|premium|gpt/.test(task) && providerKey('openai')) return 'openai';
+  if (providerKey(preferred)) return preferred;
+  if (providerKey('deepseek')) return 'deepseek';
+  if (providerKey('openai')) return 'openai';
+  if (providerKey('anthropic')) return 'anthropic';
+  return preferred;
 }
 
 const PROVIDERS = {
@@ -50,8 +70,8 @@ const PROVIDERS = {
     url: 'https://api.deepseek.com/chat/completions',
     model: 'deepseek-chat',
     auth: k => ({ Authorization: `Bearer ${k}` }),
-    body: ({ system, user, json }) => ({
-      model: modelName() || 'deepseek-chat',
+    body: ({ system, user, json, model }) => ({
+      model: model || 'deepseek-chat',
       messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
       response_format: json ? { type: 'json_object' } : undefined,
       max_tokens: MAX_OUTPUT_TOKENS,
@@ -66,8 +86,8 @@ const PROVIDERS = {
     url: 'https://api.openai.com/v1/chat/completions',
     model: 'gpt-4o-mini',
     auth: k => ({ Authorization: `Bearer ${k}` }),
-    body: ({ system, user, json }) => ({
-      model: modelName() || 'gpt-4o-mini',
+    body: ({ system, user, json, model }) => ({
+      model: model || 'gpt-4o-mini',
       messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
       response_format: json ? { type: 'json_object' } : undefined,
       max_tokens: MAX_OUTPUT_TOKENS,
@@ -82,8 +102,8 @@ const PROVIDERS = {
     url: 'https://api.anthropic.com/v1/messages',
     model: 'claude-haiku-4-5',
     auth: k => ({ 'x-api-key': k, 'anthropic-version': '2023-06-01' }),
-    body: ({ system, user }) => ({
-      model: modelName() || 'claude-haiku-4-5',
+    body: ({ system, user, model }) => ({
+      model: model || 'claude-haiku-4-5',
       max_tokens: MAX_OUTPUT_TOKENS,
       system,
       messages: [{ role: 'user', content: user }],
@@ -96,24 +116,25 @@ const PROVIDERS = {
   },
 };
 
-function logCall({ taskName, userId, ok, tokens, reason }) {
+function logCall({ taskName, userId, ok, tokens, reason, provider: prov, model }) {
   writeAudit({
     entityType: 'ai_call', entityId: 0, action: 'invoke',
     before: null,
-    after: { provider: provider(), task: taskName, ok, tokens: tokens || null, reason: reason || null },
+    after: { provider: prov || provider(), model: model || null, task: taskName, ok, tokens: tokens || null, reason: reason || null },
     source: 'ai', userId: userId || null, reason: taskName,
   });
 }
 
 async function callProviderFor({ provider: prov, system, user, json, taskName, userId }) {
   const key = providerKey(prov);
+  const model = modelName(prov);
   if (!key) {
-    logCall({ taskName, userId, ok: false, reason: `no_api_key_for_${prov}` });
-    return { ok: false, reason: `${prov} API key not configured — set ${prov === 'deepseek' ? 'AI_API_KEY' : prov.toUpperCase() + '_API_KEY'} in env.` };
+    logCall({ taskName, userId, ok: false, reason: `no_api_key_for_${prov}`, provider: prov, model });
+    return { ok: false, reason: `${prov} API key not configured - set ${prov === 'deepseek' ? 'AI_API_KEY or DEEPSEEK_API_KEY' : prov.toUpperCase() + '_API_KEY'} in env.` };
   }
   const cfg = PROVIDERS[prov];
   if (!cfg) {
-    logCall({ taskName, userId, ok: false, reason: 'bad_provider' });
+    logCall({ taskName, userId, ok: false, reason: 'bad_provider', provider: prov, model });
     return { ok: false, reason: `Unknown provider "${prov}". Use deepseek | openai | anthropic.` };
   }
 
@@ -128,30 +149,30 @@ async function callProviderFor({ provider: prov, system, user, json, taskName, u
       method: 'POST',
       signal: ctrl.signal,
       headers: { 'Content-Type': 'application/json', ...cfg.auth(key) },
-      body: JSON.stringify(cfg.body({ system, user, json })),
+      body: JSON.stringify(cfg.body({ system, user, json, model })),
     });
     clearTimeout(t);
 
     if (!resp.ok) {
       const errBody = await resp.text().catch(() => '');
       const reason = `HTTP ${resp.status}: ${errBody.slice(0, 200)}`;
-      logCall({ taskName, userId, ok: false, reason });
+      logCall({ taskName, userId, ok: false, reason, provider: prov, model });
       return { ok: false, reason };
     }
     const data = await resp.json();
     const out = cfg.extract(data);
-    logCall({ taskName, userId, ok: true, tokens: out.tokens });
-    return { ok: true, text: out.text, tokens: out.tokens, raw: data };
+    logCall({ taskName, userId, ok: true, tokens: out.tokens, provider: prov, model });
+    return { ok: true, text: out.text, tokens: out.tokens, raw: data, provider: prov, model };
   } catch (err) {
     clearTimeout(t);
     const reason = err.name === 'AbortError' ? 'request_timeout' : (err.message || String(err));
-    logCall({ taskName, userId, ok: false, reason });
+    logCall({ taskName, userId, ok: false, reason, provider: prov, model });
     return { ok: false, reason };
   }
 }
 
 async function callProvider({ system, user, json, taskName, userId }) {
-  return callProviderFor({ provider: provider(), system, user, json, taskName, userId });
+  return callProviderFor({ provider: providerForTask(taskName), system, user, json, taskName, userId });
 }
 
 /** Free-form suggestion (text in, text out). */
@@ -253,7 +274,7 @@ async function extractWorkOrder({ text, customers, users, userId }) {
 }
 
 module.exports = {
-  isConfigured, provider, modelName,
+  isConfigured, provider, modelName, providerForTask, configuredProviders,
   suggest, extract, callProviderFor,
   extractWorkOrder,
 };
