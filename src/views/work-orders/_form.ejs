@@ -12,10 +12,14 @@ const selectedAssignees = wo.assignee_ids || [];
     <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Customer</h3>
     <div class="space-y-2">
       <div>
-        <input type="text" id="customer-search" placeholder="Search customer..." class="input"
+        <input type="text" id="customer-search" list="customer-list" placeholder="Search or select customer..." class="input"
                autocomplete="off" value="<%= customerName || '' %>">
+        <datalist id="customer-list">
+          <% (customers || []).forEach(function(c){ %>
+            <option value="<%= c.name %>" data-id="<%= c.id %>"></option>
+          <% }); %>
+        </datalist>
         <input type="hidden" name="customer_id" id="customer-id" value="<%= selectedCustomerId %>">
-        <div id="customer-results" class="hidden mt-1 border rounded bg-white shadow max-h-40 overflow-y-auto"></div>
       </div>
       <div id="customer-card" class="<%= selectedCustomerId ? '' : 'hidden' %> p-3 bg-gray-50 rounded text-sm">
         <p class="font-medium" id="cust-name"><%= customerName || '' %></p>
@@ -103,12 +107,11 @@ const selectedAssignees = wo.assignee_ids || [];
 </form>
 
 <script>
-// Customer autocomplete
+// Customer autocomplete (native datalist)
 (function(){
   const customers = <%- JSON.stringify(customers || []) %>;
   const search = document.getElementById('customer-search');
   const hidden = document.getElementById('customer-id');
-  const results = document.getElementById('customer-results');
   const card = document.getElementById('customer-card');
   const cName = document.getElementById('cust-name');
   const cEmail = document.getElementById('cust-email');
@@ -125,34 +128,24 @@ const selectedAssignees = wo.assignee_ids || [];
     cPhone.textContent = c.phone || '';
     cAddr.textContent = [c.address, c.city, c.state].filter(Boolean).join(', ');
     card.classList.remove('hidden');
-    results.classList.add('hidden');
   }
 
   if (hidden.value) showCustomer(hidden.value);
 
-  search.addEventListener('input', function(){
-    var q = this.value.trim().toLowerCase();
-    if (!q || q === cName.textContent.toLowerCase()) { results.classList.add('hidden'); return; }
-    var matches = customers.filter(function(c){ return c.name.toLowerCase().includes(q) || (c.email || '').toLowerCase().includes(q); }).slice(0, 8);
-    results.innerHTML = '';
-    if (!matches.length) { results.classList.add('hidden'); return; }
-    results.classList.remove('hidden');
-    matches.forEach(function(c) {
-      var div = document.createElement('div');
-      div.className = 'px-3 py-2 hover:bg-gray-100 cursor-pointer';
-      div.dataset.id = c.id;
-      div.textContent = c.name + ' <' + (c.email || '') + '>';
-      results.appendChild(div);
-    });
+  // When user selects from datalist, find the customer by name
+  search.addEventListener('change', function(){
+    var match = customers.find(function(c){ return c.name === this.value; });
+    if (match) showCustomer(match.id);
   });
 
-  results.addEventListener('click', function(e){
-    var div = e.target.closest('[data-id]');
-    if (div) showCustomer(div.dataset.id);
+  // Clear customer ID if text input differs from any known name
+  search.addEventListener('input', function(){
+    var match = customers.find(function(c){ return c.name === this.value; });
+    if (!match) { hidden.value = ''; card.classList.add('hidden'); }
   });
 
   document.addEventListener('click', function(e){
-    if (!search.contains(e.target) && !results.contains(e.target)) results.classList.add('hidden');
+    if (!search.contains(e.target)) { /* noop — datalist handles dismissal */ }
   });
 })();
 
