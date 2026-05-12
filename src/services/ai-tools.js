@@ -550,13 +550,13 @@ MUTATION_TOOLS.send_estimate = {
 MUTATION_TOOLS.mark_invoice_paid = {
   needs_user: 'write',
   async propose(args, ctx) {
-    const inv = await db.get('SELECT * FROM invoices WHERE id = ?', [args.invoice_id]);
+    const { data: inv } = await supabase.from('invoices').select('id, status, total, amount_paid, work_order_id').eq('id', args.invoice_id).maybeSingle();
     if (!inv) return { error: 'Invoice not found.' };
     if (inv.status === 'paid') return { error: 'Invoice is already paid.' };
     const balance = Math.round((Number(inv.total) - Number(inv.amount_paid)) * 100) / 100;
     let amount = Number(args.amount) || balance;
     if (amount > balance) { amount = balance; }
-    const wo = await db.get('SELECT display_number FROM work_orders WHERE id = ?', [inv.work_order_id]);
+    const { data: wo } = await supabase.from('work_orders').select('display_number').eq('id', inv.work_order_id).maybeSingle();
     const number = `INV-${wo ? wo.display_number : ''}`;
     const lines = [`Invoice: ${number}`, `Amount: $${amount.toFixed(2)}`, `Balance before: $${balance.toFixed(2)}`];
     if (amount !== (Number(args.amount) || balance)) lines.push('(adjusted to outstanding balance)');
@@ -564,11 +564,11 @@ MUTATION_TOOLS.mark_invoice_paid = {
     return { summary_lines: lines, args_normalized: { ...args, amount, payment_date: args.payment_date || today } };
   },
   async execute(args, ctx) {
-    const inv = await db.get('SELECT * FROM invoices WHERE id = ?', [args.invoice_id]);
+    const { data: inv } = await supabase.from('invoices').select('id, status, total, amount_paid').eq('id', args.invoice_id).maybeSingle();
     const amount = Number(args.amount);
     const newAmt = (Number(inv.amount_paid) || 0) + amount;
     const newStatus = newAmt >= Number(inv.total) ? 'paid' : 'sent';
-    await db.run(`UPDATE invoices SET amount_paid=?, status=?, paid_at=now(), updated_at=now() WHERE id=?`, [newAmt, newStatus, inv.id]);
+    await supabase.from('invoices').update({ amount_paid: newAmt, status: newStatus, paid_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', inv.id);
     // Post JE via accounting-posting
     try {
       const posting = require('../services/accounting-posting');
