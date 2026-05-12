@@ -40,10 +40,6 @@ const bal = (Number(bill.total) || 0) - (Number(bill.amount_paid) || 0);
           <button class="btn btn-danger">Void</button>
         </form>
       <% } else if (bill.status === 'void') { %>
-        <form action="/bills/<%= bill.id %>/delete" method="post" class="m-0 inline"
-              onsubmit="return confirm('Delete this voided bill?');">
-          <button class="btn btn-danger">Delete</button>
-        </form>
       <% } %>
     </div>
   </div>
@@ -139,6 +135,14 @@ const bal = (Number(bill.total) || 0) - (Number(bill.amount_paid) || 0);
       <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
       <form action="/bills/<%= bill.id %>/delete" method="post"
             onsubmit="return confirm('Delete this draft bill?');" class="m-0">
+        <button type="submit" class="btn btn-danger">Delete bill</button>
+      </form>
+    </div>
+  <% } else if (bill.status === 'void') { %>
+    <div class="card p-5 border-red-200">
+      <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
+      <form action="/bills/<%= bill.id %>/delete" method="post"
+            onsubmit="return confirm('Delete this voided bill?');" class="m-0">
         <button type="submit" class="btn btn-danger">Delete bill</button>
       </form>
     </div>

@@ -5,9 +5,7 @@
     <h1 class="page-h1"><%= vendor.name %></h1>
     <div class="flex gap-2">
       <a href="/vendors/<%= vendor.id %>/edit" class="btn btn-secondary text-sm">Edit</a>
-      <form action="/vendors/<%= vendor.id %>/delete" method="post" class="inline" onsubmit="return confirm('Delete this vendor?')">
-        <button type="submit" class="btn btn-danger text-sm">Delete</button>
-      </form></div></div>
+      </div></div>
   <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
     <div class="card p-4"><div class="text-xs text-recon-fog uppercase tracking-wide mb-1">Contact</div>
       <p><%= vendor.email || '-' %></p><p><%= vendor.phone || '-' %></p></div>
@@ -25,6 +23,12 @@
   <div class="card p-5">
     <h2 class="font-semibold mb-2">Files</h2>
     <a href="/files/vendor/<%= vendor.id %>" class="text-sm text-recon-red hover:underline">📁 Files (<%= typeof fileCount !== 'undefined' ? fileCount : 0 %>) →</a>
+  </div>
+  <div class="card p-5 border-red-200 mt-6">
+    <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
+    <form action="/vendors/<%= vendor.id %>/delete" method="post" onsubmit="return confirm('Delete this vendor?');" class="m-0">
+      <button type="submit" class="btn btn-danger">Delete vendor</button>
+    </form>
   </div>
 </div>
 <%- include("../layouts/footer") %>
