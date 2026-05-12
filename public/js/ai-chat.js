@@ -131,6 +131,12 @@
       }
       .recon-aic-input button:hover { background: #8a0e16; }
       .recon-aic-input button:disabled { background: #999; cursor: not-allowed; }
+      .recon-aic-input .mic {
+        width: 42px; padding: 0; background: #f3f4f6; color: #1a1a1a;
+        border: 1px solid #d0d0d0;
+      }
+      .recon-aic-input .mic:hover { background: #fff; color: #c0202b; border-color: #c0202b; }
+      .recon-aic-input .mic.listening { background: #c0202b; color: #fff; border-color: #c0202b; }
 
       .recon-aic-empty {
         text-align: center; color: #999; font-size: .8rem; padding: 2rem 1rem;
@@ -215,6 +221,9 @@
     sending: false,
     history: [],   // { role: 'user' | 'assistant', content: string, chips?: [] }
     disabled: false, // set true if /ai/chat returns 404
+    listening: false,
+    speechSupported: !!(window.SpeechRecognition || window.webkitSpeechRecognition),
+    recognition: null,
   };
 
   function loadHistory() {
@@ -270,6 +279,7 @@
                     placeholder="${empty ? 'Try: how many overdue invoices?' : 'Ask a follow-up…'}"
                     rows="1"
                     ${state.sending ? 'disabled' : ''}></textarea>
+          ${state.speechSupported ? `<button type="button" class="mic${state.listening ? ' listening' : ''}" data-action="voice" title="Talk to text" aria-label="Talk to text" ${state.sending ? 'disabled' : ''}>Mic</button>` : ''}
           <button type="submit" ${state.sending ? 'disabled' : ''}>Send</button>
         </form>
       </div>
@@ -422,6 +432,59 @@
   }
   async function safeJSON(res) {
     try { return await res.json(); } catch (_) { return {}; }
+  }
+
+  function ensureSpeechRecognition() {
+    if (!state.speechSupported) return null;
+    if (state.recognition) return state.recognition;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const rec = new SpeechRecognition();
+    rec.continuous = false;
+    rec.interimResults = true;
+    rec.lang = navigator.language || 'en-US';
+    let finalTranscript = '';
+    rec.onresult = (event) => {
+      let interim = '';
+      finalTranscript = '';
+      for (let i = 0; i < event.results.length; i++) {
+        const text = event.results[i][0] && event.results[i][0].transcript ? event.results[i][0].transcript : '';
+        if (event.results[i].isFinal) finalTranscript += text;
+        else interim += text;
+      }
+      const ta = document.getElementById('recon-aic-input');
+      if (ta) ta.value = (finalTranscript || interim || '').trim();
+    };
+    rec.onerror = () => {
+      state.listening = false;
+      render();
+    };
+    rec.onend = () => {
+      state.listening = false;
+      render();
+      const ta = document.getElementById('recon-aic-input');
+      if (ta && finalTranscript) ta.value = finalTranscript.trim();
+    };
+    state.recognition = rec;
+    return rec;
+  }
+
+  function toggleVoice() {
+    const rec = ensureSpeechRecognition();
+    if (!rec || state.sending) return;
+    if (state.listening) {
+      rec.stop();
+      state.listening = false;
+      render();
+      return;
+    }
+    try {
+      state.listening = true;
+      render();
+      rec.start();
+    } catch (_) {
+      state.listening = false;
+      render();
+    }
   }
 
   // Find the message in history that owns a confirmation_id.
