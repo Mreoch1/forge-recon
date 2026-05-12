@@ -1220,6 +1220,10 @@ router.post('/:id/create-estimate', async (req, res) => {
   });
   if (rpcErr) throw rpcErr;
 
+  // Set valid_until to 30 days from now
+  const thirtyDays = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  await supabase.from('estimates').update({ valid_until: thirtyDays }).eq('id', newId);
+
   setFlash(req, 'success', `Estimate EST-${wo.display_number} created from WO-${wo.display_number}.`);
   res.redirect(`/estimates/${newId}`);
 });

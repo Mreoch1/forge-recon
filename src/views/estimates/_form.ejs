@@ -18,7 +18,7 @@ function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed
           <span class="ml-1 text-recon-fog cursor-help" title="Date this quote expires. After this date the office should re-quote before accepting.">ⓘ</span>
         </label>
         <input type="date" name="valid_until" id="valid_until"
-               value="<%= estimate.valid_until ? String(estimate.valid_until).slice(0,10) : '' %>"
+               value="<%= estimate.valid_until ? String(estimate.valid_until).slice(0,10) : (estimate.id ? '' : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0,10)) %>"
                class="input <%= errors.valid_until ? 'border-red-500' : '' %>">
         <% if (errors.valid_until) { %><p class="text-sm text-red-600 mt-1"><%= errors.valid_until %></p><% } %>
       </div>
@@ -37,11 +37,13 @@ function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed
                placeholder="Custom terms">
       </div>
       <div>
-        <label class="label" for="tax_rate">Tax rate (%)
-          <span class="ml-1 text-recon-fog cursor-help" title="Sales tax percentage applied to the subtotal. Enter 0 if this customer is tax-exempt.">ⓘ</span>
+        <label class="label" for="tax_rate">Tax rate
+          <span class="ml-1 text-recon-fog cursor-help" title="Michigan sales tax is 6%. Select 0 for tax-exempt customers.">ⓘ</span>
         </label>
-        <input type="number" step="0.001" min="0" name="tax_rate" id="tax_rate"
-               value="<%= estimate.tax_rate || 0 %>" class="input" data-totals="tax_rate">
+        <select name="tax_rate" id="tax_rate" class="input" data-totals="tax_rate">
+          <option value="0" <%= Number(estimate.tax_rate || 0) === 0 ? 'selected' : '' %>>0% (tax-exempt)</option>
+          <option value="6" <%= Number(estimate.tax_rate || 0) === 6 ? 'selected' : '' %>>6% (Michigan)</option>
+        </select>
       </div>
       <div>
         <label class="label">Number
