@@ -378,15 +378,11 @@ tools.search_bills = {
 
 tools.get_schedule = {
   description: 'Get work orders scheduled within a date range, grouped by date.',
-  args: { start_date: 'string (optional) — YYYY-MM-DD', end_date: 'string (optional) — YYYY-MM-DD', status: 'string (optional)', scheduled_date: 'string (optional)' },
+  args: { date_start: 'string (optional) — YYYY-MM-DD', date_end: 'string (optional) — YYYY-MM-DD', start_date: 'string (optional) — YYYY-MM-DD', end_date: 'string (optional) — YYYY-MM-DD', status: 'string (optional)', scheduled_date: 'string (optional)' },
   needs_user: 'read',
-  handler: async ({ start_date, end_date, status, scheduled_date }, ctx) => {
-    const conds = [];
-    if (scheduled_date) conds.push(`scheduled_date.eq.${scheduled_date}`);
-    if (status) conds.push(`status.eq.${status}`);
-    if (start_date) conds.push(`scheduled_date.gte.${start_date}`);
-    if (end_date) conds.push(`scheduled_date.lte.${end_date}`);
-
+  handler: async ({ date_start, date_end, start_date, end_date, status, scheduled_date }, ctx) => {
+    const fromDate = start_date || date_start || '2026-01-01';
+    const toDate = end_date || date_end || '2027-01-01';
     let q = supabase.from('work_orders').select(`
       id, display_number, status, scheduled_date, scheduled_time, assigned_to, assigned_to_user_id,
       jobs!left(title, customers!left(name)),
@@ -394,24 +390,33 @@ tools.get_schedule = {
       users!left(name)
     `).order('scheduled_date', { ascending: true }).order('scheduled_time', { ascending: true });
 
-    if (conds.length) q = q.or(conds.join(','));
+    if (scheduled_date) {
+      q = q.eq('scheduled_date', scheduled_date);
+    } else {
+      q = q.gte('scheduled_date', fromDate).lte('scheduled_date', toDate);
+    }
+    if (status) q = q.eq('status', status);
     if (ctx.role === 'worker' && ctx.userId) {
       const workerIds = await assignedWorkOrderIdsForWorker(ctx);
       if (workerIds.length) q = q.in('id', workerIds);
       else return {};
     }
 
-    const { data: rows } = await q;
+    const { data: rows, error } = await q;
+    if (error) throw error;
     const grouped = {};
     (rows || []).forEach(r => {
-      const customer = r.customers || r.jobs?.customers || {};
+      const job = oneEmbedded(r.jobs);
+      const directCustomer = oneEmbedded(r.customers);
+      const jobCustomer = oneEmbedded(job.customers);
+      const customer = directCustomer.name ? directCustomer : jobCustomer;
       const date = r.scheduled_date ? String(r.scheduled_date).slice(0,10) : 'unscheduled';
       if (!grouped[date]) grouped[date] = [];
       grouped[date].push({
         id: r.id, number: `WO-${r.display_number || ''}`, status: r.status,
         time: r.scheduled_time || '',
-        customer: `${r.customer_name || ''} — ${r.job_title || ''}`,
-        assignee: r.assigned_user_name || r.assigned_to || ''
+        customer: `${customer.name || ''} — ${job.title || ''}`,
+        assignee: oneEmbedded(r.users).name || r.assigned_to || ''
       });
     });
     return grouped;
