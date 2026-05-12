@@ -243,6 +243,19 @@ function drawNotes(doc, notes) {
   doc.moveDown(1);
 }
 
+function drawTextBlock(doc, title, text) {
+  if (!text) return;
+  const left = doc.page.margins.left;
+  const right = doc.page.width - doc.page.margins.right;
+  if (doc.y > doc.page.height - doc.page.margins.bottom - 90) doc.addPage();
+  doc.fillColor(COLOR.fog).fontSize(8).font('Helvetica-Bold').text(String(title || '').toUpperCase(), left, doc.y);
+  doc.fillColor(COLOR.charcoal).fontSize(10).font('Helvetica').text(String(text), left, doc.y + 4, {
+    width: right - left,
+    lineGap: 2
+  });
+  doc.moveDown(1.2);
+}
+
 // --- signature block (estimates) ---
 
 function drawSignatureBlock(doc) {
@@ -480,9 +493,9 @@ function generateWorkOrderPDF(wo, company, stream) {
   ]);
 
   drawWOMeta(doc, wo);
+  drawTextBlock(doc, 'Description', wo.description);
   // Remove completed column from WO line items — WOs use descriptions, not checklists
   drawWOLineItems(doc, (wo.lines || []).map(li => ({ ...li, completed: undefined })));
-  if (wo.description) drawNotes(doc, 'Description: ' + wo.description);
 
   const footerLines = [];
   if (wo.created_at) footerLines.push(`Issued: ${String(wo.created_at).slice(0,10)}`);
@@ -604,5 +617,5 @@ module.exports = {
   generateWorkOrderPDF,
   generateInvoicePDF,
   renderToBuffer,
-  _internal: { drawHeader, drawTitle, drawAddressBlocks, drawLineItemsTable, drawTotals, drawNotes, drawSignatureBlock, drawPaymentTerms, drawFooterMeta, fmt, fmtMoney, COLOR },
+  _internal: { drawHeader, drawTitle, drawAddressBlocks, drawLineItemsTable, drawTotals, drawNotes, drawTextBlock, drawSignatureBlock, drawPaymentTerms, drawFooterMeta, fmt, fmtMoney, COLOR },
 };

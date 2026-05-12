@@ -754,6 +754,7 @@ router.post('/ai-finalize', async (req, res) => {
       wo_number_sub: next.sub,
       display_number: next.display,
       status: 'scheduled',
+      description: jobDescription || jobTitle,
       scheduled_date: scheduledDate,
       scheduled_time: scheduledTime,
       scheduled_end_time: null,
@@ -980,6 +981,7 @@ router.post('/:id', async (req, res) => {
       scheduled_date: data.scheduled_date,
       scheduled_time: data.scheduled_time,
       scheduled_end_time: data.scheduled_end_time,
+      description: data.description || '',
       assigned_to_user_id: assignmentFields.assigned_to_user_id,
       assigned_to: assignmentFields.assigned_to,
       notes: data.notes,
@@ -991,6 +993,7 @@ router.post('/:id', async (req, res) => {
   const { error: assignUpdateErr } = await supabase
     .from('work_orders')
     .update({
+      description: data.description || '',
       assigned_to_user_id: assignmentFields.assigned_to_user_id,
       assigned_to: assignmentFields.assigned_to,
     })
