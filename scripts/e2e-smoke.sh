@@ -71,6 +71,11 @@ check "/work-orders/1/edit" GET "/work-orders/1/edit" 200
 check "/work-orders/new form" GET "/work-orders/new" 200
 check "/health/version" GET "/health/version" 200
 
+# File drill-down (schema tables now exist in Postgres)
+check "/files/customer/1" GET "/files/customer/1" 200
+check "/files/project/1" GET "/files/project/1" 200
+check "/files/vendor/1" GET "/files/vendor/1" 200
+
 echo ""
 echo "=== RESULTS: $PASS passed, $FAIL failed ==="
 rm -f "$COOKIE_JAR"
