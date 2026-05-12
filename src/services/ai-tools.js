@@ -519,15 +519,15 @@ MUTATION_TOOLS.create_customer = {
 MUTATION_TOOLS.send_estimate = {
   needs_user: 'write',
   async propose(args, ctx) {
-    const est = await db.get('SELECT * FROM estimates WHERE id = ?', [args.estimate_id]);
+    const { data: est } = await supabase.from('estimates').select('id, status, total, work_order_id').eq('id', args.estimate_id).maybeSingle();
     if (!est) return { error: 'Estimate not found.' };
     if (est.status !== 'draft') return { error: `Estimate is "${est.status}" — must be draft to send.` };
-    const wo = await db.get('SELECT display_number FROM work_orders WHERE id = ?', [est.work_order_id]);
+    const { data: wo } = await supabase.from('work_orders').select('display_number').eq('id', est.work_order_id).maybeSingle();
     const number = `EST-${wo ? wo.display_number : ''}`;
     return { summary_lines: [`Estimate: ${number}`, `Amount: $${Number(est.total).toFixed(2)}`, `Status: draft → sent`], args_normalized: args };
   },
   async execute(args, ctx) {
-    const est = await db.get('SELECT * FROM estimates WHERE id = ?', [args.estimate_id]);
+    const { data: est } = await supabase.from('estimates').select('id, status').eq('id', args.estimate_id).maybeSingle();
     if (!est) return { error: 'Estimate not found.' };
     if (est.status !== 'draft') return { error: `Estimate is "${est.status}" — must be draft to send.` };
     // Generate .eml via the shared service (async — wrap in promise)
@@ -537,7 +537,7 @@ MUTATION_TOOLS.send_estimate = {
         if (result.filepath) console.log('[ai-send-estimate] .eml saved:', result.filepath);
       }).catch(e => console.error('[ai-send-estimate] .eml failed:', e.message));
     } catch(e) { console.error('[ai-send-estimate] service error:', e.message); }
-    await db.run(`UPDATE estimates SET status='sent', sent_at=now(), updated_at=now() WHERE id=?`, [est.id]);
+    await supabase.from('estimates').update({ status: 'sent', sent_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', est.id);
     await writeAudit({ entityType: 'estimate', entityId: est.id, action: 'sent_by_ai', before: { status: 'draft' }, after: { status: 'sent' }, source: 'ai', userId: ctx.userId });
     return { id: est.id, href: `/estimates/${est.id}` };
   }
