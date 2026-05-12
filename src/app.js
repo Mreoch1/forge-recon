@@ -208,16 +208,40 @@ app.use('/', requireAuth, dashboardRoutes);
 
 // POST /report-error — user-triggered error report email (must be before 404 handler)
 app.post('/report-error', async (req, res) => {
-  const { code, message, url, user_email, error_detail } = req.body;
-  const subject = `[FORGE Error Report] ${code} on ${url || 'unknown page'}`;
-  const body = `Error report from FORGE\n\nCode: ${code}\nURL: ${url || 'unknown'}\nUser: ${user_email || 'unknown'}\nError: ${error_detail || message || 'none'}\nTimestamp: ${new Date().toISOString()}`;
+  const { code, message, url, user_email, error_detail, error_ctx } = req.body;
+  let ctx = {};
+  try { if (error_ctx) ctx = JSON.parse(error_ctx); } catch(e) {}
+  const subject = `[FORGE Error] ${url || 'unknown page'}`;
+  const bodyHtml = `
+    <div style="max-width:600px;margin:0 auto;font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif">
+    <div style="background:linear-gradient(135deg,#c0202b 0%,#8a0e16 50%,#5a5a5a 100%);padding:24px 32px;border-radius:12px 12px 0 0">
+      <h1 style="color:#fff;margin:0;font-size:20px;font-weight:700;letter-spacing:-.02em">FORGE Error Report</h1>
+      <p style="color:rgba(255,255,255,.85);margin:4px 0 0;font-size:13px">A user encountered a server error</p>
+    </div>
+    <div style="background:#fff;border:1px solid #e0e0e0;border-top:0;padding:24px 32px;border-radius:0 0 12px 12px">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <tr><td style="color:#888;padding:8px;border:1px solid #eee;font-weight:600;width:100px">Status</td><td style="color:#c0202b;padding:8px;border:1px solid #eee;font-weight:600">${code}</td></tr>
+        <tr><td style="color:#888;padding:8px;border:1px solid #eee;font-weight:600">URL</td><td style="color:#333;padding:8px;border:1px solid #eee">${url || 'unknown'}</td></tr>
+        <tr><td style="color:#888;padding:8px;border:1px solid #eee;font-weight:600">Method</td><td style="color:#333;padding:8px;border:1px solid #eee">${ctx.method || 'unknown'}</td></tr>
+        <tr><td style="color:#888;padding:8px;border:1px solid #eee;font-weight:600">User</td><td style="color:#333;padding:8px;border:1px solid #eee">${ctx.user || user_email || 'unknown'}</td></tr>
+        <tr><td style="color:#888;padding:8px;border:1px solid #eee;font-weight:600">Time</td><td style="color:#333;padding:8px;border:1px solid #eee">${ctx.timestamp || new Date().toISOString()}</td></tr>
+      </table>
+      <div style="background:#fff0f0;border-radius:8px;padding:16px;margin:16px 0;border:1px solid #fcc">
+        <p style="font-size:12px;color:#888;margin:0 0 6px;text-transform:uppercase;letter-spacing:.06em">Error detail</p>
+        <p style="font-size:13px;color:#333;margin:0;font-family:monospace;white-space:pre-wrap">${error_detail || message || 'none'}</p>
+      </div>
+      <div style="text-align:center;margin:16px 0">
+        <a href="${process.env.PUBLIC_BASE_URL || 'https://forge-recon.vercel.app'}${url || '/'}" style="display:inline-block;background:#c0202b;color:#fff;padding:10px 24px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">Open in FORGE</a>
+      </div>
+    </div>
+    </div>`;
   try {
     const emailService = require('./services/email');
     await emailService.sendEmail({
       to: 'mike@reconenterprises.net',
       subject,
-      text: body,
-      html: body.replace(/\n/g, '<br>'),
+      htmlBody: bodyHtml,
+      text: `FORGE Error Report\n\nStatus: ${code}\nURL: ${url || 'unknown'}\nUser: ${ctx.user || user_email || 'unknown'}\nMethod: ${ctx.method || 'unknown'}\nTime: ${ctx.timestamp || 'unknown'}\n\nError: ${error_detail || message || 'none'}`,
     });
     res.redirect(url || '/');
   } catch (e) {
@@ -235,7 +259,15 @@ app.use((err, req, res, next) => {
   const safeMsg = title;
   // Store real error detail for the report-error button
   const errorDetail = err && err.message ? err.message.slice(0, 500) : '';
-  res.status(safeStatus).render('error', { title, code: safeStatus, message: safeMsg, currentUrl: req.originalUrl, errorDetail });
+  const errorCtx = {
+    method: req.method,
+    body: process.env.NODE_ENV === 'production' ? '(hidden)' : JSON.stringify(req.body).slice(0, 500),
+    query: JSON.stringify(req.query).slice(0, 200),
+    user: req.currentUser?.email || req.session?.email || 'unknown',
+    userId: req.currentUser?.id || req.session?.userId || null,
+    timestamp: new Date().toISOString(),
+  };
+  res.status(safeStatus).render('error', { title, code: safeStatus, message: safeMsg, currentUrl: req.originalUrl, errorDetail, errorCtx });
 });
 
 module.exports = app;
