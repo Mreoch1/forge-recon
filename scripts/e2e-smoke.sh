@@ -56,6 +56,8 @@ check "/schedule 2week" GET "/schedule?view=2week" 200
 check "/files" GET "/files" 200
 check "/files/customers" GET "/files/customers" 200
 check "/files/projects" GET "/files/projects" 200
+check "/files/vendors" GET "/files/vendors" 200
+check "/files/workers" GET "/files/workers" 200
 check "/accounting" GET "/accounting" 200
 check "/admin/users" GET "/admin/users" 200
 check "/admin/settings" GET "/admin/settings" 200
@@ -75,6 +77,7 @@ check "/health/version" GET "/health/version" 200
 check "/files/customer/1" GET "/files/customer/1" 200
 check "/files/project/1" GET "/files/project/1" 200
 check "/files/vendor/1" GET "/files/vendor/1" 200
+check "/files/worker/1" GET "/files/worker/1" 200
 
 echo ""
 echo "=== RESULTS: $PASS passed, $FAIL failed ==="
