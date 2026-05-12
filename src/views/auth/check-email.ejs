@@ -27,13 +27,26 @@
     <div class="text-5xl mb-4">✉️</div>
     <h1 class="text-xl font-bold mb-2">Check your email</h1>
     <p class="text-gray-500 mb-6">
-      We sent a verification link to <strong><%= email %></strong>.
-      Click the link to activate your account.
+      <% if (email) { %>
+        We sent a verification link to <strong><%= email %></strong>.
+        Click the link to activate your account.
+      <% } else { %>
+        We've sent you a verification link. Click the link in your inbox to activate your account.
+      <% } %>
     </p>
+
+    <% if (typeof error !== 'undefined' && error) { %>
+      <p class="text-sm text-[#c0202b] mb-4"><%= error %></p>
+    <% } %>
+
     <p class="text-sm text-gray-400">Didn't get it? Check spam or</p>
-    <form action="/resend-verification" method="post" class="mt-2">
-      <input type="hidden" name="email" value="<%= email %>">
-      <button type="submit" class="btn btn-primary">Resend verification email</button>
+    <form action="/resend-verification" method="post" class="mt-2 space-y-2">
+      <% if (email) { %>
+        <input type="hidden" name="email" value="<%= email %>">
+      <% } else { %>
+        <input type="email" name="email" placeholder="Your email address" class="input" required>
+      <% } %>
+      <button type="submit" class="btn btn-primary w-full justify-center">Resend verification email</button>
     </form>
     <p class="text-center text-sm text-gray-500 mt-4">
       <a href="/login" class="text-[#c0202b] hover:underline">Back to sign in</a>
