@@ -134,13 +134,15 @@ const selectedAssignees = wo.assignee_ids || [];
 
   // When user selects from datalist, find the customer by name
   search.addEventListener('change', function(){
-    var match = customers.find(function(c){ return c.name === this.value; });
+    var selectedName = search.value;
+    var match = customers.find(function(c){ return c.name === selectedName; });
     if (match) showCustomer(match.id);
   });
 
   // Clear customer ID if text input differs from any known name
   search.addEventListener('input', function(){
-    var match = customers.find(function(c){ return c.name === this.value; });
+    var selectedName = search.value;
+    var match = customers.find(function(c){ return c.name === selectedName; });
     if (!match) { hidden.value = ''; card.classList.add('hidden'); }
   });
 
