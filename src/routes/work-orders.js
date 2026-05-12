@@ -385,8 +385,8 @@ router.post('/', async (req, res) => {
     const { data: allCustomers } = await supabase.from('customers').select('id, name, email, phone, address, city, state, zip').order('name');
     return res.status(400).render('work-orders/new', {
       title: 'New work order', activeNav: 'work-orders',
-      wo: { id: null, customer_id: customerId, unit_number: data.unit_number || '', display_number: req.body.display_number || '', suggested_display_number: '', scheduled_date: data.scheduled_date || '', scheduled_time: data.scheduled_time || '', notes: data.notes || '', description: data.description || '', assignee_ids: normalizeArr(req.body.assignee_ids), lines: data.lines || [] },
-      customers: allCustomers || [], users: users || [], customerName: customer?.name || '', errors, units: VALID_UNITS,
+      wo: { id: null, customer_id: customerId || '', unit_number: data.unit_number || '', display_number: req.body.display_number || '', suggested_display_number: '', scheduled_date: data.scheduled_date || '', scheduled_time: data.scheduled_time || '', notes: data.notes || '', description: data.description || '', assignee_ids: normalizeArr(req.body.assignee_ids), lines: data.lines || [] },
+      customers: allCustomers || [], users: users || [], customerName: customer?.name || req.body.customer_search || '', errors, units: VALID_UNITS,
     });
   }
 
