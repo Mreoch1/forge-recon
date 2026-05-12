@@ -747,7 +747,7 @@ router.get('/:id', async (req, res) => {
 
   res.render('work-orders/show', {
     title: `WO-${wo.display_number}`, activeNav: 'work-orders',
-    wo, subs: subs || [], estimate, invoice, notes, photos, fileCount
+    wo, estimate, invoice, notes, photos, fileCount
   });
 });
 
@@ -766,10 +766,14 @@ router.get('/:id/edit', async (req, res) => {
     .select('id, name')
     .eq('active', 1)
     .order('name');
+  const { data: customers } = await supabase
+    .from('customers')
+    .select('id, name, email, phone, address, city, state, zip')
+    .order('name');
 
   res.render('work-orders/edit', {
     title: `Edit WO-${wo.display_number}`, activeNav: 'work-orders',
-    wo, users: users || [], errors: {}, units: VALID_UNITS
+    wo, customers: customers || [], users: users || [], errors: {}, units: VALID_UNITS
   });
 });
 
@@ -817,7 +821,7 @@ router.post('/:id', async (req, res) => {
     return res.status(400).render('work-orders/edit', {
       title: `Edit WO-${existing.display_number}`, activeNav: 'work-orders',
       wo: { ...existing, ...data, display_number: req.body.display_number || existing.display_number },
-      users: users || [], errors, units: VALID_UNITS
+      customers: [], users: users || [], errors, units: VALID_UNITS
     });
   }
 
@@ -917,7 +921,7 @@ router.post('/:id/notes', async (req, res) => {
     await supabase.from('audit_logs').insert({
       entity_type: 'work_order', entity_id: wo.id, action: 'note_added',
       before_json: null, after_json: { body },
-      source: 'web', user_id: req.session.userId,
+      source: 'user', user_id: req.session.userId,
     });
   } catch (e) { /* best-effort */ }
 
@@ -984,7 +988,7 @@ router.post('/:id/photos', async (req, res) => {
           entity_type: 'work_order', entity_id: wo.id, action: 'photo_uploaded',
           before_json: null,
           after_json: { count: files.length, filenames: uploadedKeys },
-          source: 'web', user_id: req.session.userId,
+          source: 'user', user_id: req.session.userId,
         });
       } catch (e) { /* best-effort */ }
     } catch (e) {
@@ -1048,7 +1052,7 @@ router.post('/:id/photos/:photoId/delete', async (req, res) => {
       entity_type: 'work_order', entity_id: wo.id, action: 'photo_deleted',
       before_json: { filename: photo.filename, caption: photo.caption },
       after_json: null,
-      source: 'web', user_id: req.session.userId,
+      source: 'user', user_id: req.session.userId,
     });
   } catch (e) { /* best-effort */ }
 
@@ -1141,7 +1145,7 @@ router.post('/:id/delete', async (req, res) => {
       entity_type: 'work_order', entity_id: wo.id, action: 'delete',
       before_json: { display_number: wo.display_number, status: wo.status },
       after_json: null,
-      source: 'web', user_id: req.session.userId,
+      source: 'user', user_id: req.session.userId,
     });
   } catch (e) { /* best-effort */ }
 
@@ -1220,4 +1224,3 @@ router.post('/:id/create-estimate', async (req, res) => {
 });
 
 module.exports = router;
-

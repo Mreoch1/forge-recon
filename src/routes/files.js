@@ -138,7 +138,7 @@ router.post('/folders/:folderId/upload', requireAuth, requireManager, upload.arr
   }
   try {
     const { writeAudit } = require('../services/audit');
-    writeAudit({ entityType: 'file', entityId: folder.id, action: 'uploaded', before: null, after: { filename: req.files.map(f => f.originalname).join(', ') }, source: 'web', userId: req.session.userId });
+    writeAudit({ entityType: 'file', entityId: folder.id, action: 'uploaded', before: null, after: { filename: req.files.map(f => f.originalname).join(', ') }, source: 'user', userId: req.session.userId });
   } catch(e) { /* audit best effort */ }
   setFlash(req, 'success', req.files.length + ' file(s) uploaded.');
   res.redirect('/files/folders/' + folder.id);

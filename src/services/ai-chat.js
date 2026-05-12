@@ -286,7 +286,7 @@ async function chat({ message, history, ctx }) {
       reply_preview: (finalReply || '').slice(0, 200),
       confirm: confirmPayload ? { confirmation_id: confirmPayload.confirmation_id, tool: confirmPayload.tool } : null
     },
-    source: 'ai_chat',
+    source: 'ai',
     userId: ctx.userId
   });
 

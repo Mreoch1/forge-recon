@@ -17,6 +17,7 @@ const supabase = require('../db/supabase');
 
 async function writeAudit({ entityType, entityId, action, before, after, source, userId, reason }) {
   try {
+    const normalizedSource = source === 'web' ? 'user' : (source === 'ai_chat' ? 'ai' : source);
     const { error } = await supabase
       .from('audit_logs')
       .insert({
@@ -25,7 +26,7 @@ async function writeAudit({ entityType, entityId, action, before, after, source,
         action,
         before_json: before == null ? null : JSON.stringify(before),
         after_json: after == null ? null : JSON.stringify(after),
-        source: source || 'user',
+        source: normalizedSource || 'user',
         user_id: userId || null,
         reason: reason || null,
       });

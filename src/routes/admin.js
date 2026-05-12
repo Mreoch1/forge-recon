@@ -167,13 +167,18 @@ router.get('/ai-usage', async (req, res) => {
   const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
 
   // Total calls
-  const { count: totalCalls } = await supabase.from('audit_logs').select('*', { count: 'exact', head: true }).eq('source', 'ai_chat');
+  const { count: totalCalls } = await supabase
+    .from('audit_logs')
+    .select('*', { count: 'exact', head: true })
+    .eq('entity_type', 'ai_chat')
+    .eq('source', 'ai');
 
   // Token data — fetch all and aggregate in JS
   const { data: tokenRows } = await supabase
     .from('audit_logs')
     .select('after_json, user_id, created_at, users!left(name)')
-    .eq('source', 'ai_chat')
+    .eq('entity_type', 'ai_chat')
+    .eq('source', 'ai')
     .order('created_at', { ascending: false })
     .limit(500);
 

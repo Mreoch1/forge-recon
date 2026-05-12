@@ -139,9 +139,6 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
         <a href="/customers/<%= wo.customer_id %>" class="font-semibold text-recon-charcoal hover:text-recon-red"><%= wo.customer_name %></a>
         · <a href="/jobs/<%= wo.job_id %>" class="hover:text-recon-red"><%= wo.job_title %></a>
         <% if (addr) { %><span class="text-recon-fog">· <%= addr %></span><% } %>
-        <% if (wo.parent_wo_id) { %>
-          <br><span class="text-xs">Sub-WO of <a href="/work-orders/<%= wo.parent_wo_id %>" class="hover:text-recon-red">WO-<%= wo.parent_display_number %></a></span>
-        <% } %>
       </p>
     </div>
 
@@ -163,9 +160,6 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
         <form action="/work-orders/<%= wo.id %>/create-estimate" method="post" class="m-0 inline">
           <button class="btn btn-primary text-sm">Create estimate</button>
         </form>
-      <% } %>
-      <% if (wo.status !== 'cancelled' && !wo.parent_wo_id) { %>
-        <a href="/work-orders/<%= wo.id %>/sub/new" class="btn btn-ghost text-sm">+ Sub-WO</a>
       <% } %>
       <% if (wo.status !== 'complete' && wo.status !== 'cancelled') { %>
         <form action="/work-orders/<%= wo.id %>/cancel" method="post" class="m-0 inline"
@@ -333,7 +327,7 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
       <% } %>
     </div>
 
-    <!-- RIGHT: customer + sub-WOs + danger zone -->
+    <!-- RIGHT: customer + documents + danger zone -->
     <div>
 
       <!-- Customer card -->
@@ -353,27 +347,6 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
           <div class="ws-cust-line"><%= custAddr %></div>
         <% } %>
       </div>
-
-      <!-- Sub-WOs (if any) -->
-      <% if (subs && subs.length) { %>
-        <h2 class="ws-h-secondary">
-          <span>Sub-work orders</span>
-          <a href="/work-orders/<%= wo.id %>/sub/new" class="text-xs text-recon-red hover:underline" style="text-transform:none; letter-spacing:0; font-weight:500;">+ Add</a>
-        </h2>
-        <div class="mb-6">
-          <% subs.forEach(function(s){ %>
-            <a href="/work-orders/<%= s.id %>" class="ws-sub-row" style="color:inherit;">
-              <span class="ws-dot ws-dot-<%= s.status === 'in_progress' ? 'live' : (s.status === 'complete' ? 'done' : 'sched') %>"></span>
-              <span>
-                <span class="ws-sub-num">WO-<%= s.display_number %></span>
-                <span class="badge badge-<%= s.status %>" style="font-size:.62rem; margin-left:.4rem;"><%= s.status.replace('_',' ') %></span>
-              </span>
-              <span class="ws-sub-meta"><%= fmtDate(s.scheduled_date) %></span>
-              <span class="ws-sub-meta"><%= s.completed_date ? '✓ ' + fmtDate(s.completed_date) : '' %></span>
-            </a>
-          <% }); %>
-        </div>
-      <% } %>
 
       <!-- Documents quick links -->
       <% if (estimate || invoice) { %>
@@ -397,7 +370,7 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
       <!-- Danger zone (only when relevant) -->
       <% if (wo.status === 'scheduled' || wo.status === 'cancelled') { %>
         <h2 class="ws-h-secondary text-recon-red" style="border-color:#fca5a5;">Danger zone</h2>
-        <p class="text-xs text-recon-fog mb-2">Allowed only when no estimate or sub-WOs reference this WO.</p>
+        <p class="text-xs text-recon-fog mb-2">Allowed only when no estimate references this WO.</p>
         <form action="/work-orders/<%= wo.id %>/delete" method="post"
               onsubmit="return confirm('Delete WO-<%= wo.display_number %>?');" class="m-0">
           <button type="submit" class="btn btn-danger text-sm">Delete</button>

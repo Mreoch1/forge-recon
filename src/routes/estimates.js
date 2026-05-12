@@ -256,7 +256,7 @@ async function statusTransition(req, res, fromStatus, toStatus, timestampField) 
   }).eq('id', est.id);
   try {
     const { writeAudit } = require('../services/audit');
-    writeAudit({ entityType: 'estimate', entityId: est.id, action: toStatus, before: { status: est.status }, after: { status: toStatus }, source: 'web', userId: req.session.userId });
+    writeAudit({ entityType: 'estimate', entityId: est.id, action: toStatus, before: { status: est.status }, after: { status: toStatus }, source: 'user', userId: req.session.userId });
   } catch(e) { console.error('audit failed:', e.message); }
   setFlash(req, 'success', `${est.display_number} marked ${toStatus}.`);
   res.redirect(`/estimates/${est.id}`);
@@ -282,7 +282,7 @@ router.post('/:id/send', async (req, res, next) => {
     }).eq('id', estimate.id);
     try {
       const { writeAudit } = require('../services/audit');
-      writeAudit({ entityType: 'estimate', entityId: estimate.id, action: 'sent', before: { status: 'draft' }, after: { status: 'sent' }, source: 'web', userId: req.session.userId });
+      writeAudit({ entityType: 'estimate', entityId: estimate.id, action: 'sent', before: { status: 'draft' }, after: { status: 'sent' }, source: 'user', userId: req.session.userId });
     } catch(e) { console.error('audit failed:', e.message); }
     const note = result.mode === 'file' && result.filepath ? ` Email saved to ${result.filepath}.` : '';
     setFlash(req, 'success', `${estimate.display_number} sent.${note}`);
@@ -308,7 +308,7 @@ router.post('/:id/archive', async (req, res) => {
   }).eq('id', est.id);
   try {
     const { writeAudit } = require('../services/audit');
-    writeAudit({ entityType: 'estimate', entityId: est.id, action: 'archived', before: { status: est.status }, after: { status: newStatus, archived_at: 'now' }, source: 'web', userId: req.session.userId });
+    writeAudit({ entityType: 'estimate', entityId: est.id, action: 'archived', before: { status: est.status }, after: { status: newStatus, archived_at: 'now' }, source: 'user', userId: req.session.userId });
   } catch(e) { console.error('audit failed:', e.message); }
   setFlash(req, 'success', `${est.display_number} archived.`);
   res.redirect('/estimates');
@@ -331,7 +331,7 @@ router.post('/:id/unarchive', async (req, res) => {
   }).eq('id', est.id);
   try {
     const { writeAudit } = require('../services/audit');
-    writeAudit({ entityType: 'estimate', entityId: est.id, action: 'unarchived', before: { archived_at: est.archived_at }, after: { archived_at: null }, source: 'web', userId: req.session.userId });
+    writeAudit({ entityType: 'estimate', entityId: est.id, action: 'unarchived', before: { archived_at: est.archived_at }, after: { archived_at: null }, source: 'user', userId: req.session.userId });
   } catch(e) { console.error('audit failed:', e.message); }
   setFlash(req, 'success', `${est.display_number} unarchived.`);
   res.redirect(`/estimates/${est.id}`);
@@ -437,4 +437,3 @@ router.post('/:id/delete', async (req, res) => {
 });
 
 module.exports = router;
-

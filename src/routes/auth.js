@@ -92,7 +92,7 @@ router.post('/login', async (req, res) => {
         action: 'login_failed',
         before: null,
         after: { email, ip: req.ip, ua: req.get('user-agent') || '' },
-        source: 'web',
+        source: 'user',
         userId: null,
       });
     } catch (_) { /* never let auditing break a login */ }
@@ -182,7 +182,7 @@ router.post('/forgot-password', async (req, res) => {
     // Audit
     try {
       const { writeAudit } = require('../services/audit');
-      writeAudit({ entityType: 'user', entityId: user.id, action: 'password_reset_requested', before: null, after: null, source: 'web', userId: user.id });
+      writeAudit({ entityType: 'user', entityId: user.id, action: 'password_reset_requested', before: null, after: null, source: 'user', userId: user.id });
     } catch(e) {}
   }
 
@@ -262,7 +262,7 @@ router.post('/reset-password/:token', async (req, res) => {
 
   try {
     const { writeAudit } = require('../services/audit');
-    writeAudit({ entityType: 'user', entityId: row.user_id, action: 'password_reset', before: null, after: null, source: 'web', userId: row.user_id });
+    writeAudit({ entityType: 'user', entityId: row.user_id, action: 'password_reset', before: null, after: null, source: 'user', userId: row.user_id });
   } catch(e) {}
 
   setFlash(req, 'success', 'Password updated. Sign in with your new password.');
@@ -270,4 +270,3 @@ router.post('/reset-password/:token', async (req, res) => {
 });
 
 module.exports = router;
-

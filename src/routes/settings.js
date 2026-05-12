@@ -105,7 +105,7 @@ router.post('/profile', async (req, res) => {
       entityType: 'user', entityId: userId, action: 'profile_updated',
       before: { name: user.name, email: user.email },
       after: { name, email },
-      source: 'web', userId,
+      source: 'user', userId,
     });
   } catch (e) { console.error('audit failed:', e.message); }
 
@@ -160,7 +160,7 @@ router.post('/password', async (req, res) => {
     const { writeAudit } = require('../services/audit');
     await writeAudit({
       entityType: 'user', entityId: userId, action: 'password_changed',
-      before: {}, after: {}, source: 'web', userId,
+      before: {}, after: {}, source: 'user', userId,
     });
   } catch (e) { console.error('audit failed:', e.message); }
 
