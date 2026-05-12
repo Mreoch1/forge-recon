@@ -19,6 +19,15 @@ const nodemailer = require('nodemailer');
 const path = require('path');
 const fs = require('fs');
 
+// F9: SMTP transporter hardened.
+//   - Removed `rejectUnauthorized: false` so cert validation is enforced
+//     (was a TLS-MITM downgrade risk).
+//   - Removed `ciphers: 'SSLv3'` (SSLv3 is broken, POODLE-vulnerable) and
+//     `minVersion: 'TLSv1'`. We let Node's default TLS context pick a modern
+//     suite — Node 20+ defaults to TLSv1.2/1.3 with safe AEAD ciphers, which
+//     is what Office 365 requires anyway.
+// If a specific deployment needs a custom cipher or to skip validation, do
+// it via env vars rather than wiring it in the code.
 const transporter = nodemailer.createTransport({
   host:   process.env.SMTP_HOST || 'smtp.office365.com',
   port:   parseInt(process.env.SMTP_PORT || '587', 10),
@@ -26,11 +35,6 @@ const transporter = nodemailer.createTransport({
   auth:   {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
-  },
-  tls: {
-    ciphers: 'SSLv3',
-    rejectUnauthorized: false,
-    minVersion: 'TLSv1',
   },
 });
 
@@ -159,4 +163,38 @@ async function sendPasswordResetEmail(toEmail, toName, resetToken) {
   }
 }
 
-module.exports = { sendEmail, sendVerificationEmail, sendPasswordResetEmail };
+/**
+ * Send a work-order-assigned notification email to an assignee.
+ */
+async function sendWorkOrderAssignedEmail({ to, toName, woNumber, woId, customerName, address, unitNumber, description, internalNotes, scheduledDate, scheduledTime, pdfBuffer }) {
+  const link = `${BASE}/work-orders/${woId}`;
+  const subject = `Work Order ${woNumber} assigned: ${customerName}${unitNumber ? ' — ' + unitNumber : ''}`;
+  const bodyHtml = `
+    <h2>You've been assigned a work order</h2>
+    <p><strong>${woNumber}</strong></p>
+    <p><strong>Customer:</strong> ${customerName}</p>
+    <p><strong>Address:</strong> ${address}${unitNumber ? ', ' + unitNumber : ''}</p>
+    <p><strong>Scheduled:</strong> ${scheduledDate} ${scheduledTime || ''}</p>
+    <p><strong>Description:</strong></p>
+    <div style="background:#f5f5f5;padding:12px;border-radius:4px;margin:8px 0">${description || ''}</div>
+    ${internalNotes ? `<p><strong>Crew notes:</strong></p><div style="background:#fff8e1;padding:12px;border-radius:4px;margin:8px 0">${internalNotes}</div>` : ''}
+    <p style="text-align:center;margin:24px 0">
+      <a href="${link}" style="display:inline-block;background:#c0202b;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">Open Work Order in FORGE</a>
+    </p>`;
+  const html = renderEmail(bodyHtml);
+  const text = `Work order ${woNumber} assigned. Customer: ${customerName}. Address: ${address}${unitNumber ? ', ' + unitNumber : ''}. Scheduled: ${scheduledDate} ${scheduledTime || ''}. ${link}`;
+
+  try {
+    const info = await transporter.sendMail({
+      from: FROM, to, subject, html, text,
+      attachments: pdfBuffer ? [{ filename: `${woNumber}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }] : [],
+    });
+    console.log('[email] WO assignment sent to', to, 'messageId:', info.messageId);
+    return info;
+  } catch (err) {
+    logSmtpError('sendWorkOrderAssignedEmail', to, err);
+    throw err;
+  }
+}
+
+module.exports = { sendEmail, sendVerificationEmail, sendPasswordResetEmail, sendWorkOrderAssignedEmail };
