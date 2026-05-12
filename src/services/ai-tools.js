@@ -635,7 +635,7 @@ MUTATION_TOOLS.add_wo_note = {
 MUTATION_TOOLS.schedule_wo = {
   needs_user: 'write',
   async propose(args, ctx) {
-    const wo = await db.get('SELECT * FROM work_orders WHERE id = ?', [args.wo_id]);
+    const { data: wo } = await supabase.from('work_orders').select('*').eq('id', args.wo_id).maybeSingle();
     if (!wo) return { error: 'Work order not found.' };
 
     const date = args.date;
@@ -654,7 +654,7 @@ MUTATION_TOOLS.schedule_wo = {
 
     // If assignee_user_id provided, look up name
     if (assigneeUserId) {
-      const u = await db.get('SELECT name FROM users WHERE id = ?', [assigneeUserId]);
+      const { data: u } = await supabase.from('users').select('name').eq('id', assigneeUserId).maybeSingle();
       if (u) assigneeName = u.name;
     }
 
@@ -693,14 +693,13 @@ MUTATION_TOOLS.schedule_wo = {
     return { summary_lines: summary, args_normalized: { ...args, date, time, assignee_user_id: assigneeUserId, assignee_name: assigneeName }, warnings };
   },
   async execute(args, ctx) {
-    const updateFields = [];
-    const updateParams = [];
-    if (args.date) { updateFields.push('scheduled_date = ?'); updateParams.push(args.date); }
-    if (args.time) { updateFields.push('scheduled_time = ?'); updateParams.push(args.time); }
-    if (args.assignee_user_id) { updateFields.push('assigned_to_user_id = ?'); updateParams.push(args.assignee_user_id); }
-    if (args.assignee_name) { updateFields.push('assigned_to = ?'); updateParams.push(args.assignee_name); }
-    updateParams.push(args.wo_id);
-    await db.run(`UPDATE work_orders SET ${updateFields.join(', ')}, updated_at = now() WHERE id = ?`, updateParams);
+    const updateFields = {};
+    if (args.date) updateFields.scheduled_date = args.date;
+    if (args.time) updateFields.scheduled_time = args.time;
+    if (args.assignee_user_id) updateFields.assigned_to_user_id = args.assignee_user_id;
+    if (args.assignee_name) updateFields.assigned_to = args.assignee_name;
+    updateFields.updated_at = new Date().toISOString();
+    await supabase.from('work_orders').update(updateFields).eq('id', args.wo_id);
     await writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'scheduled_by_ai', before: {}, after: { scheduled_date: args.date, scheduled_time: args.time, assigned_to: args.assignee_name }, source: 'ai', userId: ctx.userId });
     return { id: args.wo_id, href: `/work-orders/${args.wo_id}` };
   }
@@ -709,7 +708,7 @@ MUTATION_TOOLS.schedule_wo = {
 MUTATION_TOOLS.reschedule_wo = {
   needs_user: 'write',
   async propose(args, ctx) {
-    const wo = await db.get('SELECT * FROM work_orders WHERE id = ?', [args.wo_id]);
+    const { data: wo } = await supabase.from('work_orders').select('*').eq('id', args.wo_id).maybeSingle();
     if (!wo) return { error: 'Work order not found.' };
 
     const date = args.new_date;
@@ -747,12 +746,11 @@ MUTATION_TOOLS.reschedule_wo = {
     return { summary_lines: summary, args_normalized: { ...args, date, time }, warnings };
   },
   async execute(args, ctx) {
-    const updateFields = [];
-    const updateParams = [];
-    if (args.new_date) { updateFields.push('scheduled_date = ?'); updateParams.push(args.new_date); }
-    if (args.new_time) { updateFields.push('scheduled_time = ?'); updateParams.push(args.new_time); }
-    updateParams.push(args.wo_id);
-    await db.run(`UPDATE work_orders SET ${updateFields.join(', ')}, updated_at = now() WHERE id = ?`, updateParams);
+    const updateFields = {};
+    if (args.new_date) updateFields.scheduled_date = args.new_date;
+    if (args.new_time) updateFields.scheduled_time = args.new_time;
+    updateFields.updated_at = new Date().toISOString();
+    await supabase.from('work_orders').update(updateFields).eq('id', args.wo_id);
     await writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'rescheduled_by_ai', before: {}, after: { scheduled_date: args.new_date, scheduled_time: args.new_time }, source: 'ai', userId: ctx.userId });
     return { id: args.wo_id, href: `/work-orders/${args.wo_id}` };
   }
@@ -761,7 +759,7 @@ MUTATION_TOOLS.reschedule_wo = {
 MUTATION_TOOLS.assign_wo = {
   needs_user: 'write',
   async propose(args, ctx) {
-    const wo = await db.get('SELECT * FROM work_orders WHERE id = ?', [args.wo_id]);
+    const { data: wo } = await supabase.from('work_orders').select('*').eq('id', args.wo_id).maybeSingle();
     if (!wo) return { error: 'Work order not found.' };
 
     let assigneeUserId = args.assignee_user_id;
@@ -784,7 +782,7 @@ MUTATION_TOOLS.assign_wo = {
 
     // If we have a user_id but no name, look it up
     if (assigneeUserId && !assigneeName) {
-      const u = await db.get('SELECT name FROM users WHERE id = ?', [assigneeUserId]);
+      const { data: u } = await supabase.from('users').select('name').eq('id', assigneeUserId).maybeSingle();
       if (u) assigneeName = u.name;
     }
 
@@ -810,12 +808,11 @@ MUTATION_TOOLS.assign_wo = {
     return { summary_lines: summary, args_normalized: { ...args, assignee_user_id: assigneeUserId, assignee_name: assigneeName }, warnings };
   },
   async execute(args, ctx) {
-    const updateFields = [];
-    const updateParams = [];
-    if (args.assignee_user_id) { updateFields.push('assigned_to_user_id = ?'); updateParams.push(args.assignee_user_id); }
-    if (args.assignee_name) { updateFields.push('assigned_to = ?'); updateParams.push(args.assignee_name); }
-    updateParams.push(args.wo_id);
-    await db.run(`UPDATE work_orders SET ${updateFields.join(', ')}, updated_at = now() WHERE id = ?`, updateParams);
+    const updateFields = {};
+    if (args.assignee_user_id) updateFields.assigned_to_user_id = args.assignee_user_id;
+    if (args.assignee_name) updateFields.assigned_to = args.assignee_name;
+    updateFields.updated_at = new Date().toISOString();
+    await supabase.from('work_orders').update(updateFields).eq('id', args.wo_id);
     await writeAudit({ entityType: 'work_order', entityId: args.wo_id, action: 'assigned_by_ai', before: {}, after: { assigned_to: args.assignee_name }, source: 'ai', userId: ctx.userId });
     return { id: args.wo_id, href: `/work-orders/${args.wo_id}` };
   }
