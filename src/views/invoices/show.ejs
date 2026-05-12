@@ -31,9 +31,12 @@ const margin = (Number(invoice.total) || 0) - (Number(invoice.cost_total) || 0);
       <% if (invoice.status === 'draft') { %>
         <a href="/invoices/<%= invoice.id %>/edit" class="btn btn-secondary">Edit</a>
         <form action="/invoices/<%= invoice.id %>/send" method="post" class="m-0 inline">
-          <button class="btn btn-primary">Send</button>
+          <button class="btn btn-primary">Send invoice email</button>
         </form>
       <% } else if (invoice.status === 'sent' || invoice.status === 'overdue') { %>
+        <form action="/invoices/<%= invoice.id %>/send" method="post" class="m-0 inline">
+          <button class="btn btn-secondary">Send invoice email</button>
+        </form>
         <button type="button" onclick="document.getElementById('mark-paid-form').classList.toggle('hidden')" class="btn btn-primary">Mark paid</button>
       <% } %>
 

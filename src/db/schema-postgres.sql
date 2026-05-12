@@ -118,6 +118,7 @@ CREATE TABLE IF NOT EXISTS estimates (
   tax_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
   total NUMERIC(14,2) NOT NULL DEFAULT 0,
   cost_total NUMERIC(14,2) NOT NULL DEFAULT 0,
+  payment_terms TEXT NOT NULL DEFAULT 'Net 30',
   valid_until DATE,
   notes TEXT,
   sent_at TIMESTAMPTZ,

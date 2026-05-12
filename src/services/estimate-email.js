@@ -42,6 +42,7 @@ function buildEstimateEmailBody(est, company = {}) {
   const safeEstimateNumber = escapeHtml(est.display_number);
   const safeWoNumber = escapeHtml(est.wo_display_number || '');
   const safeValidUntil = est.valid_until ? escapeHtml(String(est.valid_until).slice(0, 10)) : '';
+  const safeTerms = escapeHtml(est.payment_terms || company.default_payment_terms || 'Net 30');
   const rows = (est.lines || []).map(li => `
     <tr>
       <td style="padding:10px 0;border-bottom:1px solid #eeeeee;">${escapeHtml(li.description || '')}</td>
@@ -58,6 +59,7 @@ function buildEstimateEmailBody(est, company = {}) {
         <td style="padding:14px 16px;background:#f5f5f5;border-radius:6px;">
           <span style="display:block;color:#777;font-size:12px;text-transform:uppercase;letter-spacing:.08em;">Estimate total</span>
           <span style="display:block;color:#c0202b;font-size:28px;font-weight:800;line-height:1.2;">${fmtMoney(est.total)}</span>
+          <span style="display:block;color:#777;font-size:13px;margin-top:4px;">Terms: ${safeTerms}</span>
           ${safeValidUntil ? `<span style="display:block;color:#777;font-size:13px;margin-top:4px;">Valid until ${safeValidUntil}</span>` : ''}
         </td>
       </tr>
@@ -101,6 +103,7 @@ async function sendEstimateEmail(estimateId) {
     '',
     `Please find attached estimate ${est.display_number}.`,
     `Total: $${(Number(est.total) || 0).toFixed(2)}`,
+    `Terms: ${est.payment_terms || c.default_payment_terms || 'Net 30'}`,
     est.valid_until ? `Valid until: ${String(est.valid_until).slice(0, 10)}` : '',
     '',
     `Thanks,`,

@@ -308,7 +308,7 @@ function drawPaymentTerms(doc, invoice, company) {
   // Prefer company- or invoice-level terms; fall back to a sensible default.
   const terms =
     (invoice && invoice.payment_terms) ||
-    (company && company.payment_terms) ||
+    (company && (company.default_payment_terms || company.payment_terms)) ||
     'Net 30 -- payment due within 30 days of invoice date. ' +
     'A finance charge of 1.5% per month (18% per annum) will be applied to past-due balances. ' +
     'Make checks payable to Recon Enterprises. For questions, contact Office@reconenterprises.net.';
@@ -370,6 +370,8 @@ function generateEstimatePDF(estimate, company, stream) {
   });
 
   if (estimate.notes) drawNotes(doc, estimate.notes);
+
+  drawPaymentTerms(doc, estimate, company);
 
   // Customer signature / acceptance block + return-to instruction
   drawSignatureBlock(doc);

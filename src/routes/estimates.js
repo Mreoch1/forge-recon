@@ -32,6 +32,7 @@ const router = express.Router();
 const PAGE_SIZE = 25;
 const VALID_STATUSES = ['draft', 'sent', 'accepted', 'rejected', 'expired'];
 const VALID_UNITS = ['ea', 'hr', 'sqft', 'lf', 'ton', 'lot'];
+const PAYMENT_TERMS_PRESETS = ['Due on receipt', 'Net 15', 'Net 30', 'Net 45', 'Net 60'];
 
 function emptyToNull(v) {
   if (typeof v !== 'string') return null;
@@ -56,6 +57,12 @@ function idSetFromFormValue(value) {
   else if (typeof value === 'string') ids.add(value);
   else if (value && typeof value === 'object') Object.keys(value).forEach(id => ids.add(String(id)));
   return ids;
+}
+
+function paymentTermsFromBody(body, fallback = 'Net 30') {
+  const selected = emptyToNull(body.payment_terms);
+  if (selected === '__custom') return emptyToNull(body.payment_terms_custom) || fallback;
+  return selected || fallback;
 }
 
 function validateLineItem(li) {
@@ -84,6 +91,7 @@ function validateEstimate(body) {
   if (validUntil && !/^\d{4}-\d{2}-\d{2}$/.test(validUntil)) errors.valid_until = 'Use YYYY-MM-DD.';
   const taxRate = parseFloat(body.tax_rate);
   const taxRateNum = isFinite(taxRate) && taxRate >= 0 ? taxRate : 0;
+  const paymentTerms = paymentTermsFromBody(body);
   const notes = emptyToNull(body.notes);
 
   const rawItems = asArray(body.lines);
@@ -94,7 +102,7 @@ function validateEstimate(body) {
   });
   if (items.length === 0) errors.lines = 'At least one line item is required.';
 
-  return { errors, data: { valid_until: validUntil, tax_rate: taxRateNum, notes, lines: items } };
+  return { errors, data: { valid_until: validUntil, tax_rate: taxRateNum, payment_terms: paymentTerms, notes, lines: items } };
 }
 
 async function loadEstimate(id) {
@@ -248,7 +256,7 @@ router.get('/:id/edit', async (req, res) => {
   }
   res.render('estimates/edit', {
     title: `Edit ${estimate.display_number}`, activeNav: 'estimates',
-    estimate, errors: {}, units: VALID_UNITS
+    estimate, errors: {}, units: VALID_UNITS, paymentTermsPresets: PAYMENT_TERMS_PRESETS
   });
 });
 
@@ -263,7 +271,8 @@ router.post('/:id', async (req, res) => {
   if (Object.keys(errors).length) {
     return res.status(400).render('estimates/edit', {
       title: `Edit ${existing.display_number}`, activeNav: 'estimates',
-      estimate: { ...existing, ...data }, errors, units: VALID_UNITS
+      estimate: { ...existing, ...data }, errors, units: VALID_UNITS,
+      paymentTermsPresets: PAYMENT_TERMS_PRESETS
     });
   }
   const t = calc.totals(data.lines, data.tax_rate);
@@ -273,13 +282,19 @@ router.post('/:id', async (req, res) => {
     estimate_data: {
       work_order_id: existing.wo_id,
       subtotal: t.subtotal, tax_rate: data.tax_rate, tax_amount: t.taxAmount,
-      total: t.total, cost_total: costTotal, status: 'draft',
+      total: t.total, cost_total: costTotal, payment_terms: data.payment_terms, status: 'draft',
     },
     lines: data.lines.map((li, idx) => ({
       ...li, line_total: calc.lineTotal(li), sort_order: idx,
     })),
   });
   if (rpcError) throw rpcError;
+  const { error: termsError } = await supabase
+    .from('estimates')
+    .update({ payment_terms: data.payment_terms, updated_at: new Date().toISOString() })
+    .eq('id', existing.id);
+  if (termsError && termsError.code !== '42703' && !String(termsError.message || '').includes('payment_terms')) throw termsError;
+  if (termsError) console.warn('[estimates] payment_terms column missing; estimate terms were not persisted:', termsError.message);
   setFlash(req, 'success', `${existing.display_number} updated.`);
   res.redirect(`/estimates/${existing.id}`);
 });
@@ -471,6 +486,12 @@ router.post('/:id/generate-invoice', async (req, res) => {
     selected_line_ids: selectedLines.map(li => li.id),
   });
   if (rpcErr) throw rpcErr;
+
+  const { error: invTermsError } = await supabase
+    .from('invoices')
+    .update({ payment_terms: estimate.payment_terms || 'Net 30' })
+    .eq('id', invResult);
+  if (invTermsError) throw invTermsError;
 
   setFlash(req, 'success', `INV-${estimate.wo_display_number} created from ${selectedLines.length} approved item(s).`);
   return res.redirect(`/invoices/${invResult}`);

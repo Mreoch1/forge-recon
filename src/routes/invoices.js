@@ -32,7 +32,7 @@ const router = express.Router();
 const PAGE_SIZE = 25;
 const VALID_STATUSES = ['draft', 'sent', 'paid', 'overdue', 'void'];
 const VALID_UNITS = ['ea', 'hr', 'sqft', 'lf', 'ton', 'lot'];
-const PAYMENT_TERMS_PRESETS = ['Due on receipt', 'Net 15', 'Net 30', 'Net 45', 'Net 60', 'Custom'];
+const PAYMENT_TERMS_PRESETS = ['Due on receipt', 'Net 15', 'Net 30', 'Net 45', 'Net 60'];
 
 function emptyToNull(v) {
   if (typeof v !== 'string') return null;
@@ -45,6 +45,86 @@ function asArray(input) {
   if (Array.isArray(input)) return input;
   if (typeof input !== 'object') return [];
   return Object.keys(input).sort((a, b) => parseInt(a, 10) - parseInt(b, 10)).map(k => input[k]);
+}
+
+function escapeHtml(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function fmtMoney(value) {
+  const num = Number(value);
+  return `$${(Number.isFinite(num) ? num : 0).toFixed(2)}`;
+}
+
+function paymentTermsFromBody(body, fallback = 'Net 30') {
+  const selected = emptyToNull(body.payment_terms);
+  if (selected === '__custom') return emptyToNull(body.payment_terms_custom) || fallback;
+  return selected || fallback;
+}
+
+function customerFacingInvoice(invoice) {
+  return {
+    ...invoice,
+    cost_total: undefined,
+    lines: (invoice.lines || []).map(li => ({
+      trade: li.trade || '',
+      description: li.description,
+      quantity: li.quantity,
+      unit: li.unit,
+      unit_price: li.unit_price,
+      line_total: li.line_total,
+    })),
+  };
+}
+
+function buildInvoiceEmailBody(invoice, company = {}) {
+  const safeCompany = escapeHtml(company.company_name || 'Recon Enterprises');
+  const safeCustomer = escapeHtml(invoice.customer_name || 'there');
+  const safeInvoiceNumber = escapeHtml(invoice.display_number);
+  const safeWoNumber = escapeHtml(invoice.wo_display_number || '');
+  const terms = escapeHtml(invoice.payment_terms || company.default_payment_terms || 'Net 30');
+  const due = invoice.due_date ? escapeHtml(String(invoice.due_date).slice(0, 10)) : '';
+  const balance = (Number(invoice.total) || 0) - (Number(invoice.amount_paid) || 0);
+  const rows = (invoice.lines || []).map(li => `
+    <tr>
+      <td style="padding:10px 0;border-bottom:1px solid #eeeeee;">${escapeHtml(li.description || '')}</td>
+      <td style="padding:10px 0;border-bottom:1px solid #eeeeee;text-align:right;white-space:nowrap;">${escapeHtml(li.quantity || 0)} ${escapeHtml(li.unit || '')}</td>
+      <td style="padding:10px 0;border-bottom:1px solid #eeeeee;text-align:right;white-space:nowrap;">${fmtMoney(li.line_total)}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <p style="margin-top:0;">Hi ${safeCustomer},</p>
+    <p>${safeCompany} prepared invoice <strong>${safeInvoiceNumber}</strong>${safeWoNumber ? ` for work order <strong>${safeWoNumber}</strong>` : ''}. The full invoice PDF is attached.</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0;border-collapse:collapse;">
+      <tr>
+        <td style="padding:14px 16px;background:#f5f5f5;border-radius:6px;">
+          <span style="display:block;color:#777;font-size:12px;text-transform:uppercase;letter-spacing:.08em;">Amount due</span>
+          <span style="display:block;color:#c0202b;font-size:28px;font-weight:800;line-height:1.2;">${fmtMoney(balance)}</span>
+          <span style="display:block;color:#777;font-size:13px;margin-top:4px;">Terms: ${terms}${due ? ` - Due ${due}` : ''}</span>
+        </td>
+      </tr>
+    </table>
+    ${rows ? `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:18px 0;">
+        <thead>
+          <tr>
+            <th align="left" style="color:#777;font-size:11px;text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid #dddddd;padding-bottom:8px;">Item</th>
+            <th align="right" style="color:#777;font-size:11px;text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid #dddddd;padding-bottom:8px;">Qty</th>
+            <th align="right" style="color:#777;font-size:11px;text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid #dddddd;padding-bottom:8px;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    ` : ''}
+    <p>Please send payment according to the terms above. For questions, contact <a href="mailto:Office@reconenterprises.net" style="color:#c0202b;">Office@reconenterprises.net</a>.</p>
+    <p style="margin-bottom:0;">Thanks,<br>${safeCompany}</p>
+  `;
 }
 
 function validateLineItem(li) {
@@ -70,7 +150,7 @@ function validateInvoice(body) {
   if (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) errors.due_date = 'Use YYYY-MM-DD.';
   const taxRate = parseFloat(body.tax_rate);
   const taxRateNum = isFinite(taxRate) && taxRate >= 0 ? taxRate : 0;
-  const paymentTerms = emptyToNull(body.payment_terms) || 'Net 30';
+  const paymentTerms = paymentTermsFromBody(body);
   const notes = emptyToNull(body.notes);
 
   const rawItems = asArray(body.lines);
@@ -312,29 +392,32 @@ router.post('/:id', async (req, res) => {
 router.post('/:id/send', async (req, res, next) => {
   const invoice = await loadInvoice(req.params.id);
   if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
-  if (invoice.status !== 'draft') {
-    setFlash(req, 'error', `${invoice.display_number} is "${invoice.status}" — already sent.`);
+  if (!['draft', 'sent', 'overdue'].includes(invoice.status)) {
+    setFlash(req, 'error', `${invoice.display_number} is "${invoice.status}" - cannot send email.`);
     return res.redirect(`/invoices/${invoice.id}`);
   }
   try {
     const company = await loadCompanySettings();
-    const buf = await pdf.renderToBuffer(pdf.generateInvoicePDF, { ...invoice, invoice_number: invoice.display_number }, company);
-
-    // Invoice goes to billing_email (falls back to email)
-    const recipient = invoice.customer_billing_email || invoice.customer_email || 'unknown@recon.local';
+    const customerInvoice = customerFacingInvoice(invoice);
+    const buf = await pdf.renderToBuffer(pdf.generateInvoicePDF, { ...customerInvoice, invoice_number: invoice.display_number }, company);
+    const recipient = invoice.customer_billing_email || invoice.customer_email;
+    if (!recipient) throw new Error(`Invoice ${invoice.display_number} cannot be sent because the customer has no email address.`);
     const subject = `Invoice ${invoice.display_number} from ${company.company_name || 'Recon Enterprises'}`;
     const dueLine = invoice.due_date ? `Due: ${String(invoice.due_date).slice(0, 10)}` : '';
-    const text = `Hello ${invoice.customer_name || ''},\n\nPlease find attached invoice ${invoice.display_number}.\nAmount: $${(Number(invoice.total) || 0).toFixed(2)}\nTerms: ${invoice.payment_terms || 'Net 30'}\n${dueLine}\n\nThanks.\n${company.company_name || 'Recon Enterprises'}`;
+    const text = `Hello ${invoice.customer_name || ''},\n\nPlease find attached invoice ${invoice.display_number}.\nAmount due: $${((Number(invoice.total) || 0) - (Number(invoice.amount_paid) || 0)).toFixed(2)}\nTerms: ${invoice.payment_terms || company.default_payment_terms || 'Net 30'}\n${dueLine}\n\nThanks.\n${company.company_name || 'Recon Enterprises'}`;
     const sent = await email.sendEmail({
-      to: recipient, subject, text,
-      html: text.split('\n').map(l => `<p>${l}</p>`).join(''),
+      to: recipient,
+      subject,
+      text,
+      htmlBody: buildInvoiceEmailBody(invoice, company),
       attachments: [{ filename: `${invoice.display_number}.pdf`, content: buf, contentType: 'application/pdf' }]
     });
 
+    const nextStatus = invoice.status === 'draft' ? 'sent' : invoice.status;
     const { error: updErr } = await supabase
       .from('invoices')
       .update({
-        status: 'sent',
+        status: nextStatus,
         sent_at: new Date().toISOString(),
         sent_by_user_id: req.session.userId,
         sent_to_email: recipient,
@@ -344,25 +427,23 @@ router.post('/:id/send', async (req, res, next) => {
       .eq('id', invoice.id);
     if (updErr) throw updErr;
 
-    // Audit
     try {
       await writeAudit({
-        entityType: 'invoice', entityId: invoice.id, action: 'send',
-        before: { status: 'draft' },
-        after: { status: 'sent', recipient, sent_at: new Date().toISOString() },
+        entityType: 'invoice', entityId: invoice.id, action: invoice.status === 'draft' ? 'send' : 'resend',
+        before: { status: invoice.status },
+        after: { status: nextStatus, recipient, sent_at: new Date().toISOString() },
         source: 'user', userId: req.session.userId,
       });
     } catch (e) { /* best-effort */ }
 
-    // Post JE: DR AR / CR Revenue + Sales Tax
     try {
-      await posting.postInvoiceSent(invoice, { userId: req.session.userId });
+      if (invoice.status === 'draft') await posting.postInvoiceSent(invoice, { userId: req.session.userId });
     } catch (e) {
-      console.error('JE post failed (invoice send) — continuing:', e.message);
+      console.error('JE post failed (invoice send) - continuing:', e.message);
     }
 
     const note = sent.mode === 'file' ? ` Email saved to ${sent.filepath}.` : '';
-    setFlash(req, 'success', `${invoice.display_number} sent to ${recipient}.${note}`);
+    setFlash(req, 'success', `${invoice.display_number} email sent to ${recipient}.${note}`);
     res.redirect(`/invoices/${invoice.id}`);
   } catch (err) { next(err); }
 });
@@ -458,7 +539,7 @@ router.get('/:id/pdf', async (req, res) => {
   res.setHeader('Content-Disposition', `${disposition}; filename="${filename}"`);
   res.setHeader('Cache-Control', 'no-store');
   try {
-    pdf.generateInvoicePDF({ ...invoice, invoice_number: invoice.display_number }, company, res);
+    pdf.generateInvoicePDF({ ...customerFacingInvoice(invoice), invoice_number: invoice.display_number }, company, res);
   } catch (err) {
     console.error('Invoice PDF failed:', err);
     if (!res.headersSent) res.status(500).render('error', { title: 'PDF error', code: 500, message: err.message });

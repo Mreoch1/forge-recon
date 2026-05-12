@@ -146,8 +146,10 @@ router.post('/settings', async (req, res) => {
   if (!company_name) errors.company_name = 'Company name required.';
   const default_tax_rate = parseFloat(req.body.default_tax_rate);
   const taxRateNum = isFinite(default_tax_rate) && default_tax_rate >= 0 ? default_tax_rate : 0;
-  const validTerms = ['Due on receipt', 'Net 15', 'Net 30', 'Net 45', 'Net 60', 'Custom'];
-  const default_payment_terms = validTerms.includes(req.body.default_payment_terms) ? req.body.default_payment_terms : 'Net 30';
+  const validTerms = ['Due on receipt', 'Net 15', 'Net 30', 'Net 45', 'Net 60'];
+  const default_payment_terms = req.body.default_payment_terms === '__custom'
+    ? (emptyToNull(req.body.default_payment_terms_custom) || 'Net 30')
+    : (validTerms.includes(req.body.default_payment_terms) ? req.body.default_payment_terms : 'Net 30');
   if (Object.keys(errors).length) return res.status(400).render('admin/settings', { title: 'Company settings', activeNav: 'admin', settings: { company_name, address: emptyToNull(req.body.address), city: emptyToNull(req.body.city), state: emptyToNull(req.body.state), zip: emptyToNull(req.body.zip), phone: emptyToNull(req.body.phone), email: emptyToNull(req.body.email), ein: emptyToNull(req.body.ein), default_tax_rate: taxRateNum, default_payment_terms }, errors });
   const { error: updateError } = await supabase.from('company_settings').update({
     company_name, address: emptyToNull(req.body.address), city: emptyToNull(req.body.city),

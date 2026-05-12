@@ -4,6 +4,9 @@
 const linesToRender = (invoice.lines && invoice.lines.length) ? invoice.lines : [{
   description: '', quantity: 1, unit: 'ea', unit_price: 0, cost: 0, line_total: 0
 }];
+const termPresets = (typeof paymentTermsPresets !== 'undefined') ? paymentTermsPresets : ['Due on receipt', 'Net 15', 'Net 30', 'Net 45', 'Net 60'];
+const currentTerms = invoice.payment_terms || 'Net 30';
+const termsAreCustom = termPresets.indexOf(currentTerms) === -1;
 function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
 %>
 
@@ -19,11 +22,15 @@ function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <label class="label" for="payment_terms">Payment terms</label>
-          <select name="payment_terms" id="payment_terms" class="input">
-            <% paymentTermsPresets.forEach(function(p){ %>
-              <option value="<%= p %>" <%= invoice.payment_terms === p ? 'selected' : '' %>><%= p %></option>
+          <select name="payment_terms" id="payment_terms" class="input" data-payment-terms-select>
+            <% termPresets.forEach(function(p){ %>
+              <option value="<%= p %>" <%= currentTerms === p ? 'selected' : '' %>><%= p %></option>
             <% }); %>
+            <option value="__custom" <%= termsAreCustom ? 'selected' : '' %>>Custom</option>
           </select>
+          <input type="text" name="payment_terms_custom" value="<%= termsAreCustom ? currentTerms : '' %>"
+                 class="input mt-2 <%= termsAreCustom ? '' : 'hidden' %>" data-payment-terms-custom
+                 placeholder="Custom terms">
         </div>
         <div>
           <label class="label" for="due_date">Due date</label>
@@ -146,5 +153,16 @@ function moneyFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed
 </div>
 
 <script src="/js/line-items.js"></script>
+<script>
+(function(){
+  document.querySelectorAll('[data-payment-terms-select]').forEach(function(select){
+    var custom = select.parentElement.querySelector('[data-payment-terms-custom]');
+    if (!custom) return;
+    function sync() { custom.classList.toggle('hidden', select.value !== '__custom'); }
+    select.addEventListener('change', sync);
+    sync();
+  });
+})();
+</script>
 
 <%- include('../layouts/footer') %>
