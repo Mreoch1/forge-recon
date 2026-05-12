@@ -229,4 +229,116 @@ router.get('/reports/balance-sheet', async (req, res) => {
   });
 });
 
+// --- AR Aging ---
+
+function ageBucket(dueDate) {
+  if (!dueDate) return 'Current';
+  const due = new Date(String(dueDate).slice(0,10));
+  const today = new Date(); today.setHours(0,0,0,0);
+  const age = Math.floor((today - due) / (1000*60*60*24));
+  if (age <= 0) return 'Current';
+  if (age <= 30) return '1-30';
+  if (age <= 60) return '31-60';
+  if (age <= 90) return '61-90';
+  return '90+';
+}
+
+router.get('/ar-aging', async (req, res) => {
+  const { data: invoices } = await supabase
+    .from('invoices')
+    .select('*, work_orders!left(display_number, customers!left(id, name))')
+    .not('status', 'in', '("paid","void","draft")')
+    .order('due_date', { ascending: false });
+
+  const rows = (invoices || []).map(inv => {
+    const wo = inv.work_orders || {};
+    const cust = wo.customers || {};
+    const due = inv.due_date ? String(inv.due_date).slice(0,10) : null;
+    const ageDays = due ? Math.floor((new Date() - new Date(due)) / (1000*60*60*24)) : 0;
+    const balance = Number(inv.total || 0) - Number(inv.amount_paid || 0);
+    return {
+      customer: cust.name || '—',
+      invoiceNumber: inv.display_number || `INV-${inv.id}`,
+      issueDate: String(inv.created_at || '').slice(0,10),
+      dueDate: due || '—',
+      ageDays: Math.max(0, ageDays),
+      balance,
+      total: Number(inv.total || 0),
+      bucket: ageBucket(inv.due_date),
+      status: inv.status,
+    };
+  });
+
+  // Sort by age desc
+  rows.sort((a, b) => b.ageDays - a.ageDays);
+
+  // Bucket totals
+  const buckets = { Current: 0, '1-30': 0, '31-60': 0, '61-90': 0, '90+': 0 };
+  rows.forEach(r => { buckets[r.bucket] = (buckets[r.bucket] || 0) + r.balance; });
+
+  res.render('accounting/ar-aging', {
+    title: 'AR Aging', activeNav: 'accounting',
+    rows, buckets, fmt,
+  });
+});
+
+// --- AP Aging ---
+
+router.get('/ap-aging', async (req, res) => {
+  // Bills: unpaid or partially paid
+  const { data: bills } = await supabase
+    .from('bills')
+    .select('*, vendors!left(name)')
+    .not('status', 'in', '("paid","void")')
+    .order('due_date', { ascending: false });
+
+  const billRows = (bills || []).map(b => {
+    const due = b.due_date ? String(b.due_date).slice(0,10) : null;
+    const ageDays = due ? Math.max(0, Math.floor((new Date() - new Date(due)) / (1000*60*60*24))) : 0;
+    const balance = Number(b.total || 0) - Number(b.amount_paid || 0);
+    return {
+      vendor: b.vendors?.name || '—',
+      source: 'Bill',
+      ref: b.bill_number || `BL-${b.id}`,
+      dueDate: due || '—',
+      ageDays,
+      balance: Math.max(0, balance),
+      total: Number(b.total || 0),
+      bucket: ageBucket(b.due_date),
+      status: b.status,
+    };
+  }).filter(r => r.balance > 0);
+
+  // Also check vendor_invoices (unpaid RPM imports)
+  const { data: vinvs } = await supabase
+    .from('vendor_invoices')
+    .select('*, vendors!left(name)')
+    .order('created_at', { ascending: false });
+
+  const viRows = (vinvs || []).map(v => {
+    const due = null; // vendor_invoices have no due_date
+    return {
+      vendor: v.vendors?.name || '—',
+      source: 'Vendor Invoice',
+      ref: v.invoice_number || `VI-${v.id}`,
+      dueDate: '—',
+      ageDays: 0,
+      balance: Number(v.amount || 0),
+      total: Number(v.amount || 0),
+      bucket: 'Current',
+      status: 'open',
+    };
+  });
+
+  const rows = [...billRows, ...viRows].sort((a, b) => b.ageDays - a.ageDays);
+
+  const buckets = { Current: 0, '1-30': 0, '31-60': 0, '61-90': 0, '90+': 0 };
+  rows.forEach(r => { buckets[r.bucket] = (buckets[r.bucket] || 0) + r.balance; });
+
+  res.render('accounting/ap-aging', {
+    title: 'AP Aging', activeNav: 'accounting',
+    rows, buckets, fmt,
+  });
+});
+
 module.exports = router;

@@ -1,0 +1,60 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<div class="max-w-6xl mx-auto px-4 py-6">
+  <div class="mb-4">
+    <a href="/accounting" class="text-sm text-recon-fog hover:text-recon-red">&larr; Accounting</a>
+  </div>
+
+  <h1 class="page-h1 mb-6">AR Aging</h1>
+
+  <!-- Bucket summary -->
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
+    <% ['Current','1-30','31-60','61-90','90+'].forEach(function(b){ %>
+      <div class="card p-4 text-center <%= b === '90+' ? 'border-red-200' : '' %>">
+        <div class="text-xs uppercase tracking-wide text-recon-fog"><%= b %></div>
+        <div class="text-xl font-bold mt-1 <%= b === '90+' ? 'text-recon-red' : '' %>">$<%= fmt(buckets[b] || 0) %></div>
+      </div>
+    <% }); %>
+  </div>
+
+  <!-- Aging table -->
+  <div class="card overflow-hidden">
+    <div class="px-5 py-3 border-b border-recon-mist">
+      <h3 class="font-semibold"><%= rows.length %> invoice<%= rows.length === 1 ? '' : 's' %> outstanding</h3>
+    </div>
+    <% if (rows.length === 0) { %>
+      <div class="p-6 text-center text-recon-fog text-sm">No outstanding invoices. Everything is current!</div>
+    <% } else { %>
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Customer</th>
+            <th>Invoice</th>
+            <th>Issued</th>
+            <th>Due</th>
+            <th class="text-right">Age (days)</th>
+            <th class="text-right">Total</th>
+            <th class="text-right">Balance</th>
+            <th>Bucket</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% rows.forEach(function(r){ %>
+            <tr>
+              <td><%= r.customer %></td>
+              <td class="font-mono text-xs"><%= r.invoiceNumber %></td>
+              <td class="text-xs"><%= r.issueDate %></td>
+              <td class="text-xs"><%= r.dueDate %></td>
+              <td class="text-right"><%= r.ageDays %></td>
+              <td class="text-right">$<%= fmt(r.total) %></td>
+              <td class="text-right font-semibold <%= r.balance > 0 ? 'text-recon-red' : '' %>">$<%= fmt(r.balance) %></td>
+              <td><span class="badge <%= r.bucket === '90+' ? 'badge-danger' : 'badge-info' %>"><%= r.bucket %></span></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+</div>
+
+<%- include('../layouts/footer') %>

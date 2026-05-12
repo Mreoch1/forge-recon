@@ -2,30 +2,44 @@
 
 <div class="max-w-7xl mx-auto px-4 py-6">
   <h1 class="page-h1 mb-2">Accounting</h1>
-  <p class="page-sub mb-6">QuickBooks-lite module — automatic journal entries coming in next session.</p>
+  <p class="page-sub mb-6">Financial cockpit — aging, reports, and journal entries.</p>
 
+  <!-- Aging cards -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+    <a href="/accounting/ar-aging" class="card p-6 hover:shadow-md transition block border-l-4 border-recon-red">
+      <div class="text-2xl font-bold text-recon-red mb-1">AR Aging</div>
+      <p class="text-sm text-recon-fog">Accounts receivable by age — who owes you money and how overdue.</p>
+    </a>
+    <a href="/accounting/ap-aging" class="card p-6 hover:shadow-md transition block border-l-4 border-amber-500">
+      <div class="text-2xl font-bold text-amber-600 mb-1">AP Aging</div>
+      <p class="text-sm text-recon-fog">Accounts payable by age — who you owe and when it's due.</p>
+    </a>
+  </div>
+
+  <!-- Reports + tools grid -->
   <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
     <a href="/accounting/accounts" class="card p-6 hover:shadow-md transition block">
-      <div class="text-2xl font-bold text-recon-red mb-1">Chart of accounts</div>
+      <div class="text-lg font-bold text-recon-red mb-1">Chart of accounts</div>
       <p class="text-sm text-recon-fog">View the list of accounts. CRUD coming soon.</p>
     </a>
     <a href="/accounting/journal" class="card p-6 hover:shadow-md transition block">
-      <div class="text-2xl font-bold text-recon-red mb-1">Journal entries</div>
+      <div class="text-lg font-bold text-recon-red mb-1">Journal entries</div>
       <p class="text-sm text-recon-fog">Browse posted entries. Auto-generation from invoice events pending.</p>
     </a>
     <a href="/accounting/reports/trial-balance" class="card p-6 hover:shadow-md transition block">
-      <div class="text-2xl font-bold text-recon-red mb-1">Reports</div>
-      <p class="text-sm text-recon-fog">Trial balance, P&amp;L, balance sheet — stub pages.</p>
+      <div class="text-lg font-bold text-recon-red mb-1">Reports</div>
+      <p class="text-sm text-recon-fog">Trial balance, P&amp;L, balance sheet.</p>
     </a>
   </div>
 
   <div class="card p-6">
-    <h3 class="font-semibold text-recon-charcoal mb-2">Planned for next session</h3>
+    <h3 class="font-semibold text-recon-charcoal mb-2">Planned</h3>
     <ul class="text-sm text-recon-fog space-y-1 list-disc list-inside">
+      <li>P&amp;L by period (this month, last month, YTD, custom range)</li>
+      <li>Project profitability rollup — contract value vs cost vs billed</li>
+      <li>Cash-flow forecast — AR minus AP plotted over next 90 days</li>
       <li>Automatic journal entry creation on invoice send / mark-paid events</li>
-      <li>Chart of accounts CRUD (add/edit/deactivate accounts)</li>
       <li>Manual journal entry form</li>
-      <li>Live trial balance, profit &amp; loss, and balance sheet reports</li>
       <li>Account reconciliation</li>
     </ul>
   </div>
