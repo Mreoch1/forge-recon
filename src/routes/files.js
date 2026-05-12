@@ -31,7 +31,6 @@ const upload = multer({
 });
 
 const ENTITY_TYPES = [
-  { key: 'customer', label: 'Customers', icon: '🏢', path: '/files/customers' },
   { key: 'vendor', label: 'Vendors', icon: '📦', path: '/files/vendors' },
   { key: 'worker', label: 'Workers', icon: '👤', path: '/files/workers' },
   { key: 'project', label: 'Projects', icon: '🔧', path: '/files/projects' },

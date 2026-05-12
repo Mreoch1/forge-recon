@@ -21,6 +21,7 @@ const { loadCurrentUser, requireAuth, requireManager, requireAdmin } = require('
 const authRoutes = require('./routes/auth');
 const customersRoutes = require('./routes/customers');
 const estimatesRoutes = require('./routes/estimates');
+const jobsRoutes = require('./routes/jobs');
 const workOrdersRoutes = require('./routes/work-orders');
 const invoicesRoutes = require('./routes/invoices');
 const scheduleRoutes = require('./routes/schedule');
@@ -31,7 +32,6 @@ const accountingRoutes = require('./routes/accounting');
 const vendorsRoutes = require('./routes/vendors');
 const aiChatRoutes = require('./routes/ai-chat');
 const closuresRoutes = require('./routes/closures');
-const filesRoutes = require('./routes/files');
 const settingsRoutes = require('./routes/settings');
 const signupRoutes = require('./routes/signup');
 
@@ -185,7 +185,13 @@ app.use('/reset-password', lowLimiter);
 app.use('/', authRoutes);
 app.use('/', signupRoutes);
 app.use('/customers', requireAuth, requireManager, customersRoutes);
-app.use('/jobs', requireAuth, requireManager, (req, res) => res.redirect('/work-orders'));
+// D-007: Projects layer — Jobs renamed Projects in UI. /projects is canonical;
+// /jobs preserved as a redirect so older links keep working.
+app.use('/projects', requireAuth, requireManager, jobsRoutes);
+app.use('/jobs', requireAuth, requireManager, (req, res) => {
+  const tail = req.url === '/' ? '' : req.url;
+  res.redirect(302, '/projects' + tail);
+});
 app.use('/estimates', requireAuth, requireManager, estimatesRoutes);
 app.use('/invoices', requireAuth, requireManager, invoicesRoutes);
 app.use('/bills', requireAuth, requireManager, billsRoutes);
@@ -198,7 +204,6 @@ app.use('/accounting', requireAuth, requireManager, accountingRoutes);
 app.use('/vendors', requireAuth, requireManager, vendorsRoutes);
 app.get('/ai/chat/health', (req, res) => { const enabled = process.env.AI_CHAT_ENABLED === undefined || process.env.AI_CHAT_ENABLED === '' || process.env.AI_CHAT_ENABLED === '1' || process.env.AI_CHAT_ENABLED === 'true'; res.json({ enabled, model: 'deepseek-chat', provider: process.env.AI_PROVIDER || 'deepseek' }); });
 app.use('/ai', requireAuth, aiChatRoutes);
-app.use('/files', requireAuth, filesRoutes);
 app.use('/', requireAuth, dashboardRoutes);
 
 app.use((req, res) => { res.status(404).render('error', { title: 'Not found', code: 404, message: 'That page does not exist.' }); });
@@ -207,17 +212,17 @@ app.use((err, req, res, next) => {
   const status = err.status || err.statusCode || 500;
   const safeStatus = status >= 400 && status < 600 ? status : 500;
   const title = safeStatus === 500 ? 'Server error' : 'Bad request';
-  const message = err.message && err.message.length < 200
-    ? (safeStatus === 500 ? 'Server error' : 'Bad request')
-    : 'Something went wrong.';
-  res.status(safeStatus).render('error', { title, code: safeStatus, message, currentUrl: req.originalUrl });
+  const safeMsg = title;
+  // Store real error detail for the report-error button
+  const errorDetail = err && err.message ? err.message.slice(0, 500) : '';
+  res.status(safeStatus).render('error', { title, code: safeStatus, message: safeMsg, currentUrl: req.originalUrl, errorDetail });
 });
 
 // POST /report-error — user-triggered error report email
 app.post('/report-error', async (req, res) => {
-  const { code, message, url, user_email } = req.body;
+  const { code, message, url, user_email, error_detail } = req.body;
   const subject = `[FORGE Error Report] ${code} on ${url || 'unknown page'}`;
-  const body = `Error report from FORGE\n\nCode: ${code}\nURL: ${url || 'unknown'}\nUser: ${user_email || 'unknown'}\nMessage: ${message || 'none'}\nTimestamp: ${new Date().toISOString()}`;
+  const body = `Error report from FORGE\n\nCode: ${code}\nURL: ${url || 'unknown'}\nUser: ${user_email || 'unknown'}\nError: ${error_detail || message || 'none'}\nTimestamp: ${new Date().toISOString()}`;
   try {
     const emailService = require('./services/email');
     await emailService.sendEmail({
