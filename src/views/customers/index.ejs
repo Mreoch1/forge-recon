@@ -8,14 +8,25 @@
     </div>
   </div>
 
-  <form method="get" action="/customers" class="list-utility-bar">
-    <input type="text" name="q" value="<%= q %>" placeholder="Search name, email, phone, city..." class="list-search">
-    <button type="submit" class="btn btn-secondary">Search</button>
+  <form method="get" action="/customers" class="list-utility-bar" id="customer-search-form">
+    <input type="text" name="q" value="<%= q %>" placeholder="Search name, email, phone, city..." class="list-search" id="customer-q" autocomplete="off">
     <% if (q) { %>
       <a href="/customers" class="list-clear">Clear</a>
     <% } %>
     <a href="/customers/new" class="btn btn-primary">+ New customer</a>
   </form>
+
+<script>
+(function(){
+  var input = document.getElementById('customer-q');
+  var form = document.getElementById('customer-search-form');
+  var timer;
+  input.addEventListener('input', function(){
+    clearTimeout(timer);
+    timer = setTimeout(function(){ form.submit(); }, 350);
+  });
+})();
+</script>
 
   <div class="card overflow-hidden">
     <% if (customers.length === 0) { %>
