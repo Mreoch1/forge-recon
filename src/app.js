@@ -17,7 +17,6 @@ const session = require('express-session');
 const helmet = require('helmet');
 const morgan = require('morgan');
 
-const db = require('./db/db');
 const { loadCurrentUser, requireAuth, requireManager, requireAdmin } = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
 const customersRoutes = require('./routes/customers');
@@ -75,8 +74,8 @@ let dbReady = false;
 
 async function ensureDbInit(req, res, next) {
   if (!dbReady) {
+    const db = require('./db/db');
     await db.init();
-    // Boot CREATE TABLE statements
     try { await db.run(`CREATE TABLE IF NOT EXISTS pending_confirmations ( id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, tool TEXT NOT NULL, args TEXT NOT NULL, summary TEXT NOT NULL, created_at TEXT, expires_at TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending' )`); } catch(e) {}
     try { await db.run(`CREATE TABLE IF NOT EXISTS closures ( id INTEGER PRIMARY KEY, date_start TEXT NOT NULL, date_end TEXT, name TEXT NOT NULL, type TEXT NOT NULL DEFAULT 'holiday', notes TEXT, created_by_user_id INTEGER, created_at TEXT NOT NULL DEFAULT (now()) )`); } catch(e) {}
     try { await db.run(`CREATE TABLE IF NOT EXISTS password_reset_tokens ( id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, token TEXT NOT NULL UNIQUE, expires_at TIMESTAMPTZ NOT NULL, used_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT now() )`); } catch(e) {}
