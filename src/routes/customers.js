@@ -180,7 +180,7 @@ router.post('/:id/delete', async (req, res) => {
   if (!customer) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Customer not found.' });
   const { count: jobCount } = await supabase.from('jobs').select('*', { count: 'exact', head: true }).eq('customer_id', id);
   if (jobCount > 0) {
-    setFlash(req, 'error', `Cannot delete "${customer.name}" — they have ${jobCount} job(s).`);
+    setFlash(req, 'error', `Cannot delete "${customer.name}" — they still have ${jobCount} legacy job record(s).`);
     return res.redirect(`/customers/${id}`);
   }
   const { error: deleteError } = await supabase.from('customers').delete().eq('id', id);
@@ -190,4 +190,3 @@ router.post('/:id/delete', async (req, res) => {
 });
 
 module.exports = router;
-

@@ -5,6 +5,7 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
 const subtotal = (estimate.lines || []).reduce(function(s, li) { return s + (Number(li.line_total) || 0); }, 0);
 const taxAmt = (estimate.tax_amount || 0);
 const total = (estimate.total || 0);
+const approvedCount = (estimate.lines || []).filter(function(li) { return !(li.selected === 0 || li.selected === false); }).length;
 %>
 
 <div class="max-w-5xl mx-auto px-4 py-6">
@@ -15,7 +16,7 @@ const total = (estimate.total || 0);
   <div class="flex items-center justify-between mb-6">
     <div>
       <h1 class="page-h1">Select lines to invoice</h1>
-      <p class="page-sub">Only checked lines will transfer. Uncheck items the customer didn't approve.</p>
+      <p class="page-sub">Only approved estimate items can transfer to the invoice.</p>
     </div>
   </div>
 
@@ -40,7 +41,7 @@ const total = (estimate.total || 0);
             <% (estimate.lines || []).forEach(function(li) { %>
               <tr>
                 <td class="text-center">
-                  <input type="checkbox" name="selected_lines" value="<%= li.id %>" checked>
+                  <input type="checkbox" name="selected_lines" value="<%= li.id %>" <%= li.selected === 0 || li.selected === false ? 'disabled' : 'checked' %>>
                 </td>
                 <td><%= li.description %></td>
                 <td class="text-right"><%= li.quantity %></td>
@@ -68,7 +69,7 @@ const total = (estimate.total || 0);
       </div>
     </div>
 
-    <p class="text-sm text-recon-fog" id="line-count-display">All <%= (estimate.lines || []).length %> line(s) selected for invoice.</p>
+    <p class="text-sm text-recon-fog" id="line-count-display"><%= approvedCount %> of <%= (estimate.lines || []).length %> line(s) selected for invoice.</p>
 
     <div class="flex items-center gap-2 pt-2">
       <button type="submit" class="btn btn-primary">Generate invoice</button>
@@ -79,8 +80,7 @@ const total = (estimate.total || 0);
 
 <script>
 // Live count display
-document.querySelectorAll('input[name="selected_lines"]').forEach(function(cb) {
-  cb.addEventListener('change', function() {
+function updateLineCount() {
     var total = document.querySelectorAll('input[name="selected_lines"]').length;
     var checked = document.querySelectorAll('input[name="selected_lines"]:checked').length;
     var el = document.getElementById('line-count-display');
@@ -91,8 +91,11 @@ document.querySelectorAll('input[name="selected_lines"]').forEach(function(cb) {
     } else {
       el.textContent = checked + ' of ' + total + ' line(s) selected for invoice.';
     }
-  });
+}
+document.querySelectorAll('input[name="selected_lines"]').forEach(function(cb) {
+  cb.addEventListener('change', updateLineCount);
 });
+updateLineCount();
 </script>
 
 <%- include('../layouts/footer') %>

@@ -56,6 +56,12 @@ function workerCanAccessEntity(req, entityType, entityId) {
   return false;
 }
 
+function normalizeEntityType(value) {
+  const normalized = String(value || '').replace(/s$/, '').replace(/-/g, '_');
+  if (normalized === 'work_order') return 'project';
+  return normalized;
+}
+
 // ── ROUTES ────────────────────────────────────────────────────────────────────
 
 // GET / — index showing 5 buckets
@@ -72,7 +78,7 @@ router.get('/', requireAuth, async (req, res) => {
 // GET /:entityType — list entities of that type with root folders
 // Normalizes plural paths (e.g. /files/customers → entityType='customer')
 router.get('/:entityType', requireAuth, async (req, res) => {
-  const entityType = req.params.entityType.replace(/s$/, '');
+  const entityType = normalizeEntityType(req.params.entityType);
   const bucket = ENTITY_TYPES.find(b => b.key === entityType);
   if (!bucket) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Unknown entity type.' });
 
@@ -129,12 +135,13 @@ router.post('/folders/:folderId/upload', requireAuth, requireManager, upload.arr
     return res.redirect('/files/folders/' + folder.id);
   }
   for (const file of req.files) {
+    const originalName = file.originalname;
     const ext = path.extname(file.originalname) || '';
     const key = `${folder.entity_type}/${folder.entity_id}/${crypto.randomUUID()}${ext}`;
     await storage.uploadBuffer('entity-files', key, file.buffer, file.mimetype);
     await supabase.from('files').insert({
       folder_id: folder.id, name: originalName, original_filename: originalName,
-      storage_path: storagePath, mime_type: file.mimetype, size_bytes: file.size,
+      storage_path: key, mime_type: file.mimetype, size_bytes: file.size,
       uploaded_by_user_id: req.session.userId || null,
     });
   }
@@ -217,7 +224,7 @@ router.get('/:id/view', requireAuth, async (req, res) => {
 
 // GET /:entityType/:entityId — show root folder contents (GENERIC — MUST BE LAST)
 router.get('/:entityType/:entityId', requireAuth, async (req, res) => {
-  const entityType = req.params.entityType.replace(/s$/, '');
+  const entityType = normalizeEntityType(req.params.entityType);
   const entityId = parseInt(req.params.entityId, 10);
   const mappedType = entityType === 'project' ? 'work_order' : entityType === 'worker' ? 'user' : entityType;
   if (!workerCanAccessEntity(req, entityType, entityId)) return workerForbidden(res);

@@ -10,6 +10,7 @@ const chatService = require('../services/ai-chat');
 const tools = require('../services/ai-tools');
 const { writeAudit } = require('../services/audit');
 const rateLimit = require('express-rate-limit');
+const supabase = require('../db/supabase');
 
 // Rate limiter: 30 calls per 5 min per user
 const chatLimiter = rateLimit({
@@ -105,7 +106,6 @@ router.post('/chat/confirm', async (req, res) => {
     return res.status(400).json({ error: 'confirmation_id is required.' });
   }
 
-  const supabase = require('../db/supabase');
   const { data: row } = await supabase.from('pending_confirmations').select('*').eq('id', confirmation_id).maybeSingle();
 
   if (!row) {
@@ -123,7 +123,7 @@ router.post('/chat/confirm', async (req, res) => {
 
   // Expiry check
   if (new Date(row.expires_at) < new Date()) {
-    await db.run("UPDATE pending_confirmations SET status = 'expired' WHERE id = ?", [row.id]);
+    await supabase.from('pending_confirmations').update({ status: 'expired' }).eq('id', row.id);
     await writeAudit({ entityType: 'pending_confirmation', entityId: row.id, action: 'expired', before: null, after: { tool: row.tool }, source: 'ai', userId: row.user_id });
     return res.status(409).json({ error: 'Confirmation expired. Please ask the AI again.' });
   }
@@ -135,14 +135,14 @@ router.post('/chat/confirm', async (req, res) => {
     let userName = '';
     let role = 'admin';
     try {
-      const userRow = await db.get('SELECT name, role FROM users WHERE id = ?', [userId]);
+      const { data: userRow } = await supabase.from('users').select('name, role').eq('id', userId).maybeSingle();
       if (userRow) { userName = userRow.name || ''; role = userRow.role || 'admin'; }
     } catch (e) { /* fall back to defaults */ }
     const ctx = { userId, userName, role };
 
     const result = await tools.executeMutation(row.tool, args, ctx);
     if (result.ok) {
-      await db.run("UPDATE pending_confirmations SET status = 'confirmed' WHERE id = ?", [row.id]);
+      await supabase.from('pending_confirmations').update({ status: 'confirmed' }).eq('id', row.id);
       await writeAudit({ entityType: 'pending_confirmation', entityId: row.id, action: 'confirmed', before: null, after: { tool: row.tool, result: result.result }, source: 'ai', userId: row.user_id });
 
       const chips = result.result && result.result.href
@@ -151,12 +151,12 @@ router.post('/chat/confirm', async (req, res) => {
 
       return res.json({ ok: true, result: result.result, chips });
     } else {
-      await db.run("UPDATE pending_confirmations SET status = 'failed' WHERE id = ?", [row.id]);
+      await supabase.from('pending_confirmations').update({ status: 'failed' }).eq('id', row.id);
       return res.status(500).json({ ok: false, error: result.error || 'Execution failed.' });
     }
   } else {
     // Cancel
-    await db.run("UPDATE pending_confirmations SET status = 'cancelled' WHERE id = ?", [row.id]);
+    await supabase.from('pending_confirmations').update({ status: 'cancelled' }).eq('id', row.id);
     await writeAudit({ entityType: 'pending_confirmation', entityId: row.id, action: 'cancelled', before: null, after: { tool: row.tool }, source: 'ai', userId: row.user_id });
     return res.json({ ok: true, cancelled: true });
   }

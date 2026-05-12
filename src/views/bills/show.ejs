@@ -18,7 +18,7 @@ const bal = (Number(bill.total) || 0) - (Number(bill.amount_paid) || 0);
       </div>
       <p class="page-sub">
         Vendor: <a href="/vendors/<%= bill.vendor_id %>" class="hover:text-recon-red"><%= bill.vendor_name || 'Vendor #' + bill.vendor_id %></a>
-        <% if (bill.job_title) { %> &middot; Job: <a href="/jobs/<%= bill.job_id %>" class="hover:text-recon-red"><%= bill.job_title %></a><% } %>
+        <% if (bill.job_title) { %> &middot; Legacy job: <%= bill.job_title %><% } %>
       </p>
     </div>
     <div class="flex flex-wrap gap-2">

@@ -44,8 +44,7 @@ curl -s -c "$COOKIE_JAR" -b "$COOKIE_JAR" -o /dev/null -X POST --data-urlencode 
 # Authenticated routes
 check "/ dashboard" GET "/" 200
 check "/customers list" GET "/customers" 200
-# /jobs redirects to /work-orders (R34 deprecation)
-echo "  ⚠️ /jobs — redirects to /work-orders (302, expected)"
+check "/jobs redirects" GET "/jobs" 302
 check "/work-orders list" GET "/work-orders" 200
 check "/work-orders/new form" GET "/work-orders/new" 200
 check "/estimates list" GET "/estimates" 200
@@ -55,6 +54,8 @@ check "/vendors list" GET "/vendors" 200
 check "/schedule week" GET "/schedule?view=week" 200
 check "/schedule 2week" GET "/schedule?view=2week" 200
 check "/files" GET "/files" 200
+check "/files/customers" GET "/files/customers" 200
+check "/files/projects" GET "/files/projects" 200
 check "/accounting" GET "/accounting" 200
 check "/admin/users" GET "/admin/users" 200
 check "/admin/settings" GET "/admin/settings" 200
@@ -62,16 +63,13 @@ check "/admin/ai-usage" GET "/admin/ai-usage" 200
 check "/admin/audit" GET "/admin/audit" 200
 check "/settings" GET "/settings" 200
 
-# Detail routes — /jobs redirects to /work-orders (R34 jobs deprecation)
+# Detail routes
 check "/customers/1" GET "/customers/1" 200
 check "/customers/1/edit" GET "/customers/1/edit" 200
 check "/work-orders/1" GET "/work-orders/1" 200
 check "/work-orders/1/edit" GET "/work-orders/1/edit" 200
 check "/work-orders/new form" GET "/work-orders/new" 200
 check "/health/version" GET "/health/version" 200
-
-# Known issue: files 500 — needs investigation
-echo "  ⚠️ /files — known 500 (route needs investigation)"
 
 echo ""
 echo "=== RESULTS: $PASS passed, $FAIL failed ==="

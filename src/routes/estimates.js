@@ -11,12 +11,12 @@
  *   POST  /:id/send            draft -> sent (PDF emailed to customer.email)
  *   POST  /:id/accept          sent -> accepted
  *   POST  /:id/reject          sent -> rejected
- *   POST  /:id/generate-invoice  accepted -> creates invoice with selected lines
+ *   POST  /:id/generate-invoice  accepted -> creates invoice with approved lines
  *   GET   /:id/pdf             PDF
  *   POST  /:id/delete          delete (only when no invoice references it)
  *
- * Line item `selected` flag: customer can accept only some lines. Only
- * selected lines copy to the invoice on generate-invoice.
+ * Line item `selected` flag: customer can approve only some lines. Only
+ * approved lines copy to the invoice on generate-invoice.
  */
 
 const express = require('express');
@@ -46,13 +46,26 @@ function asArray(input) {
   return Object.keys(input).sort((a, b) => parseInt(a, 10) - parseInt(b, 10)).map(k => input[k]);
 }
 
+function isLineApproved(line) {
+  return !(line.selected === 0 || line.selected === false || line.selected === '0');
+}
+
+function idSetFromFormValue(value) {
+  const ids = new Set();
+  if (Array.isArray(value)) value.forEach(id => ids.add(String(id)));
+  else if (typeof value === 'string') ids.add(value);
+  else if (value && typeof value === 'object') Object.keys(value).forEach(id => ids.add(String(id)));
+  return ids;
+}
+
 function validateLineItem(li) {
   const description = emptyToNull(li.description);
   const unit = emptyToNull(li.unit) || 'ea';
   const quantity = parseFloat(li.quantity);
   const unitPrice = parseFloat(li.unit_price);
   const cost = parseFloat(li.cost);
-  const selected = 1; // Always default to selected; line selection happens at invoice time
+  const selectedInput = Array.isArray(li.selected) ? li.selected[li.selected.length - 1] : li.selected;
+  const selected = selectedInput === '1' || selectedInput === 1 || selectedInput === true || selectedInput === 'on' ? 1 : 0;
   return {
     data: {
       description,
@@ -263,7 +276,7 @@ router.post('/:id', async (req, res) => {
       total: t.total, cost_total: costTotal, status: 'draft',
     },
     lines: data.lines.map((li, idx) => ({
-      ...li, line_total: calc.lineTotal(li), sort_order: idx, selected: 1,
+      ...li, line_total: calc.lineTotal(li), sort_order: idx,
     })),
   });
   if (rpcError) throw rpcError;
@@ -326,6 +339,42 @@ router.post('/:id/send', async (req, res, next) => {
 router.post('/:id/accept', (req, res) => statusTransition(req, res, 'sent', 'accepted', 'accepted_at'));
 router.post('/:id/reject', (req, res) => statusTransition(req, res, 'sent', 'rejected', null));
 
+router.post('/:id/line-approvals', async (req, res) => {
+  const estimate = await loadEstimate(req.params.id);
+  if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
+  if (!['draft', 'sent', 'accepted'].includes(estimate.status)) {
+    setFlash(req, 'error', `Cannot change approved items while estimate is "${estimate.status}".`);
+    return res.redirect(`/estimates/${estimate.id}`);
+  }
+
+  const approvedIds = idSetFromFormValue(req.body.approved_lines);
+
+  const updates = await Promise.all((estimate.lines || []).map(li => supabase
+    .from('estimate_line_items')
+    .update({ selected: approvedIds.has(String(li.id)) ? 1 : 0 })
+    .eq('id', li.id)
+    .eq('estimate_id', estimate.id)
+  ));
+  const updateError = updates.find(result => result.error)?.error;
+  if (updateError) throw updateError;
+
+  try {
+    const { writeAudit } = require('../services/audit');
+    writeAudit({
+      entityType: 'estimate',
+      entityId: estimate.id,
+      action: 'line_approvals_updated',
+      before: null,
+      after: { approved_line_ids: Array.from(approvedIds) },
+      source: 'user',
+      userId: req.session.userId,
+    });
+  } catch(e) { console.error('audit failed:', e.message); }
+
+  setFlash(req, 'success', 'Approved estimate items updated.');
+  res.redirect(`/estimates/${estimate.id}`);
+});
+
 // Archive / close
 router.post('/:id/archive', async (req, res) => {
   const est = await loadEstimate(req.params.id);
@@ -370,7 +419,7 @@ router.post('/:id/unarchive', async (req, res) => {
   res.redirect(`/estimates/${est.id}`);
 });
 
-// Generate invoice from accepted estimate — first redirects to line-selection page
+// Generate invoice from approved estimate items.
 router.post('/:id/generate-invoice', async (req, res) => {
   const estimate = await loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
@@ -384,38 +433,47 @@ router.post('/:id/generate-invoice', async (req, res) => {
     return res.redirect(`/invoices/${existingInv.id}`);
   }
 
-  // If this is a form submission from select-for-invoice page with selected_lines
-  const rawSelectedLines = req.body.selected_lines;
-  if (rawSelectedLines !== undefined) {
-    // Process selected lines
-    const selectedLineIds = {};
-    if (Array.isArray(rawSelectedLines)) {
-      rawSelectedLines.forEach(id => { selectedLineIds[id] = true; });
-    } else if (typeof rawSelectedLines === 'string') {
-      selectedLineIds[rawSelectedLines] = true;
-    } else if (typeof rawSelectedLines === 'object') {
-      Object.keys(rawSelectedLines).forEach(k => { selectedLineIds[k] = true; });
-    }
+  let approvedLines = estimate.lines.filter(isLineApproved);
 
-    const selectedLines = estimate.lines.filter(li => selectedLineIds[li.id]);
-    if (selectedLines.length === 0) {
-      setFlash(req, 'error', 'Select at least one line item to invoice.');
-      return res.redirect(`/estimates/${estimate.id}/select-for-invoice`);
-    }
-
-    // Use convert_estimate_to_invoice RPC
-    const { data: invResult, error: rpcErr } = await supabase.rpc('convert_estimate_to_invoice', {
-      estimate_id: estimate.id,
-      selected_line_ids: selectedLines.map(li => li.id),
-    });
-    if (rpcErr) throw rpcErr;
-
-    setFlash(req, 'success', `INV-${estimate.wo_display_number} generated (${selectedLines.length} line items transferred).`);
-    return res.redirect(`/invoices/${invResult}`);
+  if (req.body.approval_form === '1') {
+    const approvedIds = idSetFromFormValue(req.body.approved_lines);
+    const updates = await Promise.all((estimate.lines || []).map(li => supabase
+      .from('estimate_line_items')
+      .update({ selected: approvedIds.has(String(li.id)) ? 1 : 0 })
+      .eq('id', li.id)
+      .eq('estimate_id', estimate.id)
+    ));
+    const updateError = updates.find(result => result.error)?.error;
+    if (updateError) throw updateError;
+    approvedLines = estimate.lines.filter(li => approvedIds.has(String(li.id)));
   }
 
-  // First-time click: redirect to select-for-invoice page
-  res.redirect(`/estimates/${estimate.id}/select-for-invoice`);
+  if (approvedLines.length === 0) {
+    setFlash(req, 'error', 'Approve at least one estimate item before creating an invoice.');
+    return res.redirect(`/estimates/${estimate.id}`);
+  }
+
+  // Legacy select-for-invoice submissions are still accepted, but they cannot
+  // transfer lines that are not approved on the estimate.
+  const rawSelectedLines = req.body.selected_lines;
+  let selectedLines = approvedLines;
+  if (rawSelectedLines !== undefined) {
+    const selectedLineIds = idSetFromFormValue(rawSelectedLines);
+    selectedLines = approvedLines.filter(li => selectedLineIds.has(String(li.id)));
+    if (selectedLines.length === 0) {
+      setFlash(req, 'error', 'Select at least one approved item to invoice.');
+      return res.redirect(`/estimates/${estimate.id}/select-for-invoice`);
+    }
+  }
+
+  const { data: invResult, error: rpcErr } = await supabase.rpc('convert_estimate_to_invoice', {
+    estimate_id: estimate.id,
+    selected_line_ids: selectedLines.map(li => li.id),
+  });
+  if (rpcErr) throw rpcErr;
+
+  setFlash(req, 'success', `INV-${estimate.wo_display_number} created from ${selectedLines.length} approved item(s).`);
+  return res.redirect(`/invoices/${invResult}`);
 });
 
 // Select-for-invoice page — pick which lines to invoice

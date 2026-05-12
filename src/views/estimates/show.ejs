@@ -48,10 +48,8 @@ const roi = costTotal > 0 ? ((margin / costTotal) * 100).toFixed(1) : '&mdash;';
           <button class="btn btn-danger">Mark rejected</button>
         </form>
       <% } %>
-      <% if (['sent','accepted'].includes(estimate.status) && !invoice) { %>
-        <form action="/estimates/<%= estimate.id %>/generate-invoice" method="post" class="m-0 inline">
-          <button class="btn btn-primary">Generate invoice</button>
-        </form>
+      <% if (['sent','accepted'].includes(estimate.status) && !invoice && estimate.lines.length > 0) { %>
+        <button form="line-approvals-form" formaction="/estimates/<%= estimate.id %>/generate-invoice" formmethod="post" class="btn btn-primary">Create invoice</button>
       <% } %>
       <% if (!estimate.archived_at) { %>
         <form action="/estimates/<%= estimate.id %>/archive" method="post" class="m-0 inline"
@@ -64,21 +62,6 @@ const roi = costTotal > 0 ? ((margin / costTotal) * 100).toFixed(1) : '&mdash;';
           <button class="btn btn-ghost">Unarchive</button>
         </form>
       <% } %>
-    </div>
-  </div>
-
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-    <div class="card p-4">
-      <div class="text-xs uppercase tracking-wide text-recon-fog">Subtotal</div>
-      <div class="text-xl font-semibold mt-1">$<%= fmt(subtotal) %></div>
-    </div>
-    <div class="card p-4">
-      <div class="text-xs uppercase tracking-wide text-recon-fog">Tax (<%= fmt(estimate.tax_rate) %>%)</div>
-      <div class="text-xl font-semibold mt-1">$<%= fmt(estimate.tax_amount) %></div>
-    </div>
-    <div class="card p-4 bg-recon-charcoal text-white">
-      <div class="text-xs uppercase tracking-wide text-recon-fog">Total</div>
-      <div class="text-2xl font-bold mt-1 text-recon-red-light">$<%= fmt(estimate.total) %></div>
     </div>
   </div>
 
@@ -103,15 +86,21 @@ const roi = costTotal > 0 ? ((margin / costTotal) * 100).toFixed(1) : '&mdash;';
   <% } %>
 
   <div class="card overflow-hidden mb-6">
-    <div class="px-5 py-3 border-b border-recon-mist">
+    <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between gap-3">
       <h3 class="font-semibold">Items</h3>
+      <% if (!invoice && estimate.lines.length > 0 && ['draft','sent','accepted'].includes(estimate.status)) { %>
+        <button form="line-approvals-form" type="submit" class="btn btn-secondary text-sm">Save approvals</button>
+      <% } %>
     </div>
     <% if (estimate.lines.length === 0) { %>
       <div class="p-6 text-center text-recon-fog text-sm">No items.</div>
     <% } else { %>
+      <form id="line-approvals-form" action="/estimates/<%= estimate.id %>/line-approvals" method="post">
+      <input type="hidden" name="approval_form" value="1">
       <table class="data">
         <thead>
           <tr>
+            <th class="text-center">Approved</th>
             <th>Description</th>
             <th class="text-right">Qty</th>
             <th>Unit</th>
@@ -123,6 +112,9 @@ const roi = costTotal > 0 ? ((margin / costTotal) * 100).toFixed(1) : '&mdash;';
         <tbody>
           <% estimate.lines.forEach(function(li){ %>
             <tr>
+              <td class="text-center">
+                <input type="checkbox" name="approved_lines" value="<%= li.id %>" <%= li.selected === 0 || li.selected === false ? '' : 'checked' %> <%= invoice ? 'disabled' : '' %>>
+              </td>
               <td><%= li.description %></td>
               <td class="text-right"><%= li.quantity %></td>
               <td><%= li.unit %></td>
@@ -132,7 +124,22 @@ const roi = costTotal > 0 ? ((margin / costTotal) * 100).toFixed(1) : '&mdash;';
             </tr>
           <% }); %>
         </tbody>
+        <tfoot class="bg-recon-cloud">
+          <tr>
+            <td colspan="<%= showCosts ? 6 : 5 %>" class="text-right text-sm font-medium">Subtotal</td>
+            <td class="text-right font-semibold">$<%= fmt(subtotal) %></td>
+          </tr>
+          <tr>
+            <td colspan="<%= showCosts ? 6 : 5 %>" class="text-right text-sm font-medium">Tax (<%= fmt(estimate.tax_rate) %>%)</td>
+            <td class="text-right font-semibold">$<%= fmt(estimate.tax_amount) %></td>
+          </tr>
+          <tr>
+            <td colspan="<%= showCosts ? 6 : 5 %>" class="text-right text-sm font-semibold uppercase">Total</td>
+            <td class="text-right text-lg font-bold text-recon-red">$<%= fmt(estimate.total) %></td>
+          </tr>
+        </tfoot>
       </table>
+      </form>
     <% } %>
   </div>
 
