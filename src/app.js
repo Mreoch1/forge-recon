@@ -250,7 +250,10 @@ app.post('/report-error', async (req, res) => {
   }
 });
 
-app.use((req, res) => { res.status(404).render('error', { title: 'Not found', code: 404, message: 'That page does not exist.' }); });
+app.use((req, res) => {
+  const errorCtx = { method: req.method, user: req.currentUser?.email || req.session?.email || 'unknown', timestamp: new Date().toISOString() };
+  res.status(404).render('error', { title: 'Not found', code: 404, message: 'That page does not exist.', currentUrl: req.originalUrl, errorCtx });
+});
 app.use((err, req, res, next) => {
   console.error(err);
   const status = err.status || err.statusCode || 500;
