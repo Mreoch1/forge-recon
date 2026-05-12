@@ -214,7 +214,7 @@ router.get('/:id/view', requireAuth, async (req, res) => {
 
 // GET /:entityType/:entityId — show root folder contents (GENERIC — MUST BE LAST)
 router.get('/:entityType/:entityId', requireAuth, async (req, res) => {
-  const entityType = req.params.entityType;
+  const entityType = req.params.entityType.replace(/s$/, '');
   const entityId = parseInt(req.params.entityId, 10);
   const mappedType = entityType === 'project' ? 'work_order' : entityType === 'worker' ? 'user' : entityType;
   if (!workerCanAccessEntity(req, entityType, entityId)) return workerForbidden(res);
