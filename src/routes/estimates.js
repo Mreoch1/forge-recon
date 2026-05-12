@@ -540,17 +540,39 @@ router.post('/:id/generate-invoice', async (req, res) => {
   const totals = invoicePreviewTotals(selectedLines, estimate.tax_rate);
   const costTotal = selectedLines.reduce((sum, li) => sum + (Number(li.cost) || 0) * (Number(li.quantity) || 0), 0);
   const now = new Date().toISOString();
+
+  // Load company settings for payment terms, conditions, etc.
+  const { data: company } = await supabase.from('company_settings').select('*').limit(1).maybeSingle();
+  const terms = estimate.payment_terms || company?.default_payment_terms || 'Net 30';
+  // Calculate due date from terms
+  let dueDate = null;
+  const match = String(terms).match(/(\d+)/);
+  if (match) {
+    const d = new Date();
+    d.setDate(d.getDate() + parseInt(match[1], 10));
+    dueDate = d.toISOString().slice(0, 10);
+  }
+  const conditions = company?.default_conditions || null;
+  // Load WO data for unit_number
+  let woUnit = null;
+  if (estimate.wo_id) {
+    const { data: wo } = await supabase.from('work_orders').select('unit_number, description').eq('id', estimate.wo_id).maybeSingle();
+    woUnit = wo?.unit_number || null;
+  }
+
   const { data: invoice, error: invError } = await supabase.from('invoices').insert({
     estimate_id: estimate.id,
     work_order_id: estimate.wo_id,
-    status: 'draft',
+    status: 'sent',
     subtotal: totals.subtotal,
     tax_rate: totals.taxRate,
     tax_amount: totals.taxAmount,
     total: totals.total,
     cost_total: costTotal,
-    payment_terms: estimate.payment_terms || 'Net 30',
+    payment_terms: terms,
+    due_date: dueDate,
     notes: estimate.notes || null,
+    conditions: conditions,
     created_at: now,
     updated_at: now,
   }).select('id').single();
@@ -591,8 +613,11 @@ router.post('/:id/generate-invoice', async (req, res) => {
   }).eq('id', estimate.id);
   if (estUpdateError) console.warn('[estimates] invoice created but estimate timestamp update failed:', estUpdateError.message);
 
-  setFlash(req, 'success', `INV-${estimate.wo_display_number} created from ${selectedLines.length} approved item(s).`);
-  return res.redirect(`/invoices/${invResult}`);
+  // R37h: land on the EDIT page so user can immediately tune the invoice
+  // (description copy, line items, terms) before sending. Saves the
+  // pre-send round-trip to /show → click Edit.
+  setFlash(req, 'success', `INV-${estimate.wo_display_number} created from ${selectedLines.length} approved item(s). Edit as needed and click Save.`);
+  return res.redirect(`/invoices/${invResult}/edit`);
 });
 
 // Select-for-invoice page — pick which lines to invoice

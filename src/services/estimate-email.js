@@ -76,6 +76,16 @@ function buildEstimateEmailBody(est, company = {}) {
         <tbody>${rows}</tbody>
       </table>
     ` : ''}
+    ${est.notes ? `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;border-collapse:collapse;">
+        <tr>
+          <td style="padding:14px 16px;background:#fffaf0;border-left:3px solid #c0202b;border-radius:4px;color:#1a1a1a;font-size:14px;line-height:1.5;white-space:pre-line;">
+            <span style="display:block;color:#777;font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Notes</span>
+            ${escapeHtml(est.notes)}
+          </td>
+        </tr>
+      </table>
+    ` : ''}
     <p>Please review the attached estimate. If everything looks good, sign and return the PDF to <a href="mailto:Office@reconenterprises.net" style="color:#c0202b;">Office@reconenterprises.net</a>.</p>
     <p style="margin-bottom:0;">Thanks,<br>${safeCompany}</p>
   `;

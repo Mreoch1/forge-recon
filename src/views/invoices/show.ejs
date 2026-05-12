@@ -8,14 +8,6 @@ const costTotal = Number(invoice.cost_total) || 0;
 const subtotal = Number(invoice.subtotal) || 0;
 const margin = subtotal - costTotal;
 const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '&mdash;';
-const INV_STATUS_HINTS = {
-  draft: 'Draft — not sent yet. Edit freely; only office can see it.',
-  sent: 'Sent — emailed to the customer, awaiting payment.',
-  paid: 'Paid — full payment recorded. Read-only.',
-  void: 'Void — cancelled. Read-only history, does not count toward AR.',
-  overdue: 'Overdue — past due date and not paid. Customer needs a reminder.'
-};
-const invStatusHint = INV_STATUS_HINTS[displayStatus] || displayStatus;
 %>
 
 <div class="max-w-5xl mx-auto px-4 py-6">
@@ -27,7 +19,6 @@ const invStatusHint = INV_STATUS_HINTS[displayStatus] || displayStatus;
     <div>
       <div class="flex items-center gap-3">
         <h1 class="page-h1"><%= invoice.display_number %></h1>
-        <span class="badge badge-<%= displayStatus %>" title="<%= invStatusHint %>"><%= displayStatus %></span>
       </div>
       <p class="page-sub">
         WO: <a href="/work-orders/<%= invoice.wo_id %>" class="hover:text-recon-red">WO-<%= invoice.wo_display_number %></a>
@@ -35,25 +26,33 @@ const invStatusHint = INV_STATUS_HINTS[displayStatus] || displayStatus;
         &middot; Customer: <a href="/customers/<%= invoice.customer_id %>" class="hover:text-recon-red"><%= invoice.customer_name %></a>
       </p>
     </div>
-    <div class="flex flex-wrap gap-2">
-      <a href="/invoices/<%= invoice.id %>/pdf" class="btn btn-secondary" target="_blank" rel="noopener"
-         title="Open the invoice PDF in a new tab. This is the version the customer sees.">View PDF</a>
-      <a href="/invoices/<%= invoice.id %>/pdf?download=1" class="btn btn-ghost"
-         title="Download the invoice PDF to your computer.">Download</a>
+    <%# R37h: Invoice button row — matches estimate pattern.
+        LEFT group  — document action: View PDF only (no Download, View PDF handles both).
+        RIGHT group — workflow actions, left-to-right escalation, single primary CTA per status:
+            draft       → [Edit (secondary)]  [Send invoice email (primary)]
+            sent/over   → [Send again (secondary, re-send)]  [Mark paid (primary)]
+            paid/void   → read-only (no action buttons)
+    %>
+    <div class="flex flex-wrap items-center gap-2">
+      <a href="/invoices/<%= invoice.id %>/pdf" class="btn btn-ghost" target="_blank" rel="noopener"
+         title="Open the invoice PDF in a new tab.">View PDF</a>
 
-      <% if (invoice.status === 'draft') { %>
-        <a href="/invoices/<%= invoice.id %>/edit" class="btn btn-secondary">Edit</a>
-        <form action="/invoices/<%= invoice.id %>/send" method="post" class="m-0 inline">
-          <button class="btn btn-primary" title="Email this invoice to the customer's billing email with the PDF attached.">Send invoice email</button>
-        </form>
-      <% } else if (invoice.status === 'sent' || invoice.status === 'overdue') { %>
-        <form action="/invoices/<%= invoice.id %>/send" method="post" class="m-0 inline">
-          <button class="btn btn-secondary" title="Re-send the invoice email to the customer (e.g. payment reminder).">Send invoice email</button>
-        </form>
-        <button type="button" onclick="document.getElementById('mark-paid-form').classList.toggle('hidden')" class="btn btn-primary"
-                title="Record a customer payment against this invoice. Supports full or partial payments.">Mark paid</button>
+      <% if (invoice.status === 'draft' || invoice.status === 'sent' || invoice.status === 'overdue') { %>
+        <span class="hidden md:inline text-recon-mist px-1" aria-hidden="true">|</span>
+
+        <% if (invoice.status === 'draft') { %>
+          <a href="/invoices/<%= invoice.id %>/edit" class="btn btn-secondary">Edit</a>
+          <form action="/invoices/<%= invoice.id %>/send" method="post" class="m-0 inline">
+            <button class="btn btn-primary" title="Email this invoice to the customer's billing email with the PDF attached.">Send invoice email</button>
+          </form>
+        <% } else { %>
+          <form action="/invoices/<%= invoice.id %>/send" method="post" class="m-0 inline">
+            <button class="btn btn-secondary" title="Re-send the invoice email (e.g. payment reminder).">Send again</button>
+          </form>
+          <button type="button" onclick="document.getElementById('mark-paid-form').classList.toggle('hidden')" class="btn btn-primary"
+                  title="Record a customer payment against this invoice. Supports full or partial payments.">Mark paid</button>
+        <% } %>
       <% } %>
-
     </div>
   </div>
 
@@ -190,6 +189,13 @@ const invStatusHint = INV_STATUS_HINTS[displayStatus] || displayStatus;
       </div>
     <% } %>
   </div>
+
+  <% if (invoice.conditions) { %>
+    <div class="card p-5 mb-6">
+      <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-2">Conditions &amp; terms</h3>
+      <p class="text-sm whitespace-pre-line"><%= invoice.conditions %></p>
+    </div>
+  <% } %>
 
   <% if (invoice.status !== 'paid') { %>
     <div class="card p-5 border-red-200">

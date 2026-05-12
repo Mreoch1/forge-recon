@@ -156,7 +156,8 @@ router.post('/settings', async (req, res) => {
     state: emptyToNull(req.body.state), zip: emptyToNull(req.body.zip),
     phone: emptyToNull(req.body.phone), email: emptyToNull(req.body.email),
     ein: emptyToNull(req.body.ein), default_tax_rate: taxRateNum,
-    default_payment_terms
+    default_payment_terms,
+    default_conditions: emptyToNull(req.body.default_conditions),
   }).eq('id', 1);
   if (updateError) throw updateError;
   setFlash(req, 'success', 'Company settings saved.');

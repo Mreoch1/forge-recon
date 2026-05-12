@@ -95,6 +95,12 @@
                    placeholder="Custom terms">
           </div>
         </div>
+        <div class="md:col-span-2">
+          <label class="label" for="default_conditions">Default invoice conditions &amp; terms
+            <span class="ml-1 text-recon-fog cursor-help" title="Standard conditions printed on every invoice. Can be overridden per invoice.">ⓘ</span>
+          </label>
+          <textarea name="default_conditions" id="default_conditions" rows="4" class="input"><%= settings.default_conditions || '' %></textarea>
+        </div>
         <p class="text-xs text-recon-fog mt-2">
           Next WO main number: <%= settings.next_wo_main_number || 1 %>
           (advances automatically when a new root WO is created)

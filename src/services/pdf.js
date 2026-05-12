@@ -519,10 +519,10 @@ function drawInvoiceMeta(doc, invoice) {
     doc.fillColor(COLOR.fog).fontSize(7).font('Helvetica-Bold').text(label.toUpperCase(), x + 8, y + 5, { width: cellW - 16 });
     doc.fillColor(COLOR.charcoal).fontSize(11).font('Helvetica-Bold').text(value || '—', x + 8, y + 17, { width: cellW - 16 });
   }
-  cell(0, 'Status', (invoice.status || '').replace('_',' '));
-  cell(1, 'Issued', invoice.created_at ? String(invoice.created_at).slice(0,10) : '—');
-  cell(2, 'Due', invoice.due_date ? String(invoice.due_date).slice(0,10) : '—');
-  cell(3, 'Amount paid', fmtMoney(invoice.amount_paid));
+  cell(0, 'Issued', invoice.created_at ? String(invoice.created_at).slice(0,10) : '—');
+  cell(1, 'Due', invoice.due_date ? String(invoice.due_date).slice(0,10) : '—');
+  cell(2, 'Terms', invoice.payment_terms || '—');
+  cell(3, 'Balance due', fmtMoney((Number(invoice.total)||0) - (Number(invoice.amount_paid)||0)));
 
   doc.y = y + 36 + 12;
 }
@@ -536,7 +536,7 @@ function generateInvoicePDF(invoice, company, stream) {
   doc.pipe(stream);
 
   drawHeader(doc, company);
-  drawTitle(doc, 'Invoice', invoice.invoice_number, invoice.status);
+  drawTitle(doc, 'Invoice', invoice.invoice_number);
 
   drawAddressBlocks(doc, [
     invoice.customer_name,
@@ -552,7 +552,6 @@ function generateInvoicePDF(invoice, company, stream) {
 
   drawInvoiceMeta(doc, invoice);
   drawLineItemsTable(doc, (invoice.lines || []).map(li => ({
-    trade: '—',
     description: li.description,
     quantity: li.quantity,
     unit: li.unit,
@@ -566,6 +565,11 @@ function generateInvoicePDF(invoice, company, stream) {
     tax_amount: invoice.tax_amount,
     total: invoice.total,
   });
+
+  // Conditions
+  if (invoice.conditions) {
+    drawNotes(doc, 'Conditions: ' + invoice.conditions);
+  }
 
   // Balance due (total - paid) prominently on its own line if anything outstanding
   const balanceDue = (Number(invoice.total) || 0) - (Number(invoice.amount_paid) || 0);
