@@ -186,9 +186,16 @@ const selectedAssignees = wo.assignee_ids || [];
     var q = this.value.trim().toLowerCase();
     if (!q || q === cName.textContent.toLowerCase()) { results.classList.add('hidden'); return; }
     var matches = customers.filter(function(c){ return c.name.toLowerCase().includes(q) || (c.email || '').toLowerCase().includes(q); }).slice(0, 8);
+    results.innerHTML = '';
     if (!matches.length) { results.classList.add('hidden'); return; }
-    results.innerHTML = matches.map(function(c){ return '<div class="px-3 py-2 hover:bg-gray-100 cursor-pointer" data-id="' + c.id + '">' + c.name + ' &lt;' + (c.email || '') + '&gt;</div>'; }).join('');
     results.classList.remove('hidden');
+    matches.forEach(function(c) {
+      var div = document.createElement('div');
+      div.className = 'px-3 py-2 hover:bg-gray-100 cursor-pointer';
+      div.dataset.id = c.id;
+      div.textContent = c.name + ' <' + (c.email || '') + '>';
+      results.appendChild(div);
+    });
   });
 
   results.addEventListener('click', function(e){
