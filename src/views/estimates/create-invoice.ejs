@@ -37,6 +37,7 @@ const billToEmail = estimate.customer_billing_email || estimate.customer_email |
   </div>
 
   <form action="/estimates/<%= estimate.id %>/generate-invoice" method="post" class="space-y-6">
+    <input type="hidden" name="invoice_review" value="1">
     <div class="card overflow-hidden">
       <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between gap-3">
         <h3 class="font-semibold">Approved scope items</h3>

@@ -528,8 +528,12 @@ router.post('/:id/generate-invoice', async (req, res) => {
     const selectedLineIds = idSetFromFormValue(rawSelectedLines);
     selectedLines = approvedLines.filter(li => selectedLineIds.has(String(li.id)));
     if (selectedLines.length === 0) {
-      setFlash(req, 'error', 'Select at least one approved item to invoice.');
-      return res.redirect(`/estimates/${estimate.id}/select-for-invoice`);
+      if (req.body.invoice_review === '1') {
+        selectedLines = approvedLines;
+      } else {
+        setFlash(req, 'error', 'Select at least one approved item to invoice.');
+        return res.redirect(`/estimates/${estimate.id}/create-invoice`);
+      }
     }
   }
 
