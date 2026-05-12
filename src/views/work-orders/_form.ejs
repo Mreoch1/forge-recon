@@ -1,29 +1,38 @@
 <%
-// Shared WO form (v0.7 — depriced). WOs are scope/dispatch, not money docs.
-// Expects: wo, job, users, errors, units, formAction, submitLabel,
-// isSubWO (boolean), parent (when isSubWO).
+// Shared WO form (R34 — customer-centric, multi-assignee).
+// Expects: wo, customers, users, errors, units, formAction, submitLabel
+// customers: array of {id, name, email, phone, address, city, state, zip}
+// users: array of {id, name}
 const linesToRender = (wo.lines && wo.lines.length) ? wo.lines : [{
   description: '', quantity: 1, unit: 'ea', completed: 0
 }];
+const selectedCustomerId = wo.customer_id || '';
+const selectedAssignees = wo.assignee_ids || [];
 %>
 <form action="<%= formAction %>" method="post" class="space-y-6">
-  <% if (typeof job !== 'undefined' && job && job.id) { %>
-    <input type="hidden" name="job_id" value="<%= job.id %>">
-  <% } %>
-
-  <% if (typeof job !== 'undefined' && job && job.id) { %>
-    <div class="card p-5">
-      <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-2">Job</h3>
-      <p class="font-medium"><%= job.title %></p>
-      <% if (typeof isSubWO !== 'undefined' && isSubWO && parent) { %>
-        <p class="text-sm text-recon-fog">Sub-WO of <a href="/work-orders/<%= parent.id %>" class="hover:text-recon-red">WO-<%= parent.display_number %></a></p>
-      <% } %>
-    </div>
-  <% } %>
-
+  <!-- Customer autocomplete -->
   <div class="card p-5">
-    <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Header</h3>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Customer</h3>
+    <div class="space-y-2">
+      <div>
+        <input type="text" id="customer-search" placeholder="Search customer..." class="input"
+               autocomplete="off" value="<%= customerName || '' %>">
+        <input type="hidden" name="customer_id" id="customer-id" value="<%= selectedCustomerId %>">
+        <div id="customer-results" class="hidden mt-1 border rounded bg-white shadow max-h-40 overflow-y-auto"></div>
+      </div>
+      <div id="customer-card" class="<%= selectedCustomerId ? '' : 'hidden' %> p-3 bg-gray-50 rounded text-sm">
+        <p class="font-medium" id="cust-name"><%= customerName || '' %></p>
+        <p class="text-gray-500" id="cust-email"></p>
+        <p class="text-gray-500" id="cust-phone"></p>
+        <p class="text-gray-500" id="cust-address"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Header: number, unit, date, time -->
+  <div class="card p-5">
+    <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Schedule</h3>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
       <div>
         <label class="label" for="display_number">WO Number</label>
         <input type="text" name="display_number" id="display_number"
@@ -31,51 +40,68 @@ const linesToRender = (wo.lines && wo.lines.length) ? wo.lines : [{
                placeholder="<%= wo.suggested_display_number || '0001-0000' %>"
                class="input <%= errors.display_number ? 'border-red-500' : '' %>"
                pattern="\d{1,6}-\d{1,6}">
-        <p class="text-xs text-recon-fog mt-1">Format: 0001-0000. Leave blank to auto-generate (<%= wo.suggested_display_number || '0001-0000' %>).</p>
-        <% if (errors.display_number) { %><p class="text-sm text-red-600 mt-1"><%= errors.display_number %></p><% } %>
+        <p class="text-xs text-recon-fog mt-1">Leave blank to auto-generate.</p>
       </div>
       <div>
-        <label class="label" for="scheduled_date">Scheduled date</label>
+        <label class="label" for="unit_number">Unit / Apt</label>
+        <input type="text" name="unit_number" id="unit_number" value="<%= wo.unit_number || '' %>"
+               class="input" placeholder="Apt 101, Suite 200">
+      </div>
+      <div>
+        <label class="label" for="scheduled_date">Date</label>
         <input type="date" name="scheduled_date" id="scheduled_date"
                value="<%= wo.scheduled_date ? String(wo.scheduled_date).slice(0,10) : '' %>" class="input">
       </div>
       <div>
-        <label class="label" for="scheduled_time">Scheduled time</label>
+        <label class="label" for="scheduled_time">Time</label>
         <input type="time" name="scheduled_time" id="scheduled_time"
                value="<%= wo.scheduled_time || '' %>" class="input">
-      </div>
-      <div class="md:col-span-2">
-        <label class="label" for="assigned_to_user_id">Assigned employee</label>
-        <select name="assigned_to_user_id" id="assigned_to_user_id" class="input">
-          <option value="">-- unassigned --</option>
-          <% users.forEach(function(u){ %>
-            <option value="<%= u.id %>" <%= (wo.assigned_to_user_id == u.id) ? 'selected' : '' %>><%= u.name %></option>
-          <% }); %>
-        </select>
-      </div>
-      <div>
-        <label class="label" for="assigned_to">Or external assignee</label>
-        <input type="text" name="assigned_to" id="assigned_to" value="<%= wo.assigned_to || '' %>"
-               class="input" placeholder="Sub-contractor, etc.">
       </div>
     </div>
   </div>
 
+  <!-- Multi-assignee -->
+  <div class="card p-5">
+    <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Assignees</h3>
+    <div class="space-y-2">
+      <div class="flex flex-wrap gap-2" id="assignee-chips">
+        <% selectedAssignees.forEach(function(aid){ %>
+          <% var u = users.find(function(uu){ return uu.id == aid; }); %>
+          <% if (u) { %>
+            <span class="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+              <%= u.name %>
+              <button type="button" class="remove-assignee text-blue-600 hover:text-blue-900 font-bold" data-id="<%= u.id %>">&times;</button>
+              <input type="hidden" name="assignee_ids" value="<%= u.id %>">
+            </span>
+          <% } %>
+        <% }); %>
+      </div>
+      <select id="assignee-select" class="input">
+        <option value="">-- Add assignee --</option>
+        <% users.forEach(function(u){ %>
+          <option value="<%= u.id %>"><%= u.name %></option>
+        <% }); %>
+      </select>
+    </div>
+  </div>
+
+  <!-- Description -->
+  <div class="card p-5">
+    <label class="label" for="description">Description</label>
+    <textarea name="description" id="description" rows="2" class="input"
+              placeholder="Brief description of the work"><%= wo.description || '' %></textarea>
+  </div>
+
+  <!-- Line items -->
   <div class="card overflow-hidden">
     <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
-      <h3 class="font-semibold">Items</h3>
+      <h3 class="font-semibold">Scope / Checklist</h3>
       <button type="button" data-add-line class="btn btn-secondary text-sm">+ Add item</button>
     </div>
     <div class="overflow-x-auto">
       <table class="data" data-line-items>
         <thead>
-          <tr>
-            <th>Done</th>
-            <th>Description</th>
-            <th class="text-right">Qty</th>
-            <th>Unit</th>
-            <th></th>
-          </tr>
+          <tr><th>Done</th><th>Description</th><th class="text-right">Qty</th><th>Unit</th><th></th></tr>
         </thead>
         <tbody>
           <% linesToRender.forEach(function(li, idx){ %>
@@ -85,40 +111,29 @@ const linesToRender = (wo.lines && wo.lines.length) ? wo.lines : [{
                 <input type="checkbox" name="lines[<%= idx %>][completed]" value="1" <%= li.completed ? 'checked' : '' %>>
               </td>
               <td>
-                <input type="text" name="lines[<%= idx %>][description]" data-field="description"
-                       value="<%= li.description || '' %>" class="input">
+                <input type="text" name="lines[<%= idx %>][description]" value="<%= li.description || '' %>" class="input">
               </td>
               <td class="text-right">
-                <input type="number" step="0.01" min="0" name="lines[<%= idx %>][quantity]" data-field="quantity"
-                       value="<%= li.quantity %>" class="input text-right" style="width: 5rem;">
+                <input type="number" step="0.01" min="0" name="lines[<%= idx %>][quantity]" value="<%= li.quantity %>" class="input text-right" style="width:5rem">
               </td>
               <td>
-                <select name="lines[<%= idx %>][unit]" data-field="unit" class="input">
+                <select name="lines[<%= idx %>][unit]" class="input">
                   <% units.forEach(function(u){ %>
                     <option value="<%= u %>" <%= li.unit === u ? 'selected' : '' %>><%= u %></option>
                   <% }); %>
                 </select>
               </td>
-              <td>
-                <button type="button" data-remove-line class="text-recon-fog hover:text-recon-red text-sm">remove</button>
-              </td>
+              <td><button type="button" data-remove-line class="text-recon-fog hover:text-recon-red text-sm">remove</button></td>
             </tr>
           <% }); %>
-
           <tr class="line-row hidden" data-template>
             <td class="text-center">
               <input type="hidden" name="lines[__IDX__][completed]" value="0">
               <input type="checkbox" name="lines[__IDX__][completed]" value="1">
             </td>
-            <td><input type="text" name="lines[__IDX__][description]" data-field="description" class="input"></td>
-            <td class="text-right"><input type="number" step="0.01" min="0" name="lines[__IDX__][quantity]" data-field="quantity" value="1" class="input text-right" style="width: 5rem;"></td>
-            <td>
-              <select name="lines[__IDX__][unit]" data-field="unit" class="input">
-                <% units.forEach(function(u){ %>
-                  <option value="<%= u %>" <%= u === 'ea' ? 'selected' : '' %>><%= u %></option>
-                <% }); %>
-              </select>
-            </td>
+            <td><input type="text" name="lines[__IDX__][description]" class="input"></td>
+            <td class="text-right"><input type="number" step="0.01" min="0" name="lines[__IDX__][quantity]" value="1" class="input text-right" style="width:5rem"></td>
+            <td><select name="lines[__IDX__][unit]" class="input"><% units.forEach(function(u){ %><option value="<%= u %>" <%= u === 'ea' ? 'selected' : '' %>><%= u %></option><% }); %></select></td>
             <td><button type="button" data-remove-line class="text-recon-fog hover:text-recon-red text-sm">remove</button></td>
           </tr>
         </tbody>
@@ -126,16 +141,87 @@ const linesToRender = (wo.lines && wo.lines.length) ? wo.lines : [{
     </div>
   </div>
 
+  <!-- Crew notes (internal) -->
   <div class="card p-5">
-    <label class="label" for="notes">Notes</label>
+    <label class="label" for="notes">Crew instructions <span class="text-xs text-recon-fog">(visible to assignees only)</span></label>
     <textarea name="notes" id="notes" rows="3" class="input"
-              placeholder="Crew instructions, materials, scope details..."><%= wo.notes || '' %></textarea>
+              placeholder="Internal notes for the assigned crew..."><%= wo.notes || '' %></textarea>
   </div>
 
   <div class="flex items-center gap-2 pt-2">
     <button type="submit" class="btn btn-primary"><%= submitLabel %></button>
-    <a href="<%= wo.id ? '/work-orders/' + wo.id : (job && job.id ? '/jobs/' + job.id : '/work-orders') %>" class="btn btn-ghost">Cancel</a>
+    <a href="/work-orders" class="btn btn-ghost">Cancel</a>
   </div>
 </form>
 
-<script src="/js/line-items.js"></script>
+<script>
+// Customer autocomplete
+(function(){
+  const customers = <%- JSON.stringify(customers || []) %>;
+  const search = document.getElementById('customer-search');
+  const hidden = document.getElementById('customer-id');
+  const results = document.getElementById('customer-results');
+  const card = document.getElementById('customer-card');
+  const cName = document.getElementById('cust-name');
+  const cEmail = document.getElementById('cust-email');
+  const cPhone = document.getElementById('cust-phone');
+  const cAddr = document.getElementById('cust-address');
+
+  function showCustomer(id) {
+    var c = customers.find(function(x){ return x.id == id; });
+    if (!c) return;
+    hidden.value = c.id;
+    search.value = c.name;
+    cName.textContent = c.name;
+    cEmail.textContent = c.email || '';
+    cPhone.textContent = c.phone || '';
+    cAddr.textContent = [c.address, c.city, c.state].filter(Boolean).join(', ');
+    card.classList.remove('hidden');
+    results.classList.add('hidden');
+  }
+
+  if (hidden.value) showCustomer(hidden.value);
+
+  search.addEventListener('input', function(){
+    var q = this.value.trim().toLowerCase();
+    if (!q || q === cName.textContent.toLowerCase()) { results.classList.add('hidden'); return; }
+    var matches = customers.filter(function(c){ return c.name.toLowerCase().includes(q) || (c.email || '').toLowerCase().includes(q); }).slice(0, 8);
+    if (!matches.length) { results.classList.add('hidden'); return; }
+    results.innerHTML = matches.map(function(c){ return '<div class="px-3 py-2 hover:bg-gray-100 cursor-pointer" data-id="' + c.id + '">' + c.name + ' &lt;' + (c.email || '') + '&gt;</div>'; }).join('');
+    results.classList.remove('hidden');
+  });
+
+  results.addEventListener('click', function(e){
+    var div = e.target.closest('[data-id]');
+    if (div) showCustomer(div.dataset.id);
+  });
+
+  document.addEventListener('click', function(e){
+    if (!search.contains(e.target) && !results.contains(e.target)) results.classList.add('hidden');
+  });
+})();
+
+// Multi-assignee chips
+(function(){
+  var select = document.getElementById('assignee-select');
+  var chips = document.getElementById('assignee-chips');
+
+  select.addEventListener('change', function(){
+    var id = this.value;
+    if (!id) return;
+    var opt = this.options[this.selectedIndex];
+    // Check if already added
+    if (chips.querySelector('[value="' + id + '"]')) { this.value = ''; return; }
+    var span = document.createElement('span');
+    span.className = 'inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm';
+    span.innerHTML = opt.text + ' <button type="button" class="remove-assignee text-blue-600 hover:text-blue-900 font-bold">&times;</button><input type="hidden" name="assignee_ids" value="' + id + '">';
+    chips.appendChild(span);
+    this.value = '';
+  });
+
+  chips.addEventListener('click', function(e){
+    var btn = e.target.closest('.remove-assignee');
+    if (btn) btn.closest('span').remove();
+  });
+})();
+</script>

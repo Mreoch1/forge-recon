@@ -108,7 +108,7 @@ const warnings = extracted.warnings || [];
           <div>
             <label class="label"><%= a.name %> <span class="text-xs text-recon-fog">(<%= a.kind %>, <%= Math.round((a.match_confidence || 0) * 100) %>% confidence)</span></label>
             <select name="assignees[<%= idx %>][user_id]" class="input">
-              <option value="">— Assign as text: <%- a.name %> —</option>
+              <option value="">— Assign as text: <%= a.name %> —</option>
               <% users.forEach(function(u) { %>
                 <option value="<%= u.id %>" <%= String(a.user_id) === String(u.id) ? 'selected' : '' %>><%= u.name %></option>
               <% }); %>

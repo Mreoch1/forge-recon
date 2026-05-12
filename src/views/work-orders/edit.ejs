@@ -7,10 +7,9 @@
   <h1 class="page-h1 mb-6">Edit WO-<%= wo.display_number %></h1>
 
   <%- include('_form', {
-    wo: wo, job: { id: wo.job_id, title: wo.job_title }, users: users,
-    errors: errors, units: units,
+    wo: wo, customers: customers, users: users, errors: errors, units: units,
     formAction: '/work-orders/' + wo.id, submitLabel: 'Save changes',
-    isSubWO: !!wo.parent_wo_id, parent: wo.parent_wo_id ? { id: wo.parent_wo_id, display_number: wo.parent_display_number } : null
+    customerName: wo.customer_name || ''
   }) %>
 </div>
 
