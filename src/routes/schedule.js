@@ -56,12 +56,11 @@ async function workerScope(req) {
 
 function applyWorkerScope(query, scope) {
   if (!scope) return query;
-  // F4: sanitize before interpolation — names with `,` `(` `)` `:` would
-  // otherwise break the PostgREST .or() filter or inject extra clauses.
   const safeName = sanitizePostgrestSearch(scope.userName);
-  return safeName
-    ? query.or(`assigned_to_user_id.eq.${scope.userId},assigned_to.ilike.%${safeName}%`)
-    : query.eq('assigned_to_user_id', scope.userId);
+  // R34: workers can be assigned via legacy column OR new work_order_assignees table
+  const legacyFilter = `assigned_to_user_id.eq.${scope.userId}`;
+  const nameFilter = safeName ? `assigned_to.ilike.%${safeName}%` : '';
+  return query.or(`${legacyFilter},work_order_assignees.user_id.eq.${scope.userId}${nameFilter ? ',' + nameFilter : ''}`);
 }
 
 function mondayOfWeek(dateStr) {

@@ -374,7 +374,9 @@ router.get('/new', async (req, res) => {
   const { data: customers } = await supabase.from('customers').select('id, name, email, phone, address, city, state, zip').order('name');
   const { data: users } = await supabase.from('users').select('id, name').eq('active', 1).order('name');
 
-  const suggestedNumber = await numbering.nextRootWoNumber().catch(() => ({ display: '' }));
+  // Read next number WITHOUT incrementing (just for display)
+  const { data: settings } = await supabase.from('company_settings').select('next_wo_main_number').eq('id', 1).maybeSingle();
+  const suggestedNumber = settings ? { display: numbering.formatDisplay(settings.next_wo_main_number, 0) } : { display: '' };
   res.render('work-orders/new', {
     title: 'New work order', activeNav: 'work-orders',
     wo: { id: null, display_number: '', unit_number: '', suggested_display_number: suggestedNumber.display,

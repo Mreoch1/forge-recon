@@ -163,26 +163,36 @@ async function sendPasswordResetEmail(toEmail, toName, resetToken) {
   }
 }
 
+function escapeHtml(s) {
+  if (typeof s !== 'string') return s || '';
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+
 /**
  * Send a work-order-assigned notification email to an assignee.
  */
 async function sendWorkOrderAssignedEmail({ to, toName, woNumber, woId, customerName, address, unitNumber, description, internalNotes, scheduledDate, scheduledTime, pdfBuffer }) {
   const link = `${BASE}/work-orders/${woId}`;
-  const subject = `Work Order ${woNumber} assigned: ${customerName}${unitNumber ? ' — ' + unitNumber : ''}`;
+  const safeCust = escapeHtml(customerName);
+  const safeAddr = escapeHtml(address);
+  const safeUnit = escapeHtml(unitNumber);
+  const safeDesc = escapeHtml(description);
+  const safeNotes = escapeHtml(internalNotes);
+  const subject = `Work Order ${woNumber} assigned: ${safeCust}${safeUnit ? ' — ' + safeUnit : ''}`;
   const bodyHtml = `
     <h2>You've been assigned a work order</h2>
     <p><strong>${woNumber}</strong></p>
-    <p><strong>Customer:</strong> ${customerName}</p>
-    <p><strong>Address:</strong> ${address}${unitNumber ? ', ' + unitNumber : ''}</p>
+    <p><strong>Customer:</strong> ${safeCust}</p>
+    <p><strong>Address:</strong> ${safeAddr}${safeUnit ? ', ' + safeUnit : ''}</p>
     <p><strong>Scheduled:</strong> ${scheduledDate} ${scheduledTime || ''}</p>
     <p><strong>Description:</strong></p>
-    <div style="background:#f5f5f5;padding:12px;border-radius:4px;margin:8px 0">${description || ''}</div>
-    ${internalNotes ? `<p><strong>Crew notes:</strong></p><div style="background:#fff8e1;padding:12px;border-radius:4px;margin:8px 0">${internalNotes}</div>` : ''}
+    <div style="background:#f5f5f5;padding:12px;border-radius:4px;margin:8px 0">${safeDesc}</div>
+    ${safeNotes ? `<p><strong>Crew notes:</strong></p><div style="background:#fff8e1;padding:12px;border-radius:4px;margin:8px 0">${safeNotes}</div>` : ''}
     <p style="text-align:center;margin:24px 0">
       <a href="${link}" style="display:inline-block;background:#c0202b;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">Open Work Order in FORGE</a>
     </p>`;
   const html = renderEmail(bodyHtml);
-  const text = `Work order ${woNumber} assigned. Customer: ${customerName}. Address: ${address}${unitNumber ? ', ' + unitNumber : ''}. Scheduled: ${scheduledDate} ${scheduledTime || ''}. ${link}`;
+  const text = `Work order ${woNumber} assigned. Customer: ${safeCust}. Address: ${safeAddr}${safeUnit ? ', ' + safeUnit : ''}. Scheduled: ${scheduledDate} ${scheduledTime || ''}. ${link}`;
 
   try {
     const info = await transporter.sendMail({
