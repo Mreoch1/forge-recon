@@ -159,12 +159,15 @@ app.get('/ping', (req, res) => { res.json({ ok: true, ts: new Date().toISOString
 // Health / version endpoint — public, returns deploy info for agent handoffs
 app.get('/health/version', async (req, res) => {
   let sha = process.env.VERCEL_GIT_COMMIT_SHA || 'unknown';
-  let buildTime = null;
-  // Fallback for local dev: read git SHA
-  if (sha === 'unknown') {
+  // Fallback for local dev only (Vercel Lambda has no git binary)
+  if (sha === 'unknown' && process.env.NODE_ENV !== 'production') {
     try {
       sha = require('child_process').execSync('git rev-parse HEAD', { encoding: 'utf8', timeout: 3000 }).trim();
     } catch (e) { /* best-effort */ }
+  }
+  // Read from build-time version.txt (written by vercel-build script)
+  if (sha === 'unknown') {
+    try { sha = require('fs').readFileSync(path.join(__dirname, '..', 'public', 'version.txt'), 'utf8').trim(); } catch(e) {}
   }
   res.json({
     app: 'forge',
