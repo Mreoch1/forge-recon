@@ -37,6 +37,10 @@ function modelName() {
 function apiKey() {
   return process.env.AI_API_KEY || '';
 }
+function providerKey(prov) {
+  const keyMap = { deepseek: 'AI_API_KEY', openai: 'OPENAI_API_KEY', anthropic: 'ANTHROPIC_API_KEY' };
+  return process.env[keyMap[prov] || 'AI_API_KEY'] || '';
+}
 function isConfigured() {
   return !!apiKey();
 }
@@ -101,15 +105,16 @@ function logCall({ taskName, userId, ok, tokens, reason }) {
   });
 }
 
-async function callProvider({ system, user, json, taskName, userId }) {
-  if (!isConfigured()) {
-    logCall({ taskName, userId, ok: false, reason: 'no_api_key' });
-    return { ok: false, reason: 'AI_API_KEY not configured. Set it in .env to enable AI.' };
+async function callProviderFor({ provider: prov, system, user, json, taskName, userId }) {
+  const key = providerKey(prov);
+  if (!key) {
+    logCall({ taskName, userId, ok: false, reason: `no_api_key_for_${prov}` });
+    return { ok: false, reason: `${prov} API key not configured — set ${prov === 'deepseek' ? 'AI_API_KEY' : prov.toUpperCase() + '_API_KEY'} in env.` };
   }
-  const cfg = PROVIDERS[provider()];
+  const cfg = PROVIDERS[prov];
   if (!cfg) {
     logCall({ taskName, userId, ok: false, reason: 'bad_provider' });
-    return { ok: false, reason: `Unknown AI_PROVIDER "${provider()}". Use deepseek | openai | anthropic.` };
+    return { ok: false, reason: `Unknown provider "${prov}". Use deepseek | openai | anthropic.` };
   }
 
   if (user.length > MAX_INPUT_CHARS) {
@@ -122,7 +127,7 @@ async function callProvider({ system, user, json, taskName, userId }) {
     const resp = await fetch(cfg.url, {
       method: 'POST',
       signal: ctrl.signal,
-      headers: { 'Content-Type': 'application/json', ...cfg.auth(apiKey()) },
+      headers: { 'Content-Type': 'application/json', ...cfg.auth(key) },
       body: JSON.stringify(cfg.body({ system, user, json })),
     });
     clearTimeout(t);
@@ -143,6 +148,10 @@ async function callProvider({ system, user, json, taskName, userId }) {
     logCall({ taskName, userId, ok: false, reason });
     return { ok: false, reason };
   }
+}
+
+async function callProvider({ system, user, json, taskName, userId }) {
+  return callProviderFor({ provider: provider(), system, user, json, taskName, userId });
 }
 
 /** Free-form suggestion (text in, text out). */
@@ -245,6 +254,6 @@ async function extractWorkOrder({ text, customers, users, userId }) {
 
 module.exports = {
   isConfigured, provider, modelName,
-  suggest, extract,
+  suggest, extract, callProviderFor,
   extractWorkOrder,
 };
