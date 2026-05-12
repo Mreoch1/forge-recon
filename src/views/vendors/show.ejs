@@ -20,6 +20,77 @@
     </tbody></table><% } %>
   </div>
 
+  <!-- D-035: Vendor file workspace (contracts, COI, W9, etc.) -->
+  <details class="mt-6" <%= ((typeof folders !== 'undefined' && folders.length > 0) || (typeof files !== 'undefined' && files.length > 0)) ? 'open' : '' %>>
+    <summary class="cursor-pointer text-sm font-medium text-recon-fog mb-2 hover:text-recon-red">
+      Files
+      <% var _vfCount = (typeof folders !== 'undefined' ? folders.length : 0) + (typeof files !== 'undefined' ? files.length : 0); %>
+      <% if (_vfCount > 0) { %><span class="text-xs text-recon-fog">(<%= _vfCount %>)</span><% } %>
+    </summary>
+    <div class="card p-4 mt-2">
+      <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <p class="text-xs text-recon-fog m-0">Store contracts, COI, W-9, and other vendor docs here.</p>
+        <% if (typeof rootFolder !== 'undefined' && rootFolder) { %>
+          <a href="/files/folders/<%= rootFolder.id %>" class="btn btn-secondary text-sm">Open full file workspace &rarr;</a>
+        <% } else { %>
+          <a href="/files/vendor/<%= vendor.id %>" class="btn btn-secondary text-sm">Open full file workspace &rarr;</a>
+        <% } %>
+      </div>
+
+      <% if (typeof rootFolder !== 'undefined' && rootFolder && (currentUser.role === 'admin' || currentUser.role === 'manager')) { %>
+        <div class="flex flex-wrap gap-2 mb-4">
+          <form method="post" action="/files/folders/<%= rootFolder.id %>/subfolder" class="inline-flex gap-1 items-center">
+            <input type="text" name="name" placeholder="Subfolder name" class="input text-sm" style="width:140px;padding:.3rem .5rem;" required>
+            <button type="submit" class="btn btn-secondary text-sm">+ Folder</button>
+          </form>
+          <form method="post" action="/files/folders/<%= rootFolder.id %>/upload" enctype="multipart/form-data" class="inline-flex gap-1 items-center">
+            <input type="file" name="files" multiple class="text-sm" required>
+            <button type="submit" class="btn btn-primary text-sm">Upload</button>
+          </form>
+        </div>
+      <% } %>
+
+      <% if ((typeof folders === 'undefined' || folders.length === 0) && (typeof files === 'undefined' || files.length === 0)) { %>
+        <p class="text-recon-fog text-sm m-0">No files yet for this vendor.</p>
+      <% } else { %>
+        <% if (typeof folders !== 'undefined' && folders.length > 0) { %>
+          <h4 class="text-xs font-semibold uppercase tracking-wide text-recon-fog mb-2">Subfolders</h4>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+            <% folders.forEach(function(sf){ %>
+              <a href="/files/folders/<%= sf.id %>" class="card p-3 hover:shadow-md transition block text-sm">
+                <div class="font-medium text-recon-charcoal">&#128193; <%= sf.name %></div>
+              </a>
+            <% }); %>
+          </div>
+        <% } %>
+
+        <% if (typeof files !== 'undefined' && files.length > 0) { %>
+          <h4 class="text-xs font-semibold uppercase tracking-wide text-recon-fog mb-2">Files</h4>
+          <table class="data">
+            <thead><tr><th>Name</th><th>Type</th><th>Size</th><th>Uploaded</th><th></th></tr></thead>
+            <tbody>
+              <% files.forEach(function(f){ %>
+                <tr>
+                  <td class="font-medium"><a href="/files/<%= f.id %>/view" target="_blank" class="hover:text-recon-red"><%= f.original_filename %></a></td>
+                  <td class="text-sm text-recon-fog"><%= f.mime_type || '&mdash;' %></td>
+                  <td class="text-sm text-recon-fog"><%= f.size_bytes ? (f.size_bytes / 1024).toFixed(1) + ' KB' : '&mdash;' %></td>
+                  <td class="text-sm text-recon-fog"><%= (f.created_at || '').slice(0,10) %></td>
+                  <td class="text-right">
+                    <% if (currentUser.role === 'admin' || f.uploaded_by_user_id === currentUser.id) { %>
+                      <form method="post" action="/files/<%= f.id %>/delete" class="inline" onsubmit="return confirm('Delete <%= f.original_filename %>?')">
+                        <button type="submit" class="text-xs text-recon-fog hover:text-recon-red">Delete</button>
+                      </form>
+                    <% } %>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        <% } %>
+      <% } %>
+    </div>
+  </details>
+
   <div class="card p-5 border-red-200 mt-6">
     <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
     <form action="/vendors/<%= vendor.id %>/delete" method="post" onsubmit="return confirm('Delete this vendor?');" class="m-0">

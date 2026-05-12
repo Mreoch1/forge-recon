@@ -94,6 +94,12 @@ router.post('/', async (req, res) => {
     .select()
     .single();
   if (insertError) throw insertError;
+  // D-035: Auto-create root folder (mirrors customers.js pattern).
+  try {
+    const filesSvc = require('../services/files');
+    await filesSvc.ensureRootFolder('vendor', newVendor.id, req.session.userId)
+      .catch(e => console.warn('[files] ensureRootFolder(vendor):', e.message));
+  } catch (e) { /* folder creation best effort */ }
   setFlash(req, 'success', 'Vendor "' + data.name + '" created.');
   res.redirect('/vendors/' + newVendor.id);
 });
@@ -104,8 +110,27 @@ router.get('/:id', async (req, res) => {
   if (vError) throw vError;
   if (!vendor) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Vendor not found.' });
   const { data: bills } = await supabase.from('bills').select('id, bill_number, status, created_at').eq('vendor_id', id).order('created_at', { ascending: false });
-  const fileCount = 0; // file count not easily expressible via SDK without FK nesting
-  res.render('vendors/show', { title: vendor.name, activeNav: 'vendors', vendor, bills: bills || [], fileCount });
+
+  // D-035: Vendor file workspace — fetch root folder + first-level contents.
+  let rootFolder = null;
+  let folders = [];
+  let files = [];
+  try {
+    const filesSvc = require('../services/files');
+    rootFolder = await filesSvc.getRootFolder('vendor', id);
+    if (rootFolder) {
+      const contents = await filesSvc.getFolderContents(rootFolder.id);
+      folders = contents.subfolders || [];
+      files = contents.files || [];
+    }
+  } catch (e) { console.warn('[vendors:show] file workspace load:', e.message); }
+  const fileCount = files.length;
+
+  res.render('vendors/show', {
+    title: vendor.name, activeNav: 'vendors',
+    vendor, bills: bills || [], fileCount,
+    rootFolder, folders, files
+  });
 });
 
 router.get('/:id/edit', async (req, res) => {
