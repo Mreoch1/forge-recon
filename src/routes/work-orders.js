@@ -414,7 +414,6 @@ router.post('/', async (req, res) => {
     {
       customer_id: customerId,
       unit_number: (req.body.unit_number || '').trim(),
-      description: data.description || '',
       job_id: null,
       parent_wo_id: null,
       wo_number_main: main,
@@ -426,7 +425,7 @@ router.post('/', async (req, res) => {
       scheduled_end_time: null,
       assigned_to_user_id: null,
       assigned_to: null,
-      notes: data.notes || null,
+      notes: [data.description, data.notes].filter(Boolean).join('\n\n') || null,
     },
     buildLineRows(data.lines),
     req.session.userId || null
@@ -1187,7 +1186,7 @@ router.post('/:id/create-estimate', async (req, res) => {
 
   const { data: settings } = await supabase
     .from('company_settings')
-    .select('default_tax_rate')
+    .select('default_tax_rate, default_payment_terms')
     .eq('id', 1)
     .maybeSingle();
   const taxRate = Number(settings && settings.default_tax_rate) || 0;
@@ -1215,7 +1214,7 @@ router.post('/:id/create-estimate', async (req, res) => {
       tax_amount: totals.taxAmount,
       total: totals.total,
       cost_total: costTotal,
-      payment_terms: 'Net 30',
+      payment_terms: settings?.default_payment_terms || 'Net 30',
     },
     lines: linePayload,
     user_id: req.session.userId || null,
