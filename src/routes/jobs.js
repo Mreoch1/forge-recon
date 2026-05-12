@@ -13,7 +13,12 @@ const { sanitizePostgrestSearch } = require('../services/sanitize');
 
 const router = express.Router();
 const PAGE_SIZE = 25;
-const VALID_STATUSES = ['lead', 'estimating', 'scheduled', 'in_progress', 'complete', 'cancelled'];
+// R37c: include RPM-native statuses so imported projects are filterable + creatable.
+// DB CHECK on jobs.status was relaxed in migration r37b to accept these values.
+const VALID_STATUSES = [
+  'lead', 'estimating', 'scheduled', 'in_progress', 'complete', 'cancelled',
+  'active', 'pending', 'pre-construction'
+];
 
 function emptyToNull(v) {
   if (typeof v !== 'string') return null;
@@ -86,13 +91,16 @@ router.get('/', async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
 
-  let query = supabase.from('jobs').select('id, title, status, address, city, state, scheduled_date, created_at, customer_id, customers!inner(name), assigned_to_user_id, users!left(name)', { count: 'exact', head: false });
+  // R37c: projects list — LEFT join customers + include RPM-native `client` field
+  // so RPM-imported projects (with customer_id=NULL + free-text client) appear.
+  let query = supabase.from('jobs').select('id, title, status, address, city, state, scheduled_date, created_at, customer_id, client, customers!left(name), assigned_to_user_id, users!left(name)', { count: 'exact', head: false });
   let countQuery = supabase.from('jobs').select('*', { count: 'exact', head: true });
 
   if (q) {
     const like = `%${q}%`;
-    query = query.or(`title.ilike.${like},address.ilike.${like},city.ilike.${like},customers.name.ilike.${like}`);
-    countQuery = countQuery.or(`title.ilike.${like},address.ilike.${like},city.ilike.${like},customers.name.ilike.${like}`);
+    // Note: cannot search customers.name via PostgREST .or() when using !left, only on jobs columns.
+    query = query.or(`title.ilike.${like},address.ilike.${like},city.ilike.${like},client.ilike.${like}`);
+    countQuery = countQuery.or(`title.ilike.${like},address.ilike.${like},city.ilike.${like},client.ilike.${like}`);
   }
   if (status && VALID_STATUSES.includes(status)) {
     query = query.eq('status', status);
@@ -107,7 +115,13 @@ router.get('/', async (req, res) => {
 
   res.render('jobs/index', {
     title: 'Projects', activeNav: 'projects',
-    jobs: (jobs || []).map(j => ({ ...j, customer_name: j.customers?.name, customer_id: j.customer_id, assigned_name: j.users?.name })),
+    jobs: (jobs || []).map(j => ({
+      ...j,
+      // R37c: fall back to RPM `client` (free text) when no customer FK is set.
+      customer_name: j.customers?.name || j.client || '—',
+      customer_id: j.customer_id,
+      assigned_name: j.users?.name
+    })),
     q, status, page,
     totalPages: Math.max(1, Math.ceil((total || 0) / PAGE_SIZE)),
     total: total || 0, statuses: VALID_STATUSES
