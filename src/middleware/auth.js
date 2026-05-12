@@ -12,7 +12,6 @@
  * and a worker-specific dashboard (Round 4 work).
  */
 
-const db = require('../db/db');
 const supabase = require('../db/supabase');
 
 const asyncHandler = require('./async-handler');

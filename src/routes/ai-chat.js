@@ -69,7 +69,7 @@ router.post('/chat', chatLimiter, async (req, res) => {
     let role = 'admin';
     if (userId) {
       try {
-        const u = await require('../db/db').get('SELECT name, role FROM users WHERE id = ?', [userId]);
+        const { data: u } = await supabase.from('users').select('name, role').eq('id', userId).maybeSingle();
         if (u) { userName = u.name; role = u.role; }
       } catch(e) { /* fall back to defaults */ }
     }
@@ -105,8 +105,8 @@ router.post('/chat/confirm', async (req, res) => {
     return res.status(400).json({ error: 'confirmation_id is required.' });
   }
 
-  const db = require('../db/db');
-  const row = await db.get('SELECT * FROM pending_confirmations WHERE id = ?', [confirmation_id]);
+  const supabase = require('../db/supabase');
+  const { data: row } = await supabase.from('pending_confirmations').select('*').eq('id', confirmation_id).maybeSingle();
 
   if (!row) {
     return res.status(404).json({ error: 'Confirmation not found.' });
