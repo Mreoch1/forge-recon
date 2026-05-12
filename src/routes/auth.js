@@ -10,7 +10,6 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
-const db = require('../db/db');
 const supabase = require('../db/supabase');
 const { setFlash } = require('../middleware/auth');
 const emailService = require('../services/email');
