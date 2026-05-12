@@ -31,7 +31,7 @@ async function main() {
     db.run(
       `INSERT INTO company_settings (id, company_name, current_year)
        VALUES (1, ?, ?)`,
-      ['Recon Construction', new Date().getFullYear()]
+      ['Recon Enterprises', new Date().getFullYear()]
     );
     console.log('Seeded company_settings row.');
   } else {

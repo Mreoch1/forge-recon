@@ -178,7 +178,7 @@ CREATE TABLE IF NOT EXISTS invoice_line_items (
 -- ========== COMPANY SETTINGS ==========
 CREATE TABLE IF NOT EXISTS company_settings (
   id INTEGER PRIMARY KEY CHECK(id = 1),
-  company_name TEXT NOT NULL DEFAULT 'Recon Construction',
+  company_name TEXT NOT NULL DEFAULT 'Recon Enterprises',
   address TEXT DEFAULT '',
   city TEXT DEFAULT '',
   state TEXT DEFAULT '',

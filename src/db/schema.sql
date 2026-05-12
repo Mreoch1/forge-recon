@@ -1,4 +1,4 @@
--- Recon Construction WO — v0.5 schema
+-- Recon Enterprises WO — v0.5 schema
 --
 -- Major changes from v0:
 --   * Flow reversed: customer -> job -> WO -> estimate -> invoice. WO is the root document.
@@ -180,7 +180,7 @@ CREATE TABLE IF NOT EXISTS invoice_line_items (
 -- ========== COMPANY SETTINGS ==========
 CREATE TABLE IF NOT EXISTS company_settings (
   id INTEGER PRIMARY KEY CHECK(id = 1),
-  company_name TEXT NOT NULL DEFAULT 'Recon Construction',
+  company_name TEXT NOT NULL DEFAULT 'Recon Enterprises',
   address TEXT DEFAULT '',
   city TEXT DEFAULT '',
   state TEXT DEFAULT '',

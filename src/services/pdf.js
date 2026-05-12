@@ -76,15 +76,15 @@ function drawHeader(doc, company) {
     try {
       doc.image(LOGO_PATH, left, top, { fit: [220, LOGO_HEIGHT], align: 'left' });
     } catch (e) {
-      doc.fillColor(COLOR.charcoal).fontSize(20).font('Helvetica-Bold').text(company.company_name || 'Recon Construction', left, top);
+      doc.fillColor(COLOR.charcoal).fontSize(20).font('Helvetica-Bold').text(company.company_name || 'Recon Enterprises', left, top);
     }
   } else {
-    doc.fillColor(COLOR.charcoal).fontSize(20).font('Helvetica-Bold').text(company.company_name || 'Recon Construction', left, top);
+    doc.fillColor(COLOR.charcoal).fontSize(20).font('Helvetica-Bold').text(company.company_name || 'Recon Enterprises', left, top);
   }
 
   // Company block (right-aligned)
   const companyLines = [
-    company.company_name || 'Recon Construction',
+    company.company_name || 'Recon Enterprises',
     company.address || '',
     [company.city, company.state, company.zip].filter(Boolean).join(', '),
     company.phone || '',
@@ -341,7 +341,7 @@ function generateEstimatePDF(estimate, company, stream) {
   const doc = new PDFDocument({ size: 'LETTER', margin: 50, info: {
     Title: estimate.estimate_number,
     Subject: `Estimate for ${estimate.customer_name || ''}`,
-    Author: company.company_name || 'Recon Construction',
+    Author: company.company_name || 'Recon Enterprises',
   }});
   doc.pipe(stream);
 
@@ -461,7 +461,7 @@ function generateWorkOrderPDF(wo, company, stream) {
   const doc = new PDFDocument({ size: 'LETTER', margin: 50, info: {
     Title: wo.wo_number,
     Subject: `Work order for ${wo.customer_name || ''}`,
-    Author: company.company_name || 'Recon Construction',
+    Author: company.company_name || 'Recon Enterprises',
   }});
   doc.pipe(stream);
 
@@ -520,7 +520,7 @@ function generateInvoicePDF(invoice, company, stream) {
   const doc = new PDFDocument({ size: 'LETTER', margin: 50, info: {
     Title: invoice.invoice_number,
     Subject: `Invoice for ${invoice.customer_name || ''}`,
-    Author: company.company_name || 'Recon Construction',
+    Author: company.company_name || 'Recon Enterprises',
   }});
   doc.pipe(stream);
 

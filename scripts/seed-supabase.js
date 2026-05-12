@@ -40,7 +40,7 @@ async function seed() {
   }
 
   // Company settings
-  await db.run("INSERT INTO company_settings (id, company_name, default_tax_rate, default_payment_terms, next_wo_main_number, current_year) VALUES (1, 'Recon Construction', 6.25, 'Net 30', 1, 2026)");
+  await db.run("INSERT INTO company_settings (id, company_name, default_tax_rate, default_payment_terms, next_wo_main_number, current_year) VALUES (1, 'Recon Enterprises', 6.25, 'Net 30', 1, 2026)");
 
   // Customers
   const customers = ['Cambridge Towers Property Mgmt','MacKenzie Homes LLC','Beacon Hill Restoration','Northeast General Contractors',"The O'Brien Family",'Allston Veterinary Clinic'];

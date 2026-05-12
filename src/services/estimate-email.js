@@ -26,7 +26,7 @@ async function sendEstimateEmail(estimateId) {
   const company = await db.get('SELECT * FROM company_settings WHERE id = 1') || {};
   const buf = await pdf.renderToBuffer(pdf.generateEstimatePDF, { ...est, estimate_number: est.display_number }, company);
   const recipient = est.customer_email || 'unknown@recon.local';
-  const subject = `Estimate ${est.display_number} from ${company.company_name || 'Recon Construction'}`;
+  const subject = `Estimate ${est.display_number} from ${company.company_name || 'Recon Enterprises'}`;
   const text = [
     `Hello ${est.customer_name || ''},`,
     '',
@@ -34,7 +34,7 @@ async function sendEstimateEmail(estimateId) {
     `Total: $${(Number(est.total) || 0).toFixed(2)}`,
     '',
     `Thanks,`,
-    `${company.company_name || 'Recon Construction'}`
+    `${company.company_name || 'Recon Enterprises'}`
   ].join('\n');
 
   const result = await email.sendEmail({

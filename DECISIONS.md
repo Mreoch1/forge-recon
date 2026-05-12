@@ -215,12 +215,12 @@ Also updated route handler to pass `notes` array (newest last, joined with users
 **Reason:** Michael's stated page priority was "1. Dashboard first, 2. Then WO show page." With dashboard accepted, WO show is the next-most-trafficked page in operational use (workers hitting it during a shift). The same design language extends naturally — the strip pattern, status dot vocabulary, and rule-line section heads all reuse from the dashboard.
 
 ## 2026-05-10T17:55:00Z — Software named **FORGE**, published by Recon Enterprises (three-tier identity)
-**Decision:** The application is named **FORGE** — acronym for **F**ield **O**perations, **R**ecords & **G**eneral **E**stimating. The publisher is **Recon Enterprises**. The default seeded operating company (i.e., the contractor running the system) remains **Recon Construction** (this is data, not brand).
+**Decision:** The application is named **FORGE** — acronym for **F**ield **O**perations, **R**ecords & **G**eneral **E**stimating. The publisher is **Recon Enterprises**. The default seeded operating company (i.e., the contractor running the system) is **Recon Enterprises**.
 
 **Three-tier identity** — keep these separate when writing strings:
 1. **Software brand** → `FORGE`. Used in nav header, footer, title tag, server boot log, README, package.json.
 2. **Publisher** → `Recon Enterprises`. Used in "brought to you by" footer credit and any "powered by" attributions.
-3. **Operating company** (seeded default in `company_settings.company_name`) → `Recon Construction`. This is the contractor's own d/b/a — appears on customer-facing PDFs (estimate header, invoice header), email signatures, customer-portal copy. **Never** rename this in code; it's editable per-deployment via `/admin/settings`.
+3. **Operating company** (seeded default in `company_settings.company_name`) → `Recon Enterprises`. This appears on customer-facing PDFs (estimate header, invoice header), email signatures, and customer-portal copy. It is editable per-deployment via `/admin/settings`.
 
 **Rule for future code:** if the string is talking about the *software the user is using*, say "FORGE." If it's about the *company that built it*, say "Recon Enterprises." If it's about the *contractor sending the estimate*, pull from `company_settings.company_name` — do not hardcode.
 
@@ -230,7 +230,7 @@ Also updated route handler to pass `notes` array (newest last, joined with users
 - `src/server.js` boot log — "FORGE server listening".
 - `<title>` tag — "FORGE" / "Page title — FORGE".
 - `.env.example` header — "FORGE — environment variables."
-- PDF/email templates **continue** to read from `company_settings` (Recon Construction by default, customizable per install).
+- PDF/email templates **continue** to read from `company_settings` (Recon Enterprises by default, customizable per install).
 
 ## 2026-05-10T17:00:00Z — Git commit collision while Hermes mid-flight on Round 11
 **Decision:** Could not commit Round 13.x view changes from this side because Hermes left an `index.lock` orphan in `.git/`. The Linux mount lacks permission to remove it. Files are saved on disk. Will let Hermes pick them up in his Round 11 commit, or commit them after he wraps. Documented in DECISIONS in case the work appears uncommitted on review.

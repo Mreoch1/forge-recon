@@ -1,6 +1,6 @@
-# Recon Construction Work Order System
+# Recon Enterprises Work Order System
 
-In-house web app for managing the customer-to-cash flow at Recon Construction:
+In-house web app for managing the customer-to-cash flow at Recon Enterprises:
 
 ```
 Customer  →  Job  →  Estimate  →  Work Order  →  Invoice  →  Paid
@@ -105,7 +105,7 @@ Environment variables (set via `.env` or shell):
 | `PORT` | 3001 | HTTP listener port |
 | `SESSION_SECRET` | `dev-secret-change-me` | Session signing key — set this in production |
 | `EMAIL_MODE` | `file` | `file` writes .eml to mail-outbox/, `smtp` sends via SMTP |
-| `EMAIL_FROM` | `"Recon Construction" <noreply@recon.local>` | From header |
+| `EMAIL_FROM` | `"Recon Enterprises" <noreply@recon.local>` | From header |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_SECURE` | — | Required when `EMAIL_MODE=smtp` |
 
 Application-level config (Admin > Settings):

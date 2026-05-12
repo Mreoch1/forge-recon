@@ -299,9 +299,9 @@ router.post('/:id/send', async (req, res, next) => {
 
     // Invoice goes to billing_email (falls back to email)
     const recipient = invoice.customer_billing_email || invoice.customer_email || 'unknown@recon.local';
-    const subject = `Invoice ${invoice.display_number} from ${company.company_name || 'Recon Construction'}`;
+    const subject = `Invoice ${invoice.display_number} from ${company.company_name || 'Recon Enterprises'}`;
     const dueLine = invoice.due_date ? `Due: ${String(invoice.due_date).slice(0, 10)}` : '';
-    const text = `Hello ${invoice.customer_name || ''},\n\nPlease find attached invoice ${invoice.display_number}.\nAmount: $${(Number(invoice.total) || 0).toFixed(2)}\nTerms: ${invoice.payment_terms || 'Net 30'}\n${dueLine}\n\nThanks.\n${company.company_name || 'Recon Construction'}`;
+    const text = `Hello ${invoice.customer_name || ''},\n\nPlease find attached invoice ${invoice.display_number}.\nAmount: $${(Number(invoice.total) || 0).toFixed(2)}\nTerms: ${invoice.payment_terms || 'Net 30'}\n${dueLine}\n\nThanks.\n${company.company_name || 'Recon Enterprises'}`;
     const sent = await email.sendEmail({
       to: recipient, subject, text,
       html: text.split('\n').map(l => `<p>${l}</p>`).join(''),
