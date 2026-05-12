@@ -56,8 +56,10 @@ function vfmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) 
       <thead>
         <tr>
           <th>Vendor</th>
+          <th class="text-right">Contract amount</th>
+          <th class="text-right">Invoiced</th>
+          <th class="text-right">Remaining</th>
           <th class="text-right">Invoices</th>
-          <th class="text-right">Total billed</th>
           <th></th>
         </tr>
       </thead>
@@ -65,14 +67,16 @@ function vfmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) 
         <% vendorSpend.forEach(function(v, idx){ %>
           <tr class="row-link cursor-pointer" data-toggle="vs-rows-<%= idx %>">
             <td class="font-medium"><%= v.vendor_name %></td>
+            <td class="text-right text-sm"><span class="contract-amount-display" data-vendor-id="<%= v.vendor_id %>"><%= v.contract_amount ? '$' + vfmt(v.contract_amount) : '—' %></span></td>
+            <td class="text-right text-sm">$<%= vfmt(v.total) %></td>
+            <td class="text-right text-sm <%= v.remaining > 0 ? 'text-green-700 font-medium' : 'text-recon-fog' %>"><%= v.contract_amount ? '$' + vfmt(v.remaining) : '—' %></td>
             <td class="text-right text-recon-fog text-sm"><%= v.invoices.length %></td>
-            <td class="text-right font-semibold">$<%= vfmt(v.total) %></td>
             <td class="text-right text-sm text-recon-fog">
               <button type="button" class="vs-toggle-btn" data-target="vs-rows-<%= idx %>">▼ details</button>
             </td>
           </tr>
           <tr id="vs-rows-<%= idx %>" class="vs-detail-row" style="display:none;">
-            <td colspan="4" class="bg-recon-cloud p-0">
+            <td colspan="6" class="bg-recon-cloud p-0">
               <table class="data" style="margin:0; box-shadow:none; background:transparent;">
                 <thead>
                   <tr class="text-xs">
@@ -101,9 +105,8 @@ function vfmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) 
       </tbody>
       <tfoot class="bg-recon-cloud">
         <tr>
-          <td class="text-right text-sm font-medium" colspan="2">Grand total</td>
-          <td class="text-right font-bold text-recon-red">$<%= vfmt(vendorInvoiceGrandTotal) %></td>
-          <td></td>
+          <td class="text-right text-sm font-medium" colspan="4">Grand total</td>
+          <td class="text-right font-bold text-recon-red" colspan="2">$<%= vfmt(vendorInvoiceGrandTotal) %></td>
         </tr>
       </tfoot>
     </table>

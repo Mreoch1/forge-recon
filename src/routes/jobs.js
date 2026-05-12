@@ -286,7 +286,7 @@ router.get('/:id', async (req, res) => {
       .order('created_at', { ascending: false }),
     supabase
       .from('project_contractors')
-      .select('id, vendor_id, vendors!left(name)')
+      .select('id, vendor_id, contract_amount, contract_notes, vendors!left(name)')
       .eq('job_id', id),
     supabase
       .from('project_payments')
@@ -338,6 +338,18 @@ router.get('/:id', async (req, res) => {
   });
   const vendorSpend = Object.values(invoicesByVendor).sort((a, b) => b.total - a.total);
   const vendorInvoiceGrandTotal = vendorSpend.reduce((s, v) => s + v.total, 0);
+
+  // D-036: merge contract_amount from project_contractors into vendorSpend
+  const contractorMap = {};
+  (projectContractors || []).forEach(pc => {
+    if (pc.vendor_id) contractorMap[pc.vendor_id] = { contract_amount: pc.contract_amount || 0, contract_notes: pc.contract_notes || '' };
+  });
+  vendorSpend.forEach(vs => {
+    const c = contractorMap[vs.vendor_id];
+    vs.contract_amount = c ? Number(c.contract_amount) : 0;
+    vs.contract_notes = c ? c.contract_notes : '';
+    vs.remaining = Math.max(0, vs.contract_amount - vs.total);
+  });
 
   res.render('jobs/show', {
     title: job.title, activeNav: 'projects',
