@@ -255,6 +255,14 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
         </table>
       <% } %>
 
+      <!-- Description (from create form) -->
+      <h2 class="ws-h-secondary mt-8">Description</h2>
+      <% if (wo.description) { %>
+        <div style="font-size:.85rem;line-height:1.5;color:#1a1a1a;white-space:pre-line;padding:.6rem 0"><%= wo.description %></div>
+      <% } else { %>
+        <p class="text-sm text-recon-fog">No description provided.</p>
+      <% } %>
+
       <!-- Notes block — form + feed -->
       <h2 class="ws-h-secondary mt-8">Notes</h2>
 
@@ -270,7 +278,7 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
 
       <% if (wo.notes) { %>
         <div class="ws-note-row">
-          <div class="ws-note-meta">work order brief</div>
+          <div class="ws-note-meta">Crew notes</div>
           <div class="ws-note-body"><%= wo.notes %></div>
         </div>
       <% } %>

@@ -228,3 +228,106 @@ html.dark .folder-item:hover {
 html.dark #ai-chat-root .bg-white {
   background-color: var(--dark-surface) !important;
 }
+
+/* ============================================================
+   DASHBOARD v2 (.dv2-*) — has its own inline <style> in
+   views/dashboard/v2.ejs with hardcoded #f5f5f5 / #1a1a1a colors.
+   Need explicit overrides because the inline <style> sits in the
+   page <head> AFTER this file loads.
+   ============================================================ */
+html.dark .dv2-bg {
+  background-color: var(--dark-bg) !important;
+}
+html.dark .dv2-h1,
+html.dark .dv2-h-primary,
+html.dark .dv2-h-secondary,
+html.dark .dv2-eyebrow-strong,
+html.dark .dv2-sched-customer,
+html.dark .dv2-tom-customer,
+html.dark .dv2-metric-value,
+html.dark .dv2-act-num,
+html.dark .dv2-link {
+  color: var(--dark-text) !important;
+}
+html.dark .dv2-h-primary {
+  border-bottom-color: var(--dark-border-strong) !important;
+}
+html.dark .dv2-h-secondary {
+  border-bottom-color: var(--dark-border) !important;
+}
+html.dark .dv2-h-tertiary,
+html.dark .dv2-eyebrow,
+html.dark .dv2-sched-job,
+html.dark .dv2-sched-time-suf,
+html.dark .dv2-sched-assignee,
+html.dark .dv2-tom-time,
+html.dark .dv2-tom-meta,
+html.dark .dv2-metric-label,
+html.dark .dv2-queue-row .meta,
+html.dark .dv2-queue-row .amt,
+html.dark .dv2-queue-row .num,
+html.dark .dv2-act-name,
+html.dark .dv2-act-ts,
+html.dark .dv2-event-time,
+html.dark .dv2-event-label,
+html.dark .dv2-event-label .actor,
+html.dark .dv2-queue-amount-total {
+  color: var(--dark-text-muted) !important;
+}
+html.dark .dv2-h-tertiary,
+html.dark .dv2-events {
+  border-color: var(--dark-border) !important;
+}
+html.dark .dv2-sched-row:hover,
+html.dark .dv2-tom-row:hover,
+html.dark .dv2-queue-row:hover,
+html.dark .dv2-act-row:hover {
+  background-color: var(--dark-hover) !important;
+}
+html.dark .dv2-sched-row,
+html.dark .dv2-tom-row,
+html.dark .dv2-act-row {
+  border-bottom-color: var(--dark-border) !important;
+}
+html.dark .dv2-queue-section + .dv2-queue-section {
+  border-top-color: var(--dark-border) !important;
+}
+html.dark .dv2-queue-section.dv2-queue-urgent {
+  background-color: rgba(239, 68, 68, 0.08) !important;
+}
+html.dark .dv2-queue-section.dv2-queue-urgent .dv2-queue-title {
+  color: #fca5a5 !important;
+}
+html.dark .dv2-metric-strip {
+  border-top-color: var(--dark-border) !important;
+}
+
+/* ============================================================
+   PAGE-LEVEL HORIZONTAL OVERFLOW GUARD
+   Prevents any wide child element (table with min-width: 540px,
+   wide grid, etc.) from forcing Safari to zoom out on iPhone.
+   This applies to BOTH light and dark modes — without it, mobile
+   pages render zoomed-out instead of fitting the viewport.
+   ============================================================ */
+/* NOTE: This rule lives in dark.css because dark.css is the only
+   external stylesheet always loaded. Should ideally move to a
+   shared base.css later. */
+html, body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+@media (max-width: 767px) {
+  /* On mobile, force any wide table to live inside its own
+     horizontal scroll container instead of forcing page scroll. */
+  table.data {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+}
+
+/* WO page dark mode overrides */
+html.dark .ws-note-body { color: var(--dark-text) !important; }
+html.dark .ws-description { color: var(--dark-text) !important; }
+html.dark div[style*="color:#1a1a1a"] { color: var(--dark-text) !important; }
