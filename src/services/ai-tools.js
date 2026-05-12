@@ -588,17 +588,18 @@ MUTATION_TOOLS.mark_invoice_paid = {
 MUTATION_TOOLS.approve_bill = {
   needs_user: 'write',
   async propose(args, ctx) {
-    const bill = await db.get('SELECT * FROM bills WHERE id = ?', [args.bill_id]);
+    const { data: bill } = await supabase.from('bills').select('id, bill_number, status, total, vendor_id').eq('id', args.bill_id).maybeSingle();
     if (!bill) return { error: 'Bill not found.' };
     if (bill.status !== 'draft') return { error: `Bill is "${bill.status}" — must be draft to approve.` };
-    const vendor = await db.get('SELECT name FROM vendors WHERE id = ?', [bill.vendor_id]);
+    const { data: vendor } = await supabase.from('vendors').select('name').eq('id', bill.vendor_id).maybeSingle();
     return { summary_lines: [`Bill: ${bill.bill_number || '#' + bill.id}`, `Vendor: ${vendor ? vendor.name : 'Unknown'}`, `Total: $${Number(bill.total).toFixed(2)}`, `Status: draft → approved`], args_normalized: args };
   },
   async execute(args, ctx) {
-    const bill = await db.get('SELECT * FROM bills WHERE id = ?', [args.bill_id]);
-    await db.run(`UPDATE bills SET status='approved', approved_by_user_id=?, approved_at=now(), updated_at=now() WHERE id=?`, [ctx.userId, bill.id]);
+    const { data: bill } = await supabase.from('bills').select('id, status, total, vendor_id').eq('id', args.bill_id).maybeSingle();
+    if (!bill) return { error: 'Bill not found.' };
+    await supabase.from('bills').update({ status: 'approved', approved_by_user_id: ctx.userId, approved_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', bill.id);
     try {
-      const lines = await db.all('SELECT * FROM bill_lines WHERE bill_id = ?', [bill.id]);
+      const { data: lines } = await supabase.from('bill_lines').select('*').eq('bill_id', bill.id);
       const posting = require('../services/accounting-posting');
       await posting.postBillApproved(bill, lines, { userId: ctx.userId });
     } catch(e) { console.warn('JE post for bill approve failed:', e.message); }
