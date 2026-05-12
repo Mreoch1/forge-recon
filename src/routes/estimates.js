@@ -414,8 +414,8 @@ router.post('/:id/line-approvals', async (req, res) => {
 router.post('/:id/create-invoice', async (req, res) => {
   const estimate = await loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
-  if (!['sent', 'accepted'].includes(estimate.status)) {
-    setFlash(req, 'error', `Estimate must be sent or accepted before invoicing. Current: ${estimate.status}.`);
+  if (!['draft', 'sent', 'accepted'].includes(estimate.status)) {
+    setFlash(req, 'error', `Estimate must be draft, sent, or accepted before invoicing. Current: ${estimate.status}.`);
     return res.redirect(`/estimates/${estimate.id}`);
   }
   if (req.body.approval_form === '1') {
@@ -427,8 +427,8 @@ router.post('/:id/create-invoice', async (req, res) => {
 router.get('/:id/create-invoice', async (req, res) => {
   const estimate = await loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
-  if (!['sent', 'accepted'].includes(estimate.status)) {
-    setFlash(req, 'error', `Estimate must be sent or accepted before invoicing. Current: ${estimate.status}.`);
+  if (!['draft', 'sent', 'accepted'].includes(estimate.status)) {
+    setFlash(req, 'error', `Estimate must be draft, sent, or accepted before invoicing. Current: ${estimate.status}.`);
     return res.redirect(`/estimates/${estimate.id}`);
   }
   const { data: existingInv } = await supabase.from('invoices').select('id').eq('estimate_id', estimate.id).maybeSingle();
@@ -498,8 +498,8 @@ router.post('/:id/unarchive', async (req, res) => {
 router.post('/:id/generate-invoice', async (req, res) => {
   const estimate = await loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
-  if (!['sent', 'accepted'].includes(estimate.status)) {
-    setFlash(req, 'error', `Estimate must be sent or accepted before invoicing. Current: ${estimate.status}.`);
+  if (!['draft', 'sent', 'accepted'].includes(estimate.status)) {
+    setFlash(req, 'error', `Estimate must be draft, sent, or accepted before invoicing. Current: ${estimate.status}.`);
     return res.redirect(`/estimates/${estimate.id}`);
   }
   const { data: existingInv } = await supabase.from('invoices').select('id').eq('estimate_id', estimate.id).maybeSingle();

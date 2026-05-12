@@ -58,7 +58,7 @@ const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
           <button class="btn btn-primary" title="Customer approved — mark accepted so it can be converted to an invoice.">Mark accepted</button>
         </form>
       <% } %>
-      <% if (['sent','accepted'].includes(estimate.status) && !invoice && estimate.lines.length > 0) { %>
+      <% if (['draft','sent','accepted'].includes(estimate.status) && !invoice && estimate.lines.length > 0) { %>
         <button form="line-approvals-form" formaction="/estimates/<%= estimate.id %>/create-invoice" formmethod="post" class="btn btn-primary"
                 title="Create an invoice from the approved line items. The customer will be billed for what's checked above.">Create invoice</button>
       <% } %>
@@ -125,10 +125,17 @@ const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
           <% }); %>
         </tbody>
         <tfoot class="bg-recon-cloud">
+          <%# Order: Subtotal → Cost (internal) → Tax → Total → Margin (internal). Cost + Margin only render when showCosts is true (manager/admin view). Customer-facing PDF/email is Subtotal → Tax → Total only. %>
           <tr>
             <td colspan="<%= showCosts ? 6 : 5 %>" class="text-right text-sm font-medium">Subtotal</td>
             <td class="text-right font-semibold">$<%= fmt(subtotal) %></td>
           </tr>
+          <% if (showCosts) { %>
+            <tr>
+              <td colspan="6" class="text-right text-sm font-medium text-recon-fog">Cost <span class="text-xs">(internal)</span></td>
+              <td class="text-right font-semibold text-recon-fog">$<%= fmt(costTotal) %></td>
+            </tr>
+          <% } %>
           <tr>
             <td colspan="<%= showCosts ? 6 : 5 %>" class="text-right text-sm font-medium">Tax (<%= fmt(estimate.tax_rate) %>%)</td>
             <td class="text-right font-semibold">$<%= fmt(estimate.tax_amount) %></td>
@@ -137,6 +144,12 @@ const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
             <td colspan="<%= showCosts ? 6 : 5 %>" class="text-right text-sm font-semibold uppercase">Total</td>
             <td class="text-right text-lg font-bold text-recon-red">$<%= fmt(estimate.total) %></td>
           </tr>
+          <% if (showCosts) { %>
+            <tr>
+              <td colspan="6" class="text-right text-sm font-medium text-recon-fog">Margin <span class="text-xs">(internal, <%= marginPct %>%)</span></td>
+              <td class="text-right font-semibold <%= margin >= 0 ? 'text-green-700' : 'text-recon-red' %>">$<%= fmt(margin) %></td>
+            </tr>
+          <% } %>
         </tfoot>
       </table>
       </form>
