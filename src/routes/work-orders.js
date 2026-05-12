@@ -35,6 +35,7 @@ const { setFlash } = require('../middleware/auth');
 const calc = require('../services/calculations');
 const numbering = require('../services/numbering');
 const storage = require('../services/storage');
+const { sanitizePostgrestSearch } = require('../services/sanitize');
 
 // PDF service is optional in some envs — wrap import so test boots don't fail
 let pdf;
@@ -300,7 +301,8 @@ async function createWorkOrderWithLines(woData, lines, userId) {
 // --- list ---
 
 router.get('/', async (req, res) => {
-  const q = (req.query.q || '').trim();
+  // F4: sanitize before interpolating into PostgREST .ilike()/.or() filter.
+  const q = sanitizePostgrestSearch((req.query.q || '').trim());
   const status = (req.query.status || '').trim();
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
@@ -309,9 +311,10 @@ router.get('/', async (req, res) => {
     .from('work_orders')
     .select(`
       id, display_number, wo_number_main, wo_number_sub, parent_wo_id,
-      status, scheduled_date, completed_date, created_at,
-      job_id, jobs!inner(id, title, customers!inner(id, name)),
-      assigned_to_user_id, users!left(name)
+      status, scheduled_date, completed_date, created_at, unit_number,
+      customer_id, customers!left(id, name),
+      assigned_to_user_id, users!left(name),
+      work_order_assignees(users!work_order_assignees_user_id_fkey(id, name))
     `, { count: 'exact', head: false });
 
   if (q) {
@@ -323,7 +326,10 @@ router.get('/', async (req, res) => {
     query = query.eq('status', status);
   }
   if (req.session.role === 'worker') {
-    const userName = res.locals.currentUser?.name || '';
+    // F4: sanitize userName before interpolating into the .or() filter — even
+    // though it's set by the admin (not the worker), a malformed name
+    // (containing a `,` or `(`) would otherwise break the filter.
+    const userName = sanitizePostgrestSearch(res.locals.currentUser?.name || '');
     query = userName
       ? query.or(`assigned_to_user_id.eq.${req.session.userId},assigned_to.ilike.%${userName}%`)
       : query.eq('assigned_to_user_id', req.session.userId);
@@ -345,10 +351,10 @@ router.get('/', async (req, res) => {
     scheduled_date: r.scheduled_date,
     completed_date: r.completed_date,
     created_at: r.created_at,
-    job_id: r.jobs ? r.jobs.id : r.job_id,
-    job_title: r.jobs ? r.jobs.title : null,
-    customer_id: r.jobs && r.jobs.customers ? r.jobs.customers.id : null,
-    customer_name: r.jobs && r.jobs.customers ? r.jobs.customers.name : null,
+    unit_number: r.unit_number,
+    customer_id: r.customer_id || (r.jobs && r.jobs.customers ? r.jobs.customers.id : null),
+    customer_name: r.customers?.name || (r.jobs && r.jobs.customers ? r.jobs.customers.name : null),
+    assignees: (r.work_order_assignees || []).map(a => ({ id: a.users?.id, name: a.users?.name })),
     assigned_name: r.users ? r.users.name : null,
   }));
 
@@ -365,52 +371,17 @@ router.get('/', async (req, res) => {
 router.get('/new', async (req, res) => {
   if (!requireManagerRole(req, res)) return;
 
-  const jobId = parseInt(req.query.job_id, 10);
-  if (!jobId) {
-    setFlash(req, 'error', 'Pick a job first to create a work order from.');
-    return res.redirect('/jobs');
-  }
-  const { data: job, error: jErr } = await supabase
-    .from('jobs')
-    .select('*, customers!inner(id, name)')
-    .eq('id', jobId)
-    .maybeSingle();
-  if (jErr) throw jErr;
-  if (!job) {
-    setFlash(req, 'error', 'Job not found.');
-    return res.redirect('/jobs');
-  }
-  // Flatten customer fields for the form
-  job.customer_id = job.customers ? job.customers.id : null;
-  job.customer_name = job.customers ? job.customers.name : null;
-  delete job.customers;
+  const { data: customers } = await supabase.from('customers').select('id, name, email, phone, address, city, state, zip').order('name');
+  const { data: users } = await supabase.from('users').select('id, name').eq('active', 1).order('name');
 
-  // Suggest the next root WO number (purely for display in the form)
-  const { data: settings } = await supabase
-    .from('company_settings')
-    .select('next_wo_main_number')
-    .eq('id', 1)
-    .maybeSingle();
-  const suggestedDisplay = numbering.formatDisplay(settings ? settings.next_wo_main_number : 1, 0);
-
-  const wo = {
-    id: null, job_id: jobId, parent_wo_id: null,
-    display_number: '',
-    suggested_display_number: suggestedDisplay,
-    status: 'scheduled',
-    scheduled_date: '', scheduled_time: '', scheduled_end_time: '',
-    assigned_to_user_id: null, assigned_to: '',
-    notes: '', lines: [],
-  };
-  const { data: users } = await supabase
-    .from('users')
-    .select('id, name')
-    .eq('active', 1)
-    .order('name');
-
+  const suggestedNumber = await numbering.nextRootWoNumber().catch(() => ({ display: '' }));
   res.render('work-orders/new', {
     title: 'New work order', activeNav: 'work-orders',
-    wo, job, users: users || [], errors: {}, units: VALID_UNITS, isSubWO: false
+    wo: { id: null, display_number: '', unit_number: '', suggested_display_number: suggestedNumber.display,
+          customer_id: '', scheduled_date: '', scheduled_time: '', notes: '', description: '',
+          assignee_ids: [], lines: [] },
+    customers: customers || [], users: users || [],
+    customerName: '', errors: {}, units: VALID_UNITS,
   });
 });
 
@@ -1374,3 +1345,4 @@ router.post('/:id/create-estimate', async (req, res) => {
 });
 
 module.exports = router;
+
