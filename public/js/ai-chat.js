@@ -131,22 +131,6 @@
       }
       .recon-aic-input button:hover { background: #8a0e16; }
       .recon-aic-input button:disabled { background: #999; cursor: not-allowed; }
-      .recon-aic-input .mic-btn {
-        background: transparent; border: 1px solid #d0d0d0; border-radius: 4px;
-        width: 32px; height: 32px; padding: 0; cursor: pointer;
-        display: flex; align-items: center; justify-content: center;
-        flex-shrink: 0; transition: all .15s;
-      }
-      .recon-aic-input .mic-btn:hover { background: #f5f5f5; border-color: #999; }
-      .recon-aic-input .mic-btn.recording { background: #c0202b; border-color: #c0202b; animation: recon-aic-mic-pulse 1.2s ease-in-out infinite; }
-      .recon-aic-input .mic-btn.recording svg { fill: #fff; }
-      .recon-aic-input .mic-btn svg { width: 16px; height: 16px; fill: #555; }
-      @keyframes recon-aic-mic-pulse {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(192,32,43,.4); }
-        50% { box-shadow: 0 0 0 6px rgba(192,32,43,0); }
-      }
-      .recon-aic-mic-tip { font-size: .7rem; color: #c0202b; padding: .2rem .5rem; display: none; }
-      .recon-aic-mic-tip.visible { display: block; }
 
       .recon-aic-empty {
         text-align: center; color: #999; font-size: .8rem; padding: 2rem 1rem;
@@ -252,63 +236,6 @@
 
   loadHistory();
 
-  // Speech Recognition setup
-  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  var recognition = null;
-  var micBtn = document.getElementById('recon-aic-mic');
-  var micTip = document.createElement('div');
-  micTip.className = 'recon-aic-mic-tip';
-  micTip.id = 'recon-aic-mic-tip';
-  var micDenied = false;
-
-  if (!SR && micBtn) { micBtn.style.display = 'none'; }
-  if (SR && micBtn) {
-    recognition = new SR();
-    recognition.lang = 'en-US';
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    var isRecording = false;
-    micBtn.addEventListener('click', function() {
-      if (micDenied) return;
-      if (isRecording) {
-        recognition.stop();
-        isRecording = false;
-        micBtn.classList.remove('recording');
-        return;
-      }
-      try {
-        recognition.start();
-        isRecording = true;
-        micBtn.classList.add('recording');
-      } catch(e) {
-        micDenied = true;
-        micBtn.style.display = 'none';
-      }
-    });
-    recognition.onresult = function(event) {
-      var input = document.getElementById('recon-aic-input');
-      if (!input) return;
-      var transcript = '';
-      for (var i = event.resultIndex; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript;
-      }
-      input.value = transcript;
-      input.dispatchEvent(new Event('input'));
-    };
-    recognition.onerror = function(event) {
-      isRecording = false;
-      micBtn.classList.remove('recording');
-      if (event.error === 'not-allowed') {
-        micDenied = true;
-        micBtn.style.display = 'none';
-      }
-    };
-    recognition.onend = function() {
-      isRecording = false;
-      micBtn.classList.remove('recording');
-    };
-  }
-
   // ----- Render -----
   function render() {
     if (state.disabled) {
@@ -339,9 +266,6 @@
           ${state.sending ? '<div class="recon-aic-msg thinking">Recon assistant is thinking<div class="recon-aic-thinking-dots"><span></span><span></span><span></span></div></div>' : ''}
         </div>
         <form class="recon-aic-input" data-action="send">
-          <button type="button" class="mic-btn" data-action="mic" id="recon-aic-mic" title="Voice input">
-            <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3zm6-3a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.93V21h2v-2.07A8 8 0 0 0 20 11h-2z"/></svg>
-          </button>
           <textarea id="recon-aic-input"
                     placeholder="${empty ? 'Try: how many overdue invoices?' : 'Ask a follow-up…'}"
                     rows="1"
