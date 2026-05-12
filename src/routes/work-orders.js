@@ -414,6 +414,7 @@ router.post('/', async (req, res) => {
     {
       customer_id: customerId,
       unit_number: (req.body.unit_number || '').trim(),
+      description: data.description || '',
       job_id: null,
       parent_wo_id: null,
       wo_number_main: main,
@@ -425,7 +426,7 @@ router.post('/', async (req, res) => {
       scheduled_end_time: null,
       assigned_to_user_id: null,
       assigned_to: null,
-      notes: [data.description, data.notes].filter(Boolean).join('\n\n') || null,
+      notes: data.notes || null,
     },
     buildLineRows(data.lines),
     req.session.userId || null
@@ -1214,7 +1215,6 @@ router.post('/:id/create-estimate', async (req, res) => {
       tax_amount: totals.taxAmount,
       total: totals.total,
       cost_total: costTotal,
-      payment_terms: settings?.default_payment_terms || 'Net 30',
     },
     lines: linePayload,
     user_id: req.session.userId || null,
