@@ -24,6 +24,7 @@ async function getToken() {
           refreshToken: cached.refreshToken,
           scopes: SCOPES,
         });
+        if (!result || !result.accessToken) throw new Error('Refresh returned no access token');
         fs.writeFileSync(TOKEN_FILE, JSON.stringify({
           accessToken: result.accessToken,
           refreshToken: result.refreshToken || cached.refreshToken,

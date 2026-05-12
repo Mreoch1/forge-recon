@@ -8,5 +8,6 @@ public/uploads/
 .DS_Store
 Thumbs.db
 sessions/
+.m365-token.json
 
 .vercel
