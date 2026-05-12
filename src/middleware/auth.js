@@ -72,9 +72,10 @@ const loadCurrentUser = asyncHandler(async (req, res, next) => {
     if (error) throw error;
     if (user) {
       // Owner override — never let the owner email render as anything but admin.
-      if (isOwnerEmail(user.email) && user.role !== 'admin') {
+      // Force session role every request regardless of DB value, so a stale
+      // cookie from before a role change or signup doesn't persist.
+      if (isOwnerEmail(user.email)) {
         user.role = 'admin';
-        // Also patch the session so requireAdmin/requireManager pass on this request.
         if (req.session) req.session.role = 'admin';
       }
       res.locals.currentUser = user;
