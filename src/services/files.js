@@ -11,7 +11,7 @@ async function ensureRootFolder(entityType, entityId, createdByUserId) {
     .select('id')
     .eq('entity_type', entityType)
     .eq('entity_id', String(entityId))
-    .eq('is_root', true)
+    .eq('is_root', 1)
     .maybeSingle();
   if (existing) return existing.id;
   const { data: inserted, error } = await supabase
@@ -20,7 +20,7 @@ async function ensureRootFolder(entityType, entityId, createdByUserId) {
       name: entityType + '_' + entityId,
       entity_type: entityType,
       entity_id: String(entityId),
-      is_root: true,
+      is_root: 1,
       created_by_user_id: createdByUserId || null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -37,7 +37,7 @@ async function getRootFolder(entityType, entityId) {
     .select('*')
     .eq('entity_type', entityType)
     .eq('entity_id', String(entityId))
-    .eq('is_root', true)
+    .eq('is_root', 1)
     .maybeSingle();
   return data || null;
 }
