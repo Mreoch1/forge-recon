@@ -456,7 +456,7 @@ function lastAssistantText(history) {
 
 function detectGuidedContinuation(message, history) {
   const last = lastAssistantText(history);
-  if (/to create a customer/i.test(last)) {
+  if (isAwaitingCustomerName(last)) {
     return { tool: 'create_customer', args: parseCustomerArgs(message, { allowLeadingName: true }) };
   }
   if (/create the work order/i.test(last)) {
@@ -471,6 +471,18 @@ function detectGuidedContinuation(message, history) {
     if (idMatch) return { tool: 'mark_invoice_paid', args: { invoice_id: parseInt(idMatch[1], 10) } };
   }
   return null;
+}
+
+function isAwaitingCustomerName(text) {
+  const last = String(text || '');
+  return /customer/i.test(last)
+    && (
+      /to create a customer/i.test(last)
+      || /create the customer/i.test(last)
+      || /create.*customer/i.test(last)
+      || /customer name/i.test(last)
+      || /give me.*name/i.test(last)
+    );
 }
 
 function buildMissingMutationReply(intent) {
@@ -706,4 +718,5 @@ module.exports._internal = {
   buildGuidedErrorReply,
   detectMutationIntent,
   workOrderBuilderPath,
+  isAwaitingCustomerName,
 };

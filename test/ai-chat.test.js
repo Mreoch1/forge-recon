@@ -28,6 +28,17 @@ test('AI chat resumes a guided create-customer flow from the next user message',
   assert.equal(chat._internal.buildMissingMutationReply(intent), null);
 });
 
+test('AI chat resumes create-customer flow from the live assistant wording', () => {
+  const intent = chat._internal.detectGuidedContinuation(
+    'Test Towers',
+    [{ role: 'assistant', content: 'Absolutely. I can create the customer in FORGE. Give me the customer name first. You can include email, phone, billing email, and address in the same message if you have them.' }]
+  );
+
+  assert.equal(intent.tool, 'create_customer');
+  assert.equal(intent.args.name, 'Test Towers');
+  assert.equal(chat._internal.buildMissingMutationReply(intent), null);
+});
+
 test('workers cannot execute privileged confirmed AI mutations', async () => {
   const result = await aiTools.executeMutation(
     'create_customer',
