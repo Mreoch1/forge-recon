@@ -178,21 +178,51 @@ async function sendWorkOrderAssignedEmail({ to, toName, woNumber, woId, customer
   const safeUnit = escapeHtml(unitNumber);
   const safeDesc = escapeHtml(description);
   const safeNotes = escapeHtml(internalNotes);
-  const subject = `Work Order ${woNumber} assigned: ${safeCust}${safeUnit ? ' — ' + safeUnit : ''}`;
+  const subject = `FORGE · Work Order ${woNumber} · ${safeCust}${safeUnit ? ' (' + safeUnit + ')' : ''}`;
   const bodyHtml = `
-    <h2>You've been assigned a work order</h2>
-    <p><strong>${woNumber}</strong></p>
-    <p><strong>Customer:</strong> ${safeCust}</p>
-    <p><strong>Address:</strong> ${safeAddr}${safeUnit ? ', ' + safeUnit : ''}</p>
-    <p><strong>Scheduled:</strong> ${scheduledDate} ${scheduledTime || ''}</p>
-    <p><strong>Description:</strong></p>
-    <div style="background:#f5f5f5;padding:12px;border-radius:4px;margin:8px 0">${safeDesc}</div>
-    ${safeNotes ? `<p><strong>Crew notes:</strong></p><div style="background:#fff8e1;padding:12px;border-radius:4px;margin:8px 0">${safeNotes}</div>` : ''}
-    <p style="text-align:center;margin:24px 0">
-      <a href="${link}" style="display:inline-block;background:#c0202b;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">Open Work Order in FORGE</a>
-    </p>`;
+    <div style="max-width:600px;margin:0 auto;font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif">
+    <div style="background:linear-gradient(135deg,#c0202b 0%,#8a0e16 50%,#5a5a5a 100%);padding:24px 32px;border-radius:12px 12px 0 0">
+      <h1 style="color:#fff;margin:0;font-size:20px;font-weight:700;letter-spacing:-.02em">FORGE</h1>
+      <p style="color:rgba(255,255,255,.85);margin:4px 0 0;font-size:13px">Work Order Assignment</p>
+    </div>
+    <div style="background:#fff;border:1px solid #e0e0e0;border-top:0;padding:24px 32px;border-radius:0 0 12px 12px">
+      <p style="font-size:15px;color:#333">Hello${toName ? ' ' + escapeHtml(toName) : ''},</p>
+      <p style="font-size:14px;color:#555">You've been assigned the following work order:</p>
+
+      <div style="background:#f8f8f8;border-radius:8px;padding:16px;margin:16px 0">
+        <p style="font-size:13px;color:#888;margin:0 0 4px;text-transform:uppercase;letter-spacing:.08em">${woNumber}</p>
+        <p style="font-size:18px;font-weight:600;color:#1a1a1a;margin:0">${safeCust}${safeUnit ? ' — ' + safeUnit : ''}</p>
+        <p style="font-size:13px;color:#666;margin:8px 0 0">${safeAddr}</p>
+      </div>
+
+      <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px">
+        <tr>
+          <td style="color:#888;padding:6px 8px;border:1px solid #eee">Scheduled</td>
+          <td style="color:#333;padding:6px 8px;border:1px solid #eee;font-weight:500">${scheduledDate || '—'} ${scheduledTime || ''}</td>
+        </tr>
+      </table>
+
+      ${safeDesc ? `<div style="background:#f8f8f8;border-radius:8px;padding:16px;margin:16px 0">
+        <p style="font-size:12px;color:#888;margin:0 0 6px;text-transform:uppercase;letter-spacing:.06em">Description</p>
+        <p style="font-size:14px;color:#333;margin:0;line-height:1.5">${safeDesc}</p>
+      </div>` : ''}
+
+      ${safeNotes ? `<div style="background:#fff8e1;border-radius:8px;padding:16px;margin:16px 0">
+        <p style="font-size:12px;color:#888;margin:0 0 6px;text-transform:uppercase;letter-spacing:.06em">Crew Notes</p>
+        <p style="font-size:14px;color:#333;margin:0;line-height:1.5;white-space:pre-line">${safeNotes}</p>
+      </div>` : ''}
+
+      <div style="text-align:center;margin:24px 0">
+        <a href="${link}" style="display:inline-block;background:#c0202b;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Open in FORGE</a>
+      </div>
+
+      <p style="font-size:12px;color:#aaa;text-align:center;margin:16px 0 0">
+        <a href="${BASE}" style="color:#c0202b;text-decoration:none">${BASE}</a>
+      </p>
+    </div>
+    </div>`;
   const html = renderEmail(bodyHtml);
-  const text = `Work order ${woNumber} assigned. Customer: ${safeCust}. Address: ${safeAddr}${safeUnit ? ', ' + safeUnit : ''}. Scheduled: ${scheduledDate} ${scheduledTime || ''}. ${link}`;
+  const text = `FORGE Work Order Assignment\n\n${woNumber} — ${safeCust}${safeUnit ? ' (' + safeUnit + ')' : ''}\n${safeAddr}\nScheduled: ${scheduledDate} ${scheduledTime || ''}\n\n${safeDesc ? 'Description:\n' + safeDesc + '\n\n' : ''}${safeNotes ? 'Crew Notes:\n' + safeNotes + '\n\n' : ''}Open: ${link}`;
 
   try {
     const info = await transporter.sendMail({
