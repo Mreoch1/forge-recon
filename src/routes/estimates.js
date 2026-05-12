@@ -319,8 +319,8 @@ router.post('/:id/send', async (req, res, next) => {
   try {
     const emailService = require('../services/estimate-email');
     const result = await emailService.sendEstimateEmail(estimate.id);
-    const sentToEmail = estimate.customer_email || 'unknown@recon.local';
-    const sentToName = estimate.customer_name || 'Unknown';
+    const sentToEmail = result.to || estimate.customer_billing_email || estimate.customer_email;
+    const sentToName = result.toName || estimate.customer_name || 'Unknown';
     await supabase.from('estimates').update({
       status: 'sent', sent_at: new Date().toISOString(),
       sent_by_user_id: req.session.userId, sent_to_email: sentToEmail,

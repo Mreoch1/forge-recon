@@ -38,7 +38,7 @@ const roi = costTotal > 0 ? ((margin / costTotal) * 100).toFixed(1) : '&mdash;';
       <% if (estimate.status === 'draft') { %>
         <a href="/estimates/<%= estimate.id %>/edit" class="btn btn-secondary">Edit</a>
         <form action="/estimates/<%= estimate.id %>/send" method="post" class="m-0 inline">
-          <button class="btn btn-primary">Send</button>
+          <button class="btn btn-primary">Send email</button>
         </form>
       <% } else if (estimate.status === 'sent') { %>
         <form action="/estimates/<%= estimate.id %>/accept" method="post" class="m-0 inline">
