@@ -58,7 +58,14 @@ router.post('/users', async (req, res) => {
   }
   const hash = await bcrypt.hash(password, 10);
   await supabase.from('users').insert({ email, password_hash: hash, name, role, phone: req.body.phone || null, active: 1 });
-  setFlash(req, 'success', `User "${name}" created.`);
+  // D-031: auto-send invite email
+  try {
+    const { sendUserInviteEmail } = require('../services/email');
+    sendUserInviteEmail(email, name, password).catch(function(e) { console.warn('[admin] invite email failed:', e.message); });
+  } catch (e) {
+    console.warn('[admin] invite email setup failed:', e.message);
+  }
+  setFlash(req, 'success', 'User "' + name + '" created.');
   res.redirect('/admin/users');
 });
 

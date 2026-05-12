@@ -233,4 +233,40 @@ async function sendWorkOrderAssignedEmail({ to, toName, woNumber, woId, customer
   }
 }
 
-module.exports = { sendEmail, sendVerificationEmail, sendPasswordResetEmail, sendWorkOrderAssignedEmail };
+/**
+ * Send an auto-generated invite email when an admin creates a new user.
+ * @param {string} toEmail
+ * @param {string} toName
+ * @param {string} tempPassword - the plaintext password the admin set
+ */
+async function sendUserInviteEmail(toEmail, toName, tempPassword) {
+  const link = `${BASE_URL}/login`;
+  const htmlBody = `
+    <p>Hi ${escHtml(toName)},</p>
+    <p>An admin at Recon Enterprises created a <strong>FORGE</strong> account for you.</p>
+    <div style="background:#fff8e1;border:1px solid #f0c000;border-radius:8px;padding:16px;margin:16px 0;text-align:center">
+      <p style="font-size:13px;color:#888;margin:0 0 8px;text-transform:uppercase;letter-spacing:.08em">Your temporary login</p>
+      <p style="font-size:16px;font-weight:600;margin:0"><strong>Email:</strong> ${escHtml(toEmail)}</p>
+      <p style="font-size:16px;font-weight:600;margin:4px 0 0"><strong>Password:</strong> ${escHtml(tempPassword)}</p>
+    </div>
+    <p style="font-size:13px;color:#888">Please change your password on first login.</p>
+    <div style="text-align:center;margin:20px 0">
+      <a href="${link}" style="display:inline-block;background:#c0202b;color:#fff;padding:12px 36px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Log in to FORGE</a>
+    </div>
+    <p style="font-size:12px;color:#aaa">If you didn't expect this invite, you can ignore this email.</p>`;
+
+  try {
+    const info = await sendEmail({
+      to: toEmail,
+      subject: 'Welcome to FORGE — your account is ready',
+      htmlBody,
+    });
+    console.log('[email] invite sent to', toEmail, 'messageId:', info.messageId);
+    return info;
+  } catch (err) {
+    logSmtpError('sendUserInviteEmail', toEmail, err);
+    throw err;
+  }
+}
+
+module.exports = { sendEmail, sendVerificationEmail, sendPasswordResetEmail, sendWorkOrderAssignedEmail, sendUserInviteEmail };
