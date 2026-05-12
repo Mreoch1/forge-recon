@@ -34,6 +34,91 @@ function daysAgo(dateStr) {
   return Math.floor((now - d) / (1000 * 60 * 60 * 24));
 }
 
+function idsFrom(rows) {
+  return [...new Set((rows || []).map(r => r.id).filter(id => id !== null && id !== undefined))];
+}
+
+function oneEmbedded(value) {
+  return Array.isArray(value) ? (value[0] || {}) : (value || {});
+}
+
+async function vendorIdsByName(term) {
+  const like = resolveQuery(term);
+  if (!like) return [];
+  const { data, error } = await supabase.from('vendors').select('id').ilike('name', like).limit(50);
+  if (error) throw error;
+  return idsFrom(data);
+}
+
+async function workOrderIdsForInvoiceSearch(term) {
+  const like = resolveQuery(term);
+  if (!like) return [];
+  const ids = new Set();
+
+  const addWorkOrders = rows => (rows || []).forEach(r => ids.add(r.id));
+
+  const { data: byNumber, error: byNumberErr } = await supabase
+    .from('work_orders')
+    .select('id')
+    .ilike('display_number', like)
+    .limit(50);
+  if (byNumberErr) throw byNumberErr;
+  addWorkOrders(byNumber);
+
+  const { data: customers, error: customersErr } = await supabase
+    .from('customers')
+    .select('id')
+    .ilike('name', like)
+    .limit(50);
+  if (customersErr) throw customersErr;
+  const customerIds = idsFrom(customers);
+  if (customerIds.length) {
+    const { data: byCustomer, error: byCustomerErr } = await supabase
+      .from('work_orders')
+      .select('id')
+      .in('customer_id', customerIds)
+      .limit(50);
+    if (byCustomerErr) throw byCustomerErr;
+    addWorkOrders(byCustomer);
+
+    const { data: customerJobs, error: customerJobsErr } = await supabase
+      .from('jobs')
+      .select('id')
+      .in('customer_id', customerIds)
+      .limit(50);
+    if (customerJobsErr) throw customerJobsErr;
+    const customerJobIds = idsFrom(customerJobs);
+    if (customerJobIds.length) {
+      const { data: byCustomerJob, error: byCustomerJobErr } = await supabase
+        .from('work_orders')
+        .select('id')
+        .in('job_id', customerJobIds)
+        .limit(50);
+      if (byCustomerJobErr) throw byCustomerJobErr;
+      addWorkOrders(byCustomerJob);
+    }
+  }
+
+  const { data: jobs, error: jobsErr } = await supabase
+    .from('jobs')
+    .select('id')
+    .ilike('title', like)
+    .limit(50);
+  if (jobsErr) throw jobsErr;
+  const jobIds = idsFrom(jobs);
+  if (jobIds.length) {
+    const { data: byJob, error: byJobErr } = await supabase
+      .from('work_orders')
+      .select('id')
+      .in('job_id', jobIds)
+      .limit(50);
+    if (byJobErr) throw byJobErr;
+    addWorkOrders(byJob);
+  }
+
+  return [...ids];
+}
+
 // ── Tool implementations ─────────────────────────────────────────────
 
 const tools = {};
@@ -62,24 +147,28 @@ tools.search_estimates = {
   args: { query: 'string (optional) — partial number, job, or customer name', status: 'string (optional) — draft|sent|accepted|rejected|expired' },
   needs_user: 'read',
   handler: async ({ query, status }, ctx) => {
-    const conds = ['e.id IS NOT NULL'];
-    const params = [];
-    if (query) { const like = resolveQuery(query); conds.push('(e.id ILIKE ? OR j.title ILIKE ? OR c.name ILIKE ?)'); params.push(like, like, like); }
-    if (status) { conds.push('e.status = ?'); params.push(status); }
-    const rows = await db.all(`SELECT e.id, e.status, e.total, e.created_at,
-      w.display_number AS wo_display,
-      j.title AS job_title, c.name AS customer_name
-      FROM estimates e
-      JOIN work_orders w ON w.id = e.work_order_id
-      JOIN jobs j ON j.id = w.job_id
-      JOIN customers c ON c.id = j.customer_id
-      WHERE ${conds.join(' AND ')}
-      ORDER BY e.created_at DESC LIMIT 10`, params);
-    return rows.map(r => ({
-      id: r.id, number: `EST-${r.wo_display || ''}`, status: r.status,
-      total: Number(r.total) || 0, job_title: r.job_title || '',
-      customer_name: r.customer_name || '', days_old: daysAgo(r.created_at)
-    }));
+    let q = supabase.from('estimates').select(`
+      id, status, total, created_at,
+      work_orders!inner(
+        display_number,
+        jobs!left(title, customers!left(name)),
+        customers!left(name)
+      )
+    `).order('created_at', { ascending: false }).limit(10);
+
+    if (status) q = q.eq('status', status);
+    if (query) q = q.or(`id.ilike.%${query}%,work_orders.jobs.title.ilike.%${query}%,work_orders.customers.name.ilike.%${query}%,work_orders.jobs.customers.name.ilike.%${query}%`);
+
+    const { data: rows } = await q;
+    return (rows || []).map(r => {
+      const wo = r.work_orders;
+      const customer = wo.customers || wo.jobs?.customers || {};
+      return {
+        id: r.id, number: `EST-${wo.display_number || ''}`, status: r.status,
+        total: Number(r.total) || 0, job_title: wo.jobs?.title || '',
+        customer_name: customer.name || '', days_old: daysAgo(r.created_at)
+      };
+    });
   }
 };
 
@@ -98,12 +187,29 @@ tools.search_invoices = {
     `).order('created_at', { ascending: false }).limit(10);
 
     if (status) q = q.eq('status', status);
-    if (query) q = q.or(`id.ilike.%${query}%,work_orders.jobs.title.ilike.%${query}%,work_orders.customers.name.ilike.%${query}%,work_orders.jobs.customers.name.ilike.%${query}%`);
+    if (query) {
+      const workOrderIds = await workOrderIdsForInvoiceSearch(query);
+      const invoiceId = Number.parseInt(String(query).trim(), 10);
+      const exactInvoiceId = Number.isInteger(invoiceId) && String(invoiceId) === String(query).trim();
+      if (workOrderIds.length && exactInvoiceId) {
+        q = q.or(`id.eq.${invoiceId},work_order_id.in.(${workOrderIds.join(',')})`);
+      } else if (workOrderIds.length) {
+        q = q.in('work_order_id', workOrderIds);
+      } else if (exactInvoiceId) {
+        q = q.eq('id', invoiceId);
+      } else {
+        return [];
+      }
+    }
 
-    const { data: rows } = await q;
+    const { data: rows, error } = await q;
+    if (error) throw error;
     return (rows || []).map(r => {
-      const wo = r.work_orders;
-      const customer = wo.customers || wo.jobs?.customers || {};
+      const wo = oneEmbedded(r.work_orders);
+      const job = oneEmbedded(wo.jobs);
+      const directCustomer = oneEmbedded(wo.customers);
+      const jobCustomer = oneEmbedded(job.customers);
+      const customer = directCustomer.name ? directCustomer : jobCustomer;
       const total = Number(r.total) || 0;
       const paid = Number(r.amount_paid) || 0;
       const bal = Math.round((total - paid) * 100) / 100;
@@ -112,7 +218,7 @@ tools.search_invoices = {
         id: r.id, number: `INV-${wo.display_number || ''}`, status: r.status,
         total, amount_paid: paid, balance: bal,
         due_date: due, days_late: due ? Math.max(0, daysAgo(due)) : 0,
-        customer_name: customer.name || '', job_title: wo.jobs?.title || ''
+        customer_name: customer.name || '', job_title: job.title || ''
       };
     });
   }
@@ -162,14 +268,25 @@ tools.search_bills = {
     `).order('created_at', { ascending: false }).limit(10);
 
     if (status) q = q.eq('status', status);
-    if (vendor_name) q = q.ilike('vendors.name', `%${vendor_name}%`);
-    if (query) q = q.or(`bill_number.ilike.%${query}%,vendors.name.ilike.%${query}%`);
+    if (vendor_name) {
+      const vendorIds = await vendorIdsByName(vendor_name);
+      if (!vendorIds.length) return [];
+      q = q.in('vendor_id', vendorIds);
+    }
+    if (query) {
+      const vendorIds = await vendorIdsByName(query);
+      const like = resolveQuery(query);
+      q = vendorIds.length
+        ? q.or(`bill_number.ilike.${like},vendor_id.in.(${vendorIds.join(',')})`)
+        : q.ilike('bill_number', like);
+    }
 
-    const { data: rows } = await q;
+    const { data: rows, error } = await q;
+    if (error) throw error;
     return (rows || []).map(r => ({
       id: r.id, number: r.bill_number || `#${r.id}`, status: r.status,
       total: Number(r.total) || 0, amount_paid: Number(r.amount_paid) || 0,
-      vendor_name: r.vendors?.name || '', bill_date: r.bill_date || '', due_date: r.due_date || ''
+      vendor_name: oneEmbedded(r.vendors).name || '', bill_date: r.bill_date || '', due_date: r.due_date || ''
     }));
   }
 };
