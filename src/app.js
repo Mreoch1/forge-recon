@@ -91,7 +91,7 @@ async function ensureDbInit(req, res, next) {
           {table:'estimates',col:'sent_by_user_id',type:'INTEGER'},{table:'estimates',col:'sent_to_email',type:'TEXT'},
           {table:'estimates',col:'sent_to_name',type:'TEXT'},{table:'invoices',col:'sent_by_user_id',type:'INTEGER'},
           {table:'invoices',col:'sent_to_email',type:'TEXT'},{table:'invoices',col:'sent_to_name',type:'TEXT'},
-          {table:'estimates',col:'archived_at',type:'TEXT'},
+          {table:'estimates',col:'archived_at',type:'TEXT'},{table:'estimates',col:'payment_terms',type:"TEXT NOT NULL DEFAULT 'Net 30'"},
         ];
         for (const m of bootMigrations) {
           const existing = await db.all('PRAGMA table_info(' + m.table + ')');
@@ -207,10 +207,30 @@ app.use((err, req, res, next) => {
   const status = err.status || err.statusCode || 500;
   const safeStatus = status >= 400 && status < 600 ? status : 500;
   const title = safeStatus === 500 ? 'Server error' : 'Bad request';
-  const message = process.env.NODE_ENV === 'production'
+  const message = err.message && err.message.length < 200
     ? (safeStatus === 500 ? 'Server error' : 'Bad request')
-    : (err && err.message) || title;
-  res.status(safeStatus).render('error', { title, code: safeStatus, message });
+    : 'Something went wrong.';
+  res.status(safeStatus).render('error', { title, code: safeStatus, message, currentUrl: req.originalUrl });
+});
+
+// POST /report-error — user-triggered error report email
+app.post('/report-error', async (req, res) => {
+  const { code, message, url, user_email } = req.body;
+  const subject = `[FORGE Error Report] ${code} on ${url || 'unknown page'}`;
+  const body = `Error report from FORGE\n\nCode: ${code}\nURL: ${url || 'unknown'}\nUser: ${user_email || 'unknown'}\nMessage: ${message || 'none'}\nTimestamp: ${new Date().toISOString()}`;
+  try {
+    const emailService = require('./services/email');
+    await emailService.sendEmail({
+      to: 'mike@reconenterprises.net',
+      subject,
+      text: body,
+      html: body.replace(/\n/g, '<br>'),
+    });
+    res.redirect(url || '/');
+  } catch (e) {
+    console.error('[report-error] send failed:', e.message);
+    res.redirect(url || '/');
+  }
 });
 
 module.exports = app;

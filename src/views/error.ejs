@@ -9,6 +9,15 @@
     <% } else { %>
       <a href="/" class="btn btn-primary">Back to dashboard</a>
     <% } %>
+    <% if (code === 500) { %>
+      <form action="/report-error" method="post" class="mt-4">
+        <input type="hidden" name="code" value="<%= code %>">
+        <input type="hidden" name="message" value="<%= message %>">
+        <input type="hidden" name="url" value="<%= typeof currentUrl !== 'undefined' ? currentUrl : '' %>">
+        <input type="hidden" name="user_email" value="<%= typeof currentUser !== 'undefined' && currentUser ? currentUser.email : '' %>">
+        <button type="submit" class="btn btn-ghost text-sm text-recon-red">📧 Report this error to support</button>
+      </form>
+    <% } %>
   </div>
 </div>
 
