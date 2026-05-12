@@ -1,0 +1,71 @@
+<%# D-024a: Itemized customer payment ledger — reverse-chronological timeline with inline add form. %><%
+function pFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
+%>
+
+<section id="payments-section" class="card mb-6">
+  <header class="px-5 py-3 border-b border-recon-mist flex flex-wrap items-baseline justify-between gap-2">
+    <div>
+      <h3 class="font-semibold">Customer payments</h3>
+      <p class="text-xs text-recon-fog mt-0.5"><%= payments.length %> payment<%= payments.length === 1 ? '' : 's' %> — total <strong class="text-green-700">$<%= pFmt(paymentTotal) %></strong></p>
+    </div>
+  </header>
+
+  <!-- Add payment form -->
+  <div class="px-5 py-3 border-b border-recon-mist bg-recon-cloud">
+    <form action="/projects/<%= jobId %>/payments" method="post" class="flex flex-wrap items-end gap-3">
+      <div class="min-w-[100px]">
+        <label class="text-xs text-recon-fog block mb-1">Amount</label>
+        <div class="flex">
+          <span class="text-sm text-recon-fog mr-1 pt-2">$</span>
+          <input type="number" step="0.01" min="0.01" name="amount" class="input text-sm text-right" required placeholder="0.00" style="min-width:80px">
+        </div>
+      </div>
+      <div class="min-w-[120px]">
+        <label class="text-xs text-recon-fog block mb-1">Date</label>
+        <input type="date" name="payment_date" class="input text-sm" value="<%= new Date().toISOString().slice(0,10) %>">
+      </div>
+      <div class="min-w-[110px]">
+        <label class="text-xs text-recon-fog block mb-1">Method</label>
+        <select name="method" class="input text-sm">
+          <option value="check">Check</option>
+          <option value="ach">ACH</option>
+          <option value="wire">Wire</option>
+          <option value="card">Card</option>
+          <option value="cash">Cash</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="min-w-[130px]">
+        <label class="text-xs text-recon-fog block mb-1">Reference</label>
+        <input type="text" name="reference" class="input text-sm" placeholder="Check #, ref...">
+      </div>
+      <div class="min-w-[160px] flex-1">
+        <label class="text-xs text-recon-fog block mb-1">Notes</label>
+        <input type="text" name="notes" class="input text-sm" placeholder="Optional note">
+      </div>
+      <button type="submit" class="btn btn-primary text-sm" style="margin-bottom:1px">Record payment</button>
+    </form>
+  </div>
+
+  <!-- Payment list -->
+  <% if (payments.length === 0) { %>
+    <div class="p-6 text-center text-recon-fog text-sm italic">No payments recorded yet.</div>
+  <% } else { %>
+    <div class="divide-y divide-recon-mist">
+      <% payments.forEach(function(p){ %>
+        <div class="px-5 py-3 flex flex-wrap items-center gap-3">
+          <div class="text-lg font-bold text-green-700 w-24 text-right">$<%= pFmt(p.amount) %></div>
+          <div class="flex-1 min-w-[120px]">
+            <div class="text-sm font-medium"><%= p.payment_date ? String(p.payment_date).slice(0,10) : '—' %></div>
+            <div class="text-xs text-recon-fog"><%= p.method %></div>
+          </div>
+          <div class="flex-1 min-w-[100px]">
+            <% if (p.reference) { %><div class="text-xs font-mono"><%= p.reference %></div><% } %>
+            <% if (p.notes) { %><div class="text-xs text-recon-fog"><%= p.notes %></div><% } %>
+            <% if (p.invoice_id) { %><div class="text-xs"><a href="/invoices/<%= p.invoice_id %>" class="text-recon-red">Invoice #<%= p.invoice_id %></a></div><% } %>
+          </div>
+        </div>
+      <% }); %>
+    </div>
+  <% } %>
+</section>

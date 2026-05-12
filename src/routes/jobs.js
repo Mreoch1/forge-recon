@@ -253,12 +253,13 @@ router.get('/:id', async (req, res) => {
     { data: users },
     { data: vendorInvoices },
     { data: projectContractors },
+    { data: payments },
   ] = await Promise.all([
     supabase
       .from('work_orders')
-      .select('id, display_number, wo_number_main, wo_number_sub, parent_wo_id, status, scheduled_date, created_at')
+      .select('id, display_number, status, scheduled_date, unit_number, assigned_to')
       .eq('job_id', id)
-      .order('wo_number_main', { ascending: true })
+      .order('created_at', { ascending: false })
       .order('wo_number_sub', { ascending: true }),
     supabase
       .from('change_orders')
@@ -287,7 +288,15 @@ router.get('/:id', async (req, res) => {
       .from('project_contractors')
       .select('id, vendor_id, vendors!left(name)')
       .eq('job_id', id),
+    supabase
+      .from('project_payments')
+      .select('*')
+      .eq('job_id', id)
+      .order('payment_date', { ascending: false })
+      .order('created_at', { ascending: false }),
   ]);
+
+  const paymentTotal = (payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
 
   // Resolve approver names for change orders (avoid ambiguous users FK alias).
   const approverIds = Array.from(new Set((changeOrders || []).map(co => co.approved_by_user_id).filter(Boolean)));
@@ -360,6 +369,9 @@ router.get('/:id', async (req, res) => {
       vendor_id: pc.vendor_id,
       vendor_name: pc.vendors?.name || '—',
     })),
+    // D-024a: customer payment ledger
+    payments: (payments || []).map(p => ({ ...p })),
+    paymentTotal: paymentTotal || 0,
   });
 });
 
@@ -656,6 +668,50 @@ router.post('/:id/vendor-invoices', async (req, res) => {
   });
   if (error) throw error;
   setFlash(req, 'success', `Vendor invoice $${amount.toFixed(2)} added for ${vendorName}.`);
+  res.redirect(`/projects/${id}`);
+});
+
+// ---------- Customer Payments ----------
+
+router.get('/:id/payments', async (req, res) => {
+  const id = req.params.id;
+  const { data: job } = await supabase.from('jobs').select('id').eq('id', id).maybeSingle();
+  if (!job) return res.status(404).send('Project not found');
+  const { data: payments, error: pErr } = await supabase
+    .from('project_payments')
+    .select('*')
+    .eq('job_id', id)
+    .order('payment_date', { ascending: false })
+    .order('created_at', { ascending: false });
+  if (pErr) throw pErr;
+  const paymentTotal = (payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
+  res.render('jobs/_payments_timeline', {
+    layout: false, jobId: id, payments: payments || [],
+    paymentTotal, fmt,
+  });
+});
+
+router.post('/:id/payments', async (req, res) => {
+  const id = req.params.id;
+  const { data: job } = await supabase.from('jobs').select('id').eq('id', id).maybeSingle();
+  if (!job) return res.status(404).send('Project not found');
+  const amount = Number(req.body.amount);
+  if (!amount || amount <= 0) return res.status(400).send('Valid amount required');
+  const { error } = await supabase.from('project_payments').insert({
+    job_id: parseInt(id, 10),
+    amount,
+    payment_date: req.body.payment_date || new Date().toISOString().slice(0,10),
+    method: req.body.method || 'check',
+    reference: emptyToNull(req.body.reference),
+    notes: emptyToNull(req.body.notes),
+    received_by_user_id: req.session.userId || null,
+  });
+  if (error) throw error;
+  // Update jobs.total_paid
+  const { data: payments } = await supabase.from('project_payments').select('amount').eq('job_id', id);
+  const total = (payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
+  await supabase.from('jobs').update({ total_paid: total }).eq('id', id);
+  setFlash(req, 'success', `Payment of $${amount.toFixed(2)} recorded.`);
   res.redirect(`/projects/${id}`);
 });
 
