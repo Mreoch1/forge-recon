@@ -55,8 +55,18 @@ const selectedAssignees = wo.assignee_ids || [];
       </div>
       <div>
         <label class="label" for="scheduled_time">Time</label>
-        <input type="time" name="scheduled_time" id="scheduled_time" step="1800"
-               value="<%= wo.scheduled_time || '' %>" class="input">
+        <select name="scheduled_time" id="scheduled_time" class="input">
+          <option value="">-- Select time --</option>
+          <% for (var h = 0; h < 24; h++) {
+               for (var m = 0; m < 60; m += 30) {
+                 var val = String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+                 var ampm = h < 12 ? 'AM' : 'PM';
+                 var h12 = h % 12 || 12;
+                 var label = h12 + ':' + String(m).padStart(2,'0') + ' ' + ampm;
+          %>
+            <option value="<%= val %>" <%= wo.scheduled_time === val ? 'selected' : '' %>><%= label %></option>
+          <% }} %>
+        </select>
       </div>
     </div>
   </div>

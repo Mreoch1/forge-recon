@@ -95,7 +95,17 @@ const warnings = extracted.warnings || [];
         </div>
         <div>
           <label class="label">Scheduled time</label>
-          <input type="time" name="scheduled_time" step="1800" value="<%= job.scheduled_time || '' %>" class="input">
+          <select name="scheduled_time" class="input">
+            <option value="">-- Select time --</option>
+            <% for (var h = 0; h < 24; h++) {
+                 for (var m = 0; m < 60; m += 30) {
+                   var v = String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+                   var a = h < 12 ? 'AM' : 'PM';
+                   var hh = h % 12 || 12;
+            %>
+              <option value="<%= v %>" <%= job.scheduled_time === v ? 'selected' : '' %>><%= hh %>:<%= String(m).padStart(2,'0') %> <%= a %></option>
+            <% }} %>
+          </select>
         </div>
       </div>
     </div>
