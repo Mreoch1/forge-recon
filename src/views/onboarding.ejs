@@ -1,0 +1,72 @@
+<%- include('./layouts/header', { title: 'Welcome to FORGE', currentUser: currentUser, flash: flash, activeNav: '' }) %>
+
+<style>
+  .onboarding-section { margin-bottom: 24px; }
+  .onboarding-section h2 { font-size: 18px; font-weight: 700; color: #1a1a1a; margin: 0 0 8px; }
+  .onboarding-section p, .onboarding-section li { font-size: 14px; color: #555; line-height: 1.6; }
+</style>
+
+<div class="max-w-2xl mx-auto px-4 py-10">
+  <h1 class="page-h1 mb-2">Welcome to FORGE <span style="font-size:28px">🏗️</span></h1>
+  <p class="page-sub mb-8">Field operations, records &amp; general estimating for Recon Enterprises.</p>
+
+  <!-- What you can do -->
+  <div class="onboarding-section">
+    <h2>What you can do</h2>
+    <ul>
+      <li><strong>Customers</strong> — manage contacts, contact persons, billing</li>
+      <li><strong>Projects</strong> — multi-month jobs with financial rollups</li>
+      <li><strong>Work Orders</strong> — assign crew, schedule, track progress</li>
+      <li><strong>Estimates</strong> — create with line items, send PDF, track approval</li>
+      <li><strong>Invoices</strong> — generate from estimates, track payments</li>
+      <li><strong>Bills &amp; Vendors</strong> — vendor spend, bill tracking</li>
+      <li><strong>Scheduling</strong> — week/2-week/month view with drag-to-reschedule</li>
+      <li><strong>AI Chat</strong> — natural language assistant for operations</li>
+      <li><strong>Accounting</strong> — AR/AP aging, journal entries, P&amp;L, balance sheet</li>
+    </ul>
+  </div>
+
+  <!-- What's in flight -->
+  <div class="onboarding-section">
+    <h2>What's coming</h2>
+    <ul>
+      <li>Projects v2: SOV/draw billing, RFI/submittal log, Excel round-trip</li>
+      <li>Dark mode polish</li>
+      <li>Mobile responsiveness</li>
+      <li>AI engine improvements (JARVIS)</li>
+    </ul>
+  </div>
+
+  <!-- Live sandbox warning -->
+  <div class="onboarding-section" style="background:#fff5f5;border:2px solid #c0202b;border-radius:10px;padding:20px">
+    <h2 style="color:#c0202b">🚨 LIVE SANDBOX WARNING</h2>
+    <p style="color:#b91c1c">
+      The email system is <strong>LIVE</strong>. Any estimate, invoice, or notification you send
+      <strong>WILL be delivered</strong> to real email addresses. While testing, <strong>do not use
+      real customer info</strong> — use clearly fake test data.
+    </p>
+  </div>
+
+  <!-- Feedback -->
+  <div class="onboarding-section" style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:20px">
+    <h2 style="color:#0369a1">💬 Feedback &amp; support</h2>
+    <p style="color:#075985">
+      Use the <strong>Feedback</strong> button (bottom-left) to report issues or suggest improvements.
+      Feedback emails land in Michael's inbox. For urgent issues, message Michael directly.
+    </p>
+  </div>
+
+  <!-- CTA -->
+  <div style="text-align:center;margin-top:32px">
+    <form action="/account/complete-onboarding" method="post">
+      <button type="submit" class="btn btn-primary" style="padding:14px 48px;font-size:16px">Got it — take me to the dashboard</button>
+    </form>
+    <div style="margin-top:8px">
+      <form action="/account/complete-onboarding" method="post">
+        <button type="submit" style="background:none;border:none;color:#888;font-size:12px;cursor:pointer;text-decoration:underline">Skip for now</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<%- include('./layouts/footer') %>

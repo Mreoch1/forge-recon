@@ -310,18 +310,37 @@ app.post('/feedback', async (req, res) => {
   res.redirect(req.headers.referer || '/');
 });
 
-// POST /account/ack-email-warning — dismiss the email warning modal
+// POST /account/ack-email-warning — dismiss the email warning modal (D-029)
 app.post('/account/ack-email-warning', async (req, res) => {
   if (!req.session.userId) return res.status(401).redirect('/login');
   try {
     const supabase = require('./db/supabase');
     await supabase.from('users').update({ acknowledged_live_email_warning_at: new Date() }).eq('id', req.session.userId);
-    req.flash('success', 'Email warning acknowledged.');
   } catch (e) {
     console.warn('[account] ack-email-warning failed:', e.message);
   }
-  const referer = req.headers.referer || '/';
-  res.redirect(referer);
+  res.redirect(req.headers.referer || '/');
+});
+
+// GET /onboarding — first-login intro page (D-030)
+app.get('/onboarding', async (req, res) => {
+  if (!req.session.userId) return res.redirect('/login');
+  res.render('onboarding', { title: 'Welcome to FORGE', activeNav: '' });
+});
+
+// POST /account/complete-onboarding — dismiss onboarding (D-030)
+app.post('/account/complete-onboarding', async (req, res) => {
+  if (!req.session.userId) return res.status(401).redirect('/login');
+  try {
+    const supabase = require('./db/supabase');
+    await supabase.from('users').update({ completed_onboarding_at: new Date() }).eq('id', req.session.userId);
+    // Reload session user
+    const { data: user } = await supabase.from('users').select('id, name, email, role, active, acknowledged_live_email_warning_at, completed_onboarding_at').eq('id', req.session.userId).maybeSingle();
+    if (user) req.currentUser = user;
+  } catch (e) {
+    console.warn('[account] complete-onboarding failed:', e.message);
+  }
+  res.redirect('/');
 });
 
 app.use((req, res) => {

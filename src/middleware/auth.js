@@ -31,6 +31,10 @@ function isOwnerEmail(email) {
 
 function requireAuth(req, res, next) {
   if (!req.session || !req.session.userId) return res.redirect('/login');
+  // D-030: redirect users who haven't completed onboarding
+  if (req.path !== '/onboarding' && !req.session.completed_onboarding_at && res.locals.currentUser && !res.locals.currentUser.completed_onboarding_at) {
+    return res.redirect('/onboarding');
+  }
   next();
 }
 
@@ -64,7 +68,7 @@ const loadCurrentUser = asyncHandler(async (req, res, next) => {
   if (req.session && req.session.userId) {
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, email, name, role')
+      .select('id, email, name, role, acknowledged_live_email_warning_at, completed_onboarding_at')
       .eq('id', req.session.userId)
       .eq('active', 1)
       .maybeSingle();
