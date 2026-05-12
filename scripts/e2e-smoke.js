@@ -16,12 +16,21 @@ let passed = 0, failed = 0;
 function fetch(method, path, data) {
   return new Promise((resolve, reject) => {
     const url = new URL(path, base);
-    const opts = { method, hostname: url.hostname, port: url.port, path: url.pathname + url.search };
-    if (COOKIE_JAR[url.hostname]) opts.headers = { Cookie: COOKIE_JAR[url.hostname] };
+    const headers = {};
+    if (COOKIE_JAR[url.hostname]) headers.Cookie = COOKIE_JAR[url.hostname];
+    if (data) {
+      headers['Content-Type'] = 'application/x-www-form-urlencoded';
+      headers['Content-Length'] = Buffer.byteLength(data);
+    }
+    const opts = { method, hostname: url.hostname, port: url.port, path: url.pathname + url.search, headers };
     const mod = url.protocol === 'https:' ? https : http;
     const req = mod.request(opts, (res) => {
       const setCookie = res.headers['set-cookie'];
-      if (setCookie) COOKIE_JAR[url.hostname] = setCookie.join('; ');
+      if (setCookie) {
+        const existing = COOKIE_JAR[url.hostname] ? COOKIE_JAR[url.hostname].split(/;\s*/) : [];
+        const next = setCookie.map(c => c.split(';')[0]);
+        COOKIE_JAR[url.hostname] = [...existing, ...next].join('; ');
+      }
       let body = '';
       res.on('data', chunk => body += chunk);
       res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body }));
@@ -33,9 +42,11 @@ function fetch(method, path, data) {
 }
 
 async function login() {
-  console.log('  🔑 Logging in as admin...');
-  await fetch('POST', '/login', 'email=admin@recon.local&password=changeme123');
-  // Check if login succeeded — if cookie wasn't set, most checks will 302
+  console.log('  Logging in as admin...');
+  const res = await fetch('POST', '/login', formData({ email: 'admin@recon.local', password: 'changeme123' }));
+  if (res.status !== 302 || !COOKIE_JAR[new URL(base).hostname]) {
+    throw new Error(`Login failed: expected 302 with session cookie, got ${res.status}`);
+  }
 }
 
 function formData(params) {
@@ -45,28 +56,33 @@ function formData(params) {
 async function main() {
   console.log(`=== E2E SMOKE (${base}) ===`);
 
-  // Login first
+  for (const check of manifest.filter(c => !c.auth)) {
+    await runCheck(check);
+  }
+
   await login();
 
-  for (const check of manifest) {
-    const { label, method, path, expect: expected, auth } = check;
-
-    // Skip auth-required checks if login failed (we still try)
-    const res = await fetch(method, path);
-    const status = res.status;
-    const ok = status === expected;
-
-    if (ok) {
-      console.log(`  ✅ ${label} (${status})`);
-      passed++;
-    } else {
-      console.log(`  ❌ ${label} — expected ${expected}, got ${status}`);
-      failed++;
-    }
+  for (const check of manifest.filter(c => c.auth)) {
+    await runCheck(check);
   }
 
   console.log(`\n=== RESULTS: ${passed} passed, ${failed} failed ===`);
   process.exit(failed > 0 ? 1 : 0);
+}
+
+async function runCheck(check) {
+  const { label, method, path, expect: expected } = check;
+  const res = await fetch(method, path);
+  const status = res.status;
+  const ok = status === expected;
+
+  if (ok) {
+    console.log(`  PASS ${label} (${status})`);
+    passed++;
+  } else {
+    console.log(`  FAIL ${label} - expected ${expected}, got ${status}`);
+    failed++;
+  }
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
