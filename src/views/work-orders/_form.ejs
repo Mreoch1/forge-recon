@@ -3,9 +3,6 @@
 // Expects: wo, customers, users, errors, units, formAction, submitLabel
 // customers: array of {id, name, email, phone, address, city, state, zip}
 // users: array of {id, name}
-const linesToRender = (wo.lines && wo.lines.length) ? wo.lines : [{
-  description: '', quantity: 1, unit: 'ea', completed: 0
-}];
 const selectedCustomerId = wo.customer_id || '';
 const selectedAssignees = wo.assignee_ids || [];
 %>
@@ -90,55 +87,6 @@ const selectedAssignees = wo.assignee_ids || [];
     <label class="label" for="description">Description</label>
     <textarea name="description" id="description" rows="2" class="input"
               placeholder="Brief description of the work"><%= wo.description || '' %></textarea>
-  </div>
-
-  <!-- Line items -->
-  <div class="card overflow-hidden">
-    <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
-      <h3 class="font-semibold">Scope / Checklist</h3>
-      <button type="button" data-add-line class="btn btn-secondary text-sm">+ Add item</button>
-    </div>
-    <div class="overflow-x-auto">
-      <table class="data" data-line-items>
-        <thead>
-          <tr><th>Done</th><th>Description</th><th class="text-right">Qty</th><th>Unit</th><th></th></tr>
-        </thead>
-        <tbody>
-          <% linesToRender.forEach(function(li, idx){ %>
-            <tr class="line-row">
-              <td class="text-center">
-                <input type="hidden" name="lines[<%= idx %>][completed]" value="0">
-                <input type="checkbox" name="lines[<%= idx %>][completed]" value="1" <%= li.completed ? 'checked' : '' %>>
-              </td>
-              <td>
-                <input type="text" name="lines[<%= idx %>][description]" value="<%= li.description || '' %>" class="input">
-              </td>
-              <td class="text-right">
-                <input type="number" step="0.01" min="0" name="lines[<%= idx %>][quantity]" value="<%= li.quantity %>" class="input text-right" style="width:5rem">
-              </td>
-              <td>
-                <select name="lines[<%= idx %>][unit]" class="input">
-                  <% units.forEach(function(u){ %>
-                    <option value="<%= u %>" <%= li.unit === u ? 'selected' : '' %>><%= u %></option>
-                  <% }); %>
-                </select>
-              </td>
-              <td><button type="button" data-remove-line class="text-recon-fog hover:text-recon-red text-sm">remove</button></td>
-            </tr>
-          <% }); %>
-          <tr class="line-row hidden" data-template>
-            <td class="text-center">
-              <input type="hidden" name="lines[__IDX__][completed]" value="0">
-              <input type="checkbox" name="lines[__IDX__][completed]" value="1">
-            </td>
-            <td><input type="text" name="lines[__IDX__][description]" class="input"></td>
-            <td class="text-right"><input type="number" step="0.01" min="0" name="lines[__IDX__][quantity]" value="1" class="input text-right" style="width:5rem"></td>
-            <td><select name="lines[__IDX__][unit]" class="input"><% units.forEach(function(u){ %><option value="<%= u %>" <%= u === 'ea' ? 'selected' : '' %>><%= u %></option><% }); %></select></td>
-            <td><button type="button" data-remove-line class="text-recon-fog hover:text-recon-red text-sm">remove</button></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
   </div>
 
   <!-- Crew notes (internal) -->
