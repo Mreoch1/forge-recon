@@ -154,20 +154,20 @@ tools.search_bills = {
   args: { query: 'string (optional)', status: 'string (optional)', vendor_name: 'string (optional)' },
   needs_user: 'read',
   handler: async ({ query, status, vendor_name }, ctx) => {
-    const conds = ['b.id IS NOT NULL'];
-    const params = [];
-    if (query) { const like = resolveQuery(query); conds.push('(b.bill_number ILIKE ? OR v.name ILIKE ?)'); params.push(like, like); }
-    if (status) { conds.push('b.status = ?'); params.push(status); }
-    if (vendor_name) { conds.push('v.name ILIKE ?'); params.push(`%${vendor_name}%`); }
-    const rows = await db.all(`SELECT b.id, b.bill_number, b.status, b.total, b.amount_paid, b.bill_date, b.due_date,
-      v.name AS vendor_name
-      FROM bills b LEFT JOIN vendors v ON v.id = b.vendor_id
-      WHERE ${conds.join(' AND ')}
-      ORDER BY b.created_at DESC LIMIT 10`, params);
-    return rows.map(r => ({
+    let q = supabase.from('bills').select(`
+      id, bill_number, status, total, amount_paid, bill_date, due_date,
+      vendors!left(name)
+    `).order('created_at', { ascending: false }).limit(10);
+
+    if (status) q = q.eq('status', status);
+    if (vendor_name) q = q.ilike('vendors.name', `%${vendor_name}%`);
+    if (query) q = q.or(`bill_number.ilike.%${query}%,vendors.name.ilike.%${query}%`);
+
+    const { data: rows } = await q;
+    return (rows || []).map(r => ({
       id: r.id, number: r.bill_number || `#${r.id}`, status: r.status,
       total: Number(r.total) || 0, amount_paid: Number(r.amount_paid) || 0,
-      vendor_name: r.vendor_name || '', bill_date: r.bill_date || '', due_date: r.due_date || ''
+      vendor_name: r.vendors?.name || '', bill_date: r.bill_date || '', due_date: r.due_date || ''
     }));
   }
 };
