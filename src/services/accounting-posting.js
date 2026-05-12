@@ -151,6 +151,38 @@ async function postBillApproved(bill, lines, opts = {}) {
   return postJournalEntry({ entryDate: bill.bill_date || todayDate(), description: desc, sourceType: 'bill', sourceId: bill.id, userId, lines: jeLines });
 }
 
+/**
+ * Reverse the JE created when a bill was approved (void bill).
+ * Swaps debits and credits: debit AP, credit expense accounts.
+ */
+async function postBillVoid(bill, lines, opts = {}) {
+  const userId = opts.userId || null;
+  if (!await isAccountingReady()) return null;
+  const ap = await lookupAccount(CODES.ACCOUNTS_PAYABLE);
+  if (!ap) return null;
+  // Find existing JE
+  const { data: existing } = await supabase.from('journal_entries').select('id').eq('source_type', 'bill').eq('source_id', String(bill.id)).maybeSingle();
+  if (!existing) return null; // nothing to reverse
+  const total = Number(bill.total) || 0; const taxAmount = Number(bill.tax_amount) || 0;
+  const desc = `Void bill ${bill.bill_number || '#' + bill.id}`;
+  const fallback = await lookupAccount(CODES.MISC_EXPENSE);
+  const jeLines = [];
+  for (const li of lines) {
+    const amt = Number(li.line_total) || 0; if (amt <= 0) continue;
+    const { data: acct } = li.account_id ? await supabase.from('accounts').select('id').eq('id', li.account_id).maybeSingle() : { data: null };
+    const targetAcct = acct || fallback; if (!targetAcct) continue;
+    jeLines.push({ accountId: targetAcct.id, debit: 0, credit: amt, description: `${desc} — ${li.description || 'expense'}` });
+  }
+  if (jeLines.length === 0) return null;
+  if (taxAmount > 0) {
+    const taxAcct = await lookupAccount(CODES.SALES_TAX_BILLS);
+    if (!taxAcct) return null;
+    jeLines.push({ accountId: taxAcct.id, debit: 0, credit: taxAmount, description: `${desc} — sales tax reversal` });
+  }
+  jeLines.push({ accountId: ap.id, debit: total, credit: 0, description: `${desc} — AP reversal` });
+  return postJournalEntry({ entryDate: todayDate(), description: desc, sourceType: 'bill_void', sourceId: bill.id, userId, lines: jeLines });
+}
+
 async function postBillPaid(bill, amount, opts = {}) {
   const userId = opts.userId || null; amount = Number(amount) || 0;
   if (amount <= 0) return null;
@@ -167,5 +199,5 @@ async function postBillPaid(bill, amount, opts = {}) {
 
 module.exports = {
   CODES, isAccountingReady, postJournalEntry,
-  postInvoiceSent, postPaymentReceived, postInvoiceVoid, postBillApproved, postBillPaid,
+  postInvoiceSent, postPaymentReceived, postInvoiceVoid, postBillApproved, postBillPaid, postBillVoid,
 };

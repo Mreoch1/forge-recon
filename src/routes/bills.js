@@ -411,7 +411,7 @@ router.post('/:id/approve', async (req, res) => {
   // RPC: approve_bill handles status + audit
   const { error: rpcErr } = await supabase.rpc('approve_bill', {
     bill_id: id,
-    user_id: req.session.userId,
+    user_id: req.currentUser?.id ?? req.session?.userId ?? null,
   });
   if (rpcErr) throw rpcErr;
 
@@ -491,8 +491,14 @@ router.post('/:id/void', async (req, res) => {
     user_id: req.currentUser?.id ?? req.session?.userId ?? null,
   });
   if (rpcErr) throw rpcErr;
-  // TODO: reversing JE if previously approved.
-  setFlash(req, 'success', `Bill voided.`);
+  // Reverse journal entry if bill was previously approved
+  try {
+    const posting = require('../services/accounting-posting');
+    const { data: bill } = await supabase.from('bills').select('id, bill_number, total, tax_amount').eq('id', id).single();
+    const { data: lines } = await supabase.from('bill_lines').select('line_total, description, account_id').eq('bill_id', id);
+    await posting.postBillVoid(bill, lines || [], { userId: req.currentUser?.id });
+  } catch(e) { console.warn('[bills] JE reversal on void failed:', e.message); }
+  setFlash(req, 'success', 'Bill voided.');
   res.redirect(`/bills/${id}`);
 });
 
