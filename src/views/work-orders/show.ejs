@@ -221,42 +221,11 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
   <!-- Two-column layout: scope (left, wide) | context (right, narrow) -->
   <div class="grid gap-8 ws-grid" style="grid-template-columns: minmax(0,1.6fr) minmax(0,1fr);">
 
-    <!-- LEFT: scope of work + notes -->
+    <!-- LEFT: description + notes -->
     <div>
-      <h2 class="ws-h-primary">
-        <span>Scope</span>
-        <% if (totalCount > 0) { %>
-          <span class="ws-eyebrow"><%= completedCount %> of <%= totalCount %> complete</span>
-        <% } %>
-      </h2>
-
-      <% if (wo.lines.length === 0) { %>
-        <div class="ws-empty">No items on this work order.</div>
-      <% } else { %>
-        <table class="ws-items">
-          <thead>
-            <tr>
-              <th class="done-cell"></th>
-              <th>Description</th>
-              <th class="qty-cell">Qty</th>
-              <th class="unit-cell">Unit</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% wo.lines.forEach(function(li){ %>
-              <tr>
-                <td class="done-cell"><span class="ws-checkbox <%= li.completed ? 'done' : '' %>"></span></td>
-                <td class="desc-cell <%= li.completed ? 'done' : '' %>"><%= li.description %></td>
-                <td class="qty-cell"><%= li.quantity %></td>
-                <td class="unit-cell"><%= li.unit %></td>
-              </tr>
-            <% }); %>
-          </tbody>
-        </table>
-      <% } %>
 
       <!-- Description (from create form) -->
-      <h2 class="ws-h-secondary mt-8">Description</h2>
+      <h2 class="ws-h-primary">Description</h2>
       <% if (wo.description) { %>
         <div style="font-size:.85rem;line-height:1.5;color:#1a1a1a;white-space:pre-line;padding:.6rem 0"><%= wo.description %></div>
       <% } else { %>
