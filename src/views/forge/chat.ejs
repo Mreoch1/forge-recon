@@ -68,6 +68,10 @@
       <button class="forge-chip" data-action="example" data-q="What's on my schedule today?">📅 What's on today?</button>
       <button class="forge-chip" id="forge-surprise-me">💡 Surprise me</button>
     </div>
+    <div id="forge-cta-wrap" class="hidden" style="margin-top:1.5rem;animation:forge-fade-in 0.6s ease forwards;display:flex;flex-direction:column;align-items:center;gap:0.5rem;position:relative;z-index:2;">
+      <button id="forge-get-started" class="btn btn-primary" style="padding:0.75rem 2rem;font-size:1rem;border-radius:999px;cursor:pointer;border:none;background:#22d3ee;color:#020617;font-weight:700;transition:all 0.2s;box-shadow:0 0 20px rgba(34,211,238,0.3);">Get Started</button>
+      <span style="font-size:0.75rem;color:#64748b;">press <kbd style="background:#334155;color:#e2e8f0;padding:2px 8px;border-radius:4px;font-size:0.7rem;">Enter</kbd> to start</span>
+    </div>
   </div>
 
   <!-- Chat widget (dashboard mode, hidden until intro dismissed) -->
@@ -83,22 +87,24 @@
   var chatPanel = document.getElementById('forge-chat-panel');
   var typewriterEl = document.getElementById('forge-typewriter');
 
-  // Skip intro if seen before
-  var msgCount = parseInt(sessionStorage.getItem('forge_msg_count') || '0', 10);
+  // Skip intro if seen before (≥3 messages sent in a past session)
   var introSeen = localStorage.getItem(INTRO_SEEN_KEY) === 'true';
 
   if (introSeen) {
     introEl.classList.add('hidden');
     chatPanel.style.display = 'block';
   } else {
-    // Typewriter effect
+    // Typewriter effect — ~40ms per char per D-062
     var greeting = "Hello — I'm FORGE.";
     var i = 0;
     function typeChar() {
       if (i < greeting.length) {
         typewriterEl.textContent += greeting.charAt(i);
         i++;
-        setTimeout(typeChar, 50 + Math.random() * 30);
+        setTimeout(typeChar, 30 + Math.random() * 20);
+      } else {
+        // Typewriter done — show the "Get Started" CTA + press Enter hint
+        document.getElementById('forge-cta-wrap').classList.remove('hidden');
       }
     }
     typeChar();
@@ -110,10 +116,19 @@
       localStorage.setItem(INTRO_SEEN_KEY, 'true');
     }
     chatPanel.style.display = 'block';
+    // Focus the chat input once panel is visible
+    setTimeout(function() {
+      var input = document.getElementById('recon-aic-input');
+      if (input) input.focus();
+    }, 100);
   }
 
+  // "Get Started" button
+  document.getElementById('forge-get-started')?.addEventListener('click', revealChat);
+
+  // Chip clicks also dismiss intro AND submit
   document.querySelectorAll('.forge-chip[data-action="example"]').forEach(function(btn) {
-    btn.addEventListener('click', revealChat);
+    btn.addEventListener('click', function() { revealChat(); });
   });
 
   // Surprise me button
@@ -126,23 +141,16 @@
   document.getElementById('forge-surprise-me')?.addEventListener('click', function() {
     var pick = surprises[Math.floor(Math.random() * surprises.length)];
     revealChat();
-    // Find the chat widget's input and submit
     var input = document.getElementById('recon-aic-input');
     if (input) { input.value = pick; input.form?.requestSubmit(); }
   });
 
-  // Track message count to auto-dismiss intro
-  var origPush = Array.prototype.push;
-  var origRender = null;
-  var msgObserver = setInterval(function() {
-    var msgs = document.querySelector('.recon-aic-msgs');
-    if (!msgs) return;
-    var count = msgs.querySelectorAll('.recon-aic-msg').length;
-    if (count >= 3 && !introEl.classList.contains('hidden')) {
+  // Keyboard: pressing Enter on the intro page triggers Get Started
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !introEl.classList.contains('hidden')) {
       revealChat();
-      clearInterval(msgObserver);
     }
-  }, 500);
+  });
 })();
 </script>
 
