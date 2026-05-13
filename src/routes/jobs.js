@@ -744,9 +744,11 @@ router.post('/:id/payments', async (req, res) => {
   });
   if (error) throw error;
   // Update jobs.total_paid
-  const { data: payments } = await supabase.from('project_payments').select('amount').eq('job_id', id);
+  const { data: payments, error: paymentsErr } = await supabase.from('project_payments').select('amount').eq('job_id', id);
+  if (paymentsErr) throw paymentsErr;
   const total = (payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
-  await supabase.from('jobs').update({ total_paid: total }).eq('id', id);
+  const { error: totalErr } = await supabase.from('jobs').update({ total_paid: total }).eq('id', id);
+  if (totalErr) throw totalErr;
   setFlash(req, 'success', `Payment of $${amount.toFixed(2)} recorded.`);
   res.redirect(`/projects/${id}`);
 });
