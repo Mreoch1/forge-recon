@@ -83,38 +83,28 @@
 
 <script>
 (function() {
-  const INTRO_SEEN_KEY = 'forge_intro_seen';
   var introEl = document.getElementById('forge-intro');
   var chatPanel = document.getElementById('forge-chat-panel');
   var typewriterEl = document.getElementById('forge-typewriter');
 
-  // Skip intro if seen before (≥3 messages sent in a past session)
-  var introSeen = localStorage.getItem(INTRO_SEEN_KEY) === 'true';
-
-  if (introSeen) {
-    introEl.classList.add('hidden');
-    chatPanel.style.display = 'block';
-  } else {
-    // Personalized typewriter greeting — "Hello, <firstName>."
-    var greeting = "Hello, <%= firstName %>.";
-    var i = 0;
-    function typeChar() {
-      if (i < greeting.length) {
-        typewriterEl.textContent += greeting.charAt(i);
-        i++;
-        setTimeout(typeChar, 30 + Math.random() * 20);
-      } else {
-        // Typewriter done — show the "Get Started" CTA + press Enter hint
-        document.getElementById('forge-cta-wrap').classList.remove('hidden');
-      }
+  // Personalized typewriter greeting — "Hello, <firstName>."
+  var greeting = <%- JSON.stringify('Hello, ' + firstName + '.') %>;
+  var i = 0;
+  function typeChar() {
+    if (i < greeting.length) {
+      typewriterEl.textContent += greeting.charAt(i);
+      i++;
+      setTimeout(typeChar, 30 + Math.random() * 20);
+    } else {
+      // Typewriter done — show the "Get Started" CTA + press Enter hint
+      document.getElementById('forge-cta-wrap').classList.remove('hidden');
     }
-    typeChar();
   }
+  typeChar();
 
   function revealChat() {
     if (!introEl.classList.contains('hidden')) {
       introEl.classList.add('hidden');
-      localStorage.setItem(INTRO_SEEN_KEY, 'true');
     }
     chatPanel.style.display = 'block';
     // Focus the chat input once panel is visible
