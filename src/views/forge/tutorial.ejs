@@ -1,0 +1,87 @@
+<%# D-063 Item 2+5: Interactive AI tutorial — FORGE walkthrough %>
+<%- include('../layouts/header', { title: 'FORGE Tutorial', activeNav: 'forge', currentUser }) %>
+
+<style>
+  #tutorial-wrap {
+    min-height: 80vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #020617 0%, #172554 50%, #0f172a 100%);
+    border-radius: 0.75rem; padding: 3rem 2rem; text-align: center;
+    position: relative; overflow: hidden;
+  }
+  #tutorial-wrap::after {
+    content: ''; position: absolute; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(34,211,238,0.04) 2px, rgba(34,211,238,0.04) 4px);
+    pointer-events: none;
+    animation: t-scanline 3s ease-in-out infinite;
+  }
+  @keyframes t-scanline { 0%,100%{opacity:0.1} 50%{opacity:0.25} }
+  .t-step { position: relative; z-index: 2; max-width: 600px; }
+  .t-typewriter {
+    font-family: 'Inter', 'SF Mono', 'Fira Code', monospace;
+    font-size: 1.3rem; font-weight: 600; color: #e2e8f0;
+    min-height: 2rem; border-right: 2px solid #22d3ee;
+    animation: t-blink 1s step-end infinite; margin-bottom: 1rem;
+  }
+  @keyframes t-blink { 50%{border-color:transparent} }
+  .t-chip { display:inline-flex;align-items:center;gap:0.35rem;padding:0.5rem 1rem;border-radius:999px;cursor:pointer;background:rgba(34,211,238,0.08);color:#22d3ee;border:1px solid rgba(34,211,238,0.2);font-size:0.85rem;font-weight:500;transition:all 0.2s;margin:0.25rem; }
+  .t-chip:hover { background:rgba(34,211,238,0.18); transform:translateY(-1px); }
+  .t-skip { font-size:0.8rem;color:#64748b;text-decoration:underline;position:relative;z-index:2;margin-top:1rem;display:inline-block; }
+</style>
+
+<div class="max-w-7xl mx-auto px-4 py-4">
+  <div id="tutorial-wrap">
+    <div class="t-step" id="t-step">
+      <div class="t-typewriter" id="t-typewriter"></div>
+      <div id="t-actions" style="margin-top:1.5rem;"></div>
+    </div>
+    <a href="/forge" class="t-skip">Skip tutorial</a>
+  </div>
+</div>
+
+<script>
+(function() {
+  var steps = [
+    { msg: "Hi! I'm going to walk you through FORGE in about 2 minutes. Ready?", action: { label: "Start", next: true } },
+    { msg: "First, let's create a work order. Click the chip below to try.", action: { label: "📋 Make a work order for Plymouth Square", next: true, fake: true } },
+    { msg: "Now let's send an invoice. Try asking me…", action: { label: "📤 Send the Plymouth Square cabinet invoice", next: true, fake: true } },
+    { msg: "You can also check your schedule.", action: { label: "📅 What's on today?", next: true, fake: true } },
+    { msg: 'If I ever can\'t help, click the bug icon below any reply and tell me what went wrong.', action: { label: "Got it!", next: true } },
+    { msg: "You're all set! Click below to go to FORGE, or use the classic dashboard via the arrow up top.", action: { label: "Go to FORGE", href: "/forge" } }
+  ];
+  var stepIdx = 0;
+  var twEl = document.getElementById('t-typewriter');
+  var actionsEl = document.getElementById('t-actions');
+
+  function showStep(idx) {
+    var s = steps[idx];
+    twEl.textContent = '';
+    actionsEl.innerHTML = '';
+    var i = 0;
+    function type() {
+      if (i < s.msg.length) { twEl.textContent += s.msg.charAt(i); i++; setTimeout(type, 15 + Math.random() * 15); }
+      else { renderActions(s); }
+    }
+    type();
+  }
+
+  function renderActions(s) {
+    if (s.action.href) {
+      actionsEl.innerHTML = '<a href="' + s.action.href + '" class="t-chip">' + s.action.label + '</a>';
+    } else if (s.action.next) {
+      var btn = document.createElement('button');
+      btn.className = 't-chip';
+      btn.textContent = s.action.label;
+      btn.addEventListener('click', function() {
+        stepIdx++;
+        if (stepIdx < steps.length) showStep(stepIdx);
+      });
+      actionsEl.appendChild(btn);
+    }
+  }
+
+  showStep(0);
+})();
+</script>
+
+<%- include('../layouts/footer') %>

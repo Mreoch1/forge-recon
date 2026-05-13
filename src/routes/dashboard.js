@@ -282,7 +282,15 @@ router.get('/forge', async (req, res) => {
   res.render('forge/chat', {
     title: 'FORGE AI',
     activeNav: 'forge',
-    inlineAiChat: true,
+    currentUser: res.locals.currentUser || null,
+  });
+});
+
+// D-063 Item 2+5: Interactive AI tutorial
+router.get('/forge/tutorial', async (req, res) => {
+  res.render('forge/tutorial', {
+    title: 'FORGE Tutorial',
+    activeNav: 'forge',
     currentUser: res.locals.currentUser || null,
   });
 });
