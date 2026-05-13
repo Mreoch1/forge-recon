@@ -68,7 +68,7 @@ const loadCurrentUser = asyncHandler(async (req, res, next) => {
   if (req.session && req.session.userId) {
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, email, name, role, acknowledged_live_email_warning_at, completed_onboarding_at')
+      .select('id, email, name, role, default_landing, acknowledged_live_email_warning_at, completed_onboarding_at')
       .eq('id', req.session.userId)
       .eq('active', 1)
       .maybeSingle();
