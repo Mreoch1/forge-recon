@@ -1,10 +1,10 @@
 /* eslint-env browser */
 /**
- * Recon AI Chat — Round 11 Tier 1+2 client widget.
+ * Recon AI Chat - Round 11 Tier 1+2 client widget.
  *
  * Lives in every page footer (mounted via #ai-chat-root).
  * - Floating pill bottom-right when collapsed.
- * - Expands to 380×500 chat panel on click.
+ * - Expands to 380x500 chat panel on click.
  * - POSTs { message, history } to /ai/chat
  * - Renders reply text + clickable navigation chips returned by the server.
  * - History persists in sessionStorage; clears on logout.
@@ -12,11 +12,11 @@
  * Pure progressive enhancement: if /ai/chat returns 404 (kill switch),
  * the widget hides itself and never retries this session.
  *
- * Server contract (Round 11 — wired by Hermes):
+ * Server contract (Round 11 - wired by Hermes):
  *   POST /ai/chat { message: string, history: [{ role, content }] }
- *     → 200 { reply: string, chips: [{label, href}], tool_calls: [...], audit_id }
- *     → 404 { error: 'AI chat disabled' }   (when AI_CHAT_ENABLED=0)
- *     → 5xx { error: string }
+ *     -> 200 { reply: string, chips: [{label, href}], tool_calls: [...], audit_id }
+ *     -> 404 { error: 'AI chat disabled' }   (when AI_CHAT_ENABLED=0)
+ *     -> 5xx { error: string }
  */
 (function () {
   'use strict';
@@ -27,6 +27,8 @@
   // ----- DOM -----
   const root = document.getElementById('ai-chat-root');
   if (!root) return;
+  const mode = root.dataset.mode || 'floating';
+  const embedded = mode === 'dashboard';
 
   // Inject styles once.
   if (!document.getElementById('ai-chat-styles')) {
@@ -135,6 +137,31 @@
       .recon-aic-input button:hover { background: #8a0e16; }
       .recon-aic-input button:disabled { background: #999; cursor: not-allowed; }
       .recon-aic-input button { flex: 0 0 auto; }
+      .recon-aic-shell-embedded .recon-aic-panel {
+        position: static;
+        width: 100%;
+        height: 430px;
+        max-height: none;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+      }
+      .recon-aic-shell-embedded .recon-aic-head { display: none; }
+      .recon-aic-shell-embedded .recon-aic-msgs {
+        background: #fbfbfb;
+        min-height: 0;
+      }
+      .recon-aic-shell-embedded .recon-aic-empty {
+        text-align: left;
+        padding: 1.1rem .9rem;
+      }
+      .recon-aic-shell-embedded .recon-aic-empty .examples {
+        align-items: stretch;
+      }
+      .recon-aic-shell-embedded .recon-aic-empty .examples button {
+        text-align: left;
+        min-height: 36px;
+      }
       .recon-aic-empty {
         text-align: center; color: #999; font-size: .8rem; padding: 2rem 1rem;
       }
@@ -203,7 +230,7 @@
       }
       .recon-aic-confirm .warnings ul { margin: 0; padding: 0; list-style: none; }
       .recon-aic-confirm .warnings li { padding: .1rem 0; }
-      .recon-aic-confirm .warnings li::before { content: "⚠ "; margin-right: .25rem; }
+      .recon-aic-confirm .warnings li::before { content: "! "; margin-right: .25rem; }
       .recon-aic-confirm.has-warnings .actions .confirm {
         background: #92400e; /* darker amber to acknowledge the override */
       }
@@ -211,11 +238,11 @@
 
       @media (max-width: 640px) {
         html, body { overflow-x: hidden !important; }
-        #ai-chat-root {
+        #ai-chat-root[data-mode="floating"] {
           position: fixed; inset: 0; z-index: 9000; pointer-events: none;
           width: 100vw; max-width: 100vw; overflow: hidden;
         }
-        #ai-chat-root .recon-aic-pill, #ai-chat-root .recon-aic-panel { pointer-events: auto; }
+        #ai-chat-root[data-mode="floating"] .recon-aic-pill, #ai-chat-root[data-mode="floating"] .recon-aic-panel { pointer-events: auto; }
         .recon-aic-panel, .recon-aic-panel * { box-sizing: border-box; }
         .recon-aic-pill {
           left: 12px; right: 12px; bottom: 12px;
@@ -248,7 +275,7 @@
 
   // ----- State -----
   const state = {
-    open: false,
+    open: embedded,
     sending: false,
     history: [],   // { role: 'user' | 'assistant', content: string, chips?: [] }
     disabled: false, // set true if /ai/chat returns 404
@@ -300,36 +327,38 @@
       root.innerHTML = '';
       return;
     }
-    if (!state.open) {
+    if (!embedded && !state.open) {
       root.innerHTML = `
         <div class="recon-aic-pill" data-action="open">
           <span class="dot"></span>
-          <span>Ask anything…</span>
+          <span>Ask FORGE</span>
         </div>
       `;
       return;
     }
     const empty = state.history.length === 0;
     root.innerHTML = `
+      <div class="${embedded ? 'recon-aic-shell-embedded' : ''}">
       <div class="recon-aic-panel">
         <div class="recon-aic-head">
-          <div class="title"><span class="dot"></span> Recon assistant</div>
+          <div class="title"><span class="dot"></span> FORGE</div>
           <div>
-            <button data-action="clear" title="New conversation">↺</button>
-            <button data-action="close" title="Close">×</button>
+            <button data-action="clear" title="New conversation">New</button>
+            ${embedded ? '' : '<button data-action="close" title="Close">Close</button>'}
           </div>
         </div>
         <div class="recon-aic-msgs" id="recon-aic-msgs">
           ${empty ? renderEmpty() : state.history.map(renderMsg).join('')}
-          ${state.sending ? '<div class="recon-aic-msg thinking">Recon assistant is thinking<div class="recon-aic-thinking-dots"><span></span><span></span><span></span></div></div>' : ''}
+          ${state.sending ? '<div class="recon-aic-msg thinking">FORGE is thinking<div class="recon-aic-thinking-dots"><span></span><span></span><span></span></div></div>' : ''}
         </div>
         <form class="recon-aic-input" data-action="send">
           <textarea id="recon-aic-input"
-                    placeholder="${empty ? 'Try: how many overdue invoices?' : 'Ask a follow-up…'}"
+                    placeholder="${empty ? 'Ask FORGE to find, schedule, create, send, or explain...' : 'Ask a follow-up...'}"
                     rows="1"
                     ${state.sending ? 'disabled' : ''}></textarea>
           <button type="submit" ${state.sending ? 'disabled' : ''}>Send</button>
         </form>
+      </div>
       </div>
     `;
     // Scroll messages to bottom.
@@ -352,19 +381,15 @@
     const text = escapeHTML(m.content || '').replace(/\n/g, '<br>');
     const chips = (m.chips && m.chips.length)
       ? `<div class="recon-aic-chips">${m.chips.map(c => `
-          <a class="recon-aic-chip" href="${escapeHTML(c.href)}">${escapeHTML(c.label)}<span class="arrow">→</span></a>
+          <a class="recon-aic-chip" href="${escapeHTML(c.href)}">${escapeHTML(c.label)}<span class="arrow">-&gt;</span></a>
         `).join('')}</div>`
       : '';
     const confirm = m.confirm ? renderConfirmCard(m.confirm, m.confirmState) : '';
     const reportBtn = m.error
-      ? `<form action="/report-error" method="post" class="recon-aic-report" style="margin-top:8px" onsubmit="this.querySelector('[name=error_detail]').value=this.querySelector('[name=error_detail]').value || '${escapeHTML(m.content || '')}'">
-           <input type="hidden" name="code" value="500">
-           <input type="hidden" name="message" value="AI Chat Error">
-           <input type="hidden" name="url" value="${escapeHTML(window.location.pathname + window.location.search)}">
-           <input type="hidden" name="error_detail" value="">
-           <input type="hidden" name="error_ctx" value="">
-           <button type="submit" style="background:none;border:none;color:#c0202b;cursor:pointer;font-size:11px;text-decoration:underline;padding:0">📧 Report this error</button>
-         </form>`
+      ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">
+           <button class="recon-aic-retry" data-retry-msg="${escapeHTML(m.content || '')}" style="background:#1a1a1a;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px">Retry</button>
+           <a href="/dashboard" style="color:#c0202b;font-size:11px;text-decoration:underline;padding:4px 0">Use classic view</a>
+         </div>`
       : '';
     return `<div class="recon-aic-msg ${role}${errClass}">${text}${confirm}${chips}${reportBtn}</div>`;
   }
@@ -384,14 +409,14 @@
     const warnings = Array.isArray(confirm.warnings) ? confirm.warnings : [];
     const hasWarningsClass = warnings.length > 0 ? ' has-warnings' : '';
     let resolved = '';
-    if (state === 'confirmed') resolved = '<div class="resolved-tag confirmed">✓ Confirmed</div>';
-    else if (state === 'cancelled') resolved = '<div class="resolved-tag cancelled">○ Cancelled</div>';
-    else if (state === 'expired')   resolved = '<div class="resolved-tag expired">⏱ Expired</div>';
+    if (state === 'confirmed') resolved = '<div class="resolved-tag confirmed">Confirmed</div>';
+    else if (state === 'cancelled') resolved = '<div class="resolved-tag cancelled">Cancelled</div>';
+    else if (state === 'expired')   resolved = '<div class="resolved-tag expired">Expired</div>';
 
     const warningsBlock = warnings.length > 0
       ? `<div class="warnings"><ul>${warnings.map(w =>
-          // Strip any leading "⚠ " from server text so we don't double-render it
-          `<li>${escapeHTML(String(w).replace(/^\s*[⚠!]\s*/, ''))}</li>`
+          // Strip any leading warning marker from server text so we do not double-render it
+          `<li>${escapeHTML(String(w).replace(/^\s*[!]\s*/, ''))}</li>`
         ).join('')}</ul></div>`
       : '';
 
@@ -406,7 +431,7 @@
           <div class="actions">
             <button class="confirm" data-action="ai-confirm" data-cid="${cid}" ${inflight ? 'disabled' : ''}>${confirmLabel}</button>
             <button class="cancel" data-action="ai-cancel" data-cid="${cid}" ${inflight ? 'disabled' : ''}>Cancel</button>
-            <span class="countdown" data-cid="${cid}">…</span>
+            <span class="countdown" data-cid="${cid}">...</span>
           </div>
         ` : ''}
       </div>
@@ -415,14 +440,14 @@
 
   function renderEmpty() {
     const examples = [
-      'how many overdue invoices?',
-      "what's on today's schedule?",
-      'find Cambridge Towers estimates',
-      'how much does TechSquare owe?',
+      'what needs my attention today?',
+      'create a work order for Thompson Towers unit 1011',
+      'schedule Mike for Thursday morning',
+      'find overdue invoices',
     ];
     return `
       <div class="recon-aic-empty">
-        <div>Ask about jobs, customers, schedule, invoices, bills, or anything in Recon.</div>
+        <div>Tell FORGE what you need done. It can search records, open pages, draft work, and prepare safe confirmations.</div>
         <div class="examples">
           ${examples.map(q => `<button data-action="example" data-q="${escapeHTML(q)}">${escapeHTML(q)}</button>`).join('')}
         </div>
@@ -441,6 +466,9 @@
     render();
 
     try {
+      // Abort after 5s so user isn't stuck waiting (A5 — AI-down fallback)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(function(){ controller.abort(); }, 5000);
       const res = await fetch('/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -448,9 +476,11 @@
           message: text,
           history: state.history.slice(-MAX_HISTORY),
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
       if (res.status === 404) {
-        // Kill switch — hide the widget for the rest of the session.
+        // Kill switch - hide the widget for the rest of the session.
         state.disabled = true;
         sessionStorage.setItem('recon_ai_chat_disabled', '1');
         render();
@@ -467,7 +497,7 @@
         chips: data.chips || [],
       };
       if (data.confirm && data.confirm.confirmation_id) {
-        // Server returned a proposed mutation — attach to message.
+        // Server returned a proposed mutation - attach to message.
         const expiresMs = (data.confirm.expires_in_seconds || 300) * 1000;
         msg.confirm = {
           ...data.confirm,
@@ -477,10 +507,15 @@
       }
       state.history.push(msg);
     } catch (err) {
+      const isTimeout = err && (err.name === 'AbortError' || String(err.message || '').includes('abort'));
+      const friendlyMsg = isTimeout
+        ? "FORGE is having trouble right now — the request took too long."
+        : 'Sorry - ' + (err && err.message ? err.message : 'something went wrong.') + '.';
       state.history.push({
         role: 'assistant',
-        content: 'Sorry — ' + (err && err.message ? err.message : 'something went wrong.'),
+        content: friendlyMsg,
         error: true,
+        retryCallback: function() { send(text); },
       });
     } finally {
       state.sending = false;
@@ -543,7 +578,7 @@
       msg.confirmState = { status: 'pending', inflight: false };
       state.history.push({
         role: 'assistant',
-        content: 'Sorry — couldn\'t complete that: ' + (err && err.message ? err.message : 'something went wrong.'),
+        content: 'Sorry - couldn\'t complete that: ' + (err && err.message ? err.message : 'something went wrong.'),
         error: true,
       });
     } finally {
@@ -574,6 +609,25 @@
     }
   });
 
+  // Retry button handler (A5 fallback — not using data-action to avoid polluting inline HTML)
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.recon-aic-retry');
+    if (!btn) return;
+    e.preventDefault();
+    // Find the message index by scanning history for last error msg
+    for (let i = state.history.length - 1; i >= 0; i--) {
+      const m = state.history[i];
+      if (m.error && m.retryCallback) {
+        // Remove the error message and re-send
+        state.history.splice(i, 1);
+        saveHistory();
+        render();
+        m.retryCallback();
+        return;
+      }
+    }
+  });
+
   document.addEventListener('submit', (e) => {
     const form = e.target.closest('[data-action="send"]');
     if (!form) return;
@@ -591,6 +645,23 @@
       e.preventDefault();
       const form = e.target.closest('form');
       if (form) form.requestSubmit();
+    }
+  });
+
+  document.addEventListener('forge:assistant', (e) => {
+    const detail = e.detail || {};
+    state.open = true;
+    render();
+    if (detail.message) {
+      send(String(detail.message));
+      return;
+    }
+    if (detail.prefill) {
+      const input = document.getElementById('recon-aic-input');
+      if (input) {
+        input.value = String(detail.prefill);
+        input.focus();
+      }
     }
   });
 

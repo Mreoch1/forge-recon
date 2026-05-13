@@ -1,0 +1,21 @@
+<%# D-059 A1: Chat-first landing — full-screen FORGE chat view. %>
+<%- include('../layouts/header', { title: 'FORGE AI', activeNav: 'forge', currentUser }) %>
+
+<div class="max-w-7xl mx-auto px-4 py-4">
+  <!-- Quick-action chips -->
+  <div class="flex flex-wrap gap-2 mb-4" id="forge-quick-chips">
+    <button class="btn btn-secondary text-sm" data-action="example" data-q="Create a new work order">+ New WO</button>
+    <button class="btn btn-secondary text-sm" data-action="example" data-q="Send an invoice">Send Invoice</button>
+    <button class="btn btn-secondary text-sm" data-action="example" data-q="Schedule a crew">Schedule a crew</button>
+    <button class="btn btn-secondary text-sm" data-action="example" data-q="What's on my schedule today?">What's on today?</button>
+  </div>
+
+  <!-- Full-screen chat widget (uses the same ai-chat.js widget in dashboard mode) -->
+  <div class="card" style="min-height: 60vh;">
+    <div id="ai-chat-root" data-mode="dashboard"></div>
+  </div>
+</div>
+
+<script src="/js/ai-chat.js?v=forge-20260513" defer></script>
+
+<%- include('../layouts/footer') %>

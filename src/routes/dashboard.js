@@ -259,6 +259,7 @@ router.get('/', async (req, res) => {
   res.render('dashboard/v2', {
     title: 'Dashboard',
     activeNav: 'dashboard',
+    inlineAiChat: true,
     today, tomorrow,
     dayTimeline, tomorrowPreview, tomorrowCount, upcomingThisWeek: upcomingThisWeek || 0,
     estimatesToSend: estMapped, estimatesToSendCount: estimatesToSendCount || 0,
@@ -268,6 +269,15 @@ router.get('/', async (req, res) => {
     activity,
     arBalance, revenueThisMonth, revenueYTD, customerCount: customerCount || 0, workOrdersActive,
     serverTime: new Date().toISOString(),
+  });
+});
+
+// D-059 A1: Chat-first landing page ("Ask FORGE")
+router.get('/forge', async (req, res) => {
+  res.render('forge/chat', {
+    title: 'FORGE AI',
+    activeNav: 'forge',
+    currentUser: res.locals.currentUser || null,
   });
 });
 
