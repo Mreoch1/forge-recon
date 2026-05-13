@@ -632,8 +632,13 @@ router.post('/:id/generate-invoice', async (req, res) => {
     sort_order: idx,
   })));
   if (lineError) {
-    await supabase.from('invoice_line_items').delete().eq('invoice_id', invResult);
-    await supabase.from('invoices').delete().eq('id', invResult);
+    const { error: cleanupLinesError } = await supabase.from('invoice_line_items').delete().eq('invoice_id', invResult);
+    const { error: cleanupInvoiceError } = await supabase.from('invoices').delete().eq('id', invResult);
+    if (cleanupLinesError || cleanupInvoiceError) {
+      const cleanupError = new Error(`Invoice line insert failed and cleanup failed: ${cleanupLinesError?.message || cleanupInvoiceError?.message}`);
+      cleanupError.cause = lineError;
+      throw cleanupError;
+    }
     throw lineError;
   }
 
