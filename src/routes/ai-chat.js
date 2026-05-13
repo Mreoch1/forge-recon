@@ -79,7 +79,8 @@ router.post('/chat', chatLimiter, async (req, res) => {
     const result = await chatService.chat({
       message: message.trim(),
       history: safeHistory,
-      ctx
+      ctx,
+      active_intent: req.body.active_intent || null
     });
 
     res.json({
@@ -87,7 +88,8 @@ router.post('/chat', chatLimiter, async (req, res) => {
       chips: result.chips || [],
       tool_calls: result.tool_calls || [],
       confirm: result.confirm || undefined,
-      audit_id: result.audit_id
+      audit_id: result.audit_id,
+      active_intent: result.active_intent || null
     });
   } catch (err) {
     console.error('[ai-chat] error:', err);

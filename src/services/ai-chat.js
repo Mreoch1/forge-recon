@@ -31,7 +31,7 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function buildSystemPrompt(ctx) {
+function buildSystemPrompt(ctx, activeIntent) {
   const toolList = tools.list().filter(t => {
     if (t.needs_user === 'write') return false;
     if (ctx.role === 'worker') return WORKER_ALLOWED_TOOLS.includes(t.name);
@@ -58,6 +58,10 @@ CURRENT CONTEXT:
 - You are speaking with: ${ctx.userName || 'Unknown'} (role: ${ctx.role || 'admin'})
 - Access tier: ${ctx.role === 'worker' ? 'worker — assigned work only, no financial/cost data, no privileged writes except adding notes to assigned work orders.' : ctx.role === 'manager' ? 'manager — operational and financial workflows, no admin-only settings.' : 'admin — full app administration.'}
 - Cost policy: stay efficient. Routine operations, searches, summaries, scheduling, estimates, invoices, customers, vendors, and work-order parsing should use the standard low-cost AI path. Escalate to premium AI only for work that truly needs vision, image/OCR reasoning, or unusually complex reasoning.
+${activeIntent ? `
+ACTIVE FLOW — DO NOT CHANGE TOPIC:
+You are currently in the middle of ${activeIntent.replace(/_/g, ' ')}. The user's message is about THIS flow. Do NOT re-classify their intent. Do NOT treat their input as a new customer name or entity creation request. Accept their response as data for the current ${activeIntent.replace(/_/g, ' ')} flow. If they say "no", "cancel", or "never mind", clear the active flow and ask what they'd like to do instead.
+` : ''}
 
 AVAILABLE TOOLS:
 ${toolDesc}
@@ -93,7 +97,7 @@ Respond ONLY with a JSON object:
 }`;
 }
 
-async function chat({ message, history, ctx }) {
+async function chat({ message, history, ctx, active_intent }) {
   const startTime = Date.now();
 
   if (!ai.isConfigured() && !process.env.AI_CHAT_ENABLED) {
@@ -101,7 +105,7 @@ async function chat({ message, history, ctx }) {
   }
 
   const messages = [
-    { role: 'system', content: buildSystemPrompt(ctx) },
+    { role: 'system', content: buildSystemPrompt(ctx, active_intent) },
     ...(history || []).slice(-MAX_HISTORY).map(m => ({ role: m.role, content: m.content })),
     { role: 'user', content: message }
   ];
@@ -111,9 +115,13 @@ async function chat({ message, history, ctx }) {
   let allToolCalls = [];
   let tokensUsed = 0;
   let confirmPayload = null;
+  let resultActiveIntent = active_intent || null;
 
   // Pre-chat: keep guided write flows deterministic before falling back to the LLM.
-  const mutationIntent = detectGuidedContinuation(message, history) || detectMutationIntent(message, ctx);
+  // Skip intent detection if we already have an active intent (D-057 fix).
+  const mutationIntent = !active_intent
+    ? (detectGuidedContinuation(message, history) || detectMutationIntent(message, ctx))
+    : null;
   if (mutationIntent) {
     allToolCalls.push({ tool: mutationIntent.tool, args: mutationIntent.args });
 
@@ -127,7 +135,8 @@ async function chat({ message, history, ctx }) {
         tokens_used: 0,
         latency_ms: Date.now() - startTime,
         confirm: null,
-        audit_id: `${ctx.userId || 0}_${Date.now()}`
+        audit_id: `${ctx.userId || 0}_${Date.now()}`,
+        active_intent: resultActiveIntent
       };
     }
 
@@ -138,7 +147,8 @@ async function chat({ message, history, ctx }) {
         reply: guidedError || proposeResult.error,
         chips: [], tool_calls: allToolCalls, tokens_used: 0,
         latency_ms: Date.now() - startTime, confirm: null,
-        audit_id: `${ctx.userId || 0}_${Date.now()}`
+        audit_id: `${ctx.userId || 0}_${Date.now()}`,
+        active_intent: resultActiveIntent
       };
     }
 
@@ -158,6 +168,8 @@ async function chat({ message, history, ctx }) {
       };
     }
 
+    // Create pending confirmation — lock the active intent
+    resultActiveIntent = mutationIntent.tool;
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
     const { data: r, error: insErr } = await supabase.from('pending_confirmations').insert({
       user_id: ctx.userId,
@@ -229,7 +241,8 @@ async function chat({ message, history, ctx }) {
         finalReply = `Multiple users match. Which one did you mean?`;
         finalChips = chips;
       } else {
-        // Create pending confirmation
+        // Create pending confirmation — lock the active intent
+        resultActiveIntent = mc.tool;
         const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
         const { data: r2, error: insErr } = await supabase.from('pending_confirmations').insert({
           user_id: ctx.userId,
@@ -338,7 +351,8 @@ async function chat({ message, history, ctx }) {
     tokens_used: tokensUsed,
     latency_ms: latencyMs,
     confirm: confirmPayload,
-    audit_id: `${ctx.userId || 0}_${Date.now()}`
+    audit_id: `${ctx.userId || 0}_${Date.now()}`,
+    active_intent: resultActiveIntent
   };
 }
 
