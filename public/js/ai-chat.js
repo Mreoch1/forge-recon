@@ -397,7 +397,13 @@
            <button class="recon-aic-retry" data-retry-msg="${escapeHTML(m.content || '')}" style="background:#1a1a1a;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px">Retry</button>
            <a href="/dashboard" style="color:#c0202b;font-size:11px;text-decoration:underline;padding:4px 0">Use classic view</a>
          </div>`
-      : '';
+      : m.role === 'assistant'
+        ? `<div style="margin-top:6px;display:flex;gap:4px;opacity:0.4;transition:opacity 0.2s" class="recon-aic-feedback" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.4'">
+             <button class="recon-aic-fb" data-action="ai-feedback" data-fb="helpful" title="Helpful" style="background:none;border:none;cursor:pointer;font-size:12px;padding:2px 4px;border-radius:4px;color:#888;transition:all 0.15s" onmouseover="this.style.color='#10b981'" onmouseout="this.style.color='#888'">👍</button>
+             <button class="recon-aic-fb" data-action="ai-feedback" data-fb="unhelpful" title="Needs improvement" style="background:none;border:none;cursor:pointer;font-size:12px;padding:2px 4px;border-radius:4px;color:#888;transition:all 0.15s" onmouseover="this.style.color='#f59e0b'" onmouseout="this.style.color='#888'">👎</button>
+             <button class="recon-aic-fb" data-action="ai-feedback" data-fb="bug" title="Report an issue" style="background:none;border:none;cursor:pointer;font-size:12px;padding:2px 4px;border-radius:4px;color:#888;transition:all 0.15s" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#888'">⚠️</button>
+           </div>`
+        : '';
     return `<div class="recon-aic-msg ${role}${errClass}">${text}${confirm}${chips}${reportBtn}</div>`;
   }
 
@@ -618,7 +624,20 @@
       e.preventDefault();
       resolveConfirmation(target.dataset.cid, false);
     }
+    if (action === 'ai-feedback') {
+      e.preventDefault();
+      // Fire-and-forget feedback to /ai/feedback
+      fetch('/ai/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: target.dataset.fb, message: state.history.slice(-1)[0]?.content?.slice(0,200) || '' }),
+      }).catch(function(){});
+      target.style.opacity = '0.3';
+      target.disabled = true;
+    }
   });
+
+  // Feedback button handler — delegated click for .recon-aic-fb buttons
 
   // Retry button handler (A5 fallback — not using data-action to avoid polluting inline HTML)
   document.addEventListener('click', (e) => {

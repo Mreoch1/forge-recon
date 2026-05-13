@@ -221,4 +221,19 @@ router.post('/chat/confirm', async (req, res) => {
   }
 });
 
+// AI chat feedback (👍/👎/⚠️ buttons)
+router.post('/feedback', (req, res) => {
+  const { type, message } = req.body || {};
+  const userId = req.session?.userId || null;
+  // Fire-and-forget — never block
+  supabase.from('ai_chat_errors').insert({
+    user_id: userId,
+    user_message: (message || '').slice(0, 500),
+    error_type: type === 'bug' ? 'unknown' : 'unknown',
+    error_message: `User feedback: ${type || 'unknown'} — ${(message || '').slice(0, 200)}`,
+    tool_name: 'user_feedback',
+  }).then(() => {}).catch(() => {});
+  res.json({ ok: true });
+});
+
 module.exports = router;
