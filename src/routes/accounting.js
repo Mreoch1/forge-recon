@@ -32,7 +32,8 @@ async function totalDebitsForEntry(jeId) {
 // --- hub ---
 
 router.get('/', async (req, res) => {
-  const [{ count: accountsCount }, { count: jeCount }, { count: billCount }, { count: vendorCount },
+  const [{ count: accountsCount, error: accountsCountErr }, { count: jeCount, error: jeCountErr },
+         { count: billCount, error: billCountErr }, { count: vendorCount, error: vendorCountErr },
          { data: entries, error: entriesErr }] = await Promise.all([
     supabase.from('accounts').select('*', { count: 'exact', head: true }),
     supabase.from('journal_entries').select('*', { count: 'exact', head: true }),
@@ -44,6 +45,10 @@ router.get('/', async (req, res) => {
       .order('created_at', { ascending: false })
       .limit(10),
   ]);
+  if (accountsCountErr) throw accountsCountErr;
+  if (jeCountErr) throw jeCountErr;
+  if (billCountErr) throw billCountErr;
+  if (vendorCountErr) throw vendorCountErr;
   if (entriesErr) throw entriesErr;
 
   const recentEntries = [];
@@ -244,11 +249,12 @@ function ageBucket(dueDate) {
 }
 
 router.get('/ar-aging', async (req, res) => {
-  const { data: invoices } = await supabase
+  const { data: invoices, error: invoicesErr } = await supabase
     .from('invoices')
     .select('*, work_orders!left(display_number, customers!left(id, name))')
     .not('status', 'in', '("paid","void","draft")')
     .order('due_date', { ascending: false });
+  if (invoicesErr) throw invoicesErr;
 
   const rows = (invoices || []).map(inv => {
     const wo = inv.work_orders || {};
@@ -286,11 +292,12 @@ router.get('/ar-aging', async (req, res) => {
 
 router.get('/ap-aging', async (req, res) => {
   // Bills: unpaid or partially paid
-  const { data: bills } = await supabase
+  const { data: bills, error: billsErr } = await supabase
     .from('bills')
     .select('*, vendors!left(name)')
     .not('status', 'in', '("paid","void")')
     .order('due_date', { ascending: false });
+  if (billsErr) throw billsErr;
 
   const billRows = (bills || []).map(b => {
     const due = b.due_date ? String(b.due_date).slice(0,10) : null;
