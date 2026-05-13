@@ -74,14 +74,16 @@ router.get('/', async (req, res) => {
 });
 
 router.get('/new', async (req, res) => {
-  const { data: accounts } = await supabase.from('accounts').select('id, code, name').in('type', ['expense']).eq('active', 1).order('code');
+  const { data: accounts, error: accountsError } = await supabase.from('accounts').select('id, code, name').in('type', ['expense']).eq('active', 1).order('code');
+  if (accountsError) throw accountsError;
   res.render('vendors/new', { title: 'New vendor', activeNav: 'vendors', vendor: {}, errors: {}, accounts: accounts || [] });
 });
 
 router.post('/', async (req, res) => {
   const { errors, data } = validate(req.body);
   if (Object.keys(errors).length) {
-    const { data: accounts } = await supabase.from('accounts').select('id, code, name').in('type', ['expense']).eq('active', 1).order('code');
+    const { data: accounts, error: accountsError } = await supabase.from('accounts').select('id, code, name').in('type', ['expense']).eq('active', 1).order('code');
+    if (accountsError) throw accountsError;
     return res.status(400).render('vendors/new', { title: 'New vendor', activeNav: 'vendors', vendor: { id: null, ...data }, errors, accounts: accounts || [] });
   }
   const { data: newVendor, error: insertError } = await supabase
@@ -109,7 +111,8 @@ router.get('/:id', async (req, res) => {
   const { data: vendor, error: vError } = await supabase.from('vendors').select('*').eq('id', id).maybeSingle();
   if (vError) throw vError;
   if (!vendor) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Vendor not found.' });
-  const { data: bills } = await supabase.from('bills').select('id, bill_number, status, created_at').eq('vendor_id', id).order('created_at', { ascending: false });
+  const { data: bills, error: billsError } = await supabase.from('bills').select('id, bill_number, status, created_at').eq('vendor_id', id).order('created_at', { ascending: false });
+  if (billsError) throw billsError;
 
   // D-035: Vendor file workspace — fetch root folder + first-level contents.
   let rootFolder = null;
@@ -138,7 +141,8 @@ router.get('/:id/edit', async (req, res) => {
   const { data: vendor, error: vError } = await supabase.from('vendors').select('*').eq('id', id).maybeSingle();
   if (vError) throw vError;
   if (!vendor) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Vendor not found.' });
-  const { data: accounts } = await supabase.from('accounts').select('id, code, name').in('type', ['expense']).eq('active', 1).order('code');
+  const { data: accounts, error: accountsError } = await supabase.from('accounts').select('id, code, name').in('type', ['expense']).eq('active', 1).order('code');
+  if (accountsError) throw accountsError;
   res.render('vendors/edit', { title: 'Edit ' + vendor.name, activeNav: 'vendors', vendor, errors: {}, accounts: accounts || [] });
 });
 
@@ -150,7 +154,8 @@ router.post('/:id', async (req, res) => {
   if (!vendor) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Vendor not found.' });
   if (Object.keys(errors).length) {
     const vendor_merged = { id: vendor.id, ...data };
-    const { data: accounts } = await supabase.from('accounts').select('id, code, name').in('type', ['expense']).eq('active', 1).order('code');
+    const { data: accounts, error: accountsError } = await supabase.from('accounts').select('id, code, name').in('type', ['expense']).eq('active', 1).order('code');
+    if (accountsError) throw accountsError;
     return res.status(400).render('vendors/edit', { title: 'Edit ' + (data.name || vendor.name), activeNav: 'vendors', vendor: vendor_merged, errors, accounts: accounts || [] });
   }
   const { error: updateError } = await supabase
@@ -167,7 +172,8 @@ router.post('/:id/delete', async (req, res) => {
   const { data: vendor, error: findError } = await supabase.from('vendors').select('id, name').eq('id', id).maybeSingle();
   if (findError) throw findError;
   if (!vendor) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Vendor not found.' });
-  const { count: billCount } = await supabase.from('bills').select('*', { count: 'exact', head: true }).eq('vendor_id', id);
+  const { count: billCount, error: billCountError } = await supabase.from('bills').select('*', { count: 'exact', head: true }).eq('vendor_id', id);
+  if (billCountError) throw billCountError;
   if (billCount > 0) {
     setFlash(req, 'error', 'Cannot delete "' + vendor.name + '" — they have ' + billCount + ' bill(s).');
     return res.redirect('/vendors/' + id);
@@ -179,4 +185,3 @@ router.post('/:id/delete', async (req, res) => {
 });
 
 module.exports = router;
-
