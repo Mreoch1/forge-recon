@@ -108,7 +108,8 @@ async function postPaymentReceived(invoice, amount, opts = {}) {
 async function postInvoiceVoid(invoice, opts = {}) {
   const userId = opts.userId || null;
   if (!await isAccountingReady()) return null;
-  const { data: original } = await supabase.from('journal_entries').select('id').eq('source_type', 'invoice').eq('source_id', String(invoice.id)).is('reversed_by_entry_id', null).maybeSingle();
+  const { data: original, error: originalErr } = await supabase.from('journal_entries').select('id').eq('source_type', 'invoice').eq('source_id', String(invoice.id)).is('reversed_by_entry_id', null).maybeSingle();
+  if (originalErr) throw originalErr;
   if (!original) return null;
   const [ar, rev, tax] = await Promise.all([
     lookupAccount(CODES.ACCOUNTS_RECEIVABLE), lookupAccount(CODES.SERVICE_REVENUE), lookupAccount(CODES.SALES_TAX_PAYABLE),
@@ -120,7 +121,9 @@ async function postInvoiceVoid(invoice, opts = {}) {
                  { accountId: rev.id, debit: subtotal, credit: 0, description: `${desc} — reverse revenue` }];
   if (taxAmt > 0) lines.push({ accountId: tax.id, debit: taxAmt, credit: 0, description: `${desc} — reverse tax` });
   const reversingId = await postJournalEntry({ entryDate: todayDate(), description: desc, sourceType: 'invoice_void', sourceId: invoice.id, userId, lines });
-  await supabase.from('journal_entries').update({ reversed_by_entry_id: reversingId }).eq('id', original.id);
+  if (!reversingId) return null;
+  const { error: reverseMarkErr } = await supabase.from('journal_entries').update({ reversed_by_entry_id: reversingId }).eq('id', original.id);
+  if (reverseMarkErr) throw reverseMarkErr;
   return reversingId;
 }
 
@@ -160,13 +163,14 @@ async function postBillVoid(bill, lines, opts = {}) {
   if (!await isAccountingReady()) return null;
   const ap = await lookupAccount(CODES.ACCOUNTS_PAYABLE);
   if (!ap) return null;
-  const { data: original } = await supabase
+  const { data: original, error: originalErr } = await supabase
     .from('journal_entries')
     .select('id')
     .eq('source_type', 'bill')
     .eq('source_id', String(bill.id))
     .is('reversed_by_entry_id', null)
     .maybeSingle();
+  if (originalErr) throw originalErr;
   if (!original) return null; // nothing unreversed to reverse
   const total = Number(bill.total) || 0; const taxAmount = Number(bill.tax_amount) || 0;
   const desc = `Void bill ${bill.bill_number || '#' + bill.id}`;
@@ -186,7 +190,9 @@ async function postBillVoid(bill, lines, opts = {}) {
   }
   jeLines.push({ accountId: ap.id, debit: total, credit: 0, description: `${desc} — AP reversal` });
   const reversingId = await postJournalEntry({ entryDate: todayDate(), description: desc, sourceType: 'bill_void', sourceId: bill.id, userId, lines: jeLines });
-  await supabase.from('journal_entries').update({ reversed_by_entry_id: reversingId }).eq('id', original.id);
+  if (!reversingId) return null;
+  const { error: reverseMarkErr } = await supabase.from('journal_entries').update({ reversed_by_entry_id: reversingId }).eq('id', original.id);
+  if (reverseMarkErr) throw reverseMarkErr;
   return reversingId;
 }
 
