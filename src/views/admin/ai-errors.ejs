@@ -1,0 +1,45 @@
+<%# D-062 Item 4: AI Chat Errors admin view %>
+<%- include('../layouts/header', { title: 'AI Chat Errors', activeNav: 'admin', currentUser }) %>
+
+<div class="max-w-7xl mx-auto px-4 py-6">
+  <h1 class="page-h1 mb-2">AI Chat Errors</h1>
+  <p class="page-sub mb-6">Unresolved errors from the AI chat assistant. Resolve each after triage.</p>
+
+  <% if (errors.length === 0) { %>
+    <div class="card p-8 text-center text-recon-fog text-sm italic">No unresolved AI chat errors.</div>
+  <% } else { %>
+    <div class="card overflow-hidden">
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>User</th>
+            <th>Type</th>
+            <th>Message</th>
+            <th>Tool</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% errors.forEach(function(e) { %>
+            <tr>
+              <td class="text-xs whitespace-nowrap"><%= new Date(e.created_at).toLocaleString() %></td>
+              <td class="text-xs"><%= e.user_id || '-' %></td>
+              <td><span class="badge <%= e.error_type === 'provider_error' || e.error_type === 'tool_error' ? 'badge-rejected' : 'badge-draft' %>"><%= e.error_type %></span></td>
+              <td class="text-sm max-w-xs truncate" title="<%= e.error_message %>"><%= e.error_message %></td>
+              <td class="text-xs"><%= e.tool_name || '-' %></td>
+              <td class="text-right">
+                <form action="/admin/ai-errors/<%= e.id %>/resolve" method="post" class="inline-flex items-center gap-1">
+                  <input type="text" name="note" placeholder="Resolution note" class="input text-xs" style="width:120px;padding:2px 6px;">
+                  <button type="submit" class="btn btn-ghost text-xs">Resolve</button>
+                </form>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<%- include('../layouts/footer') %>

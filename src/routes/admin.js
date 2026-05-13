@@ -310,4 +310,30 @@ router.post('/closures/delete', async (req, res) => {
   setFlash(req, 'success', `Closure "${c.name}" deleted.`); res.redirect('/admin');
 });
 
+// D-062 Item 4: AI chat errors admin view
+router.get('/ai-errors', async (req, res) => {
+  const { data: errors } = await supabase
+    .from('ai_chat_errors')
+    .select('*')
+    .is('resolved_at', null)
+    .order('created_at', { ascending: false })
+    .limit(50);
+  res.render('admin/ai-errors', {
+    title: 'AI Chat Errors',
+    activeNav: 'admin',
+    errors: errors || [],
+  });
+});
+
+router.post('/ai-errors/:id/resolve', async (req, res) => {
+  const { id } = req.params;
+  const { note } = req.body;
+  await supabase.from('ai_chat_errors').update({
+    resolved_at: new Date().toISOString(),
+    resolved_by_user_id: req.session?.userId,
+    resolution_note: (note || '').trim() || null,
+  }).eq('id', id);
+  res.redirect('/admin/ai-errors');
+});
+
 module.exports = router;
