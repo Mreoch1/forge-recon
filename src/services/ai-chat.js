@@ -384,6 +384,7 @@ async function callLLM(messages, userId) {
     return { text: result.text || '', tokens: result.tokens || 0 };
   } catch (e) {
     console.error('[ai-chat] LLM call failed:', e.message);
+    logAiChatError({ userId, errorType: 'provider_error', errorMessage: e.message, errorStack: e.stack, provider: 'deepseek' });
     return { text: 'Sorry, the AI service is temporarily unavailable.', tokens: 0 };
   }
 }
@@ -413,7 +414,30 @@ function parseResponse(text) {
   }
 }
 
-module.exports = { chat, buildSystemPrompt };
+// ── D-062 Item 3: Log errors to ai_chat_errors table ──────────────────
+async function logAiChatError({ userId, sessionId, userMessage, errorType, errorMessage, errorStack, provider, toolName, requestPayload, responsePayload }) {
+  // Fire-and-forget — never block user-facing response for logging
+  try {
+    const validTypes = ['provider_error','tool_error','timeout','rate_limit','malformed_response','auth','unknown'];
+    const safeType = validTypes.includes(errorType) ? errorType : 'unknown';
+    await supabase.from('ai_chat_errors').insert({
+      user_id: userId || null,
+      session_id: (sessionId || '').slice(0, 255) || null,
+      user_message: (userMessage || '').slice(0, 2000) || null,
+      error_type: safeType,
+      error_message: (errorMessage || '').slice(0, 2000),
+      error_stack: (errorStack || '').slice(0, 5000) || null,
+      provider: (provider || '').slice(0, 100) || null,
+      tool_name: (toolName || '').slice(0, 100) || null,
+      request_payload: requestPayload || null,
+      response_payload: responsePayload || null,
+    });
+  } catch (logErr) {
+    console.warn('[ai-chat] failed to log error:', logErr.message);
+  }
+}
+
+module.exports = { chat, buildSystemPrompt, logAiChatError };
 
 // ── Keyword-based mutation intent detection ──────────────────────────
 function extractNamedValue(message) {

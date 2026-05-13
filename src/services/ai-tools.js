@@ -15,6 +15,7 @@
 const db = require('../db/db');
 const supabase = require('../db/supabase');
 const { writeAudit } = require('./audit');
+const { logAiChatError } = require('./ai-chat');
 const scheduling = require('./scheduling');
 
 // ── Worker-allowed tools ─────────────────────────────────────────────
@@ -938,6 +939,7 @@ module.exports = {
       const result = await MUTATION_TOOLS[name].execute(args, ctx);
       return { ok: true, result };
     } catch (e) {
+      logAiChatError({ userId: ctx?.userId, toolName: name, errorType: 'tool_error', errorMessage: e.message, errorStack: e.stack });
       return { ok: false, error: e.message };
     }
   },
