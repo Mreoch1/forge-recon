@@ -58,7 +58,7 @@
 
 <% var firstName = 'there'; try { var nameParts = (currentUser && currentUser.name || '').split(' '); if (nameParts[0]) firstName = nameParts[0]; } catch(e){} %>
 <div class="max-w-7xl mx-auto px-4 py-4">
-  <!-- Intro panel -->
+  <!-- Intro panel with visible chat input -->
   <div id="forge-intro">
     <div class="forge-typewriter" id="forge-typewriter"></div>
     <div class="forge-subtitle" id="forge-subtitle">I'm FORGE, your assistant.</div>
@@ -72,6 +72,10 @@
     <div id="forge-cta-wrap" class="hidden" style="margin-top:1.5rem;animation:forge-fade-in 0.6s ease forwards;display:flex;flex-direction:column;align-items:center;gap:0.5rem;position:relative;z-index:2;">
       <button id="forge-get-started" class="btn btn-primary" style="padding:0.75rem 2rem;font-size:1rem;border-radius:999px;cursor:pointer;border:none;background:#22d3ee;color:#020617;font-weight:700;transition:all 0.2s;box-shadow:0 0 20px rgba(34,211,238,0.3);">Get Started</button>
       <span style="font-size:0.75rem;color:#64748b;">press <kbd style="background:#334155;color:#e2e8f0;padding:2px 8px;border-radius:4px;font-size:0.7rem;">Enter</kbd> to start</span>
+    </div>
+    <!-- Visible chat input inside intro — autofocused, typing dismisses intro -->
+    <div style="margin-top:1.5rem;width:100%;max-width:600px;position:relative;z-index:2;" id="forge-intro-input-wrap">
+      <textarea id="recon-aic-input-intro" rows="1" placeholder="Ask FORGE to find, schedule, create, send, or explain..." style="width:100%;padding:0.75rem 1rem;border-radius:8px;border:1px solid rgba(34,211,238,0.3);background:rgba(15,23,42,0.6);color:#e2e8f0;font-size:0.95rem;outline:none;resize:none;transition:all 0.2s;box-shadow:0 0 0 0 rgba(34,211,238,0);" class="forge-intro-input"></textarea>
     </div>
   </div>
 
@@ -107,11 +111,37 @@
       introEl.classList.add('hidden');
     }
     chatPanel.style.display = 'block';
-    // Focus the chat input once panel is visible
+    // Focus the main chat input once panel is visible
     setTimeout(function() {
       var input = document.getElementById('recon-aic-input');
       if (input) input.focus();
     }, 100);
+  }
+
+  // Intro input: Enter key sends + dismisses; any typing autofocuses
+  var introInput = document.getElementById('recon-aic-input-intro');
+  if (introInput) {
+    introInput.focus();
+    introInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        var text = introInput.value.trim();
+        if (text) {
+          revealChat();
+          // Pipe the text to the chat send
+          setTimeout(function() {
+            var chatInput = document.getElementById('recon-aic-input');
+            if (chatInput) { chatInput.value = text; chatInput.form?.requestSubmit(); }
+          }, 200);
+        } else {
+          revealChat();
+        }
+      }
+    });
+    // Also dismiss on any input click (user starts typing)
+    introInput.addEventListener('focus', function() {
+      // Auto-scroll into view
+    });
   }
 
   // "Get Started" button
