@@ -777,13 +777,27 @@ router.post('/:id/sov-items/:itemId/delete', async (req, res) => {
   res.redirect('/projects/' + req.params.id);
 });
 
+// D-024b-fix: inline SOV field update
+router.post('/:id/sov-items/:itemId/update', async (req, res) => {
+  const { field, value } = req.body;
+  const allowedFields = ['current_billed', 'percent_complete', 'retainage_rate'];
+  if (!allowedFields.includes(field)) return res.status(400).send('Invalid field');
+  const numVal = parseFloat(value) || 0;
+  const clamped = field === 'percent_complete' || field === 'retainage_rate'
+    ? Math.min(100, Math.max(0, numVal)) : Math.max(0, numVal);
+  const { error } = await supabase.from('project_sov_items').update({ [field]: clamped }).eq('id', req.params.itemId).eq('job_id', req.params.id);
+  if (error) { setFlash(req, 'error', 'Update failed: ' + error.message); return res.redirect('/projects/' + req.params.id); }
+  setFlash(req, 'success', field.replace(/_/g, ' ') + ' updated to ' + clamped);
+  res.redirect('/projects/' + req.params.id);
+});
+
 router.post('/:id/draws/generate', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const { data: items } = await supabase.from('project_sov_items').select('*').eq('job_id', id).order('id');
   if (!items || items.length === 0) { setFlash(req, 'error', 'No SOV items to bill.'); return res.redirect('/projects/' + id); }
   const { data: draws } = await supabase.from('project_draws').select('draw_number').eq('job_id', id).order('draw_number', { ascending: false }).limit(1);
   const drawNum = (draws && draws.length > 0 ? draws[0].draw_number : 0) + 1;
-  await supabase.from('project_draws').insert({ job_id: id, draw_number: drawNum, status: 'draft' });
+  await supabase.from('project_draws').insert({ job_id: id, draw_number: drawNum, status: 'draft', line_snapshot: JSON.stringify(items) });
   for (const item of items) {
     if (item.current_billed > 0) {
       await supabase.from('project_sov_items').update({
