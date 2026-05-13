@@ -1,20 +1,139 @@
-<%# D-059 A1: Chat-first landing — full-screen FORGE chat view. %>
+<%# D-059 A1: Chat-first landing — full-screen FORGE chat view with futuristic intro panel. %>
 <%- include('../layouts/header', { title: 'FORGE AI', activeNav: 'forge', currentUser }) %>
 
+<style>
+  /* D-060: Futuristic FORGE startup intro panel */
+  #forge-intro {
+    min-height: 60vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #020617 0%, #172554 50%, #0f172a 100%);
+    border-radius: 0.75rem; padding: 3rem 2rem; text-align: center;
+    position: relative; overflow: hidden;
+    transition: opacity 0.6s ease, max-height 0.6s ease;
+  }
+  #forge-intro.hidden { opacity: 0; max-height: 0; padding: 0; overflow: hidden; pointer-events: none; }
+  /* Scanline overlay */
+  #forge-intro::after {
+    content: ''; position: absolute; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(34,211,238,0.04) 2px, rgba(34,211,238,0.04) 4px);
+    pointer-events: none;
+    animation: forge-scanline 3s ease-in-out infinite;
+  }
+  @keyframes forge-scanline {
+    0%, 100% { opacity: 0.1; }
+    50% { opacity: 0.25; }
+  }
+  @keyframes forge-fade-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .forge-typewriter {
+    font-family: 'Inter', 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 2rem; font-weight: 700; color: #e2e8f0;
+    min-height: 2.5rem; letter-spacing: 0.02em;
+    border-right: 2px solid #22d3ee;
+    animation: forge-blink-cursor 1s step-end infinite;
+    margin-bottom: 0.5rem;
+  }
+  @keyframes forge-blink-cursor {
+    50% { border-color: transparent; }
+  }
+  .forge-subtitle { font-size: 1.1rem; color: #94a3b8; margin-bottom: 0.25rem; animation: forge-fade-in 0.8s ease forwards; opacity: 0; }
+  .forge-tagline { font-size: 0.9rem; color: #64748b; font-style: italic; animation: forge-fade-in 0.8s ease 0.3s forwards; opacity: 0; margin-bottom: 2rem; }
+  .forge-chips-row { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; animation: forge-fade-in 0.8s ease 0.6s forwards; opacity: 0; }
+  .forge-chip {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    padding: 0.5rem 1rem; border-radius: 999px; cursor: pointer;
+    background: rgba(34,211,238,0.08); color: #22d3ee;
+    border: 1px solid rgba(34,211,238,0.2); font-size: 0.85rem; font-weight: 500;
+    transition: all 0.2s; backdrop-filter: blur(4px);
+  }
+  .forge-chip:hover { background: rgba(34,211,238,0.18); border-color: rgba(34,211,238,0.4); transform: translateY(-1px); }
+  @media (prefers-reduced-motion: reduce) {
+    #forge-intro::after { animation: none; }
+    .forge-typewriter { border-right: none; }
+    @keyframes forge-fade-in { from { opacity: 1; transform: none; } to { opacity: 1; transform: none; } }
+  }
+</style>
+
 <div class="max-w-7xl mx-auto px-4 py-4">
-  <!-- Quick-action chips -->
-  <div class="flex flex-wrap gap-2 mb-4" id="forge-quick-chips">
-    <button class="btn btn-secondary text-sm" data-action="example" data-q="Create a new work order">+ New WO</button>
-    <button class="btn btn-secondary text-sm" data-action="example" data-q="Send an invoice">Send Invoice</button>
-    <button class="btn btn-secondary text-sm" data-action="example" data-q="Schedule a crew">Schedule a crew</button>
-    <button class="btn btn-secondary text-sm" data-action="example" data-q="What's on my schedule today?">What's on today?</button>
+  <!-- Intro panel -->
+  <div id="forge-intro">
+    <div class="forge-typewriter" id="forge-typewriter"></div>
+    <div class="forge-subtitle" id="forge-subtitle">Your Field Operations &amp; Resource Guidance Engine.</div>
+    <div class="forge-tagline" id="forge-tagline">Ask me anything. I'll handle it.</div>
+    <div class="forge-chips-row">
+      <button class="forge-chip" data-action="example" data-q="Create a new work order">📋 New work order</button>
+      <button class="forge-chip" data-action="example" data-q="Send an invoice">📤 Send an invoice</button>
+      <button class="forge-chip" data-action="example" data-q="What's on my schedule today?">📅 What's on today?</button>
+      <button class="forge-chip" id="forge-surprise-me">💡 Surprise me</button>
+    </div>
   </div>
 
-  <!-- Full-screen chat widget (uses the same ai-chat.js widget in dashboard mode) -->
-  <div class="card" style="min-height: 60vh;">
+  <!-- Chat widget (dashboard mode, hidden until intro dismissed) -->
+  <div class="card" id="forge-chat-panel" style="min-height: 60vh; display: none;">
     <div id="ai-chat-root" data-mode="dashboard"></div>
   </div>
 </div>
+
+<script>
+(function() {
+  const INTRO_SEEN_KEY = 'forge_intro_seen';
+  var introEl = document.getElementById('forge-intro');
+  var chatPanel = document.getElementById('forge-chat-panel');
+  var typewriterEl = document.getElementById('forge-typewriter');
+
+  // Skip intro if seen before
+  var msgCount = parseInt(sessionStorage.getItem('forge_msg_count') || '0', 10);
+  var introSeen = localStorage.getItem(INTRO_SEEN_KEY) === 'true';
+
+  if (introSeen) {
+    introEl.classList.add('hidden');
+    chatPanel.style.display = 'block';
+  } else {
+    // Typewriter effect
+    var greeting = "Hello — I'm FORGE.";
+    var i = 0;
+    function typeChar() {
+      if (i < greeting.length) {
+        typewriterEl.textContent += greeting.charAt(i);
+        i++;
+        setTimeout(typeChar, 50 + Math.random() * 30);
+      }
+    }
+    typeChar();
+  }
+
+  // Surprise me button
+  var surprises = [
+    "Show open invoices over 30 days",
+    "Check today's crew schedule",
+    "Pull last week's vendor spend",
+    "Draft an estimate for Plymouth Square"
+  ];
+  document.getElementById('forge-surprise-me')?.addEventListener('click', function() {
+    var pick = surprises[Math.floor(Math.random() * surprises.length)];
+    // Find the chat widget's input and submit
+    var input = document.getElementById('recon-aic-input');
+    if (input) { input.value = pick; input.form?.requestSubmit(); }
+  });
+
+  // Track message count to auto-dismiss intro
+  var origPush = Array.prototype.push;
+  var origRender = null;
+  var msgObserver = setInterval(function() {
+    var msgs = document.querySelector('.recon-aic-msgs');
+    if (!msgs) return;
+    var count = msgs.querySelectorAll('.recon-aic-msg').length;
+    if (count >= 3 && !introEl.classList.contains('hidden')) {
+      introEl.classList.add('hidden');
+      chatPanel.style.display = 'block';
+      localStorage.setItem(INTRO_SEEN_KEY, 'true');
+      clearInterval(msgObserver);
+    }
+  }, 500);
+})();
+</script>
 
 <script src="/js/ai-chat.js?v=forge-20260513" defer></script>
 
