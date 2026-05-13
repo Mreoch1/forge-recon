@@ -312,12 +312,13 @@ router.post('/closures/delete', async (req, res) => {
 
 // D-062 Item 4: AI chat errors admin view
 router.get('/ai-errors', async (req, res) => {
-  const { data: errors } = await supabase
+  const { data: errors, error } = await supabase
     .from('ai_chat_errors')
-    .select('*')
+    .select('id, user_id, error_type, error_message, tool_name, provider, created_at')
     .is('resolved_at', null)
     .order('created_at', { ascending: false })
     .limit(50);
+  if (error) throw error;
   res.render('admin/ai-errors', {
     title: 'AI Chat Errors',
     activeNav: 'admin',
@@ -328,11 +329,12 @@ router.get('/ai-errors', async (req, res) => {
 router.post('/ai-errors/:id/resolve', async (req, res) => {
   const { id } = req.params;
   const { note } = req.body;
-  await supabase.from('ai_chat_errors').update({
+  const { error } = await supabase.from('ai_chat_errors').update({
     resolved_at: new Date().toISOString(),
     resolved_by_user_id: req.session?.userId,
-    resolution_note: (note || '').trim() || null,
+    resolution_note: (note || '').trim().slice(0, 1000) || null,
   }).eq('id', id);
+  if (error) throw error;
   res.redirect('/admin/ai-errors');
 });
 
