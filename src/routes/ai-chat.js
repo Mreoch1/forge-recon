@@ -237,22 +237,27 @@ router.post('/feedback', (req, res) => {
 });
 
 // D-065: Client-side error reporter — POST from ai-chat.js on 5xx/timeout/invalid response
-router.post('/chat-errors', (req, res) => {
+router.post('/chat-errors', async (req, res) => {
   const { error_type, error_message, user_message, error_stack } = req.body || {};
   const userId = req.session?.userId || null;
   const errType = ['provider_error','tool_error','timeout','rate_limit','malformed_response','auth','unknown'].includes(error_type) ? error_type : 'unknown';
-  // Insert and return the new row ID as the ERR reference
-  supabase.from('ai_chat_errors').insert({
-    user_id: userId,
-    error_type: errType,
-    error_message: (error_message || '').slice(0, 2000),
-    error_stack: (error_stack || '').slice(0, 5000) || null,
-    user_message: (user_message || '').slice(0, 500) || null,
-    severity: 'user_reported',
-  }).select('id').then(({ data }) => {
+  try {
+    // Insert and return the new row ID as the ERR reference.
+    const { data, error } = await supabase.from('ai_chat_errors').insert({
+      user_id: userId,
+      error_type: errType,
+      error_message: (error_message || '').slice(0, 2000),
+      error_stack: (error_stack || '').slice(0, 5000) || null,
+      user_message: (user_message || '').slice(0, 500) || null,
+      severity: 'user_reported',
+    }).select('id');
+    if (error) throw error;
     const errId = data && data[0] ? data[0].id : null;
     res.json({ ok: true, err_id: errId });
-  }).catch(() => res.json({ ok: true, err_id: null }));
+  } catch (error) {
+    console.warn('[ai-chat] client error report insert failed:', error.message);
+    res.json({ ok: false, err_id: null });
+  }
 });
 
 module.exports = router;
