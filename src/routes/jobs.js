@@ -793,17 +793,24 @@ router.post('/:id/sov-items/:itemId/update', async (req, res) => {
 
 router.post('/:id/draws/generate', async (req, res) => {
   const id = parseInt(req.params.id, 10);
-  const { data: items } = await supabase.from('project_sov_items').select('*').eq('job_id', id).order('id');
+  const { data: items, error: itemsError } = await supabase.from('project_sov_items').select('*').eq('job_id', id).order('id');
+  if (itemsError) throw itemsError;
   if (!items || items.length === 0) { setFlash(req, 'error', 'No SOV items to bill.'); return res.redirect('/projects/' + id); }
-  const { data: draws } = await supabase.from('project_draws').select('draw_number').eq('job_id', id).order('draw_number', { ascending: false }).limit(1);
+  const { data: draws, error: drawsError } = await supabase.from('project_draws').select('draw_number').eq('job_id', id).order('draw_number', { ascending: false }).limit(1);
+  if (drawsError) throw drawsError;
   const drawNum = (draws && draws.length > 0 ? draws[0].draw_number : 0) + 1;
-  await supabase.from('project_draws').insert({ job_id: id, draw_number: drawNum, status: 'draft', line_snapshot: JSON.stringify(items) });
+  const { error: drawInsertError } = await supabase.from('project_draws').insert({ job_id: id, draw_number: drawNum, status: 'draft', line_snapshot: JSON.stringify(items) });
+  if (drawInsertError) {
+    setFlash(req, 'error', 'Draw generation failed: ' + drawInsertError.message);
+    return res.redirect('/projects/' + id);
+  }
   for (const item of items) {
     if (item.current_billed > 0) {
-      await supabase.from('project_sov_items').update({
+      const { error: itemUpdateError } = await supabase.from('project_sov_items').update({
         previous_billed: Number(item.previous_billed) + Number(item.current_billed),
         current_billed: 0,
       }).eq('id', item.id);
+      if (itemUpdateError) throw itemUpdateError;
     }
   }
   setFlash(req, 'success', 'Draw #' + drawNum + ' generated.');
