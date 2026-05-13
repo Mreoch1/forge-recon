@@ -214,6 +214,16 @@
         </div>
       </div>
       <div class="flex items-center gap-2 md:gap-3 shrink-0">
+        <!-- D-063 Item 4: Nav arrows between FORGE and classic -->
+        <% if (typeof activeNav !== 'undefined' && activeNav === 'forge') { %>
+          <a href="/dashboard" class="hidden md:inline-flex items-center gap-1 text-xs text-recon-fog hover:text-white transition" aria-label="Switch to classic dashboard">
+            <span>&larr;</span> <span class="hidden md:inline">Classic</span>
+          </a>
+        <% } else if (typeof activeNav !== 'undefined' && activeNav === 'dashboard') { %>
+          <a href="/forge" class="hidden md:inline-flex items-center gap-1 text-xs text-recon-fog hover:text-white transition" aria-label="Switch to FORGE">
+            <span class="hidden md:inline">FORGE Chat</span> <span>&rarr;</span>
+          </a>
+        <% } %>
         <span class="text-sm text-recon-fog hidden md:inline"><%= currentUser.name %></span>
         <a href="/settings" class="text-xs text-recon-fog hidden md:inline hover:text-white transition">(<%= currentUser.role %>)</a>
         <form action="/logout" method="post" class="m-0 p-0 hidden sm:block">
