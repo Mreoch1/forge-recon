@@ -57,7 +57,10 @@ router.post('/users', async (req, res) => {
     return res.status(400).render('admin/users/new', { title: 'New user', activeNav: 'admin', user: { id: null, email, name, role, active: 1 }, errors, roles: VALID_ROLES });
   }
   const hash = await bcrypt.hash(password, 10);
-  await supabase.from('users').insert({ email, password_hash: hash, name, role, phone: req.body.phone || null, active: 1 });
+  const { error: insertErr } = await supabase
+    .from('users')
+    .insert({ email, password_hash: hash, name, role, phone: req.body.phone || null, active: 1 });
+  if (insertErr) throw insertErr;
   // D-031: auto-send invite email
   try {
     const { sendUserInviteEmail } = require('../services/email');
