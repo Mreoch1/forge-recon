@@ -138,11 +138,12 @@ router.post('/folders/:folderId/upload', requireAuth, requireManager, upload.arr
     const ext = path.extname(file.originalname) || '';
     const key = `${folder.entity_type}/${folder.entity_id}/${crypto.randomUUID()}${ext}`;
     await storage.uploadBuffer('entity-files', key, file.buffer, file.mimetype);
-    await supabase.from('files').insert({
+    const { error: fileInsertErr } = await supabase.from('files').insert({
       folder_id: folder.id, name: originalName, original_filename: originalName,
       storage_path: key, mime_type: file.mimetype, size_bytes: file.size,
       uploaded_by_user_id: req.session.userId || null,
     });
+    if (fileInsertErr) throw fileInsertErr;
   }
   try {
     const { writeAudit } = require('../services/audit');
@@ -162,6 +163,7 @@ router.post('/folders/:folderId/subfolder', requireAuth, requireManager, async (
     parent_folder_id: folder.id, name, entity_type: folder.entity_type,
     entity_id: folder.entity_id, created_by_user_id: req.session.userId || null,
   });
+  if (rErr) throw rErr;
   setFlash(req, 'success', 'Folder "' + name + '" created.');
   res.redirect('/files/folders/' + folder.id);
 });
@@ -172,7 +174,8 @@ router.post('/folders/:folderId/rename', requireAuth, requireAdmin, async (req, 
   if (!folder) return res.status(404).json({ error: 'Folder not found.' });
   const name = (req.body.name || '').trim();
   if (!name) { setFlash(req, 'error', 'Folder name required.'); return res.redirect('/files/folders/' + folder.id); }
-  await supabase.from('folders').update({ name }).eq('id', folder.id);
+  const { error: renameErr } = await supabase.from('folders').update({ name }).eq('id', folder.id);
+  if (renameErr) throw renameErr;
   setFlash(req, 'success', 'Folder renamed.');
   res.redirect('/files/folders/' + folder.id);
 });
@@ -186,7 +189,8 @@ router.post('/folders/:folderId/delete', requireAuth, requireAdmin, async (req, 
     setFlash(req, 'error', 'Cannot delete non-empty folder.');
     return res.redirect('/files/folders/' + folder.id);
   }
-  await supabase.from('folders').delete().eq('id', folder.id);
+  const { error: deleteErr } = await supabase.from('folders').delete().eq('id', folder.id);
+  if (deleteErr) throw deleteErr;
   setFlash(req, 'success', 'Folder deleted.');
   const parent = folder.parent_folder_id ? '/files/folders/' + folder.parent_folder_id : '/files';
   res.redirect(parent);
@@ -200,7 +204,8 @@ router.post('/:id/delete', requireAuth, async (req, res) => {
   const isUploader = file.uploaded_by_user_id === req.session.userId;
   if (!isAdmin && !isUploader) return res.status(403).json({ error: 'Permission denied.' });
   try { await storage.remove('entity-files', file.storage_path || file.name); } catch(e) { /* best effort */ }
-  await supabase.from('files').delete().eq('id', file.id);
+  const { error: fileDeleteErr } = await supabase.from('files').delete().eq('id', file.id);
+  if (fileDeleteErr) throw fileDeleteErr;
   try {
     const { writeAudit } = require('../services/audit');
     writeAudit({ entityType: 'file', entityId: file.id, action: 'deleted', before: { filename: file.original_filename }, after: null, source: 'user', userId: req.session.userId });
