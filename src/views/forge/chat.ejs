@@ -56,17 +56,18 @@
   }
 </style>
 
+<% var firstName = 'there'; try { var nameParts = (currentUser && currentUser.name || '').split(' '); if (nameParts[0]) firstName = nameParts[0]; } catch(e){} %>
 <div class="max-w-7xl mx-auto px-4 py-4">
   <!-- Intro panel -->
   <div id="forge-intro">
     <div class="forge-typewriter" id="forge-typewriter"></div>
-    <div class="forge-subtitle" id="forge-subtitle">Your Field Operations &amp; Resource Guidance Engine.</div>
-    <div class="forge-tagline" id="forge-tagline">Ask me anything. I'll handle it.</div>
+    <div class="forge-subtitle" id="forge-subtitle">I'm FORGE, your assistant.</div>
+    <div class="forge-tagline" id="forge-tagline">Type a question, click an option below, or just say "help me with&hellip;" — I'll figure it out.</div>
     <div class="forge-chips-row">
-      <button class="forge-chip" data-action="example" data-q="Create a new work order">📋 New work order</button>
+      <button class="forge-chip" data-action="example" data-q="Create a new work order">📋 Make a work order</button>
       <button class="forge-chip" data-action="example" data-q="Send an invoice">📤 Send an invoice</button>
       <button class="forge-chip" data-action="example" data-q="What's on my schedule today?">📅 What's on today?</button>
-      <button class="forge-chip" id="forge-surprise-me">💡 Surprise me</button>
+      <button class="forge-chip" id="forge-surprise-me">💡 Show me what you can do</button>
     </div>
     <div id="forge-cta-wrap" class="hidden" style="margin-top:1.5rem;animation:forge-fade-in 0.6s ease forwards;display:flex;flex-direction:column;align-items:center;gap:0.5rem;position:relative;z-index:2;">
       <button id="forge-get-started" class="btn btn-primary" style="padding:0.75rem 2rem;font-size:1rem;border-radius:999px;cursor:pointer;border:none;background:#22d3ee;color:#020617;font-weight:700;transition:all 0.2s;box-shadow:0 0 20px rgba(34,211,238,0.3);">Get Started</button>
@@ -94,8 +95,8 @@
     introEl.classList.add('hidden');
     chatPanel.style.display = 'block';
   } else {
-    // Typewriter effect — ~40ms per char per D-062
-    var greeting = "Hello — I'm FORGE.";
+    // Personalized typewriter greeting — "Hello, <firstName>."
+    var greeting = "Hello, <%= firstName %>.";
     var i = 0;
     function typeChar() {
       if (i < greeting.length) {
@@ -151,6 +152,28 @@
       revealChat();
     }
   });
+
+  // Rotating placeholder hints — rotate every 4s when idle + empty input
+  var PLACEHOLDER_HINTS = [
+    "Try: 'find the Plymouth Square cabinet invoice'",
+    "Try: 'schedule John for Thursday at the Thompson Towers job'",
+    "Try: 'show me unpaid invoices'",
+    "Try: 'create a work order for Acme Corp'"
+  ];
+  var hintIdx = 0;
+  var hintInterval = setInterval(function() {
+    var input = document.getElementById('recon-aic-input');
+    if (input && !input.value && !input.disabled) {
+      input.placeholder = PLACEHOLDER_HINTS[hintIdx % PLACEHOLDER_HINTS.length];
+      hintIdx++;
+    }
+  }, 4000);
+  // Freeze rotation on user typing
+  document.addEventListener('input', function(e) {
+    if (e.target && e.target.id === 'recon-aic-input') {
+      clearInterval(hintInterval);
+    }
+  }, { once: true });
 })();
 </script>
 
