@@ -755,7 +755,8 @@ router.post('/:id/payments', async (req, res) => {
 
 router.post('/:id/sov-items', async (req, res) => {
   const id = req.params.id;
-  const { data: job } = await supabase.from('jobs').select('id').eq('id', id).maybeSingle();
+  const { data: job, error: jobError } = await supabase.from('jobs').select('id').eq('id', id).maybeSingle();
+  if (jobError) throw jobError;
   if (!job) return res.status(404).send('Project not found');
   const { error } = await supabase.from('project_sov_items').insert({
     job_id: parseInt(id, 10),
@@ -772,7 +773,11 @@ router.post('/:id/sov-items', async (req, res) => {
 });
 
 router.post('/:id/sov-items/:itemId/delete', async (req, res) => {
-  await supabase.from('project_sov_items').delete().eq('id', req.params.itemId).eq('job_id', req.params.id);
+  const { error } = await supabase.from('project_sov_items').delete().eq('id', req.params.itemId).eq('job_id', req.params.id);
+  if (error) {
+    setFlash(req, 'error', 'SOV item delete failed: ' + error.message);
+    return res.redirect('/projects/' + req.params.id);
+  }
   setFlash(req, 'success', 'SOV item deleted.');
   res.redirect('/projects/' + req.params.id);
 });
