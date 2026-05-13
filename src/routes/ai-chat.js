@@ -155,7 +155,17 @@ router.post('/chat/confirm', async (req, res) => {
 
   if (accept === true || accept === 'true') {
     // Execute the mutation
-    const args = JSON.parse(row.args || '{}');
+    let args = {};
+    try {
+      args = JSON.parse(row.args || '{}');
+    } catch (parseErr) {
+      await logConfirmError(parseErr, { phase: 'parse_confirmation_args', toolName: row.tool });
+      const { error: failErr } = await supabase.from('pending_confirmations').update({ status: 'failed' }).eq('id', row.id);
+      if (failErr) {
+        await logConfirmError(failErr, { phase: 'mark_failed_after_parse_error', toolName: row.tool });
+      }
+      return res.status(500).json({ ok: false, error: 'Confirmation payload is invalid. Please ask FORGE to prepare it again.' });
+    }
     const userId = req.session?.userId || 0;
     let userName = '';
     let role = 'admin';
@@ -168,7 +178,17 @@ router.post('/chat/confirm', async (req, res) => {
     }
     const ctx = { userId, userName, role };
 
-    const result = await tools.executeMutation(row.tool, args, ctx);
+    let result;
+    try {
+      result = await tools.executeMutation(row.tool, args, ctx);
+    } catch (executeErr) {
+      await logConfirmError(executeErr, { phase: 'execute_mutation', toolName: row.tool });
+      const { error: failErr } = await supabase.from('pending_confirmations').update({ status: 'failed' }).eq('id', row.id);
+      if (failErr) {
+        await logConfirmError(failErr, { phase: 'mark_failed_after_execute_exception', toolName: row.tool });
+      }
+      return res.status(500).json({ ok: false, error: 'Execution failed.' });
+    }
     if (result.ok) {
       const { error: confirmErr } = await supabase.from('pending_confirmations').update({ status: 'confirmed' }).eq('id', row.id);
       if (confirmErr) {
