@@ -524,12 +524,28 @@
       state.history.push(msg);
     } catch (err) {
       const isTimeout = err && (err.name === 'AbortError' || String(err.message || '').includes('abort'));
-      const friendlyMsg = isTimeout
-        ? "FORGE is having trouble right now — the request took too long."
-        : 'Sorry - ' + (err && err.message ? err.message : 'something went wrong.') + '.';
+      const errType = isTimeout ? 'timeout' : 'unknown';
+      // D-065: POST error to server for logging, get ERR-ID back
+      fetch('/ai/chat-errors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error_type: errType, error_message: String(err?.message || ''), user_message: text }),
+      }).then(function(r){ return r.json(); }).then(function(data){
+        if (data && data.err_id) {
+          // Update the error message in history with the ERR-ID
+          var lastMsg = state.history[state.history.length - 1];
+          if (lastMsg && lastMsg.error && !state._errIdShown) {
+            lastMsg.content = "\u26a0\ufe0f FORGE hit an error.\nWe've reported it to our team automatically (#ERR-" + data.err_id + ").\nThey're working on a fix. Try rephrasing, or click \"Use classic view\" if you need this done right away.";
+            state._errIdShown = true;
+            render();
+          }
+        }
+      }).catch(function(){});
       state.history.push({
         role: 'assistant',
-        content: friendlyMsg,
+        content: isTimeout
+          ? "FORGE is having trouble right now — the request took too long."
+          : 'Sorry - ' + (err && err.message ? err.message : 'something went wrong.') + '.',
         error: true,
         retryCallback: function() { send(text); },
       });
