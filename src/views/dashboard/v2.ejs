@@ -238,6 +238,55 @@ const actionSections = [
   .dv2-link        { color: #1a1a1a; text-decoration: none; }
   .dv2-link:hover  { color: #c0202b; }
 
+  /* FORGE command panel */
+  .dv2-forge-panel {
+    border: 1px solid #1a1a1a;
+    background: #fff;
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+  }
+  .dv2-forge-top {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: .75rem;
+    align-items: start;
+    padding: .8rem .9rem;
+    background: #1a1a1a;
+    color: #fff;
+  }
+  .dv2-forge-name {
+    font-size: .72rem;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    font-weight: 800;
+  }
+  .dv2-forge-desc {
+    margin-top: .25rem;
+    font-size: .78rem;
+    color: #cfcfcf;
+    line-height: 1.35;
+  }
+  .dv2-forge-live {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    font-size: .68rem;
+    color: #d0d0d0;
+    white-space: nowrap;
+    font-family: ui-monospace, monospace;
+  }
+  .dv2-forge-live::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #10b981;
+  }
+  .dv2-forge-root {
+    min-height: 430px;
+  }
+
   /* TIMELINE EVENTS — indented children under WO anchor rows */
   .dv2-events { margin-left: 5.5rem; padding-left: 1rem; border-left: 1px dotted #d0d0d0; padding-top: .15rem; padding-bottom: .35rem; }
   .dv2-event-row { display: grid; grid-template-columns: 4rem 1fr; gap: .65rem; padding: .25rem 0; font-size: .78rem; align-items: baseline; }
@@ -404,6 +453,17 @@ const actionSections = [
            RIGHT — single flat action queue, no card stack
            ============================================================ -->
       <div>
+
+        <section class="dv2-forge-panel" aria-label="FORGE assistant">
+          <div class="dv2-forge-top">
+            <div>
+              <div class="dv2-forge-name">FORGE</div>
+              <div class="dv2-forge-desc">Field Operations & Resource Guidance Engine</div>
+            </div>
+            <div class="dv2-forge-live">online</div>
+          </div>
+          <div id="ai-chat-root" class="dv2-forge-root" data-mode="dashboard"></div>
+        </section>
 
         <h2 class="dv2-h-secondary flex items-baseline justify-between">
           <span>Needs you

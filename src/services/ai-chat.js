@@ -104,6 +104,19 @@ async function chat({ message, history, ctx, active_intent }) {
     return { reply: 'AI chat is not configured.', chips: [], tool_calls: [], audit_id: null };
   }
 
+  if (active_intent && isCancelFlowMessage(message)) {
+    return {
+      reply: 'Okay, I cleared that FORGE flow. What would you like to do next?',
+      chips: [],
+      tool_calls: [],
+      tokens_used: 0,
+      latency_ms: Date.now() - startTime,
+      confirm: null,
+      audit_id: `${ctx.userId || 0}_${Date.now()}`,
+      active_intent: null
+    };
+  }
+
   const messages = [
     { role: 'system', content: buildSystemPrompt(ctx, active_intent) },
     ...(history || []).slice(-MAX_HISTORY).map(m => ({ role: m.role, content: m.content })),
@@ -118,12 +131,10 @@ async function chat({ message, history, ctx, active_intent }) {
   let resultActiveIntent = active_intent || null;
 
   // Pre-chat: keep guided write flows deterministic before falling back to the LLM.
-  // Skip intent detection if we already have an active intent (D-057 fix).
-  const mutationIntent = !active_intent
-    ? (detectGuidedContinuation(message, history) || detectMutationIntent(message, ctx))
-    : null;
+  const mutationIntent = resolveMutationIntent(message, history, ctx, active_intent);
   if (mutationIntent) {
     allToolCalls.push({ tool: mutationIntent.tool, args: mutationIntent.args });
+    resultActiveIntent = mutationIntent.tool;
 
     const missingReply = buildMissingMutationReply(mutationIntent);
     if (missingReply) {
@@ -164,7 +175,8 @@ async function chat({ message, history, ctx, active_intent }) {
         reply: `Multiple users match. Which one did you mean?`,
         chips, tool_calls: allToolCalls, tokens_used: 0,
         latency_ms: Date.now() - startTime, confirm: null,
-        audit_id: `${ctx.userId || 0}_${Date.now()}`
+        audit_id: `${ctx.userId || 0}_${Date.now()}`,
+        active_intent: resultActiveIntent
       };
     }
 
@@ -196,7 +208,8 @@ async function chat({ message, history, ctx, active_intent }) {
         warnings: proposeResult.warnings || [],
         expires_in_seconds: 300
       },
-      audit_id: `${ctx.userId || 0}_${Date.now()}`
+      audit_id: `${ctx.userId || 0}_${Date.now()}`,
+      active_intent: resultActiveIntent
     };
   }
 
@@ -217,6 +230,7 @@ async function chat({ message, history, ctx, active_intent }) {
       // (only process the first mutation call per request)
       const mc = mutationCalls[0];
       allToolCalls.push({ tool: mc.tool, args: mc.args });
+      resultActiveIntent = mc.tool;
 
       const missingReply = buildMissingMutationReply({ tool: mc.tool, args: mc.args || {} });
       if (missingReply) {
@@ -792,6 +806,18 @@ function detectMutationIntent(message, ctx) {
   return null;
 }
 
+function resolveMutationIntent(message, history, ctx, activeIntent) {
+  const guidedIntent = detectGuidedContinuation(message, history);
+  if (activeIntent) {
+    return guidedIntent && guidedIntent.tool === activeIntent ? guidedIntent : null;
+  }
+  return guidedIntent || detectMutationIntent(message, ctx);
+}
+
+function isCancelFlowMessage(message) {
+  return /^(no|nope|cancel|stop|never mind|nevermind|forget it|clear it|scratch that)\b/i.test(String(message || '').trim());
+}
+
 module.exports._internal = {
   parseCustomerArgs,
   detectGuidedContinuation,
@@ -799,6 +825,8 @@ module.exports._internal = {
   buildMissingMutationChips,
   buildGuidedErrorReply,
   detectMutationIntent,
+  resolveMutationIntent,
+  isCancelFlowMessage,
   workOrderBuilderPath,
   isAwaitingCustomerName,
   isAwaitingCustomerDetails,

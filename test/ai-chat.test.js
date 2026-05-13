@@ -84,6 +84,36 @@ test('AI chat merges customer details across intake turns', () => {
   assert.match(chat._internal.buildMissingMutationReply(intent), /email/);
 });
 
+test('AI chat resolves active create-customer continuations deterministically', () => {
+  const intent = chat._internal.resolveMutationIntent(
+    'phone is 555-123-4567, contact is Sarah Manager',
+    [
+      { role: 'assistant', content: 'Absolutely. I can create the customer in FORGE. Give me the customer name first. You can include email, phone, billing email, and address in the same message if you have them.' },
+      { role: 'user', content: 'Test Towers' },
+      { role: 'assistant', content: 'Got the customer name for Test Towers. Do you know the email, phone, service address, billing email or billing address, contact or manager name? Send whatever you have, or say "not sure" and I will create the customer with what we have.' }
+    ],
+    {},
+    'create_customer'
+  );
+
+  assert.equal(intent.tool, 'create_customer');
+  assert.equal(intent.args.name, 'Test Towers');
+  assert.equal(intent.args.phone, '555-123-4567');
+  assert.equal(intent.args.contact_name, 'Sarah Manager');
+});
+
+test('AI chat does not reclassify a different intent while an active flow is locked', () => {
+  const intent = chat._internal.resolveMutationIntent(
+    'create a work order for Test Towers',
+    [],
+    {},
+    'create_customer'
+  );
+
+  assert.equal(intent, null);
+  assert.equal(chat._internal.isCancelFlowMessage('never mind'), true);
+});
+
 test('workers cannot execute privileged confirmed AI mutations', async () => {
   const result = await aiTools.executeMutation(
     'create_customer',

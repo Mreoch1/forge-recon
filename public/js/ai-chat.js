@@ -22,6 +22,7 @@
   'use strict';
 
   const STORAGE_KEY = 'recon_ai_chat_history_v1';
+  const ACTIVE_INTENT_KEY = 'recon_ai_chat_active_intent_v1';
   const MAX_HISTORY = 20;
 
   // ----- DOM -----
@@ -278,6 +279,7 @@
     open: embedded,
     sending: false,
     history: [],   // { role: 'user' | 'assistant', content: string, chips?: [] }
+    activeIntent: null,
     disabled: false, // set true if /ai/chat returns 404
   };
 
@@ -285,15 +287,20 @@
     try {
       const raw = sessionStorage.getItem(STORAGE_KEY);
       if (raw) state.history = JSON.parse(raw).slice(-MAX_HISTORY);
+      const activeIntent = sessionStorage.getItem(ACTIVE_INTENT_KEY);
+      state.activeIntent = activeIntent || null;
     } catch (_) { /* ignore */ }
   }
   function saveHistory() {
     try {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state.history.slice(-MAX_HISTORY)));
+      if (state.activeIntent) sessionStorage.setItem(ACTIVE_INTENT_KEY, state.activeIntent);
+      else sessionStorage.removeItem(ACTIVE_INTENT_KEY);
     } catch (_) { /* ignore */ }
   }
   function clearHistory() {
     state.history = [];
+    state.activeIntent = null;
     saveHistory();
     render();
   }
@@ -475,6 +482,7 @@
         body: JSON.stringify({
           message: text,
           history: state.history.slice(-MAX_HISTORY),
+          active_intent: state.activeIntent,
         }),
         signal: controller.signal,
       });
@@ -491,6 +499,7 @@
         throw new Error(errBody.error || `HTTP ${res.status}`);
       }
       const data = await res.json();
+      state.activeIntent = data.active_intent || null;
       const msg = {
         role: 'assistant',
         content: data.reply || '(no reply)',
@@ -563,8 +572,10 @@
       const data = await res.json();
       if (data.cancelled) {
         msg.confirmState = { status: 'cancelled', inflight: false };
+        state.activeIntent = null;
       } else if (data.ok) {
         msg.confirmState = { status: 'confirmed', inflight: false };
+        state.activeIntent = null;
         // Append a follow-up assistant message confirming what landed.
         state.history.push({
           role: 'assistant',

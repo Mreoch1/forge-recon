@@ -75,12 +75,16 @@ router.post('/chat', chatLimiter, async (req, res) => {
       } catch(e) { /* fall back to defaults */ }
     }
     const ctx = { userId, userName, role };
+    const activeIntent = typeof req.body.active_intent === 'string'
+      && tools.list().some((tool) => tool.name === req.body.active_intent)
+      ? req.body.active_intent
+      : null;
 
     const result = await chatService.chat({
       message: message.trim(),
       history: safeHistory,
       ctx,
-      active_intent: req.body.active_intent || null
+      active_intent: activeIntent
     });
 
     res.json({
