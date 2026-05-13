@@ -121,7 +121,7 @@ router.post('/login', async (req, res) => {
 
 router.post('/logout', (req, res) => {
   if (req.session) {
-    req.session.destroy(() => { try { res.redirect('/login'); } catch(e) { /* session already destroyed */ } });
+    try { req.session.destroy(() => { try { res.redirect('/login'); } catch(e) { /* ignore */ } }); } catch(e) { req.session = null; res.redirect('/login'); }
   } else {
     res.redirect('/login');
   }

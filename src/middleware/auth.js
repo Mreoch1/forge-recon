@@ -85,7 +85,9 @@ const loadCurrentUser = asyncHandler(async (req, res, next) => {
       res.locals.canSeePrices = ['admin', 'manager'].includes(user.role);
       res.locals.isWorker = user.role === 'worker';
     } else {
-      if (req.session) req.session.destroy(() => {});
+      if (req.session) {
+        try { req.session.destroy(() => {}); } catch(e) { req.session = null; }
+      }
     }
   }
   next();
