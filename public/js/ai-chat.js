@@ -386,6 +386,7 @@
     const role = m.role === 'user' ? 'user' : 'assistant';
     const errClass = m.error ? ' error' : '';
     const text = escapeHTML(m.content || '').replace(/\n/g, '<br>');
+    const msgIdx = state.history.indexOf(m);
     const chips = (m.chips && m.chips.length)
       ? `<div class="recon-aic-chips">${m.chips.map(c => `
           <a class="recon-aic-chip" href="${escapeHTML(c.href)}">${escapeHTML(c.label)}<span class="arrow">-&gt;</span></a>
@@ -399,9 +400,9 @@
          </div>`
       : m.role === 'assistant'
         ? `<div style="margin-top:6px;display:flex;gap:4px;opacity:0.4;transition:opacity 0.2s" class="recon-aic-feedback" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.4'">
-             <button class="recon-aic-fb" data-action="ai-feedback" data-fb="helpful" title="Helpful" style="background:none;border:none;cursor:pointer;font-size:12px;padding:2px 4px;border-radius:4px;color:#888;transition:all 0.15s" onmouseover="this.style.color='#10b981'" onmouseout="this.style.color='#888'">👍</button>
-             <button class="recon-aic-fb" data-action="ai-feedback" data-fb="unhelpful" title="Needs improvement" style="background:none;border:none;cursor:pointer;font-size:12px;padding:2px 4px;border-radius:4px;color:#888;transition:all 0.15s" onmouseover="this.style.color='#f59e0b'" onmouseout="this.style.color='#888'">👎</button>
-             <button class="recon-aic-fb" data-action="ai-feedback" data-fb="bug" title="Report an issue" style="background:none;border:none;cursor:pointer;font-size:12px;padding:2px 4px;border-radius:4px;color:#888;transition:all 0.15s" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#888'">⚠️</button>
+             <button class="recon-aic-fb" data-action="ai-feedback" data-fb="helpful" data-msg-idx="${msgIdx}" title="Helpful" style="background:none;border:none;cursor:pointer;font-size:12px;padding:2px 4px;border-radius:4px;color:#888;transition:all 0.15s" onmouseover="this.style.color='#10b981'" onmouseout="this.style.color='#888'">👍</button>
+             <button class="recon-aic-fb" data-action="ai-feedback" data-fb="unhelpful" data-msg-idx="${msgIdx}" title="Needs improvement" style="background:none;border:none;cursor:pointer;font-size:12px;padding:2px 4px;border-radius:4px;color:#888;transition:all 0.15s" onmouseover="this.style.color='#f59e0b'" onmouseout="this.style.color='#888'">👎</button>
+             <button class="recon-aic-fb" data-action="ai-feedback" data-fb="bug" data-msg-idx="${msgIdx}" title="Report an issue" style="background:none;border:none;cursor:pointer;font-size:12px;padding:2px 4px;border-radius:4px;color:#888;transition:all 0.15s" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#888'">⚠️</button>
            </div>`
         : '';
     return `<div class="recon-aic-msg ${role}${errClass}">${text}${confirm}${chips}${reportBtn}</div>`;
@@ -626,14 +627,21 @@
     }
     if (action === 'ai-feedback') {
       e.preventDefault();
+      const msgIdx = Number(target.dataset.msgIdx);
+      const feedbackMsg = Number.isInteger(msgIdx) ? state.history[msgIdx] : null;
       // Fire-and-forget feedback to /ai/feedback
       fetch('/ai/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: target.dataset.fb, message: state.history.slice(-1)[0]?.content?.slice(0,200) || '' }),
+        body: JSON.stringify({ type: target.dataset.fb, message: feedbackMsg?.content?.slice(0,200) || '' }),
       }).catch(function(){});
-      target.style.opacity = '0.3';
-      target.disabled = true;
+      const group = target.closest('.recon-aic-feedback');
+      if (group) {
+        group.querySelectorAll('.recon-aic-fb').forEach(function(btn) {
+          btn.style.opacity = btn === target ? '0.3' : '0.15';
+          btn.disabled = true;
+        });
+      }
     }
   });
 
