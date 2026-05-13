@@ -104,6 +104,11 @@ router.get('/dashboard-classic', async (req, res) => {
 router.get('/', async (req, res) => {
   if (req.session?.role === 'worker') return res.redirect('/work-orders');
 
+  // D-059 A4: default_landing redirect — if user prefers chat, send to /forge
+  if (res.locals.currentUser && res.locals.currentUser.default_landing === 'chat') {
+    return res.redirect('/forge');
+  }
+
   const today = new Date().toISOString().slice(0, 10);
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const currentMonth = today.slice(0, 7);
