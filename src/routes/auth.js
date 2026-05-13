@@ -11,7 +11,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const supabase = require('../db/supabase');
-const { setFlash } = require('../middleware/auth');
+const { setFlash, clearSession } = require('../middleware/auth');
 const emailService = require('../services/email');
 
 const router = express.Router();
@@ -120,11 +120,7 @@ router.post('/login', async (req, res) => {
 // ── Logout ────────────────────────────────────────────────────────────────────
 
 router.post('/logout', (req, res) => {
-  if (req.session) {
-    try { req.session.destroy(() => { try { res.redirect('/login'); } catch(e) { /* ignore */ } }); } catch(e) { req.session = null; res.redirect('/login'); }
-  } else {
-    res.redirect('/login');
-  }
+  clearSession(req, () => res.redirect('/login'));
 });
 
 // ── Forgot password ───────────────────────────────────────────────────────────

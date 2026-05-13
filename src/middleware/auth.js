@@ -29,6 +29,24 @@ function isOwnerEmail(email) {
   return !!email && OWNER_EMAILS.includes(String(email).toLowerCase());
 }
 
+function clearSession(req, done = () => {}) {
+  if (!req.session) {
+    done();
+    return;
+  }
+
+  if (typeof req.session.destroy === 'function') {
+    req.session.destroy((err) => {
+      if (err) console.error('session destroy failed (continuing):', err.message);
+      done();
+    });
+    return;
+  }
+
+  req.session = null;
+  done();
+}
+
 function requireAuth(req, res, next) {
   if (!req.session || !req.session.userId) return res.redirect('/login');
   // D-030: redirect users who haven't completed onboarding
@@ -85,9 +103,7 @@ const loadCurrentUser = asyncHandler(async (req, res, next) => {
       res.locals.canSeePrices = ['admin', 'manager'].includes(user.role);
       res.locals.isWorker = user.role === 'worker';
     } else {
-      if (req.session) {
-        try { req.session.destroy(() => {}); } catch(e) { req.session = null; }
-      }
+      clearSession(req);
     }
   }
   next();
@@ -99,4 +115,4 @@ function setFlash(req, kind, message) {
   req.session.flash[kind] = message;
 }
 
-module.exports = { requireAuth, requireManager, requireAdmin, loadCurrentUser, setFlash, isOwnerEmail, OWNER_EMAILS };
+module.exports = { requireAuth, requireManager, requireAdmin, loadCurrentUser, setFlash, clearSession, isOwnerEmail, OWNER_EMAILS };
