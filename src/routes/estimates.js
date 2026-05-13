@@ -341,11 +341,12 @@ async function statusTransition(req, res, fromStatus, toStatus, timestampField) 
   const sets = ['status = ?', `updated_at = now()`];
   const params = [toStatus];
   if (timestampField) sets.push(`${timestampField} = now()`);
-  await supabase.from('estimates').update({
+  const { error: statusErr } = await supabase.from('estimates').update({
     status: toStatus,
     updated_at: new Date().toISOString(),
     ...(timestampField ? { [timestampField]: new Date().toISOString() } : {}),
   }).eq('id', est.id);
+  if (statusErr) throw statusErr;
   try {
     const { writeAudit } = require('../services/audit');
     writeAudit({ entityType: 'estimate', entityId: est.id, action: toStatus, before: { status: est.status }, after: { status: toStatus }, source: 'user', userId: req.session.userId });
@@ -499,9 +500,10 @@ router.post('/:id/archive', async (req, res) => {
   }
   let newStatus = est.status;
   if (est.status === 'draft' || est.status === 'sent') { newStatus = 'expired'; }
-  await supabase.from('estimates').update({
+  const { error: archiveErr } = await supabase.from('estimates').update({
     archived_at: new Date().toISOString(), status: newStatus, updated_at: new Date().toISOString(),
   }).eq('id', est.id);
+  if (archiveErr) throw archiveErr;
   try {
     const { writeAudit } = require('../services/audit');
     writeAudit({ entityType: 'estimate', entityId: est.id, action: 'archived', before: { status: est.status }, after: { status: newStatus, archived_at: 'now' }, source: 'user', userId: req.session.userId });
@@ -522,9 +524,10 @@ router.post('/:id/unarchive', async (req, res) => {
     setFlash(req, 'info', `${est.display_number} is not archived.`);
     return res.redirect(`/estimates/${est.id}`);
   }
-  await supabase.from('estimates').update({
+  const { error: unarchiveErr } = await supabase.from('estimates').update({
     archived_at: null, updated_at: new Date().toISOString(),
   }).eq('id', est.id);
+  if (unarchiveErr) throw unarchiveErr;
   try {
     const { writeAudit } = require('../services/audit');
     writeAudit({ entityType: 'estimate', entityId: est.id, action: 'unarchived', before: { archived_at: est.archived_at }, after: { archived_at: null }, source: 'user', userId: req.session.userId });
@@ -703,8 +706,10 @@ router.post('/:id/delete', async (req, res) => {
     setFlash(req, 'error', `Cannot delete ${estimate.display_number} — an invoice references it.`);
     return res.redirect(`/estimates/${estimate.id}`);
   }
-  await supabase.from('estimate_line_items').delete().eq('estimate_id', estimate.id);
-  await supabase.from('estimates').delete().eq('id', estimate.id);
+  const { error: lineDeleteErr } = await supabase.from('estimate_line_items').delete().eq('estimate_id', estimate.id);
+  if (lineDeleteErr) throw lineDeleteErr;
+  const { error: estimateDeleteErr } = await supabase.from('estimates').delete().eq('id', estimate.id);
+  if (estimateDeleteErr) throw estimateDeleteErr;
   setFlash(req, 'success', `${estimate.display_number} deleted.`);
   res.redirect('/estimates');
 });
