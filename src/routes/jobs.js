@@ -467,7 +467,8 @@ router.post('/:id/delete', async (req, res) => {
   const { data: job, error: findError } = await supabase.from('jobs').select('id, title').eq('id', id).maybeSingle();
   if (findError) throw findError;
   if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Project not found.' });
-  const { count: woCount } = await supabase.from('work_orders').select('*', { count: 'exact', head: true }).eq('job_id', id);
+  const { count: woCount, error: woCountError } = await supabase.from('work_orders').select('*', { count: 'exact', head: true }).eq('job_id', id);
+  if (woCountError) throw woCountError;
   if (woCount) {
     setFlash(req, 'error', `Cannot delete "${job.title}" — it has ${woCount} work order(s).`);
     return res.redirect(`/projects/${id}`);

@@ -701,7 +701,8 @@ router.get('/:id/pdf', async (req, res) => {
 router.post('/:id/delete', async (req, res) => {
   const estimate = await loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
-  const { count: invCount } = await supabase.from('invoices').select('id', { count: 'exact', head: true }).eq('estimate_id', estimate.id);
+  const { count: invCount, error: invCountError } = await supabase.from('invoices').select('id', { count: 'exact', head: true }).eq('estimate_id', estimate.id);
+  if (invCountError) throw invCountError;
   if (invCount) {
     setFlash(req, 'error', `Cannot delete ${estimate.display_number} — an invoice references it.`);
     return res.redirect(`/estimates/${estimate.id}`);

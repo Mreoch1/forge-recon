@@ -183,7 +183,8 @@ router.post('/:id/delete', async (req, res) => {
   const { data: customer, error: findError } = await supabase.from('customers').select('id, name').eq('id', id).maybeSingle();
   if (findError) throw findError;
   if (!customer) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Customer not found.' });
-  const { count: workOrderCount } = await supabase.from('work_orders').select('*', { count: 'exact', head: true }).eq('customer_id', id);
+  const { count: workOrderCount, error: workOrderCountError } = await supabase.from('work_orders').select('*', { count: 'exact', head: true }).eq('customer_id', id);
+  if (workOrderCountError) throw workOrderCountError;
   if (workOrderCount > 0) {
     setFlash(req, 'error', `Cannot delete "${customer.name}" because they still have ${workOrderCount} work order(s).`);
     return res.redirect(`/customers/${id}`);
