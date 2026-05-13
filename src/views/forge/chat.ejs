@@ -104,6 +104,18 @@
     typeChar();
   }
 
+  function revealChat() {
+    if (!introEl.classList.contains('hidden')) {
+      introEl.classList.add('hidden');
+      localStorage.setItem(INTRO_SEEN_KEY, 'true');
+    }
+    chatPanel.style.display = 'block';
+  }
+
+  document.querySelectorAll('.forge-chip[data-action="example"]').forEach(function(btn) {
+    btn.addEventListener('click', revealChat);
+  });
+
   // Surprise me button
   var surprises = [
     "Show open invoices over 30 days",
@@ -113,6 +125,7 @@
   ];
   document.getElementById('forge-surprise-me')?.addEventListener('click', function() {
     var pick = surprises[Math.floor(Math.random() * surprises.length)];
+    revealChat();
     // Find the chat widget's input and submit
     var input = document.getElementById('recon-aic-input');
     if (input) { input.value = pick; input.form?.requestSubmit(); }
@@ -126,9 +139,7 @@
     if (!msgs) return;
     var count = msgs.querySelectorAll('.recon-aic-msg').length;
     if (count >= 3 && !introEl.classList.contains('hidden')) {
-      introEl.classList.add('hidden');
-      chatPanel.style.display = 'block';
-      localStorage.setItem(INTRO_SEEN_KEY, 'true');
+      revealChat();
       clearInterval(msgObserver);
     }
   }, 500);
