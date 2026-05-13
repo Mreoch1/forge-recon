@@ -15,7 +15,7 @@
 const db = require('../db/db');
 const supabase = require('../db/supabase');
 const { writeAudit } = require('./audit');
-const { logAiChatError } = require('./ai-chat');
+const { logAiChatError } = require('./ai-chat-errors');
 const scheduling = require('./scheduling');
 
 // ── Worker-allowed tools ─────────────────────────────────────────────

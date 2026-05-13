@@ -11,6 +11,7 @@
 const ai = require('./ai');
 const tools = require('./ai-tools');
 const { writeAudit } = require('./audit');
+const { logAiChatError } = require('./ai-chat-errors');
 const supabase = require('../db/supabase');
 const MAX_HISTORY = 20;
 const WORKER_ALLOWED_TOOLS = ['search_work_orders', 'get_schedule', 'navigate', 'search_customers'];
@@ -411,29 +412,6 @@ function parseResponse(text) {
       } catch (e2) { /* fall through */ }
     }
     return { reply: text.trim(), chips: [], tool_calls: [] };
-  }
-}
-
-// ── D-062 Item 3: Log errors to ai_chat_errors table ──────────────────
-async function logAiChatError({ userId, sessionId, userMessage, errorType, errorMessage, errorStack, provider, toolName, requestPayload, responsePayload }) {
-  // Fire-and-forget — never block user-facing response for logging
-  try {
-    const validTypes = ['provider_error','tool_error','timeout','rate_limit','malformed_response','auth','unknown'];
-    const safeType = validTypes.includes(errorType) ? errorType : 'unknown';
-    await supabase.from('ai_chat_errors').insert({
-      user_id: userId || null,
-      session_id: (sessionId || '').slice(0, 255) || null,
-      user_message: (userMessage || '').slice(0, 2000) || null,
-      error_type: safeType,
-      error_message: (errorMessage || '').slice(0, 2000),
-      error_stack: (errorStack || '').slice(0, 5000) || null,
-      provider: (provider || '').slice(0, 100) || null,
-      tool_name: (toolName || '').slice(0, 100) || null,
-      request_payload: requestPayload || null,
-      response_payload: responsePayload || null,
-    });
-  } catch (logErr) {
-    console.warn('[ai-chat] failed to log error:', logErr.message);
   }
 }
 
