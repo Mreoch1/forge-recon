@@ -9,6 +9,7 @@ const router = express.Router();
 const chatService = require('../services/ai-chat');
 const tools = require('../services/ai-tools');
 const { writeAudit } = require('../services/audit');
+const { logAiChatError } = require('../services/ai-chat-errors');
 const rateLimit = require('express-rate-limit');
 const supabase = require('../db/supabase');
 
@@ -112,7 +113,21 @@ router.post('/chat/confirm', async (req, res) => {
     return res.status(400).json({ error: 'confirmation_id is required.' });
   }
 
-  const { data: row } = await supabase.from('pending_confirmations').select('*').eq('id', confirmation_id).maybeSingle();
+  const logConfirmError = (err, extra = {}) => logAiChatError({
+    userId: req.session?.userId || null,
+    sessionId: req.sessionID,
+    errorType: 'unknown',
+    errorMessage: err && err.message ? err.message : String(err || 'AI confirmation error'),
+    errorStack: err && err.stack ? err.stack : null,
+    toolName: extra.toolName || null,
+    requestPayload: { confirmation_id, accept, ...extra },
+  });
+
+  const { data: row, error: rowErr } = await supabase.from('pending_confirmations').select('*').eq('id', confirmation_id).maybeSingle();
+  if (rowErr) {
+    await logConfirmError(rowErr, { phase: 'load_confirmation' });
+    return res.status(500).json({ error: 'Could not load confirmation. Please try again.' });
+  }
 
   if (!row) {
     return res.status(404).json({ error: 'Confirmation not found.' });
@@ -129,7 +144,11 @@ router.post('/chat/confirm', async (req, res) => {
 
   // Expiry check
   if (new Date(row.expires_at) < new Date()) {
-    await supabase.from('pending_confirmations').update({ status: 'expired' }).eq('id', row.id);
+    const { error: expireErr } = await supabase.from('pending_confirmations').update({ status: 'expired' }).eq('id', row.id);
+    if (expireErr) {
+      await logConfirmError(expireErr, { phase: 'mark_expired', toolName: row.tool });
+      return res.status(500).json({ error: 'Could not update confirmation status. Please try again.' });
+    }
     await writeAudit({ entityType: 'pending_confirmation', entityId: row.id, action: 'expired', before: null, after: { tool: row.tool }, source: 'ai', userId: row.user_id });
     return res.status(409).json({ error: 'Confirmation expired. Please ask the AI again.' });
   }
@@ -141,14 +160,21 @@ router.post('/chat/confirm', async (req, res) => {
     let userName = '';
     let role = 'admin';
     try {
-      const { data: userRow } = await supabase.from('users').select('name, role').eq('id', userId).maybeSingle();
+      const { data: userRow, error: userErr } = await supabase.from('users').select('name, role').eq('id', userId).maybeSingle();
+      if (userErr) throw userErr;
       if (userRow) { userName = userRow.name || ''; role = userRow.role || 'admin'; }
-    } catch (e) { /* fall back to defaults */ }
+    } catch (e) {
+      await logConfirmError(e, { phase: 'load_user_context', toolName: row.tool });
+    }
     const ctx = { userId, userName, role };
 
     const result = await tools.executeMutation(row.tool, args, ctx);
     if (result.ok) {
-      await supabase.from('pending_confirmations').update({ status: 'confirmed' }).eq('id', row.id);
+      const { error: confirmErr } = await supabase.from('pending_confirmations').update({ status: 'confirmed' }).eq('id', row.id);
+      if (confirmErr) {
+        await logConfirmError(confirmErr, { phase: 'mark_confirmed', toolName: row.tool });
+        return res.status(500).json({ error: 'Action ran, but confirmation status could not be saved.' });
+      }
       await writeAudit({ entityType: 'pending_confirmation', entityId: row.id, action: 'confirmed', before: null, after: { tool: row.tool, result: result.result }, source: 'ai', userId: row.user_id });
 
       const chips = result.result && result.result.href
@@ -157,12 +183,19 @@ router.post('/chat/confirm', async (req, res) => {
 
       return res.json({ ok: true, result: result.result, chips });
     } else {
-      await supabase.from('pending_confirmations').update({ status: 'failed' }).eq('id', row.id);
+      const { error: failErr } = await supabase.from('pending_confirmations').update({ status: 'failed' }).eq('id', row.id);
+      if (failErr) {
+        await logConfirmError(failErr, { phase: 'mark_failed', toolName: row.tool, mutation_error: result.error });
+      }
       return res.status(500).json({ ok: false, error: result.error || 'Execution failed.' });
     }
   } else {
     // Cancel
-    await supabase.from('pending_confirmations').update({ status: 'cancelled' }).eq('id', row.id);
+    const { error: cancelErr } = await supabase.from('pending_confirmations').update({ status: 'cancelled' }).eq('id', row.id);
+    if (cancelErr) {
+      await logConfirmError(cancelErr, { phase: 'mark_cancelled', toolName: row.tool });
+      return res.status(500).json({ error: 'Could not cancel confirmation. Please try again.' });
+    }
     await writeAudit({ entityType: 'pending_confirmation', entityId: row.id, action: 'cancelled', before: null, after: { tool: row.tool }, source: 'ai', userId: row.user_id });
     return res.json({ ok: true, cancelled: true });
   }
