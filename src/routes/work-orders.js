@@ -1001,12 +1001,14 @@ router.post('/:id', async (req, res) => {
   if (assignUpdateErr) throw assignUpdateErr;
 
   // Update work_order_assignees
-  const { data: currentAssignees } = await supabase.from('work_order_assignees').select('user_id').eq('work_order_id', existing.id);
+  const { data: currentAssignees, error: currentAssigneesErr } = await supabase.from('work_order_assignees').select('user_id').eq('work_order_id', existing.id);
+  if (currentAssigneesErr) throw currentAssigneesErr;
   const currentIds = (currentAssignees || []).map(a => Number(a.user_id)).filter(Boolean);
   const toAdd = newAssigneeIds.filter(id => !currentIds.includes(id));
   const toRemove = currentIds.filter(id => !newAssigneeIds.includes(id));
   for (const uid of toRemove) {
-    await supabase.from('work_order_assignees').delete().eq('work_order_id', existing.id).eq('user_id', uid);
+    const { error: removeAssigneeErr } = await supabase.from('work_order_assignees').delete().eq('work_order_id', existing.id).eq('user_id', uid);
+    if (removeAssigneeErr) throw removeAssigneeErr;
   }
   await saveAssigneesAndNotify({
     workOrderId: existing.id,
@@ -1337,7 +1339,8 @@ router.post('/:id/delete', async (req, res) => {
   }
 
   // Cascade rows that don't have ON DELETE CASCADE
-  await supabase.from('work_order_line_items').delete().eq('work_order_id', wo.id);
+  const { error: lineDeleteErr } = await supabase.from('work_order_line_items').delete().eq('work_order_id', wo.id);
+  if (lineDeleteErr) throw lineDeleteErr;
   // Notes + photos best-effort (table may not exist on older DBs)
   try { await supabase.from('wo_notes').delete().eq('work_order_id', wo.id); } catch (_) {}
   try { await supabase.from('wo_photos').delete().eq('work_order_id', wo.id); } catch (_) {}
@@ -1424,7 +1427,8 @@ router.post('/:id/create-estimate', async (req, res) => {
 
   // Set valid_until to 30 days from now
   const thirtyDays = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  await supabase.from('estimates').update({ valid_until: thirtyDays }).eq('id', newId);
+  const { error: validUntilErr } = await supabase.from('estimates').update({ valid_until: thirtyDays }).eq('id', newId);
+  if (validUntilErr) throw validUntilErr;
 
   setFlash(req, 'success', `Estimate EST-${wo.display_number} created from WO-${wo.display_number}.`);
   res.redirect(`/estimates/${newId}/edit`);
