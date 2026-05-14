@@ -71,10 +71,9 @@ router.post('/chat', chatLimiter, async (req, res) => {
     let userName = 'Unknown';
     let role = 'admin';
     if (userId) {
-      try {
-        const { data: u } = await supabase.from('users').select('name, role').eq('id', userId).maybeSingle();
-        if (u) { userName = u.name; role = u.role; }
-      } catch(e) { /* fall back to defaults */ }
+      const { data: u, error: userError } = await supabase.from('users').select('name, role').eq('id', userId).maybeSingle();
+      if (userError) throw userError;
+      if (u) { userName = u.name; role = u.role; }
     }
     const ctx = { userId, userName, role };
     const activeIntent = typeof req.body.active_intent === 'string'
