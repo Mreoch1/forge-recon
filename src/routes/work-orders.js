@@ -63,6 +63,7 @@ function isAssignedToCurrentUser(req, wo) {
   const userId = Number(req.session.userId);
   const userName = req.res?.locals?.currentUser?.name || '';
   return Number(wo.assigned_to_user_id) === userId ||
+    (wo.assignees || []).some(a => Number(a.id) === userId) ||
     (wo.assigned_to && userName && String(wo.assigned_to).includes(userName));
 }
 
@@ -76,6 +77,24 @@ function requireManagerRole(req, res) {
     return false;
   }
   return true;
+}
+
+function idInFilter(ids) {
+  const cleanIds = Array.from(new Set(ids || []))
+    .map(Number)
+    .filter(Number.isInteger);
+  return cleanIds.length ? `id.in.(${cleanIds.join(',')})` : null;
+}
+
+async function workOrderIdsAssignedToUser(userId) {
+  const { data, error } = await supabase
+    .from('work_order_assignees')
+    .select('work_order_id')
+    .eq('user_id', Number(userId));
+  if (error) throw error;
+  return (data || [])
+    .map(a => Number(a.work_order_id))
+    .filter(Number.isInteger);
 }
 
 function asArray(input) {
@@ -445,9 +464,11 @@ router.get('/', async (req, res) => {
     // though it's set by the admin (not the worker), a malformed name
     // (containing a `,` or `(`) would otherwise break the filter.
     const userName = sanitizePostgrestSearch(res.locals.currentUser?.name || '');
-    query = userName
-      ? query.or(`assigned_to_user_id.eq.${req.session.userId},assigned_to.ilike.%${userName}%`)
-      : query.eq('assigned_to_user_id', req.session.userId);
+    const filters = [`assigned_to_user_id.eq.${req.session.userId}`];
+    if (userName) filters.push(`assigned_to.ilike.%${userName}%`);
+    const joinTableFilter = idInFilter(await workOrderIdsAssignedToUser(req.session.userId));
+    if (joinTableFilter) filters.push(joinTableFilter);
+    query = query.or(filters.join(','));
   }
 
   const { data: rows, count: total, error } = await query

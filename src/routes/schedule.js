@@ -77,30 +77,37 @@ function getInitials(name) {
 
 async function workerScope(req) {
   if (req.session?.role !== 'worker') return null;
-  let userName = '';
-  const { data: user, error } = await supabase.from('users').select('name').eq('id', req.session.userId).maybeSingle();
-  if (error) throw error;
-  userName = user?.name || '';
-  return { userId: req.session.userId, userName };
+  const userId = Number(req.session.userId);
+  const [userResult, assignmentResult] = await Promise.all([
+    supabase.from('users').select('name').eq('id', userId).maybeSingle(),
+    supabase.from('work_order_assignees').select('work_order_id').eq('user_id', userId),
+  ]);
+  if (userResult.error) throw userResult.error;
+  if (assignmentResult.error) throw assignmentResult.error;
+  return {
+    userId,
+    userName: userResult.data?.name || '',
+    workOrderIds: (assignmentResult.data || [])
+      .map(a => Number(a.work_order_id))
+      .filter(Number.isInteger),
+  };
+}
+
+function idInFilter(ids) {
+  const cleanIds = Array.from(new Set(ids || []))
+    .map(Number)
+    .filter(Number.isInteger);
+  return cleanIds.length ? `id.in.(${cleanIds.join(',')})` : null;
 }
 
 function applyWorkerScope(query, scope) {
   if (!scope) return query;
-  // Option A: two-step query — fetch WO IDs from work_order_assignees first,
-  // then filter work_orders by legacy column OR id.in(...)
   const safeName = sanitizePostgrestSearch(scope.userName);
-  const legacyFilter = `assigned_to_user_id.eq.${scope.userId}`;
-  const nameFilter = safeName ? `assigned_to.ilike.%${safeName}%` : '';
-
-  // We can't chain .or() across tables in PostgREST, so we apply the
-  // legacy filter inline and handle the join-table scope separately.
-  if (safeName) {
-    // Use or including name filter
-    return query.or(`${legacyFilter},${nameFilter}`);
-  }
-  // Legacy column only for initial filter; work_order_assignees handled by
-  // calling code via manual WO ID list if needed
-  return query.or(legacyFilter);
+  const filters = [`assigned_to_user_id.eq.${scope.userId}`];
+  if (safeName) filters.push(`assigned_to.ilike.%${safeName}%`);
+  const joinTableFilter = idInFilter(scope.workOrderIds);
+  if (joinTableFilter) filters.push(joinTableFilter);
+  return query.or(filters.join(','));
 }
 
 function mondayOfWeek(dateStr) {
