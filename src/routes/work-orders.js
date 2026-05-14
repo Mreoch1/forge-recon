@@ -1001,6 +1001,9 @@ router.post('/:id', async (req, res) => {
     .order('name');
   const newAssigneeIds = normalizeAssigneeIds(req.body.assignee_ids);
   const assignmentFields = primaryAssigneeFields(newAssigneeIds, users || []);
+  const nextNotes = Object.prototype.hasOwnProperty.call(req.body, 'notes')
+    ? data.notes
+    : existing.notes;
 
   const { error: rpcErr } = await supabase.rpc('update_work_order_with_lines', {
     wo_id: parseInt(existing.id, 10),
@@ -1014,7 +1017,7 @@ router.post('/:id', async (req, res) => {
       description: data.description || '',
       assigned_to_user_id: assignmentFields.assigned_to_user_id,
       assigned_to: assignmentFields.assigned_to,
-      notes: data.notes,
+      notes: nextNotes,
     },
     lines: buildLineRows(linesForUpdate),
     user_id: req.session.userId || null,
@@ -1067,7 +1070,7 @@ router.post('/:id', async (req, res) => {
     display: newDisplay,
     unitNumber: existing.unit_number || '',
     description: data.description || existing.description || '',
-    notes: data.notes || '',
+    notes: nextNotes || '',
     scheduledDate: data.scheduled_date || '',
     scheduledTime: data.scheduled_time || '',
     assignedByUserId: req.session.userId || null,
