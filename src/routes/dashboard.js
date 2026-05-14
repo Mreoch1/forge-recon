@@ -298,6 +298,7 @@ router.get('/forge/tutorial', async (req, res) => {
     title: 'FORGE Tutorial',
     activeNav: 'forge',
     currentUser: res.locals.currentUser || null,
+    returnTo: req.query.return || '/forge',
   });
 });
 

@@ -35,7 +35,7 @@
       <div class="t-typewriter" id="t-typewriter"></div>
       <div id="t-actions" style="margin-top:1.5rem;"></div>
     </div>
-    <a href="/forge" class="t-skip">Skip tutorial</a>
+    <a href="<%= returnTo || "/forge" %>" class="t-skip">Skip tutorial</a>
   </div>
 </div>
 
@@ -47,7 +47,7 @@
     { msg: "Now let's send an invoice. Try asking me…", action: { label: "📤 Send the Plymouth Square cabinet invoice", next: true, fake: true } },
     { msg: "You can also check your schedule.", action: { label: "📅 What's on today?", next: true, fake: true } },
     { msg: 'If I ever can\'t help, click the bug icon below any reply and tell me what went wrong.', action: { label: "Got it!", next: true } },
-    { msg: "You're all set! Click below to go to FORGE, or use the classic dashboard via the arrow up top.", action: { label: "Go to FORGE", href: "/forge" } }
+    { msg: "You're all set! Click below to go to FORGE, or use the classic dashboard via the arrow up top.", action: { label: "Go to FORGE", href: returnTo || '/forge' } }
   ];
   var stepIdx = 0;
   var twEl = document.getElementById('t-typewriter');

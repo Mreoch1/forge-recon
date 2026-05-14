@@ -110,15 +110,8 @@
   typeChar();
 
   function revealChat() {
-    if (!introEl.classList.contains('hidden')) {
-      introEl.classList.add('hidden');
-    }
-    chatPanel.style.display = 'block';
-    // Focus the main chat input once panel is visible
-    setTimeout(function() {
-      var input = document.getElementById('recon-aic-input');
-      if (input) input.focus();
-    }, 100);
+    // D-067: Get Started now launches the tutorial, not the chat
+    window.location.href = '/forge/tutorial?return=/forge';
   }
 
   // Intro input: Enter key sends + dismisses; any typing autofocuses
