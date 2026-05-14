@@ -489,28 +489,31 @@ const VALID_CO_STATUSES = ['pending', 'approved', 'rejected', 'invoiced'];
 const VALID_ROLES = ['owner', 'manager', 'member', 'contractor'];
 
 async function loadChangeOrders(jobId) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('change_orders')
     .select('id, description, vendor_amount, customer_amount, status, approved_by_user_id, created_at, vendors!left(name)')
     .eq('job_id', jobId)
     .order('created_at', { ascending: false });
+  if (error) throw error;
   const list = data || [];
   const approverIds = Array.from(new Set(list.map(co => co.approved_by_user_id).filter(Boolean)));
   let approverMap = {};
   if (approverIds.length) {
-    const { data: approvers } = await supabase.from('users').select('id, name').in('id', approverIds);
+    const { data: approvers, error: approverError } = await supabase.from('users').select('id, name').in('id', approverIds);
+    if (approverError) throw approverError;
     (approvers || []).forEach(u => { approverMap[u.id] = u.name; });
   }
   return list.map(co => ({ ...co, vendor_name: co.vendors?.name, approver_name: approverMap[co.approved_by_user_id] || null }));
 }
 
 async function loadLineItems(jobId) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('job_vendor_line_items')
     .select('id, description, quantity, unit_cost, sort_order, vendor_id, vendors!left(name)')
     .eq('job_id', jobId)
     .order('sort_order', { ascending: true })
     .order('id', { ascending: true });
+  if (error) throw error;
   return (data || []).map(li => ({
     ...li,
     vendor_name: li.vendors?.name,
@@ -519,21 +522,24 @@ async function loadLineItems(jobId) {
 }
 
 async function loadMembers(jobId) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('job_members')
     .select('id, role, user_id, users!inner(name, email)')
     .eq('job_id', jobId)
     .order('id', { ascending: true });
+  if (error) throw error;
   return (data || []).map(m => ({ ...m, user_name: m.users?.name, user_email: m.users?.email }));
 }
 
 async function loadVendors() {
-  const { data } = await supabase.from('vendors').select('id, name').order('name');
+  const { data, error } = await supabase.from('vendors').select('id, name').order('name');
+  if (error) throw error;
   return data || [];
 }
 
 async function loadActiveUsers() {
-  const { data } = await supabase.from('users').select('id, name, email').eq('active', 1).order('name');
+  const { data, error } = await supabase.from('users').select('id, name, email').eq('active', 1).order('name');
+  if (error) throw error;
   return data || [];
 }
 
