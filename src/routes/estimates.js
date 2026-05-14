@@ -96,6 +96,32 @@ function paymentTermsFromBody(body, fallback = 'Net 30') {
   return selected || fallback;
 }
 
+function missingPostgrestColumn(error) {
+  const message = String(error?.message || '');
+  const quoted = message.match(/'([^']+)' column/);
+  if (quoted) return quoted[1];
+  const bare = message.match(/column\s+([a-zA-Z0-9_]+)/);
+  return bare ? bare[1] : null;
+}
+
+async function updateEstimate(id, payload, options = {}) {
+  const optionalFields = options.optionalFields || [];
+  const { error } = await supabase.from('estimates').update(payload).eq('id', id);
+  if (!error) return;
+
+  const missing = missingPostgrestColumn(error);
+  if (error.code === 'PGRST204' && missing && optionalFields.includes(missing)) {
+    const reducedPayload = { ...payload };
+    for (const field of optionalFields) delete reducedPayload[field];
+    const { error: retryError } = await supabase.from('estimates').update(reducedPayload).eq('id', id);
+    if (retryError) throw retryError;
+    console.warn(`[estimates] optional columns missing; saved core update without ${optionalFields.join(', ')}: ${error.message}`);
+    return;
+  }
+
+  throw error;
+}
+
 function validateLineItem(li) {
   const description = emptyToNull(li.description);
   const unit = emptyToNull(li.unit) || 'ea';
@@ -369,11 +395,11 @@ router.post('/:id/send', async (req, res, next) => {
     const result = await emailService.sendEstimateEmail(estimate.id);
     const sentToEmail = result.to || estimate.customer_billing_email || estimate.customer_email;
     const sentToName = result.toName || estimate.customer_name || 'Unknown';
-    await supabase.from('estimates').update({
+    await updateEstimate(estimate.id, {
       status: 'sent', sent_at: new Date().toISOString(),
       sent_by_user_id: req.session.userId, sent_to_email: sentToEmail,
       sent_to_name: sentToName, updated_at: new Date().toISOString(),
-    }).eq('id', estimate.id);
+    }, { optionalFields: ['sent_to_email', 'sent_to_name'] });
     try {
       const { writeAudit } = require('../services/audit');
       writeAudit({ entityType: 'estimate', entityId: estimate.id, action: 'sent', before: { status: 'draft' }, after: { status: 'sent' }, source: 'user', userId: req.session.userId });
@@ -397,15 +423,14 @@ router.post('/:id/mark-sent', async (req, res) => {
   }
   const recipient = estimate.customer_email || estimate.customer_billing_email || null;
   const now = new Date().toISOString();
-  const { error: updateError } = await supabase.from('estimates').update({
+  await updateEstimate(estimate.id, {
     status: 'sent',
     sent_at: now,
     sent_by_user_id: req.session.userId,
     sent_to_email: recipient,
     sent_to_name: estimate.customer_name || null,
     updated_at: now,
-  }).eq('id', estimate.id);
-  if (updateError) throw updateError;
+  }, { optionalFields: ['sent_to_email', 'sent_to_name'] });
   try {
     const { writeAudit } = require('../services/audit');
     writeAudit({
