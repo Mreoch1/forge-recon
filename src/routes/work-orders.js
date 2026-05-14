@@ -348,11 +348,14 @@ async function saveAssigneesAndNotify({ workOrderId, assigneeIds, users = [], cu
         scheduledTime: scheduledTime || '',
         pdfBuffer,
       });
-      await supabase
+      const { error: notifiedErr } = await supabase
         .from('work_order_assignees')
         .update({ notified_at: new Date().toISOString() })
         .eq('work_order_id', workOrderId)
         .eq('user_id', uid);
+      if (notifiedErr) {
+        console.warn('[work-orders] assignee notified_at update failed for uid', uid, ':', notifiedErr.message);
+      }
     } catch (e) {
       console.warn('[work-orders] assignee email failed for', assignee.email, ':', e.message);
     }
@@ -395,11 +398,12 @@ async function sendWorkOrderToAssignedUsers(wo) {
       pdfBuffer,
     });
     sent++;
-    await supabase
+    const { error: notifiedErr } = await supabase
       .from('work_order_assignees')
       .update({ notified_at: new Date().toISOString() })
       .eq('work_order_id', wo.id)
       .eq('user_id', assignee.id);
+    if (notifiedErr) throw notifiedErr;
   }
 
   return { sent, skipped: false };
