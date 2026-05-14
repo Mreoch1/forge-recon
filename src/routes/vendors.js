@@ -115,12 +115,17 @@ router.get('/:id', async (req, res) => {
   if (billsError) throw billsError;
 
   // D-035: Vendor file workspace — fetch root folder + first-level contents.
+  // P0 fix: if root folder doesn't exist (failed on create), create it now.
   let rootFolder = null;
   let folders = [];
   let files = [];
   try {
     const filesSvc = require('../services/files');
     rootFolder = await filesSvc.getRootFolder('vendor', id);
+    if (!rootFolder) {
+      const newRootId = await filesSvc.ensureRootFolder('vendor', id, req.session.userId);
+      if (newRootId) rootFolder = { id: newRootId, entity_type: 'vendor', entity_id: String(id) };
+    }
     if (rootFolder) {
       const contents = await filesSvc.getFolderContents(rootFolder.id);
       folders = contents.subfolders || [];

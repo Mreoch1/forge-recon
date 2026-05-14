@@ -168,6 +168,7 @@ router.get('/:id', async (req, res) => {
   if (woCountError) throw woCountError;
 
   // D-072: Customer file workspace — fetch root folder + first-level contents
+  // P0 fix: if root folder doesn't exist (failed on create), create it now.
   let rootFolder = null;
   let folders = [];
   let files = [];
@@ -175,6 +176,10 @@ router.get('/:id', async (req, res) => {
   try {
     const filesSvc = require('../services/files');
     rootFolder = await filesSvc.getRootFolder('customer', id);
+    if (!rootFolder) {
+      const newRootId = await filesSvc.ensureRootFolder('customer', id, req.session.userId);
+      if (newRootId) rootFolder = { id: newRootId, entity_type: 'customer', entity_id: String(id) };
+    }
     if (rootFolder) {
       const contents = await filesSvc.getFolderContents(rootFolder.id);
       folders = contents.subfolders || [];
