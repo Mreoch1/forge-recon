@@ -717,8 +717,8 @@ function buildMissingMutationReply(intent) {
     if (args.customer_name && !args.work_order_id) {
       return `I can draft an estimate for ${args.customer_name}. Do you have a work order number for this, or should I look up the customer's current work orders?`;
     }
-    if (args.work_order_id && !args.customer_name) {
-      return `What customer or project is WO-${args.work_order_id} for? I need that to create the estimate.`;
+    if (args.work_order_id) {
+      return `Estimates are created from the work order page right now. Open WO-${args.work_order_id} and use Create estimate there.`;
     }
   }
   if (tool === 'create_invoice') {
@@ -726,7 +726,7 @@ function buildMissingMutationReply(intent) {
       return 'An invoice needs an approved estimate first. Give me the estimate number (like EST-23) or the customer name so I can look it up.';
     }
     if (args.estimate_id) {
-      return `I found estimate reference. Do you also have a customer name for this invoice?`;
+      return `Invoices are created from an accepted estimate right now. Open EST-${args.estimate_id} and use Create invoice there.`;
     }
     if (args.customer_name && !args.estimate_id) {
       return `An invoice for ${args.customer_name} needs to come from an approved estimate. Do you have an estimate number for this?`;
@@ -768,6 +768,12 @@ function buildMissingMutationChips(intent) {
   const args = (intent && intent.args) || {};
   if (tool === 'navigate' && args.path && String(args.path).startsWith('/work-orders/ai-create')) {
     return [{ label: 'Open work-order builder', href: args.path }];
+  }
+  if (tool === 'create_estimate' && Number(args.work_order_id)) {
+    return [{ label: `Open WO-${args.work_order_id}`, href: `/work-orders/${args.work_order_id}` }];
+  }
+  if (tool === 'create_invoice' && Number(args.estimate_id)) {
+    return [{ label: `Open EST-${args.estimate_id}`, href: `/estimates/${args.estimate_id}` }];
   }
   return [];
 }

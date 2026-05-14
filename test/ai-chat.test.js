@@ -169,3 +169,13 @@ test('AI chat gives hierarchy guidance for direct invoice creation requests', ()
   assert.match(reply, /approved estimate/i);
   assert.match(reply, /work order/i);
 });
+
+test('AI chat does not propose nonexistent invoice creation tool', () => {
+  const intent = chat._internal.detectMutationIntent('create an invoice for New Tower estimate 5');
+  const reply = chat._internal.buildMissingMutationReply(intent);
+  const chips = chat._internal.buildMissingMutationChips(intent);
+
+  assert.equal(intent.tool, 'create_invoice');
+  assert.match(reply, /Open EST-5/i);
+  assert.equal(chips[0].href, '/estimates/5');
+});
