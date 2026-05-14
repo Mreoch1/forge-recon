@@ -297,6 +297,11 @@ router.get('/forge', async (req, res) => {
 const crypto = require('crypto');
 const { TutorialState } = require('../services/tutorial-state');
 
+async function assertTutorialWrite(result, label) {
+  const { error } = await result;
+  if (error) throw new Error(`${label}: ${error.message}`);
+}
+
 router.get('/forge/tutorial', async (req, res) => {
   const { loadChapters, totalChapters } = require('../services/tutorial-content');
   loadChapters();
@@ -398,14 +403,14 @@ router.post('/forge/tutorial/cleanup', async (req, res) => {
 
   // Delete in dependency order: project payments -> invoices -> estimates -> WOs -> customers
   const ids = state.createdEntityIds;
-  if (ids.payments.length) await supabase.from('project_payments').delete().in('id', ids.payments);
-  if (ids.invoices.length) await supabase.from('invoices').delete().in('id', ids.invoices);
-  if (ids.estimates.length) await supabase.from('estimates').delete().in('id', ids.estimates);
-  if (ids.work_orders.length) await supabase.from('work_orders').delete().in('id', ids.work_orders);
-  if (ids.customers.length) await supabase.from('customers').delete().in('id', ids.customers);
+  if (ids.payments.length) await assertTutorialWrite(supabase.from('project_payments').delete().in('id', ids.payments), 'tutorial cleanup project_payments delete failed');
+  if (ids.invoices.length) await assertTutorialWrite(supabase.from('invoices').delete().in('id', ids.invoices), 'tutorial cleanup invoices delete failed');
+  if (ids.estimates.length) await assertTutorialWrite(supabase.from('estimates').delete().in('id', ids.estimates), 'tutorial cleanup estimates delete failed');
+  if (ids.work_orders.length) await assertTutorialWrite(supabase.from('work_orders').delete().in('id', ids.work_orders), 'tutorial cleanup work_orders delete failed');
+  if (ids.customers.length) await assertTutorialWrite(supabase.from('customers').delete().in('id', ids.customers), 'tutorial cleanup customers delete failed');
 
   // Mark tutorial complete
-  await supabase.from('users').update({ completed_tutorial_at: new Date().toISOString() }).eq('id', state.userId);
+  await assertTutorialWrite(supabase.from('users').update({ completed_tutorial_at: new Date().toISOString() }).eq('id', state.userId), 'tutorial cleanup completion update failed');
   await state.save(supabase);
 
   res.json({ message: 'All tutorial data cleared. You\'re starting fresh.' });
@@ -429,11 +434,11 @@ router.post('/forge/tutorial/keep', async (req, res) => {
   for (const [table, key] of tutorialEntityTables) {
     const ids = state.createdEntityIds[key];
     if (ids.length) {
-      await supabase.from(table).update({ tutorial_session_id: null }).in('id', ids);
+      await assertTutorialWrite(supabase.from(table).update({ tutorial_session_id: null }).in('id', ids), `tutorial keep ${table} update failed`);
     }
   }
 
-  await supabase.from('users').update({ completed_tutorial_at: new Date().toISOString() }).eq('id', state.userId);
+  await assertTutorialWrite(supabase.from('users').update({ completed_tutorial_at: new Date().toISOString() }).eq('id', state.userId), 'tutorial keep completion update failed');
   await state.save(supabase);
 
   res.json({ message: 'Kept your tutorial records. Find them in your Customers list.' });

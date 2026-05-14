@@ -202,6 +202,56 @@ describe('TutorialState', () => {
     });
   });
 
+  describe('persistence errors', () => {
+    function makeSupabaseResult(result) {
+      const chain = {
+        select: () => chain,
+        eq: () => chain,
+        update: () => chain,
+        upsert: () => chain,
+        maybeSingle: () => Promise.resolve(result),
+      };
+      return {
+        from: () => chain,
+      };
+    }
+
+    test('load throws when Supabase returns an error', async () => {
+      const supabase = makeSupabaseResult({ data: null, error: new Error('load failed') });
+      await assert.rejects(
+        () => tutState.TutorialState.load('bad-load', 1, supabase),
+        /load failed/
+      );
+    });
+
+    test('save throws when Supabase returns an error', async () => {
+      const saveError = new Error('save failed');
+      const supabase = {
+        from: () => ({
+          upsert: () => Promise.resolve({ data: null, error: saveError }),
+        }),
+      };
+      const fresh = new tutState.TutorialState('bad-save', 1);
+      await assert.rejects(() => fresh.save(supabase), /save failed/);
+    });
+
+    test('executeSideEffects throws when completion update fails', async () => {
+      const updateError = new Error('completion failed');
+      const supabase = {
+        from: () => ({
+          update: () => ({
+            eq: () => Promise.resolve({ data: null, error: updateError }),
+          }),
+        }),
+      };
+      const fresh = new tutState.TutorialState('bad-side-effect', 1);
+      await assert.rejects(
+        () => fresh.executeSideEffects([{ record_completion: true }], supabase, 1),
+        /completion failed/
+      );
+    });
+  });
+
   describe('chapter content', () => {
     test('getCurrentChapter returns correct chapter by index', () => {
       state.currentChapter = 1;

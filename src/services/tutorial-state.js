@@ -21,18 +21,19 @@ class TutorialState {
   }
 
   static async load(sessionId, userId, supabase) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('tutorial_sessions')
       .select('state_json')
       .eq('id', sessionId)
       .eq('user_id', userId)
       .maybeSingle();
+    if (error) throw error;
     if (data?.state_json) return Object.assign(new TutorialState(sessionId, userId), data.state_json);
     return new TutorialState(sessionId, userId);
   }
 
   async save(supabase) {
-    await supabase.from('tutorial_sessions').upsert({
+    const { error } = await supabase.from('tutorial_sessions').upsert({
       id: this.sessionId,
       user_id: this.userId,
       state_json: {
@@ -48,6 +49,7 @@ class TutorialState {
       },
       updated_at: new Date().toISOString(),
     }, { onConflict: 'id' });
+    if (error) throw error;
   }
 
   getCurrentChapter() {
@@ -187,10 +189,12 @@ class TutorialState {
     if (!sideEffects || !sideEffects.length) return;
     for (const effect of sideEffects) {
       if (effect.record_completion) {
-        await supabase.from('users').update({ completed_tutorial_at: new Date().toISOString() }).eq('id', userId);
+        const { error } = await supabase.from('users').update({ completed_tutorial_at: new Date().toISOString() }).eq('id', userId);
+        if (error) throw error;
       }
       if (effect.persist_weak_spots && this.quizWeakSpots.length) {
-        await supabase.from('users').update({ tutorial_completion_weak_spots: JSON.stringify(this.quizWeakSpots) }).eq('id', userId);
+        const { error } = await supabase.from('users').update({ tutorial_completion_weak_spots: JSON.stringify(this.quizWeakSpots) }).eq('id', userId);
+        if (error) throw error;
       }
       if (effect.call_endpoint) {
         // effect.call_endpoint is a URL path like "POST /forge/tutorial/cleanup"
