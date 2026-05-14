@@ -36,6 +36,19 @@ function displayForNestedWorkOrder(row) {
   return displayForWorkOrder(row?.work_orders || {});
 }
 
+function assertDashboardRead(result, label) {
+  if (result?.error) {
+    const err = new Error(`${label}: ${result.error.message}`);
+    err.cause = result.error;
+    throw err;
+  }
+  return result || {};
+}
+
+async function checkedDashboardRead(query, label) {
+  return assertDashboardRead(await query, label);
+}
+
 // Classic dashboard handler (was the original "/")
 router.get('/dashboard-classic', async (req, res) => {
   if (req.session?.role === 'worker') return res.redirect('/work-orders');
@@ -122,17 +135,21 @@ router.get('/', async (req, res) => {
   // ---------- Timeline: today's activity feed ----------
   const userId = req.session?.userId || null;
   const userRole = await (async () => {
-    try { const { data: u } = await supabase.from('users').select('role').eq('id', userId).maybeSingle(); return u ? u.role : 'admin'; } catch(e) { return 'admin'; }
+    const { data: u } = await checkedDashboardRead(
+      supabase.from('users').select('role').eq('id', userId).maybeSingle(),
+      'dashboard user role read failed',
+    );
+    return u ? u.role : 'admin';
   })();
   const dayTimeline = await timeline.buildDayTimeline({ date: today, userId, workerOnly: userRole === 'worker' });
 
   // ---------- Schedule: tomorrow preview ----------
-  const { data: tomorrowWOs } = await supabase
+  const { data: tomorrowWOs } = await checkedDashboardRead(supabase
     .from('work_orders')
     .select('id, display_number, scheduled_time, customer_id, customers!left(name), jobs!left(title, customers!left(name)), assigned_to_user_id, users!left(name), work_order_assignees(users!work_order_assignees_user_id_fkey(id, name)))')
     .eq('scheduled_date', tomorrow)
     .in('status', ['scheduled', 'in_progress'])
-    .order('scheduled_time', { ascending: true, nullsFirst: false });
+    .order('scheduled_time', { ascending: true, nullsFirst: false }), 'dashboard tomorrow work orders read failed');
 
   const tomorrowMapped = (tomorrowWOs || []).map(r => ({
     id: r.id, display_number: r.display_number, scheduled_time: r.scheduled_time,
@@ -144,28 +161,30 @@ router.get('/', async (req, res) => {
 
   // ---------- Schedule: this week (peek) ----------
   const weekEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const { count: upcomingThisWeek } = await supabase
+  const { count: upcomingThisWeek } = await checkedDashboardRead(supabase
     .from('work_orders')
     .select('*', { count: 'exact', head: true })
     .gte('scheduled_date', tomorrow)
     .lte('scheduled_date', weekEnd)
-    .in('status', ['scheduled', 'in_progress']);
+    .in('status', ['scheduled', 'in_progress']), 'dashboard upcoming work orders count failed');
 
   // ---------- Action queues ----------
   // 1. Estimates ready to send
-  const [{ data: estimatesToSend }, { count: estimatesToSendCount }] = await Promise.all([
+  const [estimatesToSendResult, estimatesToSendCountResult] = await Promise.all([
     supabase.from('estimates')
       .select('id, total, created_at, work_orders!left(display_number, customer_id, customers!left(name), jobs!left(title, customers!left(name)))')
       .eq('status', 'draft').order('created_at', { ascending: false }).limit(5),
     supabase.from('estimates').select('*', { count: 'exact', head: true }).eq('status', 'draft'),
   ]);
+  const { data: estimatesToSend } = assertDashboardRead(estimatesToSendResult, 'dashboard draft estimates read failed');
+  const { count: estimatesToSendCount } = assertDashboardRead(estimatesToSendCountResult, 'dashboard draft estimates count failed');
   const estMapped = (estimatesToSend || []).map(r => ({
     id: r.id, display_number: r.work_orders?.display_number,
     total: r.total, customer_name: displayForNestedWorkOrder(r).customer_name, created_at: r.created_at,
   }));
 
   // 2. Invoices overdue
-  const [{ data: overdueInvoices }, { count: overdueInvoicesCount }, { data: overdueSumData }] = await Promise.all([
+  const [overdueInvoicesResult, overdueInvoicesCountResult, overdueSumResult] = await Promise.all([
     supabase.from('invoices')
       .select('id, total, amount_paid, due_date, work_orders!left(display_number, customer_id, customers!left(name), jobs!left(title, customers!left(name)))')
       .in('status', ['sent', 'overdue']).not('due_date', 'is', null).lt('due_date', today)
@@ -175,6 +194,9 @@ router.get('/', async (req, res) => {
     supabase.from('invoices').select('total, amount_paid')
       .in('status', ['sent', 'overdue']).not('due_date', 'is', null).lt('due_date', today),
   ]);
+  const { data: overdueInvoices } = assertDashboardRead(overdueInvoicesResult, 'dashboard overdue invoices read failed');
+  const { count: overdueInvoicesCount } = assertDashboardRead(overdueInvoicesCountResult, 'dashboard overdue invoices count failed');
+  const { data: overdueSumData } = assertDashboardRead(overdueSumResult, 'dashboard overdue invoices sum read failed');
   const invMapped = (overdueInvoices || []).map(r => ({
     id: r.id, display_number: r.work_orders?.display_number,
     total: r.total, amount_paid: r.amount_paid, due_date: r.due_date,
@@ -204,11 +226,11 @@ router.get('/', async (req, res) => {
 
   // 4. Stale estimates
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const { data: staleEstimates } = await supabase
+  const { data: staleEstimates } = await checkedDashboardRead(supabase
     .from('estimates')
     .select('id, total, sent_at, work_orders!left(display_number, customer_id, customers!left(name), jobs!left(title, customers!left(name)))')
     .eq('status', 'sent').not('sent_at', 'is', null).lt('sent_at', weekAgo)
-    .order('sent_at', { ascending: true }).limit(5);
+    .order('sent_at', { ascending: true }).limit(5), 'dashboard stale estimates read failed');
   const staleMapped = (staleEstimates || []).map(r => ({
     id: r.id, display_number: r.work_orders?.display_number,
     total: r.total, customer_name: displayForNestedWorkOrder(r).customer_name,
@@ -221,7 +243,7 @@ router.get('/', async (req, res) => {
   const todayWoIds = dayTimeline.map(d => d.wo_id).filter(Boolean);
   const limitRecords = 12;
 
-  const [woAct, estAct, invAct] = await Promise.all([
+  const [woActResult, estActResult, invActResult] = await Promise.all([
     supabase.from('work_orders')
       .select(WO_DASHBOARD_SELECT)
       .order('created_at', { ascending: false }).limit(limitRecords),
@@ -232,6 +254,9 @@ router.get('/', async (req, res) => {
       .select(INV_DASHBOARD_SELECT)
       .order('created_at', { ascending: false }).limit(limitRecords),
   ]);
+  const woAct = assertDashboardRead(woActResult, 'dashboard work order activity read failed');
+  const estAct = assertDashboardRead(estActResult, 'dashboard estimate activity read failed');
+  const invAct = assertDashboardRead(invActResult, 'dashboard invoice activity read failed');
 
   let activity = [
     ...(woAct.data || []).filter(r => !todayWoIds.includes(r.id)).map(r => ({
@@ -252,14 +277,18 @@ router.get('/', async (req, res) => {
   ].sort((a, b) => b.created_at?.localeCompare(a.created_at || '') || 0).slice(0, limitRecords);
 
   // ---------- Bottom metrics ----------
-  const [{ data: arData }, { data: revMonthData }, { data: revYTDData },
-         { count: customerCount }, { data: activeWorkOrders }] = await Promise.all([
+  const [arResult, revMonthResult, revYTDResult, customerCountResult, activeWorkOrdersResult] = await Promise.all([
     supabase.from('invoices').select('total, amount_paid').in('status', ['sent', 'overdue']),
     supabase.from('invoices').select('amount_paid').eq('status', 'paid').not('paid_at', 'is', null).gte('paid_at', currentMonth + '-01'),
     supabase.from('invoices').select('amount_paid').eq('status', 'paid').not('paid_at', 'is', null).gte('paid_at', currentYear + '-01-01'),
     supabase.from('customers').select('*', { count: 'exact', head: true }),
     supabase.from('work_orders').select('id').in('status', ['scheduled', 'in_progress']),
   ]);
+  const { data: arData } = assertDashboardRead(arResult, 'dashboard AR balance read failed');
+  const { data: revMonthData } = assertDashboardRead(revMonthResult, 'dashboard monthly revenue read failed');
+  const { data: revYTDData } = assertDashboardRead(revYTDResult, 'dashboard YTD revenue read failed');
+  const { count: customerCount } = assertDashboardRead(customerCountResult, 'dashboard customer count failed');
+  const { data: activeWorkOrders } = assertDashboardRead(activeWorkOrdersResult, 'dashboard active work orders read failed');
 
   const arBalance = (arData || []).reduce((s, r) => s + Number(r.total || 0) - Number(r.amount_paid || 0), 0);
   const revenueThisMonth = (revMonthData || []).reduce((s, r) => s + Number(r.amount_paid || 0), 0);
