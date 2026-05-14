@@ -17,8 +17,10 @@ const PALETTE = ['#4A90D9','#8BC34A','#9C76D9','#26A69A','#EF7E6B','#A5D6A7','#7
 function colorForUser(userId) { return userId ? PALETTE[Number(userId) % PALETTE.length] : null; }
 
 const STATUS_COLORS = {
+  open: '#60a5fa',
   scheduled: '#3b82f6',
   in_progress: '#ea580c',
+  closed: '#10b981',
   complete: '#10b981',
   cancelled: '#9ca3af',
   urgent: '#c0202b',

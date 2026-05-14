@@ -143,11 +143,11 @@ router.get('/:id', async (req, res) => {
 
   if (woStatus) {
     if (woStatus === 'open') {
-      woQuery = woQuery.in('status', ['scheduled', 'in_progress', 'on_hold']);
-      woCountQuery = woCountQuery.in('status', ['scheduled', 'in_progress', 'on_hold']);
+      woQuery = woQuery.in('status', ['open', 'scheduled', 'in_progress', 'on_hold']);
+      woCountQuery = woCountQuery.in('status', ['open', 'scheduled', 'in_progress', 'on_hold']);
     } else if (woStatus === 'closed') {
-      woQuery = woQuery.in('status', ['complete', 'cancelled']);
-      woCountQuery = woCountQuery.in('status', ['complete', 'cancelled']);
+      woQuery = woQuery.in('status', ['closed', 'complete', 'cancelled']);
+      woCountQuery = woCountQuery.in('status', ['closed', 'complete', 'cancelled']);
     } else {
       woQuery = woQuery.eq('status', woStatus);
       woCountQuery = woCountQuery.eq('status', woStatus);

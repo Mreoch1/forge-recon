@@ -126,6 +126,8 @@ function validateLineItem(li) {
 
 function validateWorkOrder(body) {
   const errors = {};
+  const status = emptyToNull(body.status) || 'open';
+  if (!VALID_STATUSES.includes(status)) errors.status = 'Choose a valid status.';
   const scheduledDate = emptyToNull(body.scheduled_date);
   if (scheduledDate && !/^\d{4}-\d{2}-\d{2}$/.test(scheduledDate)) errors.scheduled_date = 'Use YYYY-MM-DD.';
   const scheduledTime = emptyToNull(body.scheduled_time);
@@ -155,6 +157,7 @@ function validateWorkOrder(body) {
       scheduled_date: scheduledDate,
       scheduled_time: scheduledTime,
       scheduled_end_time: scheduledEndTime,
+      status,
       description: emptyToNull(body.description) || '',
       unit_number: (body.unit_number || '').trim(),
       notes: emptyToNull(body.notes),
@@ -544,7 +547,7 @@ router.post('/', async (req, res) => {
     const { data: allCustomers } = await supabase.from('customers').select('id, name, email, phone, address, city, state, zip').order('name');
     return res.status(400).render('work-orders/new', {
       title: 'New work order', activeNav: 'work-orders',
-      wo: { id: null, customer_id: customerId || '', status: req.body.status || 'open', unit_number: data.unit_number || '', display_number: req.body.display_number || '', suggested_display_number: '', scheduled_date: data.scheduled_date || '', scheduled_time: data.scheduled_time || '', notes: data.notes || '', description: data.description || '', assignee_ids: normalizeArr(req.body.assignee_ids), lines: data.lines || [] },
+      wo: { id: null, customer_id: customerId || '', status: data.status || 'open', unit_number: data.unit_number || '', display_number: req.body.display_number || '', suggested_display_number: '', scheduled_date: data.scheduled_date || '', scheduled_time: data.scheduled_time || '', notes: data.notes || '', description: data.description || '', assignee_ids: normalizeArr(req.body.assignee_ids), lines: data.lines || [] },
       customers: allCustomers || [], users: users || [], customerName: customer?.name || req.body.customer_search || '', errors, units: VALID_UNITS,
     });
   }
@@ -560,7 +563,7 @@ router.post('/', async (req, res) => {
       const { data: allCustomers } = await supabase.from('customers').select('id, name, email, phone, address, city, state, zip').order('name');
       return res.status(400).render('work-orders/new', {
         title: 'New work order', activeNav: 'work-orders',
-        wo: { id: null, customer_id: customerId, status: req.body.status || 'open', unit_number: data.unit_number || '', display_number: req.body.display_number || '', suggested_display_number: '', scheduled_date: data.scheduled_date || '', scheduled_time: data.scheduled_time || '', notes: data.notes || '', description: data.description || '', assignee_ids: normalizeArr(req.body.assignee_ids), lines: data.lines || [] },
+        wo: { id: null, customer_id: customerId, status: data.status || 'open', unit_number: data.unit_number || '', display_number: req.body.display_number || '', suggested_display_number: '', scheduled_date: data.scheduled_date || '', scheduled_time: data.scheduled_time || '', notes: data.notes || '', description: data.description || '', assignee_ids: normalizeArr(req.body.assignee_ids), lines: data.lines || [] },
         customers: allCustomers || [], users: users || [], customerName: customer?.name || '', errors, units: VALID_UNITS,
       });
     }
@@ -582,7 +585,7 @@ router.post('/', async (req, res) => {
       wo_number_main: main,
       wo_number_sub: sub,
       display_number: display,
-      status: req.body.status || 'open',
+      status: data.status,
       scheduled_date: data.scheduled_date,
       scheduled_time: data.scheduled_time,
       scheduled_end_time: null,
@@ -917,7 +920,7 @@ router.get('/:id/edit', async (req, res) => {
   const wo = await loadWorkOrder(req.params.id);
   if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
   if (!isAssignedToCurrentUser(req, wo)) return workerForbidden(res);
-  if (['complete', 'cancelled'].includes(wo.status)) {
+  if (['closed', 'complete', 'cancelled'].includes(wo.status)) {
     setFlash(req, 'error', `WO-${wo.display_number} is "${wo.status}" and cannot be edited.`);
     return res.redirect(`/work-orders/${wo.id}`);
   }
@@ -942,7 +945,7 @@ router.post('/:id', async (req, res) => {
   const existing = await loadWorkOrder(req.params.id);
   if (!existing) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
   if (!isAssignedToCurrentUser(req, existing)) return workerForbidden(res);
-  if (['complete', 'cancelled'].includes(existing.status)) {
+  if (['closed', 'complete', 'cancelled'].includes(existing.status)) {
     setFlash(req, 'error', `WO-${existing.display_number} is "${existing.status}" and cannot be edited.`);
     return res.redirect(`/work-orders/${existing.id}`);
   }
@@ -1021,7 +1024,7 @@ router.post('/:id', async (req, res) => {
     .from('work_orders')
     .update({
       description: data.description || '',
-      status: req.body.status,
+      status: data.status,
       assigned_to_user_id: assignmentFields.assigned_to_user_id,
       assigned_to: assignmentFields.assigned_to,
     })
