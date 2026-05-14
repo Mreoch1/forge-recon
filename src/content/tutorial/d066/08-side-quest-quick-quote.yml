@@ -1,0 +1,55 @@
+# Chapter 8 — Side Quest: Quick Quote (Loose Estimate)
+id: side-quest-quick-quote
+title: "Side Quest: Send a Quick Quote"
+narration: |
+  So far you've followed the canonical path: Customer → WO → Estimate → Invoice.
+
+  But sometimes a prospect just wants a ballpark number before committing to a
+  full work order. You need a **Quick Quote** — an estimate that isn't tied to a
+  job yet. FORGE calls these **loose estimates**.
+
+  Here's how to create one:
+
+  1. Go to the **Customer Detail** page for your customer.
+  2. Look for the **+ Estimate** button in the top toolbar — not inside the WO's
+     Estimates tab, but the one on the customer record itself.
+  3. Click it. FORGE opens the estimate form, but notice: there's **no WO
+     number** attached. The estimate number will look like `EST-0000-0002`
+     (job number is zero — no work order yet).
+  4. Add the same line items as before (e.g. Drywall labor $320 + materials $45)
+     and set tax to 6%.
+  5. Click **Save**.
+
+  You now have a **loose estimate** — a quote you can email to a prospect
+  without ever creating a work order.
+
+  **What happens next?** The estimate enters a lifecycle:
+
+  - **Decline** — If the prospect says no, mark the estimate as **Declined**.
+    It stays on the customer record for history but won't clutter your pipeline.
+  - **Attach to WO** — If the prospect says yes, you can later **attach** the
+    loose estimate to a new or existing work order. Once attached, the estimate
+    inherits the WO's job number and can be converted to an invoice just like
+    any estimate.
+
+  Loose estimates are perfect for cold leads, quick ballparks, or scoping
+  conversations where you want to leave a paper trail without overhead.
+steps:
+  - narration
+  - wait_for_action
+  - reaction
+comprehension_chips:
+  - label: "What's the difference between a loose estimate and a WO estimate?"
+    action: select_chip
+    payload: { query: "loose vs work order estimate" }
+  - label: "Can I convert a loose estimate to an invoice directly?"
+    action: select_chip
+    payload: { query: "convert loose estimate to invoice" }
+  - label: "How do I attach a loose estimate to a WO?"
+    action: select_chip
+    payload: { query: "attach estimate to work order" }
+on_enter: { }
+on_action:
+  next: { advance: true }
+  back: { go_back: true }
+quiz: null

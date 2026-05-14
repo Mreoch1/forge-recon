@@ -1,0 +1,44 @@
+# Chapter 6 — Do: Create an Invoice
+id: do-invoice
+title: "DO IT: Create an Invoice"
+narration: |
+  Open the estimate you just created. Look for the **Convert to Invoice** button
+  in the top-right of the estimate detail view.
+
+  **Before you click it, understand what happens:**
+
+  FORGE does not create an invoice from scratch. Instead it **copies** the
+  estimate's line items, tax, and totals into a brand-new Invoice document. This
+  means:
+
+  1. **The invoice inherits the estimate's sequence number** — if your estimate
+     was `EST-0001-0001`, the invoice will be `INV-0001-0001`. You can see the
+     lineage right in the number.
+
+  2. **You cannot edit line items on the invoice.** The estimate is the source of
+     truth. If you need to change what was billed, you go back to the estimate,
+     revise it, and convert again (which creates a new invoice).
+
+  3. **Tax and totals carry over exactly** — no need to recalculate.
+
+  This model prevents the common problem of invoices drifting away from what was
+  quoted. The estimate is the contract; the invoice is the bill. One source of
+  truth.
+
+  Ready? Click **Convert to Invoice** and watch FORGE build it.
+steps:
+  - narration
+  - wait_for_action
+  - reaction
+comprehension_chips:
+  - label: "What if I need to change an invoice line item?"
+    action: select_chip
+    payload: { query: "revise estimate after invoice" }
+  - label: "Does converting delete the original estimate?"
+    action: select_chip
+    payload: { query: "estimate lifecycle after conversion" }
+on_enter: { }
+on_action:
+  next: { advance: true }
+  back: { go_back: true }
+quiz: null

@@ -59,3 +59,29 @@ ALTER TABLE estimates ADD COLUMN IF NOT EXISTS tutorial_session_id text REFERENC
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS tutorial_session_id text REFERENCES tutorial_sessions(id) ON DELETE SET NULL;
 ALTER TABLE project_payments ADD COLUMN IF NOT EXISTS tutorial_session_id text REFERENCES tutorial_sessions(id) ON DELETE SET NULL;
 ```
+
+## d066_tutorial_events — telemetry table for tutorial funnels (2026-05-14)
+
+```sql
+-- D-066: Tutorial telemetry events for funnel analysis.
+-- Tracks: tutorial_started, chapter_started, chapter_completed, etc.
+
+CREATE TABLE IF NOT EXISTS tutorial_events (
+  id bigserial PRIMARY KEY,
+  tutorial_session_id text NOT NULL REFERENCES tutorial_sessions(id) ON DELETE CASCADE,
+  user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  event_type text NOT NULL CHECK (event_type IN (
+    'tutorial_started', 'chapter_started', 'chapter_completed',
+    'chapter_skipped', 'exit_at_chapter', 'quiz_submitted',
+    'quiz_score', 'cleanup_chosen', 'keep_chosen', 'total_duration_seconds'
+  )),
+  event_data jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_tutorial_events_session ON tutorial_events(tutorial_session_id);
+CREATE INDEX IF NOT EXISTS idx_tutorial_events_type ON tutorial_events(event_type);
+
+-- D-066: Weak spots column on users for targeted remediation hints
+ALTER TABLE users ADD COLUMN IF NOT EXISTS tutorial_completion_weak_spots jsonb;
+```
