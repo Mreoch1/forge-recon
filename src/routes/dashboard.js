@@ -292,14 +292,115 @@ router.get('/forge', async (req, res) => {
   });
 });
 
-// D-063 Item 2+5: Interactive AI tutorial
+// D-066 Comprehensive tutorial — server-side state machine, split-pane shell
+// Replaces D-063 v3 client-side walkthrough
+const { TutorialState } = require('../services/tutorial-state');
+const { loadChapters } = require('../services/tutorial-content');
+
+// Load chapter content on server start
+loadChapters();
+
 router.get('/forge/tutorial', async (req, res) => {
+  const sessionId = req.session?.tutorialSessionId || crypto.randomUUID();
+  if (req.session) req.session.tutorialSessionId = sessionId;
+
+  const state = await TutorialState.load(sessionId, res.locals.currentUser?.id);
+  await state.save(supabase);
+
   res.render('forge/tutorial', {
     title: 'FORGE Tutorial',
     activeNav: 'forge',
     currentUser: res.locals.currentUser || null,
     returnTo: req.query.return || '/forge',
+    tutorialSessionId: sessionId,
+    currentChapter: state.getCurrentChapter(),
+    chapterIndex: state.currentChapter,
+    totalChapters: require('../services/tutorial-content').totalChapters(),
+    stepIndex: state.currentStep,
   });
+});
+
+// Tutorial state API
+router.get('/forge/tutorial/state', async (req, res) => {
+  const sessionId = req.session?.tutorialSessionId;
+  if (!sessionId) return res.status(404).json({ error: 'No active tutorial' });
+  const state = await TutorialState.load(sessionId, res.locals.currentUser?.id);
+  res.json({
+    chapterIndex: state.currentChapter,
+    stepIndex: state.currentStep,
+    completedChapters: state.completedChapters,
+    quizSubmitted: state.quizSubmitted,
+    chapter: state.getCurrentChapter(),
+    totalChapters: require('../services/tutorial-content').totalChapters(),
+  });
+});
+
+router.post('/forge/tutorial/advance', async (req, res) => {
+  const sessionId = req.session?.tutorialSessionId;
+  if (!sessionId) return res.status(404).json({ error: 'No active tutorial' });
+
+  const state = await TutorialState.load(sessionId, res.locals.currentUser?.id);
+  const { action, payload } = req.body;
+
+  let result;
+  switch (action) {
+    case 'next': result = state.advance(); break;
+    case 'back': result = state.goBack(); break;
+    case 'skip_chapter': result = state.skipChapter(); break;
+    case 'restart_chapter': result = state.restartChapter(); break;
+    case 'submit_quiz': result = state.submitQuiz(payload?.answers || {}); break;
+    case 'exit':
+      // Mark tutorial as skipped, redirect to returnTo
+      await supabase.from('users').update({ completed_tutorial_at: null }).eq('id', state.userId);
+      return res.json({ redirect: req.query.return || '/forge' });
+    default: return res.status(400).json({ error: `Unknown action: ${action}` });
+  }
+
+  await state.save(supabase);
+  res.json(result);
+});
+
+router.post('/forge/tutorial/cleanup', async (req, res) => {
+  const sessionId = req.session?.tutorialSessionId;
+  if (!sessionId) return res.status(404).json({ error: 'No active tutorial' });
+
+  const state = await TutorialState.load(sessionId, res.locals.currentUser?.id);
+  state.cleanupChosen = 'cleanup';
+
+  // Delete in dependency order: payments → invoices → estimates → WOs → customers
+  const ids = state.createdEntityIds;
+  if (ids.payments.length) await supabase.from('payments').delete().in('id', ids.payments);
+  if (ids.invoices.length) await supabase.from('invoices').delete().in('id', ids.invoices);
+  if (ids.estimates.length) await supabase.from('estimates').delete().in('id', ids.estimates);
+  if (ids.work_orders.length) await supabase.from('work_orders').delete().in('id', ids.work_orders);
+  if (ids.customers.length) await supabase.from('customers').delete().in('id', ids.customers);
+
+  // Mark tutorial complete
+  await supabase.from('users').update({ completed_tutorial_at: new Date().toISOString() }).eq('id', state.userId);
+  await state.save(supabase);
+
+  res.json({ message: 'All tutorial data cleared. You\'re starting fresh.' });
+});
+
+router.post('/forge/tutorial/keep', async (req, res) => {
+  const sessionId = req.session?.tutorialSessionId;
+  if (!sessionId) return res.status(404).json({ error: 'No active tutorial' });
+
+  const state = await TutorialState.load(sessionId, res.locals.currentUser?.id);
+  state.cleanupChosen = 'keep';
+
+  // Strip tutorial_session_id from all created entities
+  for (const table of ['payments', 'invoices', 'estimates', 'work_orders', 'customers']) {
+    const ids = state.createdEntityIds[table];
+    if (ids.length) {
+      await supabase.from(table).update({ tutorial_session_id: null }).in('id', ids);
+    }
+  }
+
+  await supabase.from('users').update({ completed_tutorial_at: new Date().toISOString() }).eq('id', state.userId);
+  await state.save(supabase);
+
+  res.json({ message: 'Kept your tutorial records. Find them in your Customers list.' });
 });
 
 module.exports = router;

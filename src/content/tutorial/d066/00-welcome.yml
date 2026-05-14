@@ -1,0 +1,23 @@
+# Chapter 0 — Welcome + Real vs Tutorial Data
+id: welcome
+title: "Welcome to FORGE"
+narration: |
+  Hi {{userName}}! I'm your FORGE tour guide. I'll walk you through the app
+  in about 10–12 minutes. By the end, you'll have created a real customer,
+  work order, estimate, and invoice — safely tagged as TUTORIAL so nothing
+  leaks into your real bookkeeping.
+
+  **Quick heads up:** everything you create in this tutorial gets a yellow
+  TUTORIAL badge. We won't email anyone real, and at the end you choose
+  whether to keep or delete everything. Nothing leaks unless you keep it.
+
+  Ready? Type `start` to begin, or `not now` to come back later.
+steps:
+  - narration
+  - wait_for_action
+  - reaction
+on_enter: { }
+on_action:
+  start: { advance: true }
+  not_now: { redirect: "/forge" }
+quiz: null

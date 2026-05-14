@@ -34,3 +34,20 @@ ALTER TABLE work_orders ALTER COLUMN status SET DEFAULT 'open';
 -- 4. Backfill any NULL statuses to 'open'
 UPDATE work_orders SET status = 'open' WHERE status IS NULL;
 ```
+
+## d066_tutorial_session — tutorial sessions persistence table (2026-05-14)
+
+```sql
+-- D-066: Tutorial session state persistence.
+-- Server-side state machine stores per-session progress here.
+
+CREATE TABLE IF NOT EXISTS tutorial_sessions (
+  id text PRIMARY KEY,
+  user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  state_json jsonb NOT NULL DEFAULT '{}',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_tutorial_sessions_user_id ON tutorial_sessions(user_id);
+```
