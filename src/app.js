@@ -314,12 +314,19 @@ app.post('/report-error', async (req, res) => {
 });
 
 // POST /feedback — support/feedback from the floating button
+// Accepts standard form POST and AJAX (JSON) requests.
 app.post('/feedback', async (req, res) => {
   const subject = (req.body.subject || '').trim();
   const message = (req.body.message || '').trim();
+  const wantsJson = req.xhr || (req.headers.accept || '').includes('application/json');
+  const sendJson = (status, data) => {
+    if (wantsJson) return res.status(status).json(data);
+    if (status >= 400) setFlash(req, 'error', data.error);
+    else setFlash(req, 'success', data.success);
+    res.redirect(req.headers.referer || '/');
+  };
   if (!subject || !message) {
-    setFlash(req, 'error', 'Subject and message are required.');
-    return res.redirect(req.headers.referer || '/');
+    return sendJson(400, { error: 'Subject and message are required.' });
   }
   const userEmail = req.currentUser?.email || req.session?.email || 'unknown';
   const name = req.currentUser?.name || '';
@@ -348,12 +355,11 @@ app.post('/feedback', async (req, res) => {
       entity_type: 'feedback', action: 'submitted', source: 'user',
       details: { subject, user: userEmail }, user_id: req.session.userId || null,
     }).then().catch(() => {});
-    setFlash(req, 'success', 'Thanks for the feedback! Mike will review it.');
+    return sendJson(200, { success: 'Thanks for the feedback! Mike will review it.' });
   } catch (e) {
     console.error('[feedback] send failed:', e.message);
-    setFlash(req, 'error', 'Could not send feedback. Try again later.');
+    return sendJson(500, { error: 'Could not send feedback. Try again later.' });
   }
-  res.redirect(req.headers.referer || '/');
 });
 
 app.use((req, res) => {

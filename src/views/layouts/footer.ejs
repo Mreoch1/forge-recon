@@ -59,20 +59,64 @@
   .fb-modal p { margin: 0 0 12px; font-size: 12px; color: #888; }
   .fb-modal input, .fb-modal textarea { width: 100%; box-sizing: border-box; margin-bottom: 10px; font-size: 13px; }
   .fb-modal textarea { min-height: 80px; resize: vertical; }
+  .fb-result { padding: 12px; border-radius: 8px; text-align: center; font-size: 14px; display: none; }
+  .fb-result.success { display: block; background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+  .fb-result.error { display: block; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+  .fb-result .retry-btn { margin-top: 8px; }
 </style>
 <div class="fb-overlay" id="fb-overlay" onclick="closeFeedback()"></div>
 <div class="fb-modal" id="fb-modal">
+  <div id="fb-form-view">
     <h3>📧 Send feedback</h3>
-  <p>Send feedback or a feature request to our team. If FORGE hits an unexpected error, a separate error-report popup will appear automatically with the details — you don't need this button for errors.</p>
-  <form action="/feedback" method="post" onsubmit="setTimeout(function(){closeFeedback();this.querySelector('textarea').value='';}.bind(this),500)">
-    <input type="text" name="subject" placeholder="Subject" class="input" required maxlength="100">
-    <textarea name="message" class="input" placeholder="Tell us what's on your mind..." required maxlength="2000"></textarea>
-    <button type="submit" class="btn btn-primary text-sm w-full">Send feedback</button>
-  </form>
+    <p>Send feedback or a feature request to our team. If FORGE hits an unexpected error, a separate error-report popup will appear automatically with the details — you don't need this button for errors.</p>
+    <input type="text" id="fb-subject" placeholder="Subject" class="input" required maxlength="100">
+    <textarea id="fb-message" class="input" placeholder="Tell us what's on your mind..." required maxlength="2000"></textarea>
+    <button id="fb-submit-btn" class="btn btn-primary text-sm w-full" onclick="submitFeedback()">Send feedback</button>
+  </div>
+  <div id="fb-result" class="fb-result"></div>
 </div>
-<button class="fb-btn" onclick="document.getElementById('fb-overlay').classList.add('open');document.getElementById('fb-modal').classList.add('open')">📧 Send feedback</button>
+<button class="fb-btn" onclick="document.getElementById('fb-overlay').classList.add('open');document.getElementById('fb-modal').classList.add('open');document.getElementById('fb-result').style.display='none';document.getElementById('fb-form-view').style.display='block'">📧 Send feedback</button>
 <script>
-function closeFeedback(){ document.getElementById('fb-overlay').classList.remove('open'); document.getElementById('fb-modal').classList.remove('open'); }
+function closeFeedback(){
+  document.getElementById('fb-overlay').classList.remove('open');
+  document.getElementById('fb-modal').classList.remove('open');
+}
+function submitFeedback(){
+  var subj = document.getElementById('fb-subject').value.trim();
+  var msg = document.getElementById('fb-message').value.trim();
+  if (!subj || !msg) { alert('Subject and message are required.'); return; }
+  var btn = document.getElementById('fb-submit-btn');
+  btn.disabled = true; btn.textContent = 'Sending...';
+  fetch('/feedback', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'subject=' + encodeURIComponent(subj) + '&message=' + encodeURIComponent(msg)
+  }).then(function(r){
+    if (r.redirected || r.ok) {
+      document.getElementById('fb-form-view').style.display = 'none';
+      var el = document.getElementById('fb-result');
+      el.className = 'fb-result success';
+      el.innerHTML = '✅ Thanks, your feedback was sent to support@reconenterprises.net';
+      el.style.display = 'block';
+      setTimeout(closeFeedback, 3000);
+    } else {
+      throw new Error('Server returned ' + r.status);
+    }
+  }).catch(function(e){
+    var el = document.getElementById('fb-result');
+    el.className = 'fb-result error';
+    el.innerHTML = '❌ Could not send feedback. <button class="btn btn-secondary text-sm mt-2" onclick="resetFeedbackForm()">Try again</button>';
+    el.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Send feedback';
+  });
+}
+function resetFeedbackForm(){
+  document.getElementById('fb-result').className = 'fb-result';
+  document.getElementById('fb-result').style.display = 'none';
+  document.getElementById('fb-form-view').style.display = 'block';
+  document.getElementById('fb-submit-btn').disabled = false;
+  document.getElementById('fb-submit-btn').textContent = 'Send feedback';
+}
 </script>
 <% } %>
 
