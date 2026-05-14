@@ -81,11 +81,15 @@ router.post('/chat', chatLimiter, async (req, res) => {
       ? req.body.active_intent
       : null;
 
+    // D-064: entity hierarchy stack — round-trip through client
+    const entityStack = Array.isArray(req.body.entity_stack) ? req.body.entity_stack : [];
+
     const result = await chatService.chat({
       message: message.trim(),
       history: safeHistory,
       ctx,
-      active_intent: activeIntent
+      active_intent: activeIntent,
+      entity_stack: entityStack
     });
 
     res.json({
@@ -94,7 +98,8 @@ router.post('/chat', chatLimiter, async (req, res) => {
       tool_calls: result.tool_calls || [],
       confirm: result.confirm || undefined,
       audit_id: result.audit_id,
-      active_intent: result.active_intent || null
+      active_intent: result.active_intent || null,
+      entity_stack: result.entity_stack || undefined
     });
   } catch (err) {
     console.error('[ai-chat] error:', err);

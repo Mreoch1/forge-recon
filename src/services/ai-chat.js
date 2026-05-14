@@ -13,6 +13,7 @@ const tools = require('./ai-tools');
 const { writeAudit } = require('./audit');
 const { logAiChatError } = require('./ai-chat-errors');
 const supabase = require('../db/supabase');
+const hierarchy = require('./ai-assistant-state');
 const MAX_HISTORY = 20;
 const WORKER_ALLOWED_TOOLS = ['search_work_orders', 'get_schedule', 'navigate', 'search_customers'];
 
@@ -89,6 +90,7 @@ RULES:
 8. If the user gives incomplete action details, ask ONE clear follow-up question and keep the draft context alive.
 9. When the user asks to create or change something and there is a dedicated FORGE page for it, offer a navigation chip to that workflow while gathering the missing details.
 10. Never create images, media, or content outside of FORGE operations.
+11. **Entity hierarchy invariant:** FORGE entities follow a strict parent-child chain: customer → work_order (project) → estimate → invoice. A child entity CANNOT exist without its parent. Before creating a work order, confirm the customer exists. Before creating an estimate, confirm the work order AND customer exist. Before creating an invoice, confirm the estimate, work order, AND customer exist. If a parent is missing, tell the user and offer to create it first. Do not proceed with creation when a required parent entity does not exist.
 
 Respond ONLY with a JSON object:
 {
@@ -98,11 +100,12 @@ Respond ONLY with a JSON object:
 }`;
 }
 
-async function chat({ message, history, ctx, active_intent }) {
+async function chat({ message, history, ctx, active_intent, entity_stack }) {
   const startTime = Date.now();
+  let currentStack = Array.isArray(entity_stack) ? entity_stack : [];
 
   if (!ai.isConfigured() && !process.env.AI_CHAT_ENABLED) {
-    return { reply: 'AI chat is not configured.', chips: [], tool_calls: [], audit_id: null };
+    return { reply: 'AI chat is not configured.', chips: [], tool_calls: [], audit_id: null, entity_stack: currentStack };
   }
 
   if (active_intent && isCancelFlowMessage(message)) {
@@ -114,7 +117,8 @@ async function chat({ message, history, ctx, active_intent }) {
       latency_ms: Date.now() - startTime,
       confirm: null,
       audit_id: `${ctx.userId || 0}_${Date.now()}`,
-      active_intent: null
+      active_intent: null,
+      entity_stack: currentStack
     };
   }
 
@@ -137,6 +141,151 @@ async function chat({ message, history, ctx, active_intent }) {
     allToolCalls.push({ tool: mutationIntent.tool, args: mutationIntent.args });
     resultActiveIntent = mutationIntent.tool;
 
+    // D-064: Check entity hierarchy — if a parent entity is missing, ask the user first.
+    if (!active_intent) {
+      const hierarchyCheck = await hierarchy.checkEntityHierarchy(
+        mutationIntent.tool, mutationIntent.args, ctx, currentStack
+      );
+      if (hierarchyCheck.needs_parent) {
+        currentStack = hierarchyCheck.stack || currentStack;
+        const reply = hierarchyCheck.reply;
+        const chips = [];
+        if (hierarchyCheck.disambiguate && hierarchyCheck.matches) {
+          hierarchyCheck.matches.forEach(function(m, i) {
+            chips.push({ label: m.name, href: `/customers/${m.id}` });
+          });
+        }
+        return {
+          reply: reply,
+          chips: chips,
+          tool_calls: allToolCalls,
+          tokens_used: 0,
+          latency_ms: Date.now() - startTime,
+          confirm: null,
+          audit_id: ctx.userId + '_' + Date.now(),
+          active_intent: resultActiveIntent,
+          entity_stack: currentStack
+        };
+      }
+    }
+
+    // D-064: Check if the user is responding to a "create parent" prompt.
+    // When stack has a pending child intent and user says "yes" → route to create_customer.
+    if (currentStack && currentStack.length > 0 && !active_intent) {
+      const pendingEntry = hierarchy.peekStack(currentStack);
+      if (pendingEntry && pendingEntry.pendingParent) {
+        const lastAssistant = lastAssistantText(history);
+        // Check if the last assistant message was asking "want me to create them first?"
+        if (/don't have.*on file/i.test(lastAssistant) && /want me to create/i.test(lastAssistant)) {
+          if (hierarchy.isAffirmCreateParent(message)) {
+            // User said "yes" — route to create_customer with the parent name
+            const popResult = hierarchy.popStack(currentStack);
+            currentStack = popResult.stack;
+            // Re-push with resolved pending parent so resume works after creation
+            currentStack = hierarchy.pushStack(currentStack, {
+              tool: pendingEntry.tool,
+              args: pendingEntry.args,
+              entityType: pendingEntry.entityType,
+              parentName: pendingEntry.parentName,
+              pendingParent: null // No longer pending
+            });
+            const customerIntent = {
+              tool: 'create_customer',
+              args: { name: pendingEntry.parentName || '' }
+            };
+            allToolCalls = []; // Reset tool calls to customer creation
+            resultActiveIntent = 'create_customer';
+            const missingReply = buildMissingMutationReply(customerIntent);
+            if (missingReply) {
+              return {
+                reply: missingReply,
+                chips: buildMissingMutationChips(customerIntent),
+                tool_calls: allToolCalls,
+                tokens_used: 0,
+                latency_ms: Date.now() - startTime,
+                confirm: null,
+                audit_id: ctx.userId + '_' + Date.now(),
+                active_intent: resultActiveIntent,
+                entity_stack: currentStack
+              };
+            }
+          } else if (hierarchy.isRejectCreateParent(message)) {
+            // User said "no" — pop stack and cancel the child intent
+            hierarchy.popStack(currentStack);
+            currentStack = hierarchy.clearStack();
+            return {
+              reply: 'Okay, no ' + (pendingEntry.entityType || 'work order') + ' created. Let me know if you want to try again.',
+              chips: [],
+              tool_calls: [],
+              tokens_used: 0,
+              latency_ms: Date.now() - startTime,
+              confirm: null,
+              audit_id: ctx.userId + '_' + Date.now(),
+              active_intent: null,
+              entity_stack: currentStack
+            };
+          } else {
+            // Could be a different name
+            const diffName = hierarchy.extractDifferentName(message);
+            if (diffName) {
+              const popResult = hierarchy.popStack(currentStack);
+              currentStack = popResult.stack;
+              currentStack = hierarchy.pushStack(currentStack, {
+                tool: pendingEntry.tool,
+                args: pendingEntry.args,
+                entityType: pendingEntry.entityType,
+                parentName: diffName,
+                pendingParent: null
+              });
+              const customerIntent = {
+                tool: 'create_customer',
+                args: { name: diffName }
+              };
+              allToolCalls = [];
+              resultActiveIntent = 'create_customer';
+              const missingReply = buildMissingMutationReply(customerIntent);
+              if (missingReply) {
+                return {
+                  reply: missingReply,
+                  chips: buildMissingMutationChips(customerIntent),
+                  tool_calls: allToolCalls,
+                  tokens_used: 0,
+                  latency_ms: Date.now() - startTime,
+                  confirm: null,
+                  audit_id: ctx.userId + '_' + Date.now(),
+                  active_intent: resultActiveIntent,
+                  entity_stack: currentStack
+                };
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // D-064: When client-side entity_stack exists and we're completing a create_customer,
+    // check if we should resume a pending child intent from the stack.
+    if (active_intent === 'create_customer' && currentStack && currentStack.length > 0) {
+      const resumeEntry = hierarchy.resumeFromStack(currentStack, 'customer');
+      if (resumeEntry) {
+        // Pop the stack — customer creation completed, resume child
+        const popResult = hierarchy.popStack(currentStack);
+        currentStack = popResult.stack;
+        const resumeReply = hierarchy.buildResumeReply(resumeEntry);
+        return {
+          reply: resumeReply,
+          chips: [],
+          tool_calls: [],
+          tokens_used: 0,
+          latency_ms: Date.now() - startTime,
+          confirm: null,
+          audit_id: ctx.userId + '_' + Date.now(),
+          active_intent: resumeEntry.tool,
+          entity_stack: currentStack
+        };
+      }
+    }
+
     const missingReply = buildMissingMutationReply(mutationIntent);
     if (missingReply) {
       const missingChips = buildMissingMutationChips(mutationIntent);
@@ -148,7 +297,8 @@ async function chat({ message, history, ctx, active_intent }) {
         latency_ms: Date.now() - startTime,
         confirm: null,
         audit_id: `${ctx.userId || 0}_${Date.now()}`,
-        active_intent: resultActiveIntent
+        active_intent: resultActiveIntent,
+        entity_stack: currentStack
       };
     }
 
@@ -160,7 +310,8 @@ async function chat({ message, history, ctx, active_intent }) {
         chips: [], tool_calls: allToolCalls, tokens_used: 0,
         latency_ms: Date.now() - startTime, confirm: null,
         audit_id: `${ctx.userId || 0}_${Date.now()}`,
-        active_intent: resultActiveIntent
+        active_intent: resultActiveIntent,
+        entity_stack: currentStack
       };
     }
 
@@ -177,7 +328,8 @@ async function chat({ message, history, ctx, active_intent }) {
         chips, tool_calls: allToolCalls, tokens_used: 0,
         latency_ms: Date.now() - startTime, confirm: null,
         audit_id: `${ctx.userId || 0}_${Date.now()}`,
-        active_intent: resultActiveIntent
+        active_intent: resultActiveIntent,
+        entity_stack: currentStack
       };
     }
 
@@ -210,7 +362,8 @@ async function chat({ message, history, ctx, active_intent }) {
         expires_in_seconds: 300
       },
       audit_id: `${ctx.userId || 0}_${Date.now()}`,
-      active_intent: resultActiveIntent
+      active_intent: resultActiveIntent,
+      entity_stack: currentStack
     };
   }
 
@@ -367,7 +520,8 @@ async function chat({ message, history, ctx, active_intent }) {
     latency_ms: latencyMs,
     confirm: confirmPayload,
     audit_id: `${ctx.userId || 0}_${Date.now()}`,
-    active_intent: resultActiveIntent
+    active_intent: resultActiveIntent,
+    entity_stack: currentStack
   };
 }
 
