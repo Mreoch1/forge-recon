@@ -62,13 +62,7 @@
   <div id="forge-intro">
     <div class="forge-typewriter" id="forge-typewriter"></div>
     <div class="forge-subtitle" id="forge-subtitle">I'm FORGE, your assistant.</div>
-    <div class="forge-tagline" id="forge-tagline">Type a question, click an option below, or just say "help me with&hellip;" — I'll figure it out.</div>
-    <div class="forge-chips-row">
-      <button class="forge-chip" data-action="example" data-q="Create a new work order">📋 Make a work order</button>
-      <button class="forge-chip" data-action="example" data-q="Send an invoice">📤 Send an invoice</button>
-      <button class="forge-chip" data-action="example" data-q="What's on my schedule today?">📅 What's on today?</button>
-      <button class="forge-chip" id="forge-surprise-me">💡 Show me what you can do</button>
-    </div>
+    <div class="forge-tagline" id="forge-tagline">Type a question or just say "help me with&hellip;" — I'll figure it out.</div>
     <div id="forge-cta-wrap" class="hidden" style="margin-top:1.5rem;animation:forge-fade-in 0.6s ease forwards;display:flex;flex-direction:column;align-items:center;gap:0.5rem;position:relative;z-index:2;">
       <button id="forge-get-started" class="btn btn-primary" style="padding:0.75rem 2rem;font-size:1rem;border-radius:999px;cursor:pointer;border:none;background:#22d3ee;color:#020617;font-weight:700;transition:all 0.2s;box-shadow:0 0 20px rgba(34,211,238,0.3);">Get Started</button>
       <span style="font-size:0.75rem;color:#64748b;">press <kbd style="background:#334155;color:#e2e8f0;padding:2px 8px;border-radius:4px;font-size:0.7rem;">Enter</kbd> to start</span>
@@ -142,25 +136,6 @@
 
   // "Get Started" button
   document.getElementById('forge-get-started')?.addEventListener('click', revealChat);
-
-  // Chip clicks also dismiss intro AND submit
-  document.querySelectorAll('.forge-chip[data-action="example"]').forEach(function(btn) {
-    btn.addEventListener('click', function() { revealChat(); });
-  });
-
-  // Surprise me button
-  var surprises = [
-    "Show open invoices over 30 days",
-    "Check today's crew schedule",
-    "Pull last week's vendor spend",
-    "Draft an estimate for Plymouth Square"
-  ];
-  document.getElementById('forge-surprise-me')?.addEventListener('click', function() {
-    var pick = surprises[Math.floor(Math.random() * surprises.length)];
-    revealChat();
-    var input = document.getElementById('recon-aic-input');
-    if (input) { input.value = pick; input.form?.requestSubmit(); }
-  });
 
   // Keyboard: pressing Enter on the intro page triggers Get Started
   document.addEventListener('keydown', function(e) {
