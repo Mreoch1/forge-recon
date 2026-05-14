@@ -118,7 +118,7 @@ class TutorialState {
       const chapterId = action.replace('REPLAY_CHAPTER:', '');
       return this.gotoChapter(chapterId);
     }
-    if (action === 'EXIT_TUTORIAL') {
+    if (action === 'exit' || action === 'EXIT_TUTORIAL') {
       return { exit: true };
     }
 
