@@ -4,6 +4,8 @@
 set -euo pipefail
 
 BASE="${1:-https://forge-recon.vercel.app}"
+SMOKE_ADMIN_EMAIL="${SMOKE_ADMIN_EMAIL:-${SMOKE_EMAIL:-admin@recon.local}}"
+SMOKE_ADMIN_PASSWORD="${SMOKE_ADMIN_PASSWORD:-${SMOKE_PASSWORD:-changeme123}}"
 failed=0
 COOKIEJAR=$(mktemp)
 
@@ -24,6 +26,20 @@ check() {
   fi
 }
 
+check_login() {
+  local label="$1" password="$2" expected="$3"
+  status=$(curl -s -o /dev/null -w '%{http_code}' -b "$COOKIEJAR" -c "$COOKIEJAR" -X POST \
+    --data-urlencode "email=$SMOKE_ADMIN_EMAIL" \
+    --data-urlencode "password=$password" \
+    "${BASE}/login")
+  if [ "$status" = "$expected" ]; then
+    echo "  âœ… $label ($status)"
+  else
+    echo "  âŒ $label â€” expected $expected, got $status"
+    failed=$((failed + 1))
+  fi
+}
+
 echo "=== E2E SMOKE ($BASE) ==="
 
 # Public — no auth needed
@@ -35,8 +51,8 @@ check "bogus route unauth → login redirect" GET "/this-does-not-exist" 302
 check "verify-email bad token → 200" GET "/verify-email/invalid-token-here" 200
 
 # Login (single attempt — rate limiter is 5/15min)
-check "wrong password → 302" POST "/login" 302 "email=admin@recon.local&password=WRONG"
-check "login" POST "/login" 302 "email=admin@recon.local&password=changeme123"
+check_login "wrong password → 302" "WRONG" 302
+check_login "login as ${SMOKE_ADMIN_EMAIL}" "$SMOKE_ADMIN_PASSWORD" 302
 
 # Core routes
 check "/ dashboard" GET "/" 200

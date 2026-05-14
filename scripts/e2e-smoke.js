@@ -9,6 +9,9 @@ const base = process.argv[2] || process.env.SMOKE_BASE || 'https://forge-recon.v
 const manifest = require('./smoke-manifest.json');
 const http = require('http');
 const https = require('https');
+const smokeEmail = process.env.SMOKE_ADMIN_EMAIL || process.env.SMOKE_EMAIL || 'admin@recon.local';
+const smokePassword = process.env.SMOKE_ADMIN_PASSWORD || process.env.SMOKE_PASSWORD || 'changeme123';
+const usingDefaultSmokeCreds = smokeEmail === 'admin@recon.local' && smokePassword === 'changeme123';
 
 const COOKIE_JAR = {};
 let passed = 0, failed = 0;
@@ -42,16 +45,19 @@ function fetch(method, path, data) {
 }
 
 async function login() {
-  console.log('  Logging in as admin...');
-  let res = await fetch('POST', '/login', formData({ email: 'admin@recon.local', password: 'changeme123' }));
+  console.log(`  Logging in as ${smokeEmail}...`);
+  let res = await fetch('POST', '/login', formData({ email: smokeEmail, password: smokePassword }));
   // Rate-limit backoff
   if (res.status === 429) {
     console.log('  ⏳ Rate limited. Waiting 15s...');
     await new Promise(r => setTimeout(r, 15000));
-    res = await fetch('POST', '/login', formData({ email: 'admin@recon.local', password: 'changeme123' }));
+    res = await fetch('POST', '/login', formData({ email: smokeEmail, password: smokePassword }));
   }
   if (res.status !== 302 || !COOKIE_JAR[new URL(base).hostname]) {
-    throw new Error(`Login failed: expected 302 with session cookie, got ${res.status}`);
+    const hint = usingDefaultSmokeCreds
+      ? ' Set SMOKE_ADMIN_EMAIL/SMOKE_ADMIN_PASSWORD or SMOKE_EMAIL/SMOKE_PASSWORD for production smoke.'
+      : '';
+    throw new Error(`Login failed for ${smokeEmail}: expected 302 with session cookie, got ${res.status}.${hint}`);
   }
 }
 
