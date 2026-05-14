@@ -44,7 +44,8 @@
 (function(){ document.querySelectorAll('input:not([type=password]):not([type=email]):not([type=url]):not([type=search]), textarea').forEach(function(el){ el.spellcheck = true; }); })();
 </script>
 
-<!-- Support/feedback button -->
+<!-- D-077: Support/feedback button (hidden on /forge/tutorial to avoid dup) -->
+<% if (typeof hideFeedback === 'undefined' || !hideFeedback) { %>
 <style>
   /* R37p-fix2: move feedback to the bottom-LEFT corner. AI chat pill owns
      bottom-right (bottom:1rem;right:1rem) and the previous stacking attempt
