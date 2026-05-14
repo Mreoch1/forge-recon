@@ -92,12 +92,17 @@
     </div>
 
     <div class="tw-body">
-      <% if (currentChapter && currentChapter.diagram_id) { %>
-        <div class="tw-diagram"><%- include('tutorial/diagrams/' + currentChapter.diagram_id) %></div>
-      <% } %>
+      <% var initialStep = typeof currentStep !== 'undefined' && currentStep ? currentStep : ((currentChapter && currentChapter.steps && currentChapter.steps[stepIndex || 0]) || null); %>
+      <% var initialDiagramId = (initialStep && initialStep.diagram_id) || (currentChapter && currentChapter.diagram_id); %>
+      <div class="tw-diagram" id="tc-diagram">
+        <% if (initialDiagramId) { %>
+          <%- include('tutorial/diagrams/' + initialDiagramId) %>
+        <% } %>
+      </div>
       <div class="tw-narration" id="tc-narration">
-        <% if (currentChapter && currentChapter.narration) { %>
-          <%- ('<p>' + currentChapter.narration.replace(/\n\n+/g, '</p><p>') + '</p>') %>
+        <% var initialText = (initialStep && initialStep.coach_text) || (currentChapter && currentChapter.narration); %>
+        <% if (initialText) { %>
+          <%- ('<p>' + initialText.replace(/\n\n+/g, '</p><p>') + '</p>') %>
         <% } else { %>
           <p>Welcome to the FORGE tutorial. Loading your first chapter&hellip;</p>
         <% } %>
@@ -112,13 +117,25 @@
   </div>
 </div>
 
+<div id="tc-diagram-templates" hidden>
+  <div data-diagram-id="hierarchy-customer-wo-est-inv"><%- include('tutorial/diagrams/hierarchy-customer-wo-est-inv') %></div>
+  <div data-diagram-id="numbering-wo-est-inv"><%- include('tutorial/diagrams/numbering-wo-est-inv') %></div>
+  <div data-diagram-id="tutorial-badge-example"><%- include('tutorial/diagrams/tutorial-badge-example') %></div>
+  <div data-diagram-id="tutorial-badge-callout"><%- include('tutorial/diagrams/tutorial-badge-callout') %></div>
+  <div data-diagram-id="paid-stamp-callout"><%- include('tutorial/diagrams/paid-stamp-callout') %></div>
+</div>
+
 <script>
 (function() {
   var returnTo = <%- JSON.stringify(returnTo || '/forge') %>;
   var sessionId = <%- JSON.stringify(tutorialSessionId || '') %>;
+  var initialChapter = <%- JSON.stringify(currentChapter || null) %>;
+  var initialStepIndex = <%- JSON.stringify(stepIndex || 0) %>;
   var input = document.getElementById('tc-input');
   var sendBtn = document.getElementById('tc-send');
   var narration = document.getElementById('tc-narration');
+  var diagram = document.getElementById('tc-diagram');
+  var diagramTemplates = document.getElementById('tc-diagram-templates');
   var chips = document.getElementById('tc-chips');
   var progressFill = document.getElementById('tc-progress-fill');
   var currentSpan = document.getElementById('tc-current');
@@ -151,14 +168,17 @@
     var total = parseInt(totalSpan.textContent, 10) || 11;
     if (progressFill) progressFill.style.width = ((data.chapterIndex || 0) / Math.max(1,total) * 100) + '%';
 
-    if (data.chapter && data.chapter.narration) {
-      narration.innerHTML = '<p>' + data.chapter.narration.replace(/\n\n+/g, '</p><p>') + '</p>';
-    }
+    var stepIndex = data.step || 0;
+    var step = data.chapter && data.chapter.steps ? data.chapter.steps[stepIndex] : null;
+    var text = (step && step.coach_text) || (data.chapter && data.chapter.narration);
+    if (text) narration.innerHTML = '<p>' + text.replace(/\n\n+/g, '</p><p>') + '</p>';
+    renderDiagram((step && step.diagram_id) || (data.chapter && data.chapter.diagram_id));
 
     // Build chip row — comprehension chips if provided, else Next/Back fallback
     var chipsList;
-    if (data.chapter && data.chapter.comprehension_chips && data.chapter.comprehension_chips.length) {
-      chipsList = data.chapter.comprehension_chips.map(function(c) {
+    var sourceChips = (step && step.chips) || (data.chapter && data.chapter.comprehension_chips) || [];
+    if (sourceChips.length) {
+      chipsList = sourceChips.map(function(c) {
         return { label: (typeof c === 'string' ? c : (c.label || 'Continue')), action: 'select_chip', payload: c };
       });
       chipsList.push({ label: 'Back &larr;', action: 'back' });
@@ -166,6 +186,14 @@
       chipsList = [{ label: 'Next &rarr;', action: 'next', primary: true }, { label: 'Back &larr;', action: 'back' }];
     }
     renderChips(chipsList);
+  }
+
+  function renderDiagram(diagramId) {
+    if (!diagram) return;
+    diagram.innerHTML = '';
+    if (!diagramId || !diagramTemplates) return;
+    var source = diagramTemplates.querySelector('[data-diagram-id="' + diagramId + '"]');
+    if (source) diagram.innerHTML = source.innerHTML;
   }
 
   function renderChips(items) {
@@ -202,8 +230,7 @@
     if (confirm('Exit the tutorial? Your progress will be saved.')) sendAction('exit');
   });
 
-  // Initial chip render — always show Next as primary
-  renderChips([{ label: 'Next &rarr;', action: 'next', primary: true }, { label: 'Back &larr;', action: 'back' }]);
+  updateChapter({ chapter: initialChapter, step: initialStepIndex, chapterIndex: <%- JSON.stringify(chapterIndex || 0) %> });
 })();
 </script>
 

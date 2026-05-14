@@ -54,6 +54,11 @@ class TutorialState {
     return chapters[this.currentChapter] || null;
   }
 
+  getCurrentStep() {
+    const ch = this.getCurrentChapter();
+    return (ch?.steps || [])[this.currentStep] || null;
+  }
+
   advance() {
     const ch = this.getCurrentChapter();
     if (!ch) return { done: true };
@@ -128,9 +133,28 @@ class TutorialState {
       case 'skip_chapter': return this.skipChapter();
       case 'restart_chapter': return this.restartChapter();
       case 'submit_quiz': return this.submitQuiz(payload?.answers || {});
-      case 'select_chip': return { chipSelected: true, payload };
+      case 'select_chip': return this.selectChip(payload);
       default: return { error: `Unknown action: ${action}` };
     }
+  }
+
+  selectChip(payload) {
+    const step = this.getCurrentStep();
+    const key = payload?.value || payload?.query || payload?.label || '*';
+    const target = step?.branches?.[key] || step?.branches?.['*'];
+    if (!target) return this.advance();
+    if (target === 'EXIT_TUTORIAL') return { exit: true };
+    if (target === 'ADVANCE_CHAPTER') return this.skipChapter();
+    if (typeof target === 'string' && target.startsWith('REPLAY_CHAPTER:')) {
+      return this.gotoChapter(target.replace('REPLAY_CHAPTER:', ''));
+    }
+    const ch = this.getCurrentChapter();
+    const idx = (ch?.steps || []).findIndex(s => s.id === target);
+    if (idx >= 0) {
+      this.currentStep = idx;
+      return { chapter: this.getCurrentChapter(), step: this.currentStep };
+    }
+    return this.advance();
   }
 
   // Quiz

@@ -122,6 +122,27 @@ describe('TutorialState', () => {
     assert.equal(state.currentChapter, 1);
   });
 
+  test('selectChip follows step branch targets', () => {
+    const { chapters } = tutState;
+    const branchIndex = chapters.length;
+    chapters.push({
+      id: 'branching',
+      title: 'Branching',
+      steps: [
+        { id: 'choice', coach_text: 'Choose', branches: { yes: 'target' } },
+        { id: 'target', coach_text: 'Target' },
+      ],
+    });
+    const fresh = new tutState.TutorialState('branch-test', 1);
+    fresh.currentChapter = branchIndex;
+    fresh.currentStep = 0;
+    const r = fresh.processAction('select_chip', { value: 'yes' });
+    assert.equal(r.step, 1);
+    assert.equal(fresh.currentStep, 1);
+    assert.equal(fresh.getCurrentStep().id, 'target');
+    chapters.pop();
+  });
+
   describe('quiz scoring', () => {
     test('submitQuiz marks quizSubmitted = true', () => {
       const fresh = new tutState.TutorialState('quiz-test', 1);

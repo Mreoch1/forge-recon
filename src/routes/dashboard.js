@@ -306,9 +306,13 @@ router.get('/forge/tutorial', async (req, res) => {
   const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase);
   await state.save(supabase);
   const currentChapter = state.getCurrentChapter();
+  const currentStep = state.getCurrentStep();
   const tc = require('../services/tutorial-content');
   if (currentChapter?.narration) {
     currentChapter.narration = tc.interpolateNarration(currentChapter.narration, res.locals.currentUser);
+  }
+  if (currentStep?.coach_text) {
+    currentStep.coach_text = tc.interpolateNarration(currentStep.coach_text, res.locals.currentUser);
   }
 
   res.render('forge/tutorial', {
@@ -318,6 +322,7 @@ router.get('/forge/tutorial', async (req, res) => {
     returnTo: req.query.return || '/forge',
     tutorialSessionId: sessionId,
     currentChapter,
+    currentStep,
     chapterIndex: state.currentChapter,
     totalChapters: totalChapters(),
     stepIndex: state.currentStep,
@@ -375,6 +380,10 @@ router.post('/forge/tutorial/advance', async (req, res) => {
   const interpolated = require('../services/tutorial-content').interpolateNarration;
   if (result.chapter && result.chapter.narration) {
     result.chapter.narration = interpolated(result.chapter.narration, res.locals.currentUser);
+  }
+  const step = result.chapter?.steps?.[result.step || 0];
+  if (step?.coach_text) {
+    step.coach_text = interpolated(step.coach_text, res.locals.currentUser);
   }
 
   res.json(result);
