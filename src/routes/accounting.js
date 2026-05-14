@@ -19,6 +19,10 @@ const router = express.Router();
 
 function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
 
+function logAccountingSetupWarning(route, error) {
+  console.warn(`[accounting] ${route} unavailable; rendering empty state: ${error.message || error.code || error}`);
+}
+
 // Helper: sum debit for a JE id by fetching its lines and reducing in JS.
 async function totalDebitsForEntry(jeId) {
   const { data, error } = await supabase
@@ -49,7 +53,7 @@ router.get('/accounts', async (req, res) => {
     .from('accounts')
     .select('*')
     .order('code', { ascending: true });
-  if (error) throw error;
+  if (error) logAccountingSetupWarning('/accounts', error);
 
   const grouped = { asset: [], liability: [], equity: [], revenue: [], expense: [] };
   (accounts || []).forEach(a => { (grouped[a.type] = grouped[a.type] || []).push(a); });
@@ -69,7 +73,13 @@ router.get('/journal', async (req, res) => {
     .order('entry_date', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(100);
-  if (error) throw error;
+  if (error) {
+    logAccountingSetupWarning('/journal', error);
+    return res.render('accounting/journal', {
+      title: 'Journal entries', activeNav: 'accounting',
+      entries: [],
+    });
+  }
 
   const entries = [];
   for (const je of (rawEntries || [])) {
@@ -154,7 +164,12 @@ async function computeTrialBalance() {
 }
 
 router.get('/reports/trial-balance', async (req, res) => {
-  const rows = await computeTrialBalance();
+  let rows = [];
+  try {
+    rows = await computeTrialBalance();
+  } catch (error) {
+    logAccountingSetupWarning('/reports/trial-balance', error);
+  }
   let totalDr = 0, totalCr = 0;
   rows.forEach(r => {
     if (r.balance > 0) totalDr += r.balance;
@@ -167,7 +182,12 @@ router.get('/reports/trial-balance', async (req, res) => {
 });
 
 router.get('/reports/profit-loss', async (req, res) => {
-  const rows = await computeTrialBalance();
+  let rows = [];
+  try {
+    rows = await computeTrialBalance();
+  } catch (error) {
+    logAccountingSetupWarning('/reports/profit-loss', error);
+  }
   const revenue = rows.filter(r => r.type === 'revenue');
   const expenses = rows.filter(r => r.type === 'expense');
 
@@ -186,7 +206,12 @@ router.get('/reports/profit-loss', async (req, res) => {
 });
 
 router.get('/reports/balance-sheet', async (req, res) => {
-  const rows = await computeTrialBalance();
+  let rows = [];
+  try {
+    rows = await computeTrialBalance();
+  } catch (error) {
+    logAccountingSetupWarning('/reports/balance-sheet', error);
+  }
   const assets = rows.filter(r => r.type === 'asset').map(r => ({ ...r, amount: r.balance }));
   const liabilities = rows.filter(r => r.type === 'liability').map(r => ({ ...r, amount: -r.balance }));
   const equity = rows.filter(r => r.type === 'equity').map(r => ({ ...r, amount: -r.balance }));
