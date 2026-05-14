@@ -26,7 +26,8 @@ async function buildDayTimeline({ date, userId = null, workerOnly = false }) {
     .select(`
       id, display_number, scheduled_time, status,
       assigned_to_user_id, assigned_to,
-      jobs!inner ( id, title, address, city, customers!inner ( id, name ) ),
+      customer_id, customers!left ( id, name ),
+      jobs!left ( id, title, address, city, customers!left ( id, name ) ),
       users:assigned_to_user_id ( name )
     `)
     .eq('scheduled_date', date)
@@ -60,8 +61,9 @@ async function buildDayTimeline({ date, userId = null, workerOnly = false }) {
     job_title: r.jobs?.title,
     job_address: r.jobs?.address,
     job_city: r.jobs?.city,
-    customer_id: r.jobs?.customers?.id,
-    customer_name: r.jobs?.customers?.name,
+    // Customer-rooted (R34) or job-rooted (legacy) — COALESCE both paths
+    customer_id: r.customer_id || r.customers?.id || r.jobs?.customers?.id,
+    customer_name: r.customers?.name || r.jobs?.customers?.name,
     assigned_user_name: r.users?.name || null,
   }));
 
