@@ -115,6 +115,13 @@ const loadCurrentUser = asyncHandler(async (req, res, next) => {
   next();
 });
 
+// D-090: Load active announcement for ALL requests (not just auth pages)
+// so the banner renders on /login, /signup, etc.
+try {
+  const announcements = require('../services/announcements');
+  announcements.getActiveAnnouncement().then(a => { res.locals.announcement = a; }).catch(() => {});
+} catch(e) { /* announcement service not available */ }
+
 function setFlash(req, kind, message) {
   if (!req.session) return;
   req.session.flash = req.session.flash || {};
