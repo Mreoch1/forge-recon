@@ -133,4 +133,73 @@
   </div>
 </div>
 
+<!-- D-072: Customer file workspace (parallel to vendor file workspace) -->
+<details class="mt-6 max-w-7xl mx-auto px-4" <%= ((typeof folders !== 'undefined' && folders.length > 0) || (typeof files !== 'undefined' && files.length > 0)) ? 'open' : '' %>>
+  <summary class="cursor-pointer text-sm font-medium text-recon-fog mb-2 hover:text-recon-red">
+    Files
+    <% var _cfCount = (typeof folders !== 'undefined' ? folders.length : 0) + (typeof files !== 'undefined' ? files.length : 0); %>
+    <% if (_cfCount > 0) { %><span class="text-xs text-recon-fog">(<%= _cfCount %>)</span><% } %>
+  </summary>
+  <div class="card p-4 mt-2">
+    <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+      <p class="text-xs text-recon-fog m-0">Store contracts, photos, permits, and other customer docs here.</p>
+      <% if (typeof rootFolder !== 'undefined' && rootFolder) { %>
+        <a href="/files/folders/<%= rootFolder.id %>" class="btn btn-secondary text-sm">Open full file workspace &rarr;</a>
+      <% } else { %>
+        <a href="/files/customer/<%= customer.id %>" class="btn btn-secondary text-sm">Open full file workspace &rarr;</a>
+      <% } %>
+    </div>
+
+    <% if (typeof rootFolder !== 'undefined' && rootFolder && (currentUser.role === 'admin' || currentUser.role === 'manager')) { %>
+      <div class="flex flex-wrap gap-2 mb-4">
+        <form method="post" action="/files/folders/<%= rootFolder.id %>/subfolder" class="inline-flex gap-1 items-center">
+          <input type="text" name="name" placeholder="Subfolder name" class="input text-sm" style="width:140px;padding:.3rem .5rem;" required>
+          <button type="submit" class="btn btn-secondary text-sm">+ Folder</button>
+        </form>
+        <form method="post" action="/files/folders/<%= rootFolder.id %>/upload" enctype="multipart/form-data" class="inline-flex gap-1 items-center">
+          <input type="file" name="files" multiple class="text-sm" required>
+          <button type="submit" class="btn btn-primary text-sm">Upload</button>
+        </form>
+      </div>
+    <% } %>
+
+    <% if ((typeof folders === 'undefined' || folders.length === 0) && (typeof files === 'undefined' || files.length === 0)) { %>
+      <p class="text-recon-fog text-sm m-0">No files yet for this customer.</p>
+    <% } else { %>
+      <% if (typeof folders !== 'undefined' && folders.length > 0) { %>
+        <h4 class="text-xs font-semibold uppercase tracking-wide text-recon-fog mb-2">Subfolders</h4>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+          <% folders.forEach(function(f){ %>
+            <a href="/files/folders/<%= f.id %>" class="block p-3 rounded border border-recon-mist hover:border-recon-red transition text-sm text-recon-fog hover:text-recon-red">
+              &#128193; <%= f.name %>
+            </a>
+          <% }); %>
+        </div>
+      <% } %>
+      <% if (typeof files !== 'undefined' && files.length > 0) { %>
+        <h4 class="text-xs font-semibold uppercase tracking-wide text-recon-fog mb-2">Files</h4>
+        <table class="data">
+          <thead>
+            <tr><th>Name</th><th>Size</th><th>Uploaded</th><th></th></tr>
+          </thead>
+          <tbody>
+            <% files.forEach(function(f){ %>
+              <tr>
+                <td><a href="/files/download/<%= f.id %>" class="text-recon-red hover:underline text-sm"><%= f.original_name || f.name || f.storage_key %></a></td>
+                <td class="text-xs text-recon-fog"><%= f.size ? (f.size > 1024 ? (f.size / 1024).toFixed(0) + 'KB' : f.size + 'B') : '-' %></td>
+                <td class="text-xs text-recon-fog"><%= (f.created_at || '').slice(0,10) %></td>
+                <td>
+                  <form method="post" action="/files/<%= f.id %>/delete" onsubmit="return confirm('Delete this file?')" style="display:inline">
+                    <button type="submit" class="text-xs text-red-500 hover:text-red-700 underline">Delete</button>
+                  </form>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      <% } %>
+    <% } %>
+  </div>
+</details>
+
 <%- include("../layouts/footer") %>

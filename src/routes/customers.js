@@ -160,24 +160,35 @@ router.get('/:id', async (req, res) => {
     woCountQuery = woCountQuery.or(`display_number.ilike.${like},description.ilike.${like},unit_number.ilike.${like}`);
   }
 
-  const [{ data: workOrders, count: woTotal, error: woError }, { error: woCountError }, { count: fileCountCust, error: fileCountError }] = await Promise.all([
+  const [{ data: workOrders, count: woTotal, error: woError }, { error: woCountError }] = await Promise.all([
     woQuery.order('created_at', { ascending: false }).range(woOffset, woOffset + WO_PAGE_SIZE - 1),
     woCountQuery,
-    supabase.from('files')
-      .select('id', { count: 'exact', head: true })
-      .eq('folder.entity_type', 'customer')
-      .eq('folder.entity_id', id),
   ]);
   if (woError) throw woError;
   if (woCountError) throw woCountError;
-  if (fileCountError) throw fileCountError;
-  const fileCount = fileCountCust || 0;
+
+  // D-072: Customer file workspace — fetch root folder + first-level contents
+  let rootFolder = null;
+  let folders = [];
+  let files = [];
+  let fileCount = 0;
+  try {
+    const filesSvc = require('../services/files');
+    rootFolder = await filesSvc.getRootFolder('customer', id);
+    if (rootFolder) {
+      const contents = await filesSvc.getFolderContents(rootFolder.id);
+      folders = contents.subfolders || [];
+      files = contents.files || [];
+      fileCount = files.length;
+    }
+  } catch (e) { console.warn('[customers:show] file workspace load:', e.message); }
   const woPages = Math.ceil((woTotal || 0) / WO_PAGE_SIZE);
 
   res.render('customers/show', {
     title: customer.name, activeNav: 'customers',
     customer, workOrders: workOrders || [], fileCount,
     woPage, woPages, woTotal, woQ, woStatus, WO_PAGE_SIZE,
+    rootFolder, folders, files
   });
 });
 
