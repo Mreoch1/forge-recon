@@ -692,9 +692,10 @@ router.post('/:id/vendor-invoices', async (req, res) => {
     vendorId = created.id;
   }
   // Ensure project_contractor link exists (idempotent).
-  await supabase
+  const { error: contractorLinkError } = await supabase
     .from('project_contractors')
     .upsert({ job_id: jobId, vendor_id: vendorId }, { onConflict: 'job_id,vendor_id', ignoreDuplicates: true });
+  if (contractorLinkError) throw contractorLinkError;
 
   const { error } = await supabase.from('vendor_invoices').insert({
     job_id: jobId,
