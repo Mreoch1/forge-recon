@@ -202,6 +202,7 @@ async function loadVendorsAndAccounts() {
 router.get('/', async (req, res) => {
   const status = (req.query.status || '').trim();
   const vendorId = parseInt(req.query.vendor_id, 10) || null;
+  const q = (req.query.q || '').trim();
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
 
@@ -217,6 +218,10 @@ router.get('/', async (req, res) => {
   }
   if (vendorId) {
     query = query.eq('vendor_id', vendorId);
+  }
+  if (q) {
+    const like = `%${q}%`;
+    query = query.or(`bill_number.ilike.${like},vendors.name.ilike.${like}`);
   }
 
   const { data: rows, count: total, error } = await query
@@ -238,7 +243,7 @@ router.get('/', async (req, res) => {
 
   res.render('bills/index', {
     title: 'Bills', activeNav: 'bills',
-    bills, vendors: vendors || [], status, vendorId, page,
+    bills, vendors: vendors || [], status, vendorId, q, page,
     totalPages: Math.max(1, Math.ceil((total || 0) / PAGE_SIZE)),
     total: total || 0, statuses: VALID_STATUSES
   });
