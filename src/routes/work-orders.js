@@ -933,7 +933,8 @@ router.get('/:id/edit', async (req, res) => {
 
   res.render('work-orders/edit', {
     title: `Edit WO-${wo.display_number}`, activeNav: 'work-orders',
-    wo, customers: customers || [], users: users || [], errors: {}, units: VALID_UNITS
+    wo: { ...wo, assignee_ids: (wo.assignees || []).map(a => a.id).filter(Boolean) },
+    customers: customers || [], users: users || [], errors: {}, units: VALID_UNITS
   });
 });
 
@@ -980,7 +981,11 @@ router.post('/:id', async (req, res) => {
 
     return res.status(400).render('work-orders/edit', {
       title: `Edit WO-${existing.display_number}`, activeNav: 'work-orders',
-      wo: { ...existing, ...data, display_number: req.body.display_number || existing.display_number },
+      wo: {
+        ...existing, ...data,
+        assignee_ids: normalizeAssigneeIds(req.body.assignee_ids).filter(Boolean),
+        display_number: req.body.display_number || existing.display_number
+      },
       customers: [], users: users || [], errors, units: VALID_UNITS
     });
   }
