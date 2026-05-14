@@ -78,10 +78,9 @@ function getInitials(name) {
 async function workerScope(req) {
   if (req.session?.role !== 'worker') return null;
   let userName = '';
-  try {
-    const { data: user } = await supabase.from('users').select('name').eq('id', req.session.userId).maybeSingle();
-    userName = user?.name || '';
-  } catch (e) { /* best effort */ }
+  const { data: user, error } = await supabase.from('users').select('name').eq('id', req.session.userId).maybeSingle();
+  if (error) throw error;
+  userName = user?.name || '';
   return { userId: req.session.userId, userName };
 }
 
@@ -222,13 +221,17 @@ router.get('/', async (req, res) => {
   if (scope) {
     woQuery = applyWorkerScope(woQuery, scope);
   } else if (assigneeFilter) {
-    const { data: user } = await supabase.from('users').select('name').eq('id', assigneeFilter).maybeSingle();
+    const { data: user, error: assigneeError } = await supabase.from('users').select('name').eq('id', assigneeFilter).maybeSingle();
+    if (assigneeError) throw assigneeError;
     // F4: sanitize before interpolating into PostgREST .or() filter.
     const safeName = sanitizePostgrestSearch(user?.name || '');
-    woQuery = woQuery.or(`assigned_to_user_id.eq.${assigneeFilter},assigned_to.ilike.%${safeName}%`);
+    const assigneeFilters = [`assigned_to_user_id.eq.${assigneeFilter}`];
+    if (safeName) assigneeFilters.push(`assigned_to.ilike.%${safeName}%`);
+    woQuery = woQuery.or(assigneeFilters.join(','));
   }
 
-  const { data: wos } = await woQuery;
+  const { data: wos, error: wosError } = await woQuery;
+  if (wosError) throw wosError;
 
   // Map to flat structure
   const wosMapped = (wos || []).map(mapScheduleWorkOrder);
@@ -242,16 +245,18 @@ router.get('/', async (req, res) => {
     .order('created_at', { ascending: false })
     .limit(25);
   unscheduledQuery = applyWorkerScope(unscheduledQuery, scope);
-  const { data: unscheduled } = await unscheduledQuery;
+  const { data: unscheduled, error: unscheduledError } = await unscheduledQuery;
+  if (unscheduledError) throw unscheduledError;
 
   const unschedMapped = (unscheduled || []).map(mapScheduleWorkOrder);
 
   // Query closures intersecting the visible range
-  const { data: closures } = await supabase
+  const { data: closures, error: closuresError } = await supabase
     .from('closures')
     .select('*')
     .lte('date_start', weekEnd)
     .or(`date_end.gte.${weekStart},date_end.is.null`);
+  if (closuresError) throw closuresError;
 
   // Build date->name map (expands multi-day closures)
   const closureByDate = {};
@@ -315,7 +320,8 @@ router.get('/', async (req, res) => {
   const nowOffset = ((now.getHours() - HOURS_START) * 60 + now.getMinutes()) / TOTAL_MINUTES * 100;
 
   // Users filter dropdown
-  const { data: users } = await supabase.from('users').select('id, name, role').eq('active', 1).order('name');
+  const { data: users, error: usersError } = await supabase.from('users').select('id, name, role').eq('active', 1).order('name');
+  if (usersError) throw usersError;
 
   // Determine which view template
   const viewMap = { week: 'schedule/week', '2week': 'schedule/2week', month: 'schedule/month' };
@@ -340,7 +346,8 @@ router.get('/conflict-check', async (req, res) => {
   const time = (req.query.time || '').trim();
   const endTime = (req.query.end_time || '').trim();
   if (!woId || !date) return res.json({ conflicts: [] });
-  const { data: wo } = await supabase.from('work_orders').select('*').eq('id', woId).maybeSingle();
+  const { data: wo, error: woError } = await supabase.from('work_orders').select('*').eq('id', woId).maybeSingle();
+  if (woError) throw woError;
   if (!wo) return res.json({ conflicts: [] });
   const assigneeId = wo.assigned_to_user_id;
   if (!assigneeId) return res.json({ conflicts: [] });
