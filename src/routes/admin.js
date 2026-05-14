@@ -19,12 +19,14 @@ function emptyToNull(v) {
 async function adminCount(excludingUserId) {
   let query = supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'admin').eq('active', 1);
   if (excludingUserId) query = query.neq('id', excludingUserId);
-  const { count } = await query;
+  const { count, error } = await query;
+  if (error) throw error;
   return count || 0;
 }
 
 router.get('/users', async (req, res) => {
-  const { data: users } = await supabase.from('users').select('id, email, name, role, active, created_at').order('name');
+  const { data: users, error } = await supabase.from('users').select('id, email, name, role, active, created_at').order('name');
+  if (error) throw error;
   res.render('admin/users/index', { title: 'Users', activeNav: 'admin', users: users || [] });
 });
 
@@ -40,7 +42,11 @@ router.post('/users', async (req, res) => {
   const password = req.body.password || '';
   if (!email) errors.email = 'Email required.';
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'Invalid email format.';
-  else { const { data: dup } = await supabase.from('users').select('id').eq('email', email).maybeSingle(); if (dup) errors.email = 'Email already in use.'; }
+  else {
+    const { data: dup, error: dupError } = await supabase.from('users').select('id').eq('email', email).maybeSingle();
+    if (dupError) throw dupError;
+    if (dup) errors.email = 'Email already in use.';
+  }
   if (!name) errors.name = 'Name required.';
   if (!VALID_ROLES.includes(role)) errors.role = 'Invalid role.';
   if (!password) errors.password = 'Password required.';
@@ -97,7 +103,11 @@ router.post('/users/:id', async (req, res) => {
   const active = activeStr === '1' || activeStr === 'on' || activeStr === 1 ? 1 : 0;
   if (!email) errors.email = 'Email required.';
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'Invalid email format.';
-  else { const { data: dup } = await supabase.from('users').select('id').eq('email', email).neq('id', targetId).maybeSingle(); if (dup) errors.email = 'Email already in use.'; }
+  else {
+    const { data: dup, error: dupError } = await supabase.from('users').select('id').eq('email', email).neq('id', targetId).maybeSingle();
+    if (dupError) throw dupError;
+    if (dup) errors.email = 'Email already in use.';
+  }
   if (!name) errors.name = 'Name required.';
   if (!VALID_ROLES.includes(role)) errors.role = 'Invalid role.';
   const wasAdmin = target.role === 'admin' && target.active === 1;
@@ -152,7 +162,8 @@ router.post('/users/:id/delete', async (req, res) => {
 
 // Settings
 router.get('/settings', async (req, res) => {
-  const { data: settings } = await supabase.from('company_settings').select('*').eq('id', 1).maybeSingle();
+  const { data: settings, error } = await supabase.from('company_settings').select('*').eq('id', 1).maybeSingle();
+  if (error) throw error;
   res.render('admin/settings', { title: 'Company settings', activeNav: 'admin', settings: settings || {}, errors: {} });
 });
 
