@@ -294,13 +294,12 @@ router.get('/forge', async (req, res) => {
 
 // D-066 Comprehensive tutorial — server-side state machine, split-pane shell
 // Replaces D-063 v3 client-side walkthrough
+const crypto = require('crypto');
 const { TutorialState } = require('../services/tutorial-state');
-const { loadChapters } = require('../services/tutorial-content');
-
-// Load chapter content on server start
-loadChapters();
 
 router.get('/forge/tutorial', async (req, res) => {
+  const { loadChapters, totalChapters } = require('../services/tutorial-content');
+  loadChapters();
   const sessionId = req.session?.tutorialSessionId || crypto.randomUUID();
   if (req.session) req.session.tutorialSessionId = sessionId;
 

@@ -4,7 +4,6 @@
 
 const fs = require('fs');
 const path = require('path');
-const YAML = require('js-yaml');
 
 const CHAPTERS_DIR = path.join(__dirname, '..', 'content', 'tutorial', 'd066');
 const CHAPTER_ORDER = [
@@ -21,19 +20,27 @@ const CHAPTER_ORDER = [
 ];
 
 let loaded = false;
+let yamlAvailable = false;
+
+try { require('js-yaml'); yamlAvailable = true; } catch (e) { /* js-yaml not installed, use JSON fallback */ }
 
 function loadChapters() {
   if (loaded) return;
+  const YAML = yamlAvailable ? require('js-yaml') : null;
   const { chapters } = require('./tutorial-state');
   chapters.length = 0;
 
   for (const fileBase of CHAPTER_ORDER) {
     const filePath = path.join(CHAPTERS_DIR, `${fileBase}.yml`);
     if (!fs.existsSync(filePath)) continue;
-    const doc = YAML.load(fs.readFileSync(filePath, 'utf8'));
-    if (doc) {
-      chapters.push(doc);
+    let doc;
+    if (YAML) {
+      doc = YAML.load(fs.readFileSync(filePath, 'utf8'));
+    } else {
+      try { doc = JSON.parse(fs.readFileSync(filePath.replace('.yml', '.json'), 'utf8')); }
+      catch (e) { continue; }
     }
+    if (doc) chapters.push(doc);
   }
 
   loaded = true;
