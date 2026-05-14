@@ -64,6 +64,7 @@ function isAssignedToCurrentUser(req, wo) {
   const userName = req.res?.locals?.currentUser?.name || '';
   return Number(wo.assigned_to_user_id) === userId ||
     (wo.assignees || []).some(a => Number(a.id) === userId) ||
+    (wo.work_order_assignees || []).some(a => Number(a.user_id || a.users?.id) === userId) ||
     (wo.assigned_to && userName && String(wo.assigned_to).includes(userName));
 }
 
@@ -1081,7 +1082,7 @@ function statusTransitionRoute(newStatus, friendlyVerb) {
   return async (req, res) => {
     const { data: wo, error } = await supabase
       .from('work_orders')
-      .select('id, display_number, status')
+      .select('id, display_number, status, assigned_to_user_id, assigned_to, work_order_assignees(user_id)')
       .eq('id', req.params.id)
       .maybeSingle();
     if (error) throw error;
@@ -1113,7 +1114,7 @@ router.post('/:id/cancel',   statusTransitionRoute('cancelled',   'cancel'));
 router.post('/:id/notes', async (req, res) => {
   const { data: wo, error: findErr } = await supabase
     .from('work_orders')
-    .select('id, assigned_to_user_id, assigned_to')
+    .select('id, assigned_to_user_id, assigned_to, work_order_assignees(user_id)')
     .eq('id', req.params.id)
     .maybeSingle();
   if (findErr) throw findErr;
@@ -1122,15 +1123,9 @@ router.post('/:id/notes', async (req, res) => {
     return res.redirect('/work-orders');
   }
 
-  // Worker permission: only their assigned WOs
-  if (req.session.role === 'worker') {
-    const userName = res.locals.currentUser ? res.locals.currentUser.name : '';
-    const isAssigned = wo.assigned_to_user_id === req.session.userId ||
-      (wo.assigned_to && userName && wo.assigned_to.includes(userName));
-    if (!isAssigned) {
-      setFlash(req, 'error', 'You can only post notes on work orders assigned to you.');
-      return res.redirect(`/work-orders/${wo.id}`);
-    }
+  if (!isAssignedToCurrentUser(req, wo)) {
+    setFlash(req, 'error', 'You can only post notes on work orders assigned to you.');
+    return res.redirect(`/work-orders/${wo.id}`);
   }
 
   const body = (req.body.body || '').trim();
@@ -1162,7 +1157,7 @@ router.post('/:id/notes', async (req, res) => {
 router.post('/:id/photos', async (req, res) => {
   const { data: wo, error: findErr } = await supabase
     .from('work_orders')
-    .select('id, assigned_to_user_id, assigned_to')
+    .select('id, assigned_to_user_id, assigned_to, work_order_assignees(user_id)')
     .eq('id', req.params.id)
     .maybeSingle();
   if (findErr) throw findErr;
@@ -1170,14 +1165,9 @@ router.post('/:id/photos', async (req, res) => {
     setFlash(req, 'error', 'Work order not found.');
     return res.redirect('/work-orders');
   }
-  if (req.session.role === 'worker') {
-    const userName = res.locals.currentUser ? res.locals.currentUser.name : '';
-    const isAssigned = wo.assigned_to_user_id === req.session.userId ||
-      (wo.assigned_to && userName && wo.assigned_to.includes(userName));
-    if (!isAssigned) {
-      setFlash(req, 'error', 'You can only upload photos to assigned WOs.');
-      return res.redirect(`/work-orders/${wo.id}`);
-    }
+  if (!isAssignedToCurrentUser(req, wo)) {
+    setFlash(req, 'error', 'You can only upload photos to assigned WOs.');
+    return res.redirect(`/work-orders/${wo.id}`);
   }
 
   woUpload.array('photos', MAX_FILES)(req, res, async (err) => {
