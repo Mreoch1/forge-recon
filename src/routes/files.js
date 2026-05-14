@@ -61,6 +61,19 @@ function normalizeEntityType(value) {
   return normalized;
 }
 
+function assertFileRouteRead(result, label) {
+  if (result?.error) {
+    const err = new Error(`${label}: ${result.error.message}`);
+    err.cause = result.error;
+    throw err;
+  }
+  return result || {};
+}
+
+async function checkedFileRouteRead(query, label) {
+  return assertFileRouteRead(await query, label);
+}
+
 // ── ROUTES ────────────────────────────────────────────────────────────────────
 
 // GET / — index showing 5 buckets
@@ -110,7 +123,7 @@ router.get('/:entityType', requireAuth, async (req, res) => {
 
 // GET /folders/:folderId — browse subfolder contents
 router.get('/folders/:folderId', requireAuth, async (req, res) => {
-  const { data: folder } = await supabase.from('folders').select('*').eq('id', req.params.folderId).maybeSingle();
+  const { data: folder } = await checkedFileRouteRead(supabase.from('folders').select('*').eq('id', req.params.folderId).maybeSingle(), 'file folder read failed');
   if (!folder) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Folder not found.' });
   if (!workerCanAccessEntity(req, folder.entity_type, folder.entity_id)) return workerForbidden(res);
   const contents = await filesService.getFolderContents(folder.id);
@@ -127,7 +140,7 @@ router.get('/folders/:folderId', requireAuth, async (req, res) => {
 
 // POST /folders/:folderId/upload — upload files
 router.post('/folders/:folderId/upload', requireAuth, requireManager, upload.array('files', MAX_FILES), async (req, res, next) => {
-  const { data: folder } = await supabase.from('folders').select('*').eq('id', req.params.folderId).maybeSingle();
+  const { data: folder } = await checkedFileRouteRead(supabase.from('folders').select('*').eq('id', req.params.folderId).maybeSingle(), 'file upload folder read failed');
   if (!folder) return res.status(404).json({ error: 'Folder not found.' });
   if (!req.files || req.files.length === 0) {
     setFlash(req, 'error', 'No files selected.');
@@ -155,7 +168,7 @@ router.post('/folders/:folderId/upload', requireAuth, requireManager, upload.arr
 
 // POST /folders/:folderId/subfolder — create subfolder
 router.post('/folders/:folderId/subfolder', requireAuth, requireManager, async (req, res) => {
-  const { data: folder } = await supabase.from('folders').select('*').eq('id', req.params.folderId).maybeSingle();
+  const { data: folder } = await checkedFileRouteRead(supabase.from('folders').select('*').eq('id', req.params.folderId).maybeSingle(), 'file subfolder parent read failed');
   if (!folder) return res.status(404).json({ error: 'Folder not found.' });
   const name = (req.body.name || '').trim();
   if (!name) { setFlash(req, 'error', 'Folder name required.'); return res.redirect('/files/folders/' + folder.id); }
@@ -170,7 +183,7 @@ router.post('/folders/:folderId/subfolder', requireAuth, requireManager, async (
 
 // POST /folders/:folderId/rename — rename folder (admin+)
 router.post('/folders/:folderId/rename', requireAuth, requireAdmin, async (req, res) => {
-  const { data: folder } = await supabase.from('folders').select('*').eq('id', req.params.folderId).maybeSingle();
+  const { data: folder } = await checkedFileRouteRead(supabase.from('folders').select('*').eq('id', req.params.folderId).maybeSingle(), 'file rename folder read failed');
   if (!folder) return res.status(404).json({ error: 'Folder not found.' });
   const name = (req.body.name || '').trim();
   if (!name) { setFlash(req, 'error', 'Folder name required.'); return res.redirect('/files/folders/' + folder.id); }
@@ -182,7 +195,7 @@ router.post('/folders/:folderId/rename', requireAuth, requireAdmin, async (req, 
 
 // POST /folders/:folderId/delete — delete folder (admin+, empty only)
 router.post('/folders/:folderId/delete', requireAuth, requireAdmin, async (req, res) => {
-  const { data: folder } = await supabase.from('folders').select('*').eq('id', req.params.folderId).maybeSingle();
+  const { data: folder } = await checkedFileRouteRead(supabase.from('folders').select('*').eq('id', req.params.folderId).maybeSingle(), 'file delete folder read failed');
   if (!folder) return res.status(404).json({ error: 'Folder not found.' });
   const contents = await filesService.getFolderContents(folder.id);
   if (contents.subfolders.length > 0 || contents.files.length > 0) {
@@ -198,7 +211,7 @@ router.post('/folders/:folderId/delete', requireAuth, requireAdmin, async (req, 
 
 // POST /:id/delete — delete file (uploader or admin+)
 router.post('/:id/delete', requireAuth, async (req, res) => {
-  const { data: file } = await supabase.from('files').select('*').eq('id', req.params.id).maybeSingle();
+  const { data: file } = await checkedFileRouteRead(supabase.from('files').select('*').eq('id', req.params.id).maybeSingle(), 'file delete read failed');
   if (!file) return res.status(404).json({ error: 'File not found.' });
   const isAdmin = req.session.role === 'admin';
   const isUploader = file.uploaded_by_user_id === req.session.userId;
@@ -216,7 +229,7 @@ router.post('/:id/delete', requireAuth, async (req, res) => {
 
 // GET /:id/view — inline preview via signed URL
 router.get('/:id/view', requireAuth, async (req, res) => {
-  const { data: file } = await supabase.from('files').select('*').eq('id', req.params.id).maybeSingle();
+  const { data: file } = await checkedFileRouteRead(supabase.from('files').select('*').eq('id', req.params.id).maybeSingle(), 'file view read failed');
   if (!file) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'File not found.' });
   try {
     const signedUrl = await storage.getSignedUrl('entity-files', file.storage_path || file.name, 3600);
@@ -247,16 +260,16 @@ router.get('/:entityType/:entityId', requireAuth, async (req, res) => {
   // Get entity name for display
   let entityName = '';
   if (entityType === 'customer') {
-    const { data: c } = await supabase.from('customers').select('name').eq('id', entityId).maybeSingle();
+    const { data: c } = await checkedFileRouteRead(supabase.from('customers').select('name').eq('id', entityId).maybeSingle(), 'file customer name read failed');
     entityName = c ? c.name : 'Customer #' + entityId;
   } else if (entityType === 'vendor') {
-    const { data: v } = await supabase.from('vendors').select('name').eq('id', entityId).maybeSingle();
+    const { data: v } = await checkedFileRouteRead(supabase.from('vendors').select('name').eq('id', entityId).maybeSingle(), 'file vendor name read failed');
     entityName = v ? v.name : 'Vendor #' + entityId;
   } else if (entityType === 'worker') {
-    const { data: u } = await supabase.from('users').select('name').eq('id', entityId).maybeSingle();
+    const { data: u } = await checkedFileRouteRead(supabase.from('users').select('name').eq('id', entityId).maybeSingle(), 'file worker name read failed');
     entityName = u ? u.name : 'Worker #' + entityId;
   } else if (entityType === 'project') {
-    const { data: wo } = await supabase.from('work_orders').select('display_number').eq('id', entityId).maybeSingle();
+    const { data: wo } = await checkedFileRouteRead(supabase.from('work_orders').select('display_number').eq('id', entityId).maybeSingle(), 'file work order name read failed');
     entityName = wo ? 'WO-' + wo.display_number : 'Project #' + entityId;
   } else if (entityType === 'global') {
     entityName = 'Global files';
