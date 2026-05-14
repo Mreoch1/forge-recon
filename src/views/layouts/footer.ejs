@@ -62,15 +62,15 @@
 </style>
 <div class="fb-overlay" id="fb-overlay" onclick="closeFeedback()"></div>
 <div class="fb-modal" id="fb-modal">
-  <h3>💬 Feedback</h3>
-  <p>Found a bug? Have a suggestion? Let Mike know.</p>
+    <h3>📧 Send feedback</h3>
+  <p>Send feedback or a feature request to our team. If FORGE hits an unexpected error, a separate error-report popup will appear automatically with the details — you don't need this button for errors.</p>
   <form action="/feedback" method="post" onsubmit="setTimeout(function(){closeFeedback();this.querySelector('textarea').value='';}.bind(this),500)">
     <input type="text" name="subject" placeholder="Subject" class="input" required maxlength="100">
     <textarea name="message" class="input" placeholder="Tell us what's on your mind..." required maxlength="2000"></textarea>
     <button type="submit" class="btn btn-primary text-sm w-full">Send feedback</button>
   </form>
 </div>
-<button class="fb-btn" onclick="document.getElementById('fb-overlay').classList.add('open');document.getElementById('fb-modal').classList.add('open')">💬 Feedback</button>
+<button class="fb-btn" onclick="document.getElementById('fb-overlay').classList.add('open');document.getElementById('fb-modal').classList.add('open')">📧 Send feedback</button>
 <script>
 function closeFeedback(){ document.getElementById('fb-overlay').classList.remove('open'); document.getElementById('fb-modal').classList.remove('open'); }
 </script>
