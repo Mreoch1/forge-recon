@@ -591,6 +591,23 @@ function generateInvoicePDF(invoice, company, stream) {
   // Payment terms block (configurable via company/invoice, with default)
   drawPaymentTerms(doc, invoice, company);
 
+  // PAID stamp — large diagonal red overlay when invoice is paid (D-067h)
+  if (invoice.status === 'PAID' || invoice.status === 'paid' || invoice.paid_at) {
+    const pageW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const pageH = doc.page.height - doc.page.margins.top - doc.page.margins.bottom;
+    const stampY = doc.page.margins.top + pageH * 0.35;
+    doc.save();
+    doc.fontSize(72).fillColor(180, 30, 30, 0.2).font('Helvetica-Bold');
+    doc.translate(doc.page.margins.left + pageW * 0.55, stampY);
+    doc.rotate(-15, { origin: [0, 0] });
+    doc.text('PAID', 0, 0, { align: 'center', width: 250 });
+    doc.restore();
+    if (invoice.paid_at) {
+      doc.fontSize(9).fillColor(180, 30, 30, 0.35).font('Helvetica');
+      doc.text('Paid ' + String(invoice.paid_at).slice(0, 10), doc.page.margins.left + pageW * 0.52, stampY + 52, { width: 200, align: 'center' });
+    }
+  }
+
   const footerLines = [];
   if (invoice.created_at) footerLines.push(`Issued: ${String(invoice.created_at).slice(0,10)}`);
   if (invoice.due_date)  footerLines.push(`Due: ${String(invoice.due_date).slice(0,10)}`);
