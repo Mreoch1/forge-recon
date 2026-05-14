@@ -12,7 +12,7 @@
  *   SMTP_SECURE     — false (STARTTLS)
  *   SMTP_USER       — support@reconenterprises.net
  *   SMTP_PASS       — mailbox password or app password
- *   EMAIL_FROM      — "FORGE" <support@reconenterprises.net>
+ *   EMAIL_FROM      -- "Recon Office" <support@reconenterprises.net>
  *   PUBLIC_BASE_URL — https://forge-recon.vercel.app
  */
 const nodemailer = require('nodemailer');
@@ -43,7 +43,7 @@ transporter.verify().then(
   (err) => console.error('[email] SMTP transporter init failed:', err.message)
 ).catch((err) => console.error('[email] SMTP verify failed:', err.message));
 
-const FROM = process.env.EMAIL_FROM || '"FORGE" <support@reconenterprises.net>';
+const FROM = process.env.EMAIL_FROM || '"Recon Office" <support@reconenterprises.net>';
 const BASE = process.env.PUBLIC_BASE_URL || 'https://forge-recon.vercel.app';
 const EJS_LAYOUT = path.join(__dirname, '..', 'views', 'emails', 'layout.ejs');
 
