@@ -1,0 +1,65 @@
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 320" role="img" aria-label="Example record card showing a yellow TUTORIAL badge. The badge marks every customer, work order, estimate, and invoice created during this tutorial so they're easy to identify and clean up later.">
+  <title>Tutorial badge example</title>
+
+  <rect width="600" height="320" fill="#fafafa"/>
+
+  <!-- Header text -->
+  <text x="300" y="36" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#6b7280">This is what a tutorial record looks like</text>
+
+  <!-- Example customer detail card -->
+  <g transform="translate(80,70)">
+    <!-- Card background -->
+    <rect width="440" height="180" rx="8" ry="8" fill="#ffffff" stroke="#1f2937" stroke-width="1.5"/>
+
+    <!-- Customer name row -->
+    <text x="20" y="40" font-family="system-ui, sans-serif" font-size="22" font-weight="600" fill="#1f2937">Tutorial Customer</text>
+
+    <!-- TUTORIAL badge — yellow pill -->
+    <g transform="translate(250,22)">
+      <rect width="100" height="26" rx="13" ry="13" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+      <text x="50" y="18" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-weight="700" fill="#92400e" letter-spacing="0.5">TUTORIAL</text>
+    </g>
+
+    <!-- Subtitle row -->
+    <text x="20" y="68" font-family="system-ui, sans-serif" font-size="13" fill="#6b7280">Customer · created during tutorial</text>
+
+    <!-- Tabs row -->
+    <line x1="20" y1="92" x2="420" y2="92" stroke="#e5e7eb" stroke-width="1"/>
+    <g font-family="system-ui, sans-serif" font-size="12" fill="#6b7280">
+      <text x="35" y="110" fill="#1f2937" font-weight="600">Work Orders</text>
+      <text x="135" y="110">Estimates</text>
+      <text x="220" y="110">Invoices</text>
+      <text x="300" y="110">Payments</text>
+      <text x="380" y="110">Files</text>
+    </g>
+
+    <!-- Stats row -->
+    <g font-family="system-ui, sans-serif" font-size="11" fill="#6b7280" transform="translate(20,140)">
+      <text x="0" y="0" font-weight="600" fill="#1f2937">0 open</text>
+      <text x="60" y="0">·</text>
+      <text x="74" y="0">$0 billed</text>
+      <text x="150" y="0">·</text>
+      <text x="164" y="0">no AR aging</text>
+    </g>
+
+    <!-- Note line -->
+    <text x="20" y="166" font-family="system-ui, sans-serif" font-size="11" font-style="italic" fill="#6b7280">Empty — we haven't made any WOs yet</text>
+  </g>
+
+  <!-- Callout arrow pointing at the badge -->
+  <g stroke="#92400e" stroke-width="1.5" fill="none">
+    <line x1="380" y1="80" x2="430" y2="55"/>
+    <polygon points="378,80 392,75 388,86" fill="#92400e" stroke="none"/>
+  </g>
+
+  <!-- Callout text -->
+  <text x="440" y="50" font-family="system-ui, sans-serif" font-size="12" fill="#92400e" font-weight="600">The badge</text>
+
+  <!-- Bottom explanation -->
+  <g font-family="system-ui, sans-serif" font-size="11" fill="#6b7280">
+    <text x="300" y="275" text-anchor="middle" font-weight="600" fill="#1f2937">What it means</text>
+    <text x="300" y="293" text-anchor="middle">Every customer / WO / estimate / invoice / payment we create together</text>
+    <text x="300" y="307" text-anchor="middle">gets this badge. At the end of the tour, you choose: clean up or keep.</text>
+  </g>
+</svg>

@@ -1,0 +1,228 @@
+# D-066 Chapter 9 — WRAP-UP: Quiz + Targeted Remediation
+# Draft 2026-05-14T17:05Z by Cowork
+#
+# Per GPT Q3 verdict (and spec amendment): just-submit-and-done, NOT
+# required-pass. Wrong answers trigger targeted remediation offer
+# ("replay Chapter X"). Completion recorded regardless of score.
+# Weak spots saved to users.tutorial_completion_weak_spots JSONB.
+
+id: "09-quiz"
+title: "Quick check — three questions"
+chapter_index: 9
+estimated_duration_seconds: 90
+
+steps:
+
+  - id: "intro"
+    coach_text: |
+      One last thing — a quick check to lock in what you've learned.
+      Three multiple-choice questions. **You don't have to get them right
+      to finish the tour** — but if you miss one, I'll offer to replay
+      the relevant chapter.
+    typewriter_pacing_ms: 35
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 3200
+
+  - id: "q1-prompt"
+    coach_text: |
+      **Question 1 of 3 — True or False:**
+
+      You can create an invoice in FORGE without first having a work order.
+    chips:
+      - label: "True"
+        value: "q1_true"
+      - label: "False"
+        value: "q1_false"
+    expected_action: "chip_or_text"
+    branches:
+      q1_false: "q1-correct"
+      q1_true: "q1-wrong"
+      "*": "q1-wrong"
+
+  - id: "q1-correct"
+    coach_text: |
+      Right — false. Invoices come from estimates, and estimates need a
+      WO to convert. The chain is Customer → WO → Estimate → Invoice.
+    chips:
+      - label: "Next question"
+        value: "next"
+    expected_action: "chip_or_text"
+    branches:
+      "*": "q2-prompt"
+    record_answer:
+      question: "q1"
+      correct: true
+
+  - id: "q1-wrong"
+    coach_text: |
+      Not quite — the answer is **false**. Invoices must come from an
+      estimate, and the cleanest chain is Customer → WO → Estimate →
+      Invoice. (Loose estimates without a WO can exist, but you'd attach
+      them to a WO before converting to invoice.)
+
+      Want to replay Chapter 4 (Work Orders) or Chapter 6 (Convert to
+      Invoice), or just keep going?
+    chips:
+      - label: "Replay Ch 4"
+        value: "replay_ch4"
+      - label: "Replay Ch 6"
+        value: "replay_ch6"
+      - label: "Keep going"
+        value: "next"
+    expected_action: "chip_or_text"
+    branches:
+      replay_ch4: "REPLAY_CHAPTER:04-create-wo"
+      replay_ch6: "REPLAY_CHAPTER:06-convert-to-invoice"
+      next: "q2-prompt"
+      "*": "q2-prompt"
+    record_answer:
+      question: "q1"
+      correct: false
+      weak_spot: "hierarchy"
+
+  - id: "q2-prompt"
+    coach_text: |
+      **Question 2 of 3:**
+
+      What's the canonical order of FORGE entities?
+    chips:
+      - label: "Invoice → WO → Estimate"
+        value: "q2_a"
+      - label: "Customer → WO → Estimate → Invoice"
+        value: "q2_b"
+      - label: "Customer → Invoice → WO"
+        value: "q2_c"
+    expected_action: "chip_or_text"
+    branches:
+      q2_b: "q2-correct"
+      q2_a: "q2-wrong"
+      q2_c: "q2-wrong"
+      "*": "q2-wrong"
+
+  - id: "q2-correct"
+    coach_text: |
+      Exactly. Customer → WO → Estimate → Invoice. The customer is the
+      root, work order is the job, estimate is the quote, invoice is the
+      bill. Every chain follows that order.
+    chips:
+      - label: "Next question"
+        value: "next"
+    expected_action: "chip_or_text"
+    branches:
+      "*": "q3-prompt"
+    record_answer:
+      question: "q2"
+      correct: true
+
+  - id: "q2-wrong"
+    coach_text: |
+      Close — the right answer is **Customer → WO → Estimate → Invoice**.
+      Customer is the root; everything else hangs off it. WO is the job,
+      estimate is the quote, invoice is the bill.
+
+      Want to replay Chapter 1 (the three things), or keep going?
+    chips:
+      - label: "Replay Ch 1"
+        value: "replay_ch1"
+      - label: "Keep going"
+        value: "next"
+    expected_action: "chip_or_text"
+    branches:
+      replay_ch1: "REPLAY_CHAPTER:01-three-things"
+      next: "q3-prompt"
+      "*": "q3-prompt"
+    record_answer:
+      question: "q2"
+      correct: false
+      weak_spot: "hierarchy"
+
+  - id: "q3-prompt"
+    coach_text: |
+      **Question 3 of 3:**
+
+      Say you have a Work Order numbered `WO-0001-0014`. You create an
+      estimate under it, then convert that estimate to an invoice. What's
+      the invoice number?
+    chips:
+      - label: "INV-0001-0014"
+        value: "q3_a"
+      - label: "INV-0001-0001"
+        value: "q3_b"
+      - label: "INV-0001-0015"
+        value: "q3_c"
+    expected_action: "chip_or_text"
+    branches:
+      q3_a: "q3-correct"
+      q3_b: "q3-wrong"
+      q3_c: "q3-wrong"
+      "*": "q3-wrong"
+
+  - id: "q3-correct"
+    coach_text: |
+      Perfect. The WO drives the number — both the estimate and the
+      invoice mirror it. So `WO-0001-0014` → `EST-0001-0014` →
+      `INV-0001-0014`. Same digits, three doc types.
+    chips:
+      - label: "See my score"
+        value: "next"
+    expected_action: "chip_or_text"
+    branches:
+      "*": "score-summary"
+    record_answer:
+      question: "q3"
+      correct: true
+
+  - id: "q3-wrong"
+    coach_text: |
+      Not quite — the answer is **INV-0001-0014**. The Work Order drives
+      the number. Both the estimate and the invoice mirror the parent
+      WO's number. So if your WO is `WO-0001-0014`, your estimate is
+      `EST-0001-0014` and your invoice is `INV-0001-0014` — same digits
+      across all three.
+
+      Want to replay Chapter 2 (numbering)?
+    chips:
+      - label: "Replay Ch 2"
+        value: "replay_ch2"
+      - label: "Keep going"
+        value: "next"
+    expected_action: "chip_or_text"
+    branches:
+      replay_ch2: "REPLAY_CHAPTER:02-numbering"
+      next: "score-summary"
+      "*": "score-summary"
+    record_answer:
+      question: "q3"
+      correct: false
+      weak_spot: "numbering"
+
+  - id: "score-summary"
+    coach_text: |
+      You're done with the quiz. Your score is recorded — any weak spots
+      get flagged so the coach can drop a hint next time you hit that
+      feature in real use.
+
+      Completion isn't gated on score — you did the work, you finished
+      the tour. Welcome to FORGE.
+    chips:
+      - label: "Continue to cleanup"
+        value: "next"
+    expected_action: "chip_or_text"
+    branches:
+      "*": "ADVANCE_CHAPTER"
+    side_effects:
+      - record_completion: true
+      - persist_weak_spots: true
+
+# --- FAQs ---
+
+faqs:
+  - patterns: ["why no grade", "no pass fail", "score required"]
+    answer: "FORGE doesn't quiz-wall users — construction crews don't want a test, they want to do their job. The quiz exists so the coach knows which concepts to remind you of later, not as a gate."
+  - patterns: ["replay later", "redo quiz", "take it again"]
+    answer: "Yes — the Start Tutorial button on /forge stays available after completion. You can replay the whole tour or jump to a specific chapter."
+  - patterns: ["where are weak spots saved", "what do you do with my score"]
+    answer: "Saved on your user record in `tutorial_completion_weak_spots` (JSONB). Only visible to you and admins. Used to surface contextual hints — e.g. if you got the numbering question wrong, the coach will explain it again the first time you make a real WO."
+  - patterns: ["skip the quiz", "no quiz"]
+    answer: "You can type `skip quiz` and we'll mark you complete with no answers recorded. But it's only 3 questions — most people just do it."

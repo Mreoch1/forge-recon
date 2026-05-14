@@ -1,0 +1,66 @@
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 380" role="img" aria-label="Numbering scheme: Work Order drives the display number. Estimate and Invoice mirror the parent Work Order's number. Example WO-0001-0014, EST-0001-0014, INV-0001-0014.">
+  <title>FORGE numbering scheme</title>
+
+  <rect width="800" height="380" fill="#fafafa"/>
+
+  <defs>
+    <marker id="arrow-down" viewBox="0 0 10 10" refX="5" refY="9" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,0 L5,10 z" fill="#1f2937"/>
+    </marker>
+  </defs>
+
+  <!-- Header label -->
+  <text x="400" y="40" text-anchor="middle" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#1f2937">Pattern: PREFIX - ORGANIZATION - SEQUENCE</text>
+
+  <!-- WO box (PARENT — visually prominent) -->
+  <g transform="translate(290,70)">
+    <rect width="220" height="80" rx="10" ry="10" fill="#ffffff" stroke="#06b6d4" stroke-width="3"/>
+    <text x="110" y="32" text-anchor="middle" font-family="ui-monospace, monospace" font-size="28" font-weight="700" fill="#06b6d4">WO-0001-0014</text>
+    <text x="110" y="58" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" fill="#6b7280">Parent — drives the number</text>
+  </g>
+
+  <!-- Branch lines from WO down to EST and INV -->
+  <line x1="400" y1="150" x2="400" y2="195" stroke="#1f2937" stroke-width="1.5"/>
+  <line x1="180" y1="195" x2="620" y2="195" stroke="#1f2937" stroke-width="1.5"/>
+  <line x1="180" y1="195" x2="180" y2="225" stroke="#1f2937" stroke-width="1.5" marker-end="url(#arrow-down)"/>
+  <line x1="620" y1="195" x2="620" y2="225" stroke="#1f2937" stroke-width="1.5" marker-end="url(#arrow-down)"/>
+
+  <!-- "mirrors" label on the branch -->
+  <text x="400" y="190" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-style="italic" fill="#6b7280">both mirror parent</text>
+
+  <!-- Estimate box (CHILD — mirrors WO) -->
+  <g transform="translate(80,235)">
+    <rect width="200" height="76" rx="10" ry="10" fill="#ffffff" stroke="#1f2937" stroke-width="2"/>
+    <text x="100" y="32" text-anchor="middle" font-family="ui-monospace, monospace" font-size="22" font-weight="600" fill="#1f2937">EST-0001-0014</text>
+    <text x="100" y="56" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" fill="#6b7280">Same digits as parent WO</text>
+  </g>
+
+  <!-- Invoice box (CHILD — also mirrors WO, not estimate) -->
+  <g transform="translate(520,235)">
+    <rect width="200" height="76" rx="10" ry="10" fill="#ffffff" stroke="#1f2937" stroke-width="2"/>
+    <text x="100" y="32" text-anchor="middle" font-family="ui-monospace, monospace" font-size="22" font-weight="600" fill="#1f2937">INV-0001-0014</text>
+    <text x="100" y="56" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" fill="#6b7280">Same digits as parent WO</text>
+  </g>
+
+  <!-- Rules callout -->
+  <g font-family="system-ui, sans-serif" font-size="11" fill="#6b7280">
+    <text x="400" y="338" text-anchor="middle" font-weight="600" fill="#1f2937">Three rules</text>
+    <text x="400" y="358" text-anchor="middle">1. Prefix = doc type. Middle = your organization. Last = sequence number.</text>
+    <text x="400" y="372" text-anchor="middle">2. Estimate and Invoice MIRROR the parent WO's number — not each other's.</text>
+  </g>
+
+  <!-- Note on loose estimate -->
+  <g transform="translate(60,72)">
+    <rect width="160" height="62" rx="8" ry="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1"/>
+    <text x="80" y="22" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#92400e">Loose estimate</text>
+    <text x="80" y="40" text-anchor="middle" font-family="ui-monospace, monospace" font-size="12" fill="#92400e">EST-????-????</text>
+    <text x="80" y="55" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" fill="#92400e">No WO attached yet</text>
+  </g>
+
+  <!--
+    Active-step highlight: when chapter 2 is on the "EST mirrors parent" step,
+    Hermes can bump the EST box stroke to cyan #06b6d4 stroke-width="3".
+    Same for INV. The WO box always stays cyan since it's the source.
+  -->
+</svg>

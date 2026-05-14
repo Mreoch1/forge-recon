@@ -10,12 +10,13 @@ class TutorialState {
     this.sessionId = sessionId;
     this.userId = userId;
     this.currentChapter = 0;
-    this.currentStep = 0; // step within chapter: narration → wait_for_action → reaction
+    this.currentStep = 0;
     this.completedChapters = [];
     this.createdEntityIds = { customers: [], work_orders: [], estimates: [], invoices: [], payments: [] };
     this.quizAnswers = {};
     this.quizSubmitted = false;
-    this.cleanupChosen = null; // 'cleanup' | 'keep' | null
+    this.quizWeakSpots = [];      // D-076: persistent weak spots for remediation
+    this.cleanupChosen = null;
     this.startedAt = new Date().toISOString();
   }
 
@@ -41,6 +42,7 @@ class TutorialState {
         createdEntityIds: this.createdEntityIds,
         quizAnswers: this.quizAnswers,
         quizSubmitted: this.quizSubmitted,
+        quizWeakSpots: this.quizWeakSpots,
         cleanupChosen: this.cleanupChosen,
         startedAt: this.startedAt,
       },
@@ -48,12 +50,10 @@ class TutorialState {
     }, { onConflict: 'id' });
   }
 
-  // Get current chapter content
   getCurrentChapter() {
     return chapters[this.currentChapter] || null;
   }
 
-  // Advance to next step/chapter
   advance() {
     const ch = this.getCurrentChapter();
     if (!ch) return { done: true };
@@ -68,7 +68,7 @@ class TutorialState {
       this.currentChapter++;
       this.currentStep = 0;
     } else {
-      return { done: true }; // tutorial complete
+      return { done: true };
     }
     return { done: false, chapter: this.getCurrentChapter(), step: this.currentStep };
   }
@@ -98,11 +98,48 @@ class TutorialState {
     return { chapter: this.getCurrentChapter(), step: 0 };
   }
 
+  /** Navigate to a specific chapter by id (REPLAY_CHAPTER or EXIT_TUTORIAL). */
+  gotoChapter(chapterId) {
+    if (chapterId === 'EXIT_TUTORIAL') {
+      return { exit: true };
+    }
+    const idx = chapters.findIndex(c => c.id === chapterId);
+    if (idx >= 0) {
+      this.currentChapter = idx;
+      this.currentStep = 0;
+    }
+    return { chapter: this.getCurrentChapter(), step: this.currentStep };
+  }
+
+  /** Process an action from the coach, including branch targets like REPLAY_CHAPTER:<id>. */
+  processAction(action, payload, supabase) {
+    // Check for REPLAY_CHAPTER or EXIT_TUTORIAL branches
+    if (typeof action === 'string' && action.startsWith('REPLAY_CHAPTER:')) {
+      const chapterId = action.replace('REPLAY_CHAPTER:', '');
+      return this.gotoChapter(chapterId);
+    }
+    if (action === 'EXIT_TUTORIAL') {
+      return { exit: true };
+    }
+
+    switch (action) {
+      case 'next': return this.advance();
+      case 'back': return this.goBack();
+      case 'skip_chapter': return this.skipChapter();
+      case 'restart_chapter': return this.restartChapter();
+      case 'submit_quiz': return this.submitQuiz(payload?.answers || {});
+      case 'select_chip': return { chipSelected: true, payload };
+      default: return { error: `Unknown action: ${action}` };
+    }
+  }
+
   // Quiz
   submitQuiz(answers) {
     this.quizAnswers = answers;
     this.quizSubmitted = true;
-    return this.scoreQuiz(answers);
+    const result = this.scoreQuiz(answers);
+    this.quizWeakSpots = result.weakSpots;
+    return result;
   }
 
   scoreQuiz(answers) {
@@ -111,7 +148,7 @@ class TutorialState {
     const total = quiz.questions.length;
     let correct = 0;
     const weakSpots = [];
-    quiz.questions.forEach((q, i) => {
+    quiz.questions.forEach((q) => {
       if (answers[q.id] === q.answer) {
         correct++;
       } else {
@@ -119,6 +156,23 @@ class TutorialState {
       }
     });
     return { score: correct, total, weakSpots };
+  }
+
+  /** Execute side_effects from a chapter step. */
+  async executeSideEffects(sideEffects, supabase, userId) {
+    if (!sideEffects || !sideEffects.length) return;
+    for (const effect of sideEffects) {
+      if (effect.record_completion) {
+        await supabase.from('users').update({ completed_tutorial_at: new Date().toISOString() }).eq('id', userId);
+      }
+      if (effect.persist_weak_spots && this.quizWeakSpots.length) {
+        await supabase.from('users').update({ tutorial_completion_weak_spots: JSON.stringify(this.quizWeakSpots) }).eq('id', userId);
+      }
+      if (effect.call_endpoint) {
+        // effect.call_endpoint is a URL path like "POST /forge/tutorial/cleanup"
+        // Handled by route handler, not state machine
+      }
+    }
   }
 }
 

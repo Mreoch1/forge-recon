@@ -1,0 +1,134 @@
+# D-066 Chapter 9.5 — End-of-Tour Cleanup Explanation
+# Draft 2026-05-14T17:50Z by Cowork
+#
+# Per GPT Q7 verdict: explicit cleanup/undo explanation so users trust
+# the tutorial isn't polluting prod records. This is the LAST chapter —
+# after this, the tour exits.
+
+id: "09-5-cleanup-explanation"
+title: "Clean up tutorial data"
+chapter_index: 9.5
+estimated_duration_seconds: 60
+
+steps:
+
+  - id: "intro"
+    coach_text: |
+      Almost done. One last thing — let's deal with the tutorial data we
+      created together.
+    typewriter_pacing_ms: 35
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 2200
+
+  - id: "summary-of-created"
+    coach_text: |
+      Quick inventory. During this tour you created:
+
+      • **1 customer** (Tutorial Customer, or whatever you named yours)
+      • **1 work order** (kitchen drywall repair, or your description)
+      • **1 estimate** ($387 or thereabouts)
+      • **1 invoice** (converted from the estimate)
+      • **1 payment** (recorded against the invoice)
+      • **1 loose estimate** ($1500 quote, no WO attached)
+
+      All tagged TUTORIAL right now. They show up in your real lists with
+      a yellow badge so you can tell them apart from real data.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 4500
+
+  - id: "two-options-intro"
+    coach_text: |
+      Two options:
+
+      **Option A — Clean up everything.** I'll delete the customer and
+      everything attached (WO, estimate, invoice, payment, loose
+      estimate). Takes 2 seconds. You won't see any of it in your lists
+      anymore. Use this if you don't need a reference.
+
+      **Option B — Keep them.** I'll strip the TUTORIAL tag and they
+      become real records. Use this if you want to keep them around as a
+      reference. You can delete them manually anytime from the detail
+      pages.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 5500
+
+  - id: "recommend"
+    coach_text: |
+      My recommendation: **clean up.** You've seen how it all works — the
+      records are just clutter now. But it's your call.
+    chips:
+      - label: "Clean up (recommended)"
+        value: "cleanup"
+      - label: "Keep them"
+        value: "keep"
+    expected_action: "chip_or_text"
+    branches:
+      cleanup: "do-cleanup"
+      keep: "do-keep"
+      "*": "do-cleanup"
+
+  - id: "do-cleanup"
+    coach_text: |
+      OK, cleaning up...
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 1500
+    side_effects:
+      - call_endpoint: "POST /forge/tutorial/cleanup"
+
+  - id: "cleanup-confirm"
+    coach_text: |
+      Done. All tutorial data removed — you're starting fresh.
+
+      Welcome to FORGE. You know the model now. Type **finish** to head
+      back to the dashboard.
+    chips:
+      - label: "Finish"
+        value: "finish"
+    expected_action: "chip_or_text"
+    branches:
+      "*": "EXIT_TUTORIAL"
+    side_effects:
+      - record_completion: true
+
+  - id: "do-keep"
+    coach_text: |
+      OK, keeping the records and stripping the TUTORIAL tag...
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 1500
+    side_effects:
+      - call_endpoint: "POST /forge/tutorial/keep"
+
+  - id: "keep-confirm"
+    coach_text: |
+      Done. Your tutorial records are now real records — TUTORIAL badges
+      removed. Find them in your Customers list under whatever name you
+      gave the tutorial customer.
+
+      Welcome to FORGE. Type **finish** to head back to the dashboard.
+    chips:
+      - label: "Finish"
+        value: "finish"
+    expected_action: "chip_or_text"
+    branches:
+      "*": "EXIT_TUTORIAL"
+    side_effects:
+      - record_completion: true
+
+# --- FAQs ---
+
+faqs:
+  - patterns: ["can i change my mind", "undo cleanup", "restore tutorial data"]
+    answer: "Once cleanup runs, the rows are gone — soft-deleted for 30 days then hard-deleted by the cron. If you act fast (within 30 days), an admin can restore from `tutorial_deleted_at` records. But it's easier to just replay the tour."
+  - patterns: ["does keep affect numbering", "wo numbers after keep"]
+    answer: "Keep strips the TUTORIAL tag but doesn't renumber. Your tutorial customer's WO-NNNN-NNNN stays at whatever number it got. Future real WOs continue from the next sequence — no gaps that didn't already exist."
+  - patterns: ["partial cleanup", "delete some not all", "selective"]
+    answer: "Not at this UI step — cleanup is all-or-nothing for the tutorial session's data. After exit, you can delete individual records manually from their detail pages."
+  - patterns: ["replay the tutorial", "do this again"]
+    answer: "Yes — anytime. Click 'Start Tutorial' on /forge. Each replay creates a fresh tutorial session with its own session_id, so old/new data doesn't tangle."
+  - patterns: ["why even ask", "just delete automatically"]
+    answer: "Because some users want a reference for their first week using FORGE. The keep option exists for them. Default is cleanup because most users won't want the clutter."

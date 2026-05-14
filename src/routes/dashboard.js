@@ -324,13 +324,18 @@ router.get('/forge/tutorial/state', async (req, res) => {
   const sessionId = req.session?.tutorialSessionId;
   if (!sessionId) return res.status(404).json({ error: 'No active tutorial' });
   const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase);
+  const ch = state.getCurrentChapter();
+  const tc = require('../services/tutorial-content');
   res.json({
     chapterIndex: state.currentChapter,
     stepIndex: state.currentStep,
     completedChapters: state.completedChapters,
     quizSubmitted: state.quizSubmitted,
-    chapter: state.getCurrentChapter(),
-    totalChapters: require('../services/tutorial-content').totalChapters(),
+    chapter: ch ? {
+      ...ch,
+      narration: ch.narration ? tc.interpolateNarration(ch.narration, res.locals.currentUser) : ch.narration,
+    } : null,
+    totalChapters: tc.totalChapters(),
   });
 });
 
@@ -341,21 +346,32 @@ router.post('/forge/tutorial/advance', async (req, res) => {
   const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase);
   const { action, payload } = req.body;
 
-  let result;
-  switch (action) {
-    case 'next': result = state.advance(); break;
-    case 'back': result = state.goBack(); break;
-    case 'skip_chapter': result = state.skipChapter(); break;
-    case 'restart_chapter': result = state.restartChapter(); break;
-    case 'submit_quiz': result = state.submitQuiz(payload?.answers || {}); break;
-    case 'exit':
-      // Mark tutorial as skipped, redirect to returnTo
-      await supabase.from('users').update({ completed_tutorial_at: null }).eq('id', state.userId);
-      return res.json({ redirect: req.query.return || '/forge' });
-    default: return res.status(400).json({ error: `Unknown action: ${action}` });
+  const result = state.processAction(action, payload, supabase);
+
+  // Handle EXIT_TUTORIAL
+  if (result.exit) {
+    return res.json({ redirect: req.query.return || '/forge' });
+  }
+
+  // Handle side_effects from the current chapter step
+  const ch = state.getCurrentChapter();
+  if (ch && ch.side_effects) {
+    await state.executeSideEffects(ch.side_effects, supabase, state.userId);
+  }
+
+  // Handle record_answer from payload (quiz responses captured at chapter level)
+  if (ch && ch.record_answer && payload?.answers) {
+    // record_answer is defined per-chapter in YAML
   }
 
   await state.save(supabase);
+
+  // Interpolate narration with user info
+  const interpolated = require('../services/tutorial-content').interpolateNarration;
+  if (result.chapter && result.chapter.narration) {
+    result.chapter.narration = interpolated(result.chapter.narration, res.locals.currentUser);
+  }
+
   res.json(result);
 });
 

@@ -6,17 +6,19 @@ const fs = require('fs');
 const path = require('path');
 
 const CHAPTERS_DIR = path.join(__dirname, '..', 'content', 'tutorial', 'd066');
+const DIAGRAMS_DIR = path.join(__dirname, '..', 'views', 'forge', 'tutorial', 'diagrams');
 const CHAPTER_ORDER = [
   '00-welcome',
-  '01-concept-three-things',
-  '02-concept-numbering',
-  '03-do-customer',
-  '04-do-work-order',
-  '05-do-estimate',
-  '06-do-invoice',
-  '07-do-payment',
-  '08-side-quest-quick-quote',
-  '09-wrap-up',
+  '01-three-things',
+  '02-numbering',
+  '03-create-customer',
+  '04-create-wo',
+  '05-add-estimate',
+  '06-convert-to-invoice',
+  '07-record-payment',
+  '08-side-quest-loose-estimate',
+  '09-5-cleanup-explanation',
+  '09-quiz',
 ];
 
 let loaded = false;
@@ -58,4 +60,17 @@ function totalChapters() {
   return chapters.length;
 }
 
-module.exports = { loadChapters, getChapter, totalChapters };
+module.exports = { loadChapters, getChapter, totalChapters, interpolateNarration, getDiagramPath };
+
+/** Replace {{tokens}} in narration with user data. */
+function interpolateNarration(text, user) {
+  if (!text) return '';
+  const vars = { userName: user?.name || 'there', userEmail: user?.email || '' };
+  return text.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] || `{{${key}}}`);
+}
+
+/** Get the file path for a diagram SVG by name. */
+function getDiagramPath(diagramId) {
+  const p = path.join(DIAGRAMS_DIR, `${diagramId}.svg`);
+  return fs.existsSync(p) ? p : null;
+}

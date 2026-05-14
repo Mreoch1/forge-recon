@@ -1,0 +1,137 @@
+# D-066 Chapter 4 — DO IT: Create a Work Order
+# Draft 2026-05-14T16:15Z by Cowork
+#
+# Second hands-on chapter. Builds a real WO under the tutorial customer.
+# Introduces WO numbering, status, scheduling, assignees.
+
+id: "04-create-wo"
+title: "Create your first Work Order"
+chapter_index: 4
+estimated_duration_seconds: 120
+
+steps:
+
+  - id: "intro"
+    coach_text: |
+      Now we make a Work Order. This is the actual job — the work happening
+      at the customer's site. WOs are the heart of FORGE: they capture the
+      who, what, when, where of the field work.
+    typewriter_pacing_ms: 35
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 3000
+
+  - id: "spotlight-new-wo"
+    coach_text: |
+      Look at the top-right of your customer detail page. Click **+ New WO**
+      (or "New Work Order" — wording may vary slightly).
+    spotlight_selector: "[data-action='new-wo']"
+    spotlight_label: "Click here"
+    expected_action: "click_or_route_change"
+    expected_route_pattern: "/work-orders/new\\?customer_id=\\d+"
+    on_wrong_click: |
+      The **New WO** button is in the top-right of the customer detail page.
+
+  - id: "form-arrived"
+    coach_text: |
+      You're on the WO create form now. A few things to notice before you
+      start typing.
+
+      The customer is already filled in — because we came from the customer
+      detail page. FORGE auto-links things when it can.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 3500
+
+  - id: "wo-number-callout"
+    coach_text: |
+      Look at the **WO number** field near the top. It's pre-filled with the
+      next number in your sequence — something like `WO-0001-0028`. You
+      don't need to touch it. It auto-increments.
+    spotlight_selector: "input[name='display_number']"
+    spotlight_label: "Auto-assigned"
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 3500
+
+  - id: "description-prompt"
+    coach_text: |
+      In **Description**, type something specific. I'll suggest:
+      *"Demo job: kitchen drywall repair, unit 1B"*
+
+      Specific descriptions help you scan your WO list later. "Repair work"
+      is too vague.
+    spotlight_selector: "textarea[name='description']"
+    spotlight_label: "Type description"
+    expected_action: "form_field_filled"
+    expected_field: "description"
+
+  - id: "status-callout"
+    coach_text: |
+      Notice the **Status** dropdown. It defaults to **OPEN** — that means
+      the job is on the books but no work is scheduled yet. Later, when
+      you put it on the schedule, it'll move to **SCHEDULED**. When the
+      work is done and billed, it goes **CLOSED**.
+
+      Leave it on OPEN for now.
+    spotlight_selector: "select[name='status']"
+    spotlight_label: "OPEN (default)"
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 4000
+
+  - id: "assignee-callout"
+    coach_text: |
+      **Assignees** — these are the crew members assigned to this WO. You
+      can leave it empty for the tutorial. In real use, picking someone
+      here triggers an email alert to them.
+
+      Skip the rest of the fields (schedule, scope, notes) — all optional.
+      Click **Save**.
+    spotlight_selector: "button[type='submit']"
+    spotlight_label: "Save"
+    expected_action: "form_submit"
+    expected_route_pattern: "/work-orders/\\d+"
+
+  - id: "after-save"
+    coach_text: |
+      Saved. Now you're on the WO detail page. Look at the top — your WO
+      number is there, big and clickable. The yellow **TUTORIAL** badge
+      is here too.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 3000
+
+  - id: "wo-tabs-tour"
+    coach_text: |
+      Look at the tabs (or sections) on the WO detail page: **Estimates**,
+      **Invoices**, **Files**, **Schedule**, **Notes**, **Activity**. This
+      is the single pane where everything about this job lives. Crew comes
+      here on their phone in the field to see what they're doing.
+
+      Right now everything's empty — we just created the WO, no estimate
+      or invoice yet. We'll add an estimate next.
+
+      Type **next**.
+    chips:
+      - label: "Next"
+        value: "next"
+    expected_action: "chip_or_text"
+    branches:
+      "*": "ADVANCE_CHAPTER"
+
+# --- FAQs ---
+
+faqs:
+  - patterns: ["can i change the wo number", "edit wo number"]
+    answer: "Yes — but only on creation. Once saved, the number is locked. FORGE will warn if you'd collide with an existing one."
+  - patterns: ["what does status do", "what are the statuses", "status options"]
+    answer: "OPEN = on the books, no work scheduled. SCHEDULED = on the calendar. CLOSED = work done and billed. Admin can add more statuses (D-069 Phase 2)."
+  - patterns: ["can i delete a wo", "wo delete", "remove wo"]
+    answer: "Yes from the WO detail page (3-dot menu → Delete). It'll cascade-delete attached estimates and invoices, so be careful with real data. For the tutorial, cleanup at the end handles it."
+  - patterns: ["wo without customer", "no customer wo"]
+    answer: "Not allowed. WOs always belong to a customer. If you start one without one, FORGE will ask which customer first."
+  - patterns: ["why no qty", "no quantity fields", "missing qty"]
+    answer: "WOs don't have quantity/unit fields — those live on estimates and invoices (where the money is). The WO is about the JOB itself, not the bill. (We just removed them in D-067d.)"
+  - patterns: ["multi crew", "more than one assignee", "team assignment"]
+    answer: "Yes — assign multiple people. Each gets the email alert. You can also remove an assignee with the X button next to their name (D-067e)."

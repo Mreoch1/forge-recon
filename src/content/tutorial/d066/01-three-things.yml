@@ -1,0 +1,205 @@
+# D-066 Chapter 1 — CONCEPT: The Three Things (Customer, WO, Estimate, Invoice)
+# Draft 2026-05-14T15:30Z by Cowork
+#
+# Teaches the four-entity hierarchy and the three immutable rules.
+# This is a concept chapter — no UI clicks, just narration + diagram + comprehension.
+
+id: "01-three-things"
+title: "The three things"
+chapter_index: 1
+estimated_duration_seconds: 90
+
+steps:
+
+  - id: "concept-open"
+    coach_text: |
+      Before we click anything, let's get the model straight. FORGE is built
+      around four things: customers, work orders, estimates, and invoices.
+    typewriter_pacing_ms: 35
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 2200
+
+  - id: "concept-diagram"
+    coach_text: |
+      Here's how they fit together.
+    diagram_id: "hierarchy-customer-wo-est-inv"
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 3500
+
+  - id: "concept-customer"
+    coach_text: |
+      **Customer** — who you bill. Everything else hangs off a customer.
+      Your Plymouth Square account, John's Residential, Maria's bakery —
+      each one is a customer.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 3000
+
+  - id: "concept-wo"
+    coach_text: |
+      **Work Order** — a job. The actual work you're doing at the customer's
+      site: door replacement, plumbing repair, drywall fix. WOs are where
+      schedule, crew assignments, and field notes live.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 3200
+
+  - id: "concept-est"
+    coach_text: |
+      **Estimate** — what you quoted. Line items, prices, tax. You send it
+      to the customer to get approval before doing the work (or to confirm
+      pricing after).
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 3000
+
+  - id: "concept-inv"
+    coach_text: |
+      **Invoice** — what you billed. Comes from the estimate when the
+      customer says yes. Same line items, same prices — but now it's
+      money they owe you.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 3000
+
+  - id: "rules-intro"
+    coach_text: |
+      Three rules about how these connect. These are important — they
+      shape everything you'll do in FORGE.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 2200
+
+  - id: "rule-1"
+    coach_text: |
+      **Rule 1 — Estimates can stand alone or live under a WO.**
+      Want to send a quick quote before there's even a job? Make a loose
+      estimate directly under the customer. It just sits there until the
+      customer says yes — then you attach it to a new WO.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 3800
+
+  - id: "rule-2"
+    coach_text: |
+      **Rule 2 — Invoices must come from an estimate.**
+      You can't bill someone for nothing. Every invoice has to start from
+      an estimate — because the estimate is where the line items live.
+      FORGE won't let you create an orphan invoice.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 4000
+
+  - id: "rule-3"
+    coach_text: |
+      **Rule 3 — Work Orders can stand alone too.**
+      Sometimes you do the work first and bill after — time and materials.
+      The WO captures the field reality (who did what, when), then you
+      attach an estimate + invoice once you know the numbers.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 4000
+
+  - id: "comprehension-check"
+    coach_text: |
+      Quick check — which of these is **not allowed** in FORGE?
+    chips:
+      - label: "Estimate without a WO"
+        value: "est_no_wo"
+      - label: "WO without an estimate yet"
+        value: "wo_no_est"
+      - label: "Invoice without an estimate"
+        value: "inv_no_est"
+    expected_action: "chip_or_text"
+    branches:
+      est_no_wo: "wrong-est-no-wo"
+      wo_no_est: "wrong-wo-no-est"
+      inv_no_est: "correct-inv-no-est"
+      "*": "wrong-freetext"
+
+  - id: "correct-inv-no-est"
+    coach_text: |
+      Right. Invoice always needs an estimate. The other two are fine —
+      you can have a loose estimate sitting there waiting to be approved,
+      or a WO running with no pricing attached yet.
+
+      Type **next** to move on.
+    chips:
+      - label: "Next"
+        value: "next"
+    expected_action: "chip_or_text"
+    branches:
+      "*": "ADVANCE_CHAPTER"
+
+  - id: "wrong-est-no-wo"
+    coach_text: |
+      Not quite — that one's actually allowed. Estimates can live under a
+      customer without a WO yet. It's the "quick quote" pattern.
+
+      Try again — which of the three is NOT allowed?
+    chips:
+      - label: "Estimate without a WO"
+        value: "est_no_wo"
+      - label: "WO without an estimate yet"
+        value: "wo_no_est"
+      - label: "Invoice without an estimate"
+        value: "inv_no_est"
+    expected_action: "chip_or_text"
+    branches:
+      est_no_wo: "wrong-est-no-wo"
+      wo_no_est: "wrong-wo-no-est"
+      inv_no_est: "correct-inv-no-est"
+      "*": "wrong-freetext"
+
+  - id: "wrong-wo-no-est"
+    coach_text: |
+      Not quite — WOs without an estimate are fine. That's the time-and-
+      materials pattern. The WO runs first, you bill against it later.
+
+      Try again — which of the three is NOT allowed?
+    chips:
+      - label: "Estimate without a WO"
+        value: "est_no_wo"
+      - label: "WO without an estimate yet"
+        value: "wo_no_est"
+      - label: "Invoice without an estimate"
+        value: "inv_no_est"
+    expected_action: "chip_or_text"
+    branches:
+      est_no_wo: "wrong-est-no-wo"
+      wo_no_est: "wrong-wo-no-est"
+      inv_no_est: "correct-inv-no-est"
+      "*": "wrong-freetext"
+
+  - id: "wrong-freetext"
+    coach_text: |
+      Tap one of the three options below to answer.
+    chips:
+      - label: "Estimate without a WO"
+        value: "est_no_wo"
+      - label: "WO without an estimate yet"
+        value: "wo_no_est"
+      - label: "Invoice without an estimate"
+        value: "inv_no_est"
+    expected_action: "chip_or_text"
+    branches:
+      est_no_wo: "wrong-est-no-wo"
+      wo_no_est: "wrong-wo-no-est"
+      inv_no_est: "correct-inv-no-est"
+      "*": "wrong-freetext"
+
+# --- FAQs for off-script questions in this chapter ---
+
+faqs:
+  - patterns: ["what about payments", "where do payments fit", "payments"]
+    answer: "Payments attach to invoices. When a customer pays, you record it on the invoice and it flips to PAID. We'll get to that in chapter 7."
+  - patterns: ["what about projects", "projects"]
+    answer: "Projects are a bigger container — they hold multiple WOs for a long-running job site like a building renovation. We won't cover those in this tour; they're an advanced topic."
+  - patterns: ["what's the difference between estimate and invoice", "estimate vs invoice"]
+    answer: "Estimate = before approval, no money owed yet. Invoice = after approval, money owed. Same line items, different meaning. You convert the estimate into an invoice with one click when the customer says yes."
+  - patterns: ["can i skip an estimate", "skip estimate"]
+    answer: "No — invoice always comes from an estimate. But you can make the estimate and convert it to invoice immediately if you want. We'll do that in chapter 6."
+  - patterns: ["bills", "what about bills"]
+    answer: "Bills are different — those are what YOU owe to vendors/subcontractors. We'll cover them in a later tutorial. This tour is about money coming IN (customer → you)."

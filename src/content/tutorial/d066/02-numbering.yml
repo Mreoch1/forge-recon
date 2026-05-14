@@ -1,0 +1,129 @@
+# D-066 Chapter 2 — CONCEPT: The Numbering Scheme
+# Draft 2026-05-14T15:45Z by Cowork
+#
+# Teaches WO-drives-numbering rule (per GPT Q5 verification).
+# Critical: do NOT teach "invoice inherits estimate sequence" — that's wrong.
+
+id: "02-numbering"
+title: "How numbers work"
+chapter_index: 2
+estimated_duration_seconds: 75
+
+steps:
+
+  - id: "numbering-intro"
+    coach_text: |
+      Every Work Order, Estimate, and Invoice gets a number. Let me show
+      you the pattern so you know what you're looking at.
+    typewriter_pacing_ms: 35
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 2400
+
+  - id: "numbering-diagram"
+    coach_text: |
+      Here's the pattern.
+    diagram_id: "numbering-wo-est-inv"
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 3500
+
+  - id: "numbering-explain"
+    coach_text: |
+      Three parts: a **prefix** (`WO`, `EST`, or `INV`), then your
+      **organization number**, then the **sequence number**.
+
+      Example: `WO-0001-0014` is the 14th work order in organization 0001.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 3200
+
+  - id: "numbering-key-rule"
+    coach_text: |
+      Here's the thing most people don't realize: **the Work Order drives
+      the number.** When you make an estimate or invoice under a WO, they
+      mirror the WO's number.
+
+      So if you have `WO-0001-0014`, the estimate becomes `EST-0001-0014`
+      and the invoice becomes `INV-0001-0014`. Same number, three doc types.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 4500
+
+  - id: "numbering-why"
+    coach_text: |
+      Why? So your paper trail reads cleanly. If a customer calls asking
+      about invoice #0014, you can look at WO-0001-0014 and immediately see
+      the whole picture: the job, the quote, the bill, the payment — all
+      under one number.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 3800
+
+  - id: "numbering-loose-estimate"
+    coach_text: |
+      One edge case: if you make a **loose estimate** (no WO attached yet,
+      like a quick quote), the number will look like `EST-????-????`. The
+      question marks mean "no WO yet — number will fill in when you attach
+      this estimate to a WO."
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 4000
+
+  - id: "numbering-comprehension"
+    coach_text: |
+      Quick check — you make a brand-new Work Order numbered `WO-0001-0027`.
+      Then you create an estimate under it. What's the estimate's number?
+    chips:
+      - label: "EST-0001-0027"
+        value: "correct"
+      - label: "EST-0001-0001"
+        value: "wrong_reset"
+      - label: "EST-0001-0028"
+        value: "wrong_next"
+    expected_action: "chip_or_text"
+    branches:
+      correct: "correct-mirror"
+      wrong_reset: "wrong-mirror"
+      wrong_next: "wrong-mirror"
+      "*": "wrong-mirror"
+
+  - id: "correct-mirror"
+    coach_text: |
+      Exactly. The estimate mirrors its parent WO's number — same `0027`.
+      Same goes for the invoice when you convert: it'll be `INV-0001-0027`.
+
+      Type **next** to move on.
+    chips:
+      - label: "Next"
+        value: "next"
+    expected_action: "chip_or_text"
+    branches:
+      "*": "ADVANCE_CHAPTER"
+
+  - id: "wrong-mirror"
+    coach_text: |
+      Not quite. The estimate mirrors its parent WO's number — exactly the
+      same. So `WO-0001-0027` gives you `EST-0001-0027`. The sequence
+      doesn't reset and doesn't increment to a new number — it's the same
+      number across all three doc types.
+
+      Type **next** to move on.
+    chips:
+      - label: "Next"
+        value: "next"
+    expected_action: "chip_or_text"
+    branches:
+      "*": "ADVANCE_CHAPTER"
+
+faqs:
+  - patterns: ["what about year", "where's the year", "year"]
+    answer: "The middle number is your organization (account) ID, not the year. Some construction software uses year-based numbering — FORGE doesn't, because long jobs that span years would have inconsistent numbers."
+  - patterns: ["can i change the number", "override the number", "custom number"]
+    answer: "The sequence auto-increments when you create a WO. You can edit it manually, but FORGE will warn you if you'd collide with an existing number. Most users let it auto-assign."
+  - patterns: ["what if i delete a wo", "delete wo", "deleted wo"]
+    answer: "Numbers aren't reused. If you delete WO-0001-0014, the next WO is still WO-0001-0015. This is intentional — gaps in the sequence are easier to audit than reused numbers."
+  - patterns: ["multiple orgs", "different organizations"]
+    answer: "Each organization gets its own sequence. So `WO-0001-0014` and `WO-0002-0014` are different work orders in different organizations. The middle number keeps them separate."
+  - patterns: ["bills", "vendor bills", "bill numbers"]
+    answer: "Bills (what you owe vendors) have their own number sequence with a different prefix. They're not part of the WO/Est/Inv mirroring rule — different lineage."

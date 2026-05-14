@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  D-066 Diagram — paid-stamp-callout
+  Used in Chapter 7 (Record a payment), step "status-flip"
+  Style: neutral textbook with one RED accent (the PAID stamp)
+    - Light bg (#fafafa)
+    - Monochrome gray for the example invoice PDF preview
+    - Red accent (#dc2626) only on the PAID stamp itself
+  Shows: simplified invoice PDF preview with the diagonal red PAID overlay
+  visible, so users know what to expect after recording a payment.
+  Cross-references D-067h (PAID stamp implementation by Hermes).
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" role="img" aria-label="Simplified invoice PDF preview showing a translucent diagonal red PAID stamp with the payment date below it. The stamp appears automatically when an invoice's status flips to PAID.">
+  <title>PAID stamp on invoice PDF</title>
+
+  <rect width="600" height="400" fill="#fafafa"/>
+
+  <!-- Header label -->
+  <text x="300" y="32" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#6b7280">This is what the invoice PDF looks like after PAID</text>
+
+  <!-- Faux invoice PDF preview (page-shaped card) -->
+  <g transform="translate(120,60)">
+    <!-- Page background -->
+    <rect width="360" height="300" rx="4" ry="4" fill="#ffffff" stroke="#1f2937" stroke-width="1.5"/>
+
+    <!-- Subtle page texture (header band) -->
+    <rect width="360" height="48" rx="4" ry="4" fill="#f9fafb"/>
+    <line x1="0" y1="48" x2="360" y2="48" stroke="#e5e7eb" stroke-width="1"/>
+
+    <!-- Invoice number top-right -->
+    <text x="340" y="30" text-anchor="end" font-family="ui-monospace, monospace" font-size="14" font-weight="600" fill="#1f2937">INV-0001-0014</text>
+
+    <!-- Company name top-left -->
+    <text x="20" y="30" font-family="system-ui, sans-serif" font-size="14" font-weight="700" fill="#1f2937">Recon Enterprises</text>
+
+    <!-- Bill To row -->
+    <g font-family="system-ui, sans-serif" font-size="11" fill="#6b7280">
+      <text x="20" y="74" font-weight="600" fill="#1f2937">Bill to</text>
+      <text x="20" y="90">Tutorial Customer</text>
+      <text x="20" y="104">123 Example St</text>
+    </g>
+
+    <!-- Date / Due Date -->
+    <g font-family="system-ui, sans-serif" font-size="11" fill="#6b7280">
+      <text x="340" y="74" text-anchor="end" font-weight="600" fill="#1f2937">Date</text>
+      <text x="340" y="90" text-anchor="end">2026-05-14</text>
+    </g>
+
+    <!-- Line items table -->
+    <g transform="translate(20,130)">
+      <line x1="0" y1="0" x2="320" y2="0" stroke="#1f2937" stroke-width="1"/>
+      <g font-family="system-ui, sans-serif" font-size="10" fill="#6b7280" font-weight="600">
+        <text x="0" y="16">DESCRIPTION</text>
+        <text x="200" y="16">QTY</text>
+        <text x="240" y="16">UNIT</text>
+        <text x="320" y="16" text-anchor="end">TOTAL</text>
+      </g>
+      <line x1="0" y1="22" x2="320" y2="22" stroke="#e5e7eb"/>
+      <g font-family="system-ui, sans-serif" font-size="10" fill="#1f2937">
+        <text x="0" y="40">Labor — drywall repair</text>
+        <text x="200" y="40">4</text>
+        <text x="240" y="40">$80</text>
+        <text x="320" y="40" text-anchor="end">$320</text>
+      </g>
+      <g font-family="system-ui, sans-serif" font-size="10" fill="#1f2937">
+        <text x="0" y="58">Materials — sheet + compound</text>
+        <text x="200" y="58">1</text>
+        <text x="240" y="58">$45</text>
+        <text x="320" y="58" text-anchor="end">$45</text>
+      </g>
+      <line x1="0" y1="68" x2="320" y2="68" stroke="#e5e7eb"/>
+      <g font-family="system-ui, sans-serif" font-size="11" fill="#1f2937">
+        <text x="200" y="86">Subtotal</text>
+        <text x="320" y="86" text-anchor="end">$365</text>
+        <text x="200" y="102">Tax (6%)</text>
+        <text x="320" y="102" text-anchor="end">$22</text>
+        <text x="200" y="122" font-weight="700">Total</text>
+        <text x="320" y="122" text-anchor="end" font-weight="700">$387</text>
+      </g>
+    </g>
+
+    <!-- THE PAID STAMP — diagonal, translucent red, big -->
+    <g transform="translate(180,150) rotate(-18)" opacity="0.85">
+      <!-- Stamp border (outer ring suggesting a rubber stamp) -->
+      <rect x="-90" y="-30" width="180" height="60" rx="6" ry="6"
+            fill="none" stroke="#dc2626" stroke-width="4"/>
+      <!-- PAID text -->
+      <text x="0" y="14" text-anchor="middle"
+            font-family="system-ui, sans-serif" font-size="44"
+            font-weight="900" fill="#dc2626" letter-spacing="6">PAID</text>
+    </g>
+
+    <!-- Payment date sub-stamp below -->
+    <g transform="translate(180,212) rotate(-18)" opacity="0.85">
+      <text x="0" y="0" text-anchor="middle"
+            font-family="ui-monospace, monospace" font-size="11"
+            fill="#dc2626" font-weight="600">2026-05-14</text>
+    </g>
+  </g>
+
+  <!-- Callout arrow + label pointing at the stamp -->
+  <g stroke="#dc2626" stroke-width="1.5" fill="none">
+    <line x1="100" y1="220" x2="180" y2="180"/>
+    <polygon points="178,178 184,188 174,186" fill="#dc2626" stroke="none"/>
+  </g>
+  <text x="40" y="225" font-family="system-ui, sans-serif" font-size="12" fill="#dc2626" font-weight="600">PAID stamp</text>
+  <text x="40" y="241" font-family="system-ui, sans-serif" font-size="11" fill="#6b7280">+ payment date</text>
+
+  <!-- Bottom explanation -->
+  <g font-family="system-ui, sans-serif" font-size="11" fill="#6b7280">
+    <text x="300" y="378" text-anchor="middle">The stamp appears on the PDF the moment you record a payment</text>
+    <text x="300" y="392" text-anchor="middle">that covers the invoice balance. No manual flag needed.</text>
+  </g>
+</svg>

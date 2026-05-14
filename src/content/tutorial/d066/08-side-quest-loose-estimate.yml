@@ -1,0 +1,141 @@
+# D-066 Chapter 8 — SIDE QUEST: The Quick Quote (loose estimate, no WO)
+# Draft 2026-05-14T16:55Z by Cowork
+#
+# Optional but recommended. Teaches the "loose estimate" pattern — when a
+# customer asks for a quote before there's even a defined job yet.
+# Demonstrates Rule 1 ("Estimates can stand alone").
+
+id: "08-side-quest-loose-estimate"
+title: "Side quest: quick quote (no WO needed)"
+chapter_index: 8
+estimated_duration_seconds: 90
+
+steps:
+
+  - id: "intro"
+    coach_text: |
+      Quick side quest. Sometimes a customer asks for a price before there's
+      even a job on the books — they're shopping around, or they just want
+      a number before they commit.
+
+      That's a **loose estimate**. No WO needed. Let me show you.
+    typewriter_pacing_ms: 35
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 3000
+
+  - id: "back-to-customer"
+    coach_text: |
+      You should still be on the customer detail page from chapter 7. If
+      not, click the customer in the breadcrumb.
+    chips:
+      - label: "I'm there"
+        value: "ok"
+    expected_action: "chip_or_text"
+    branches:
+      "*": "spotlight-new-estimate"
+
+  - id: "spotlight-new-estimate"
+    coach_text: |
+      Find **+ New Estimate** on the customer detail page — NOT the New
+      WO button. We're skipping the work order step entirely.
+    spotlight_selector: "[data-action='new-estimate-loose']"
+    spotlight_label: "Click here (not New WO!)"
+    expected_action: "click_or_route_change"
+    expected_route_pattern: "/estimates/new\\?customer_id=\\d+(&|$)"
+    on_wrong_click: |
+      Look for **+ New Estimate** in the customer's action row. It's a
+      separate button from New WO. The loose estimate path.
+
+  - id: "form-arrived"
+    coach_text: |
+      You're on the estimate form again, but notice the **WO field is
+      empty** — and so is the estimate number, showing `EST-????-????`.
+
+      That's the marker for a loose estimate. The number question marks
+      mean "no WO attached yet — number will fill in if you attach to one
+      later."
+    spotlight_selector: "input[name='display_number']"
+    spotlight_label: "EST-????-????"
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 4500
+
+  - id: "quick-fill"
+    coach_text: |
+      Add one quick line item to make it feel real.
+      Description: *"Rough quote: bathroom tile"*. Qty 1. Unit price 1500.
+
+      Skip tax for this one. Save.
+    spotlight_selector: "input[name='line_items[0].description']"
+    spotlight_label: "Type, then qty 1, $1500"
+    expected_action: "form_field_filled_multiple"
+    expected_fields:
+      - "line_items[0].description"
+      - "line_items[0].qty"
+      - "line_items[0].unit_price"
+
+  - id: "save"
+    coach_text: |
+      Click **Save**.
+    spotlight_selector: "button[type='submit']"
+    spotlight_label: "Save"
+    expected_action: "form_submit"
+    expected_route_pattern: "/estimates/\\d+"
+
+  - id: "after-save"
+    coach_text: |
+      Saved. The estimate exists in the customer's record, status **DRAFT**
+      (or sometimes **OPEN** depending on flow), no WO attached. You can
+      send the customer the PDF right now — it'll have the question marks
+      where the number would normally be.
+
+      This is the "I'll send you a number, get back to me if you want to
+      move forward" pattern.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 4000
+
+  - id: "what-happens-next"
+    coach_text: |
+      Three things can happen to a loose estimate:
+
+      **1. Customer says yes** → click **Attach to WO** on the estimate.
+      Pick or create a WO. The number question marks fill in.
+
+      **2. Customer says no** → click **Decline**. The estimate stays in
+      your records (good for trend analysis — what % of quotes win) but
+      gets a strikethrough.
+
+      **3. Nothing happens** → the estimate sits there. Some shops archive
+      old loose estimates monthly so the list stays clean.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 5500
+
+  - id: "ready-to-finish"
+    coach_text: |
+      That's the loose estimate pattern. One more chapter — a quick quiz
+      to lock in what you've learned, then cleanup. Type **next**.
+    chips:
+      - label: "Next"
+        value: "next"
+    expected_action: "chip_or_text"
+    branches:
+      "*": "ADVANCE_CHAPTER"
+
+# --- FAQs ---
+
+faqs:
+  - patterns: ["why not just make a wo", "wo first anyway", "save time"]
+    answer: "Some quotes never become real jobs. Making a fake WO just to throw it away pollutes your data. Loose estimates skip the cleanup."
+  - patterns: ["can't convert loose to invoice", "loose estimate invoice"]
+    answer: "Correct — invoices require a WO. If a loose estimate gets approved, you attach it to a WO first, THEN convert to invoice. The number fills in along the way."
+  - patterns: ["multiple loose estimates same customer", "many quotes"]
+    answer: "Allowed. A customer might be considering 3 different jobs from you — each gets its own loose estimate. They're independent until you attach to WOs."
+  - patterns: ["why no wo by default", "default wo"]
+    answer: "Because of this exact pattern. Forcing a WO on every quote would slow down customer-facing communication. FORGE makes loose quotes a first-class flow."
+  - patterns: ["win rate", "trend analysis", "quotes accepted"]
+    answer: "FORGE tracks decline rate on estimates. Admin dashboard shows your win/loss percentage. Not covered in this tutorial — but the data is there."
+  - patterns: ["draft vs sent estimate"]
+    answer: "DRAFT = you haven't sent it yet. SENT = customer has seen the PDF. ACCEPTED/DECLINED = customer responded. FORGE auto-promotes between states when you click Send or Decline."

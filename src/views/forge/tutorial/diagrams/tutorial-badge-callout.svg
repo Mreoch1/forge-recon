@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  D-066 Diagram — tutorial-badge-callout
+  Used in Chapter 3 (Create a Customer), step "react-after-save"
+  Focused/zoomed variant of tutorial-badge-example — emphasizes the BADGE itself
+  so the user can spot it on their real customer detail page.
+  Style: neutral textbook with yellow accent
+    - Light bg (#fafafa)
+    - Faded backdrop suggesting the rest of the page
+    - Yellow accent (#fbbf24 / #92400e) on the badge — highlighted
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 240" role="img" aria-label="Close-up of the yellow TUTORIAL badge that appears next to record names during the tutorial. Look for this badge on your customer detail page to confirm the record was created in tutorial mode.">
+  <title>The TUTORIAL badge — what to look for</title>
+
+  <rect width="500" height="240" fill="#fafafa"/>
+
+  <!-- Hint text top -->
+  <text x="250" y="32" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#6b7280">Look near the customer name. You'll see:</text>
+
+  <!-- The "page" snippet showing customer name + badge -->
+  <g transform="translate(50,60)">
+    <!-- Faded outline of where the page is -->
+    <rect width="400" height="80" rx="8" ry="8" fill="#ffffff" stroke="#e5e7eb" stroke-width="1"/>
+
+    <!-- Customer name (large, grayed slightly to make badge pop) -->
+    <text x="20" y="50" font-family="system-ui, sans-serif" font-size="24" font-weight="600" fill="#1f2937">Tutorial Customer</text>
+
+    <!-- TUTORIAL badge — bigger, prominent -->
+    <g transform="translate(245,30)">
+      <rect width="120" height="32" rx="16" ry="16" fill="#fef3c7" stroke="#f59e0b" stroke-width="2"/>
+      <text x="60" y="22" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#92400e" letter-spacing="1">TUTORIAL</text>
+    </g>
+  </g>
+
+  <!-- Arrow pointing AT the badge -->
+  <g stroke="#92400e" stroke-width="2" fill="none">
+    <line x1="305" y1="170" x2="305" y2="105"/>
+    <polygon points="305,100 299,112 311,112" fill="#92400e" stroke="none"/>
+  </g>
+
+  <!-- Callout text below the arrow -->
+  <text x="305" y="190" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#92400e">This pill = tutorial data</text>
+
+  <!-- Sub-explanation -->
+  <text x="250" y="215" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#6b7280">It disappears (or the record gets deleted) at end of the tour.</text>
+</svg>

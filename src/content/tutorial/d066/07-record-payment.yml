@@ -1,0 +1,139 @@
+# D-066 Chapter 7 — DO IT: Record a Payment
+# Draft 2026-05-14T16:45Z by Cowork
+#
+# Fourth hands-on chapter. User records a payment, sees invoice flip to PAID.
+# Introduces: payment ledger, status flip, customer-level AR aggregation.
+
+id: "07-record-payment"
+title: "Record a payment"
+chapter_index: 7
+estimated_duration_seconds: 90
+
+steps:
+
+  - id: "intro"
+    coach_text: |
+      Customer paid. (Still pretending — but in real life this is the
+      happy ending.) Now we close the loop: record the payment so the
+      invoice flips to PAID and the money shows up in your reports.
+    typewriter_pacing_ms: 35
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 3000
+
+  - id: "spotlight-record-payment"
+    coach_text: |
+      On the invoice detail page, find **Record Payment**. Click it.
+    spotlight_selector: "[data-action='record-payment']"
+    spotlight_label: "Click here"
+    expected_action: "click_or_route_change"
+    on_wrong_click: |
+      The **Record Payment** button is in the action row on the invoice
+      detail page, near the top.
+
+  - id: "modal-arrived"
+    coach_text: |
+      A payment dialog opened. You need three things: **amount**, **date**,
+      and **method**.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 2200
+
+  - id: "amount-prefilled"
+    coach_text: |
+      FORGE pre-fills the amount with the **balance owed** — so if it's a
+      full-payment scenario, you just hit Save. If it's a partial payment,
+      you'd type a smaller number.
+
+      For this tutorial: leave it on the full balance ($387).
+    spotlight_selector: "input[name='amount']"
+    spotlight_label: "Pre-filled (full balance)"
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 3500
+
+  - id: "date-prefilled"
+    coach_text: |
+      Date defaults to today. Leave it.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 1800
+
+  - id: "method-select"
+    coach_text: |
+      Pick a payment method from the dropdown — Check, ACH, Card, Cash,
+      Other. For the tutorial, pick **Check** (most common in construction).
+    spotlight_selector: "select[name='method']"
+    spotlight_label: "Pick Check"
+    expected_action: "form_field_filled"
+    expected_field: "method"
+
+  - id: "save-payment"
+    coach_text: |
+      Click **Save Payment**.
+    spotlight_selector: "button[type='submit'][data-action='save-payment']"
+    spotlight_label: "Save"
+    expected_action: "form_submit"
+
+  - id: "status-flip"
+    coach_text: |
+      Look at the invoice. The status badge just flipped from **OPEN** (or
+      **SENT**) to **PAID** — with the date marked alongside. The PDF will
+      also now show the big PAID stamp when downloaded.
+    diagram_id: "paid-stamp-callout"
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 4000
+
+  - id: "payment-row"
+    coach_text: |
+      Scroll down to the **Payments** section on this invoice. You'll see
+      one row — your $387 payment with today's date and method. If they
+      paid in two installments, you'd see two rows here, and the invoice
+      would flip to PAID when the total covered the balance.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 3800
+
+  - id: "customer-ledger"
+    coach_text: |
+      One more thing worth seeing — click back to the **customer** detail
+      page (link in the top breadcrumb). Look for the **Payment Ledger**
+      section.
+    spotlight_selector: "[data-link='customer-from-invoice']"
+    spotlight_label: "Click here"
+    expected_action: "click_or_route_change"
+    expected_route_pattern: "/customers/\\d+"
+
+  - id: "ledger-callout"
+    coach_text: |
+      The customer's payment ledger shows every payment they've ever made
+      to you, across all their invoices. Yours is at the top now. If they
+      called asking "what have I paid you this year", this is where you'd
+      look.
+
+      Type **next** to keep going.
+    chips:
+      - label: "Next"
+        value: "next"
+    expected_action: "chip_or_text"
+    branches:
+      "*": "ADVANCE_CHAPTER"
+
+# --- FAQs ---
+
+faqs:
+  - patterns: ["partial payment", "split payment", "two payments"]
+    answer: "Yes — record multiple payments against the same invoice. Each is its own row. The invoice flips to PAID only when the sum covers the balance."
+  - patterns: ["wrong amount", "fix payment amount", "edit payment"]
+    answer: "Click the payment row → Edit. Or delete and re-create. The invoice status recalculates automatically."
+  - patterns: ["refund", "customer overpaid", "credit"]
+    answer: "Record a negative payment to refund. The invoice flips back to OPEN with a credit balance. Edge case but supported."
+  - patterns: ["where do payments live", "payments table"]
+    answer: "Each payment is its own row tied to an invoice. They roll up to the customer's payment ledger (which we just saw) and to your overall AR aging on the dashboard."
+  - patterns: ["method change", "wrong method", "fix method"]
+    answer: "Edit the payment row. Method is just for your records — it doesn't affect status or amounts."
+  - patterns: ["taxes on payment", "deductions", "fees"]
+    answer: "FORGE records gross — what they paid. If you absorb credit card fees, log them as a separate expense or negative line item. Out of scope for this tour."
+  - patterns: ["mark paid manually", "skip payment", "no payment received"]
+    answer: "You can mark an invoice PAID without a payment row, but it's not recommended — you'll lose the audit trail. If you must (e.g. write-off), use the 3-dot menu → Mark Paid (no payment)."

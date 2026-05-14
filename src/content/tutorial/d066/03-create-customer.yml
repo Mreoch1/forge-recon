@@ -1,0 +1,134 @@
+# D-066 Chapter 3 — DO IT: Create a Customer
+# Draft 2026-05-14T16:05Z by Cowork
+#
+# First hands-on chapter. User creates a real customer (tutorial-tagged).
+# Tests the spotlight + live-app interaction pattern.
+
+id: "03-create-customer"
+title: "Create your first customer"
+chapter_index: 3
+estimated_duration_seconds: 90
+
+steps:
+
+  - id: "intro"
+    coach_text: |
+      OK, time to actually do something. We'll start with a customer.
+      Remember, everything in FORGE hangs off a customer — so this is
+      always step one for any new job.
+    typewriter_pacing_ms: 35
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 2800
+
+  - id: "spotlight-nav"
+    coach_text: |
+      Look at the left navigation. Click **Customers**.
+    spotlight_selector: "[data-nav='customers']"
+    spotlight_label: "Click here"
+    expected_action: "click_or_route_change"
+    expected_route: "/customers"
+    on_wrong_click: |
+      I think you're looking for the **Customers** link on the left side
+      of the screen. Want me to point again?
+
+  - id: "react-on-customers-page"
+    coach_text: |
+      Good. This is your customer list. Right now it's mostly empty for
+      you — we'll fix that. Look for the **New Customer** button. It's
+      in the top-right.
+    spotlight_selector: "[data-action='new-customer']"
+    spotlight_label: "Click here"
+    expected_action: "click_or_route_change"
+    expected_route: "/customers/new"
+    on_wrong_click: |
+      The **New Customer** button is in the top-right corner of this page.
+
+  - id: "fill-form-intro"
+    coach_text: |
+      This is the customer create form. The only field that's actually
+      required is **Customer Name** — everything else is optional. Type a
+      memorable name. I'll suggest "Tutorial Customer" so we know what to
+      delete at the end, but you can call it whatever.
+    spotlight_selector: "input[name='name']"
+    spotlight_label: "Type a name"
+    expected_action: "form_field_filled"
+    expected_field: "name"
+
+  - id: "after-name-typed"
+    coach_text: |
+      Good. You don't need to fill in address, email, or phone for this
+      tour — but in real life you'd want them so your invoices and emails
+      go to the right place. We'll skip those for now.
+
+      Click **Save**.
+    spotlight_selector: "button[type='submit']"
+    spotlight_label: "Save"
+    expected_action: "form_submit"
+    expected_route_pattern: "/customers/\\d+"
+
+  - id: "react-after-save"
+    coach_text: |
+      Done. You just created your first customer. Look at the top of the
+      page — see the little yellow **TUTORIAL** badge next to the name?
+      That's how FORGE marks data created during this tour, so it doesn't
+      get mixed up with your real customers and so we can clean it up
+      cleanly at the end.
+    diagram_id: "tutorial-badge-callout"
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 4500
+
+  - id: "what-you-see"
+    coach_text: |
+      The page you're on now is the **customer detail page**. From here
+      you can see all the WOs, estimates, invoices, payments, and files
+      tied to this customer. Right now it's empty — we just made the
+      customer, no jobs yet. We'll fix that next.
+
+      Type **next** when you're ready.
+    chips:
+      - label: "Next"
+        value: "next"
+      - label: "Wait — show me around first"
+        value: "tour"
+    expected_action: "chip_or_text"
+    branches:
+      next: "ADVANCE_CHAPTER"
+      tour: "mini-tour"
+      "*": "ADVANCE_CHAPTER"
+
+  - id: "mini-tour"
+    coach_text: |
+      Sure. On the customer detail page you'll see tabs (or sections):
+      **Work Orders**, **Estimates**, **Invoices**, **Payments**, **Files**.
+      Each one filters to just records tied to this customer. The
+      **summary header** at the top shows totals — open WOs, total billed,
+      AR aging.
+
+      The buttons in the top-right let you start a new WO, send a quick
+      estimate, or upload a file. We'll use the **New WO** button next.
+
+      Type **next** to keep going.
+    chips:
+      - label: "Next"
+        value: "next"
+    expected_action: "chip_or_text"
+    branches:
+      "*": "ADVANCE_CHAPTER"
+
+# --- FAQs ---
+
+faqs:
+  - patterns: ["i made a typo", "wrong name", "rename customer"]
+    answer: "No problem — click the customer's name (or the Edit button on the detail page) and you can rename anytime. The TUTORIAL badge stays until cleanup."
+  - patterns: ["multiple customers same name", "duplicate name", "two customers same"]
+    answer: "FORGE allows duplicate names but flags them with a warning. For real use, add the unit number or address to disambiguate (`Plymouth Square` vs `Plymouth Square 2`)."
+  - patterns: ["company vs person", "is this a business or person"]
+    answer: "FORGE treats both the same — a customer is just whoever you bill. Names like 'Acme Plumbing LLC' or 'John Smith' both work."
+  - patterns: ["can i import customers", "bulk import", "csv import"]
+    answer: "Yes — there's a bulk import on the admin page. Out of scope for this tour, but it exists."
+  - patterns: ["why no email required", "email not required"]
+    answer: "Because plenty of construction customers don't email — older property managers, walk-ins, etc. You can still email an invoice later by adding the email when needed."
+  - patterns: ["accidentally saved", "want to delete this"]
+    answer: "All good — at the end of the tour I'll offer to clean up everything we made. Or you can delete it manually from the customer detail page anytime."

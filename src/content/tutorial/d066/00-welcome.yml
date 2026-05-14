@@ -1,23 +1,105 @@
-# Chapter 0 — Welcome + Real vs Tutorial Data
-id: welcome
-title: "Welcome to FORGE"
-narration: |
-  Hi {{userName}}! I'm your FORGE tour guide. I'll walk you through the app
-  in about 10–12 minutes. By the end, you'll have created a real customer,
-  work order, estimate, and invoice — safely tagged as TUTORIAL so nothing
-  leaks into your real bookkeeping.
+# D-066 Chapter 0 — Welcome + "Real vs Tutorial Data" Checkpoint
+# Draft 2026-05-14T03:40Z by Cowork
+#
+# When Hermes builds the D-066 content loader, this file (and 8 siblings)
+# moves to: construction-app/src/content/tutorial/d066/00-welcome.yml
+# The loader reads {id, steps[]} structure.
 
-  **Quick heads up:** everything you create in this tutorial gets a yellow
-  TUTORIAL badge. We won't email anyone real, and at the end you choose
-  whether to keep or delete everything. Nothing leaks unless you keep it.
+id: "00-welcome"
+title: "Welcome"
+chapter_index: 0
+estimated_duration_seconds: 90
 
-  Ready? Type `start` to begin, or `not now` to come back later.
+# Each step is a coach utterance (typewriter-rendered) + optional spotlight
+# + optional comprehension chip set + expected user action.
+# Steps advance via: user types `next`, presses Enter on chips, or types
+# the suggested phrase. User can always type `exit` or `back`.
+
 steps:
-  - narration
-  - wait_for_action
-  - reaction
-on_enter: { }
-on_action:
-  start: { advance: true }
-  not_now: { redirect: "/forge" }
-quiz: null
+
+  - id: "intro-greeting"
+    coach_text: |
+      Hey {{first_name}}, welcome to FORGE.
+      I'm going to walk you through how this works — about 10 to 12 minutes total.
+    typewriter_pacing_ms: 35
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 2200
+
+  - id: "intro-what-we-do"
+    coach_text: |
+      We'll go through the four things that matter most in FORGE: customers,
+      work orders, estimates, and invoices. You'll create real ones as we go,
+      and at the end you can keep them or wipe them — your call.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 2800
+
+  - id: "checkpoint-real-vs-tutorial"
+    coach_text: |
+      Quick heads up before we start.
+
+      Everything you make in this tutorial is real data in your FORGE account.
+      I'll tag every customer, work order, estimate, and invoice with a yellow
+      TUTORIAL badge — you'll see it on each one. Nothing emails out to anyone
+      real during the tour, even when we hit the "send" buttons.
+
+      When we finish, I'll ask if you want to delete it all or keep it as a
+      reference. Default is delete.
+    diagram_id: "tutorial-badge-example"
+    chips:
+      - label: "Got it"
+        value: "got_it"
+      - label: "Wait — explain that more"
+        value: "explain_more"
+    expected_action: "chip_or_text"
+    branches:
+      got_it: "ready-prompt"
+      explain_more: "deep-real-vs-tutorial"
+      "*": "ready-prompt"   # any free-text → assume understanding
+
+  - id: "deep-real-vs-tutorial"
+    coach_text: |
+      Sure. The way FORGE handles this: when you start a tutorial, I open a
+      tutorial session and stamp every row I create with that session's ID.
+      Your real records aren't touched — they're filtered out of summary
+      counts and dashboards while you're in the tour. Email sends route to a
+      no-op so your customers never see test messages.
+
+      When the tour ends, you pick: delete everything tagged this session,
+      or keep them and strip the tag so they become regular records. Either
+      way, your existing data is unaffected.
+    chips:
+      - label: "Got it, let's start"
+        value: "ready"
+    expected_action: "chip_or_text"
+    branches:
+      "*": "ready-prompt"
+
+  - id: "ready-prompt"
+    coach_text: |
+      Type **start** to begin, or **not now** to come back later.
+    chips:
+      - label: "Start"
+        value: "start"
+      - label: "Not now"
+        value: "exit"
+    expected_action: "chip_or_text"
+    branches:
+      start: "ADVANCE_CHAPTER"
+      not_now: "EXIT_TUTORIAL"
+      exit: "EXIT_TUTORIAL"
+      "*": "ADVANCE_CHAPTER"
+
+# --- Coach hardcoded answers for off-script user questions in this chapter ---
+# (Phase 1: deterministic. AI freeform fallback is D-066 v2.)
+
+faqs:
+  - patterns: ["what is forge", "what's forge", "forge is what"]
+    answer: "FORGE = Field Operations & Resource Guidance Engine. It's your construction management app — work orders, estimates, invoices, schedules, billing. We'll see it all in this tour."
+  - patterns: ["how long", "duration", "how much time"]
+    answer: "About 10 to 12 minutes. You can stop anytime — type `exit` and we'll clean up."
+  - patterns: ["can i skip", "skip", "skip this"]
+    answer: "Yes — type `exit` and we'll skip the tutorial. You can always replay it later from the Start Tutorial button on /forge."
+  - patterns: ["i'm in a hurry", "fast", "speed"]
+    answer: "Got it. I'll keep moving — type `next` to advance through narration faster, and we'll do the hands-on parts at your pace."

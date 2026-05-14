@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  D-066 Diagram — hierarchy-customer-wo-est-inv
+  Used in Chapter 1 (The Three Things), step "concept-diagram"
+  Style: neutral textbook per GPT Q6 verdict
+    - Light background (#fafafa)
+    - Monochrome gray lines (#1f2937 strokes, #6b7280 secondary)
+    - Cyan accent (#06b6d4) only on the active node/path
+  Hermes: render inline in views/forge/tutorial/diagrams/hierarchy-customer-wo-est-inv.ejs
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 320" role="img" aria-label="The four FORGE entities arranged in their hierarchy: Customer leads to Work Order, which leads to Estimate, which converts to Invoice.">
+  <title>FORGE entity hierarchy</title>
+
+  <!-- Background -->
+  <rect width="800" height="320" fill="#fafafa"/>
+
+  <!-- Style defs -->
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1f2937"/>
+    </marker>
+  </defs>
+
+  <!-- Customer node -->
+  <g transform="translate(40,110)">
+    <rect width="140" height="100" rx="12" ry="12" fill="#ffffff" stroke="#1f2937" stroke-width="2"/>
+    <text x="70" y="40" text-anchor="middle" font-family="system-ui, sans-serif" font-size="18" font-weight="600" fill="#1f2937">Customer</text>
+    <text x="70" y="65" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" fill="#6b7280">Who you bill</text>
+    <text x="70" y="83" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#6b7280">Plymouth Square</text>
+  </g>
+
+  <!-- Arrow Customer → WO -->
+  <line x1="180" y1="160" x2="220" y2="160" stroke="#1f2937" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Work Order node -->
+  <g transform="translate(220,110)">
+    <rect width="140" height="100" rx="12" ry="12" fill="#ffffff" stroke="#1f2937" stroke-width="2"/>
+    <text x="70" y="40" text-anchor="middle" font-family="system-ui, sans-serif" font-size="18" font-weight="600" fill="#1f2937">Work Order</text>
+    <text x="70" y="65" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" fill="#6b7280">The job</text>
+    <text x="70" y="83" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#6b7280">WO-0001-0014</text>
+  </g>
+
+  <!-- Arrow WO → Estimate -->
+  <line x1="360" y1="160" x2="400" y2="160" stroke="#1f2937" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Estimate node -->
+  <g transform="translate(400,110)">
+    <rect width="140" height="100" rx="12" ry="12" fill="#ffffff" stroke="#1f2937" stroke-width="2"/>
+    <text x="70" y="40" text-anchor="middle" font-family="system-ui, sans-serif" font-size="18" font-weight="600" fill="#1f2937">Estimate</text>
+    <text x="70" y="65" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" fill="#6b7280">What you quoted</text>
+    <text x="70" y="83" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#6b7280">EST-0001-0014</text>
+  </g>
+
+  <!-- Arrow Estimate → Invoice (convert) -->
+  <line x1="540" y1="160" x2="580" y2="160" stroke="#1f2937" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="560" y="148" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" font-style="italic" fill="#6b7280">convert</text>
+
+  <!-- Invoice node -->
+  <g transform="translate(580,110)">
+    <rect width="140" height="100" rx="12" ry="12" fill="#ffffff" stroke="#1f2937" stroke-width="2"/>
+    <text x="70" y="40" text-anchor="middle" font-family="system-ui, sans-serif" font-size="18" font-weight="600" fill="#1f2937">Invoice</text>
+    <text x="70" y="65" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" fill="#6b7280">What you billed</text>
+    <text x="70" y="83" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#6b7280">INV-0001-0014</text>
+  </g>
+
+  <!-- Rule callouts below -->
+  <g font-family="system-ui, sans-serif" font-size="11" fill="#6b7280">
+    <text x="400" y="248" text-anchor="middle" font-weight="600" fill="#1f2937">Three rules</text>
+    <text x="400" y="270" text-anchor="middle">1. Estimates can stand alone (no WO) — loose quotes are fine.</text>
+    <text x="400" y="286" text-anchor="middle">2. Invoices must come from an estimate — no orphan billing.</text>
+    <text x="400" y="302" text-anchor="middle">3. Work Orders can stand alone — T&amp;M jobs you'll bill later.</text>
+  </g>
+
+  <!--
+    Cyan accent variant (active-node highlight): wrap each <g transform> node
+    in a class and toggle a "active" modifier from the coach state.
+    Example for Hermes when implementing:
+
+      <rect ... stroke="#06b6d4" stroke-width="3"/>
+      <text ... fill="#06b6d4"/>
+
+    Apply only to the node the current step is referencing. Default = all nodes
+    in the neutral palette above.
+  -->
+</svg>

@@ -1,0 +1,157 @@
+# D-066 Chapter 5 — DO IT: Add an Estimate under the WO
+# Draft 2026-05-14T16:25Z by Cowork
+#
+# Third hands-on chapter. User adds a real estimate with 2 line items + tax.
+# Teaches: estimate-from-WO link, line item entry, totals, the "EST-XXXX-XXXX"
+# numbering that mirrors the parent WO.
+
+id: "05-add-estimate"
+title: "Add an estimate"
+chapter_index: 5
+estimated_duration_seconds: 120
+
+steps:
+
+  - id: "intro"
+    coach_text: |
+      Now we add an Estimate to the WO we just made. The estimate is what
+      you'll send the customer to get approval before doing the work.
+    typewriter_pacing_ms: 35
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 2400
+
+  - id: "spotlight-estimates-tab"
+    coach_text: |
+      On the WO detail page, find the **Estimates** tab (or section).
+      Click it.
+    spotlight_selector: "[data-tab='estimates']"
+    spotlight_label: "Click here"
+    expected_action: "click_or_route_change"
+    on_wrong_click: |
+      The **Estimates** tab is usually in the row of tabs below the WO
+      header. Want me to point again?
+
+  - id: "spotlight-new-estimate"
+    coach_text: |
+      Empty so far. Click **+ New Estimate** to start one.
+    spotlight_selector: "[data-action='new-estimate']"
+    spotlight_label: "Click here"
+    expected_action: "click_or_route_change"
+    expected_route_pattern: "/estimates/new\\?wo_id=\\d+"
+
+  - id: "form-arrived"
+    coach_text: |
+      You're on the estimate form now. Same auto-link as before — the WO
+      is pre-filled because we came from the WO page. The estimate number
+      is auto-set to match the WO's number (remember chapter 2).
+    spotlight_selector: "input[name='display_number']"
+    spotlight_label: "Auto-mirrored"
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 3500
+
+  - id: "line-1-intro"
+    coach_text: |
+      An estimate is made up of **line items** — one row per thing you're
+      charging for. Most jobs have 2-5 lines: labor, materials, sometimes
+      travel or permits.
+
+      Let's add two lines. First one: labor.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 3000
+
+  - id: "line-1-description"
+    coach_text: |
+      In the **first line item description**, type:
+      *"Labor — drywall repair, kitchen wall"*
+    spotlight_selector: "input[name='line_items[0].description']"
+    spotlight_label: "Type"
+    expected_action: "form_field_filled"
+    expected_field: "line_items[0].description"
+
+  - id: "line-1-qty-rate"
+    coach_text: |
+      Now the numbers. **Quantity** = 4 (hours). **Unit price** = 80
+      (dollars per hour). FORGE auto-calculates the line total ($320).
+    spotlight_selector: "input[name='line_items[0].qty']"
+    spotlight_label: "qty 4, unit $80"
+    expected_action: "form_field_filled_multiple"
+    expected_fields: ["line_items[0].qty", "line_items[0].unit_price"]
+
+  - id: "line-2-add"
+    coach_text: |
+      Good. Now click **+ Add line** to add a second row.
+    spotlight_selector: "[data-action='add-line']"
+    spotlight_label: "Add another line"
+    expected_action: "click_or_dom_change"
+
+  - id: "line-2-fill"
+    coach_text: |
+      In the second line description: *"Materials — drywall sheet + compound"*.
+      Quantity 1, unit price 45.
+    spotlight_selector: "input[name='line_items[1].description']"
+    spotlight_label: "Type description, qty 1, unit $45"
+    expected_action: "form_field_filled_multiple"
+    expected_fields: ["line_items[1].description", "line_items[1].qty", "line_items[1].unit_price"]
+
+  - id: "tax-input"
+    coach_text: |
+      Now scroll down to **Tax rate**. Type 6 (for 6%). You'll see the
+      total update — should land around **$387**.
+    spotlight_selector: "input[name='tax_rate']"
+    spotlight_label: "6"
+    expected_action: "form_field_filled"
+    expected_field: "tax_rate"
+
+  - id: "save"
+    coach_text: |
+      Total looks right? Click **Save**.
+    spotlight_selector: "button[type='submit']"
+    spotlight_label: "Save"
+    expected_action: "form_submit"
+    expected_route_pattern: "/estimates/\\d+"
+
+  - id: "after-save"
+    coach_text: |
+      Done. You're on the estimate detail page now. Look at the number:
+      `EST-NNNN-NNNN`. Notice it matches the parent WO's number — that's
+      the mirroring rule from chapter 2 in action.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 3500
+
+  - id: "what-now"
+    coach_text: |
+      From here, in real life, you'd hit **Send to customer** to email them
+      a PDF. We're skipping the send in tutorial mode — but the button is
+      there if you want to look. Email sends are a no-op while you're in
+      the tour, nothing leaves your account.
+
+      Next, we'll pretend the customer said yes and convert this estimate
+      to an invoice. Type **next**.
+    chips:
+      - label: "Next"
+        value: "next"
+    expected_action: "chip_or_text"
+    branches:
+      "*": "ADVANCE_CHAPTER"
+
+# --- FAQs ---
+
+faqs:
+  - patterns: ["why two line items", "can i do one line", "skip line items"]
+    answer: "You can. An estimate can have 1 line or 50. Two is the minimum that teaches the pattern (labor + materials is the most common split in construction)."
+  - patterns: ["what about tax", "tax rate options", "no tax"]
+    answer: "FORGE doesn't auto-determine tax. You set it per estimate. Leave it 0 for tax-exempt jobs. Future versions may integrate with state tax tables."
+  - patterns: ["change quantity", "edit line item", "fix the price"]
+    answer: "Just type over the field. Totals recalculate live. You can also click the X next to a line to remove it entirely."
+  - patterns: ["markup", "profit", "margin"]
+    answer: "FORGE shows your profit margin if you fill in the cost field (separate from unit price). The customer never sees cost — only the price you charge. Out of scope for this tutorial."
+  - patterns: ["why doesn't this send email", "email not sent"]
+    answer: "Tutorial mode stubs all email sends. The 'Send' button still works (shows the confirmation UI) but nothing actually goes out. Your real customers don't get test estimates."
+  - patterns: ["estimate vs proposal", "is this a proposal"]
+    answer: "FORGE doesn't distinguish — they're the same thing. Some shops call it a quote, some call it a bid. The doc is the same: line items + total."
+  - patterns: ["edit after sending", "change estimate after send"]
+    answer: "Yes — but you'd usually send a revised version with a new number rather than edit silently. FORGE tracks sent date so you know when the customer saw the last version."

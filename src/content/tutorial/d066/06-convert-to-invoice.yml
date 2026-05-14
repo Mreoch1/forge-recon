@@ -1,0 +1,123 @@
+# D-066 Chapter 6 — DO IT: Convert Estimate to Invoice
+# Draft 2026-05-14T16:35Z by Cowork
+#
+# Critical teaching moment — the "convert" flow that mirrors EST -> INV.
+# Reinforces the numbering rule (per GPT Q5) and the immutability of
+# invoice line items.
+
+id: "06-convert-to-invoice"
+title: "Convert the estimate to an invoice"
+chapter_index: 6
+estimated_duration_seconds: 100
+
+steps:
+
+  - id: "intro"
+    coach_text: |
+      The customer said yes. (We'll pretend.) Now we convert the estimate
+      into an invoice — that's how you turn an approved quote into a bill.
+    typewriter_pacing_ms: 35
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 2400
+
+  - id: "before-click-teach"
+    coach_text: |
+      Before you click anything, let me explain what's about to happen.
+
+      FORGE copies every line item, the tax rate, and the totals from the
+      estimate into a new Invoice record. The invoice number will mirror
+      the estimate's number — which means it also mirrors the parent WO's
+      number. So `EST-NNNN-NNNN` becomes `INV-NNNN-NNNN`.
+
+      Also: once converted, **you can't edit the invoice's line items
+      directly.** The estimate is the source of truth. If you need to
+      change the bill, you go back to the estimate, fix it, and re-convert.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 6000
+
+  - id: "spotlight-convert-button"
+    coach_text: |
+      OK, ready. Click **Convert to Invoice** at the top right of the
+      estimate.
+    spotlight_selector: "[data-action='convert-to-invoice']"
+    spotlight_label: "Click here"
+    expected_action: "click_or_route_change"
+    expected_route_pattern: "/invoices/\\d+"
+    on_wrong_click: |
+      The **Convert to Invoice** button is in the action row at the top of
+      the estimate detail page.
+
+  - id: "after-convert"
+    coach_text: |
+      Done. You're on the invoice detail page now. Look at the number —
+      `INV-NNNN-NNNN`. Same digits as the estimate, just a different
+      prefix.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 3200
+
+  - id: "linked-estimate-callout"
+    coach_text: |
+      See the **Linked Estimate** badge or link at the top? Clicking it
+      takes you back to the estimate. The two docs are permanently
+      attached.
+    spotlight_selector: "[data-link='source-estimate']"
+    spotlight_label: "Linked Estimate"
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 3500
+
+  - id: "locked-lines-callout"
+    coach_text: |
+      Now look at the line items. They're showing as **read-only** —
+      grayed out or with no edit handles. That's deliberate. To change
+      the bill, you go back to the estimate.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 3500
+
+  - id: "summary-totals"
+    coach_text: |
+      The total on the invoice matches the estimate exactly: $387 (or
+      whatever your math came out to). FORGE doesn't recalculate — it
+      mirrors. That guarantees the customer sees the same number they
+      approved.
+    chips: []
+    expected_action: "auto_advance"
+    delay_after_ms: 3500
+
+  - id: "what-next"
+    coach_text: |
+      In real life from here, you'd either:
+      1. **Send to customer** — emails them the invoice PDF.
+      2. **Print/Download** — get a paper or PDF copy.
+      3. **Record Payment** — when the customer pays.
+
+      Tutorial mode skips real email sends, so let's go straight to
+      recording a payment. Type **next**.
+    chips:
+      - label: "Next"
+        value: "next"
+    expected_action: "chip_or_text"
+    branches:
+      "*": "ADVANCE_CHAPTER"
+
+# --- FAQs ---
+
+faqs:
+  - patterns: ["can i edit the invoice", "edit invoice lines"]
+    answer: "Not the line items — those are mirrored from the estimate. You CAN edit invoice-only fields like due date, payment terms, and internal notes. To change the bill itself, edit the estimate and re-convert."
+  - patterns: ["what happens to the estimate", "is the estimate deleted"]
+    answer: "It stays. The estimate is the source. You can have one estimate and many invoices (e.g. progress billing) — though for most jobs it's 1:1."
+  - patterns: ["re-convert", "convert twice", "second invoice from same estimate"]
+    answer: "Yes — you can convert the same estimate again, but it'll get a new invoice number. Useful for progress billing or if the first invoice was voided."
+  - patterns: ["void invoice", "cancel invoice", "delete invoice"]
+    answer: "Click the 3-dot menu on the invoice detail → Void. That marks it cancelled but keeps the record. Don't delete invoices for accounting reasons — void instead."
+  - patterns: ["partial payment", "split payment"]
+    answer: "Yes — record multiple payments against the same invoice. The invoice flips to PAID only when the total is covered. We'll record one in the next chapter."
+  - patterns: ["change tax after convert", "fix tax"]
+    answer: "Go back to the estimate, change tax, re-convert. The new invoice replaces (or supersedes) the old one depending on your workflow."
+  - patterns: ["customer can't pay", "what if they don't pay"]
+    answer: "FORGE tracks AR aging on the customer detail page. Out of scope for this tutorial — but the data is there when you need it."
