@@ -66,7 +66,8 @@ async function validateBill(body) {
   if (!vendorId) {
     errors.vendor_id = 'Vendor required.';
   } else {
-    const { data: v } = await supabase.from('vendors').select('id').eq('id', vendorId).maybeSingle();
+    const { data: v, error: vendorError } = await supabase.from('vendors').select('id').eq('id', vendorId).maybeSingle();
+    if (vendorError) throw vendorError;
     if (!v) errors.vendor_id = 'Vendor not found.';
   }
 
@@ -144,13 +145,15 @@ async function loadBill(id) {
 
   // Created/approved-by names (two FKs into users, can't multiplex via PostgREST cleanly)
   if (bill.created_by_user_id) {
-    const { data: uc } = await supabase.from('users').select('name').eq('id', bill.created_by_user_id).maybeSingle();
+    const { data: uc, error: creatorError } = await supabase.from('users').select('name').eq('id', bill.created_by_user_id).maybeSingle();
+    if (creatorError) throw creatorError;
     bill.created_by_name = uc?.name || null;
   } else {
     bill.created_by_name = null;
   }
   if (bill.approved_by_user_id) {
-    const { data: ua } = await supabase.from('users').select('name').eq('id', bill.approved_by_user_id).maybeSingle();
+    const { data: ua, error: approverError } = await supabase.from('users').select('name').eq('id', bill.approved_by_user_id).maybeSingle();
+    if (approverError) throw approverError;
     bill.approved_by_name = ua?.name || null;
   } else {
     bill.approved_by_name = null;
@@ -182,7 +185,7 @@ function blankBill() {
 }
 
 async function loadVendorsAndAccounts() {
-  const [{ data: vendors }, { data: expenseAccounts }] = await Promise.all([
+  const [{ data: vendors, error: vendorsError }, { data: expenseAccounts, error: accountsError }] = await Promise.all([
     supabase
       .from('vendors')
       .select('id, name, default_expense_account_id')
@@ -195,6 +198,8 @@ async function loadVendorsAndAccounts() {
       .eq('active', 1)
       .order('code'),
   ]);
+  if (vendorsError) throw vendorsError;
+  if (accountsError) throw accountsError;
   return { vendors: vendors || [], expenseAccounts: expenseAccounts || [] };
 }
 
@@ -250,11 +255,12 @@ router.get('/', async (req, res) => {
     vendor_name: b.vendors?.name || null,
   }));
 
-  const { data: vendors } = await supabase
+  const { data: vendors, error: vendorsError } = await supabase
     .from('vendors')
     .select('id, name')
     .eq('archived', 0)
     .order('name');
+  if (vendorsError) throw vendorsError;
 
   res.render('bills/index', {
     title: 'Bills', activeNav: 'bills',
