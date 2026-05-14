@@ -407,7 +407,7 @@
     const reportBtn = m.error
       ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">
            <button class="recon-aic-retry" data-retry-msg="${escapeHTML(m.content || '')}" style="background:#1a1a1a;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px">Retry</button>
-           <a href="/dashboard" style="color:#c0202b;font-size:11px;text-decoration:underline;padding:4px 0">Use classic view</a>
+           <a href="/dashboard-classic" style="color:#c0202b;font-size:11px;text-decoration:underline;padding:4px 0">Use classic view</a>
          </div>`
       : m.role === 'assistant'
         ? `<div style="margin-top:6px;display:flex;gap:4px;opacity:0.4;transition:opacity 0.2s" class="recon-aic-feedback" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.4'">

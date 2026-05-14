@@ -216,7 +216,7 @@
       <div class="flex items-center gap-2 md:gap-3 shrink-0">
         <!-- D-063 Item 4: Nav arrows between FORGE and classic -->
         <% if (typeof activeNav !== 'undefined' && activeNav === 'forge') { %>
-          <a href="/dashboard" class="hidden md:inline-flex items-center gap-1 text-xs text-recon-fog hover:text-white transition" aria-label="Switch to classic dashboard">
+          <a href="/dashboard-classic" class="hidden md:inline-flex items-center gap-1 text-xs text-recon-fog hover:text-white transition" aria-label="Switch to classic dashboard">
             <span>&larr;</span> <span class="hidden md:inline">Classic</span>
           </a>
         <% } else if (typeof activeNav !== 'undefined' && activeNav === 'dashboard') { %>

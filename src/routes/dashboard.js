@@ -12,6 +12,11 @@ const timeline = require('../services/timeline');
 
 const router = express.Router();
 
+// Compatibility alias for older links and the FORGE fallback path. The classic
+// KPI dashboard was renamed to /dashboard-classic, but /dashboard may still be
+// bookmarked or present in cached pages.
+router.get('/dashboard', (req, res) => res.redirect(302, '/dashboard-classic'));
+
 const WO_DASHBOARD_SELECT = 'id, display_number, status, created_at, customer_id, customers!left(id, name), jobs!left(id, title, customers!left(id, name))';
 const EST_DASHBOARD_SELECT = 'id, status, created_at, total, work_orders!left(display_number, customer_id, customers!left(id, name), jobs!left(id, title, customers!left(id, name)))';
 const INV_DASHBOARD_SELECT = 'id, status, created_at, total, work_orders!left(display_number, customer_id, customers!left(id, name), jobs!left(id, title, customers!left(id, name)))';
