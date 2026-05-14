@@ -159,11 +159,12 @@ router.post('/resend-verification', async (req, res) => {
 
   // Look up the user (any verification state) — we differentiate verified vs unverified responses.
   // Non-existent emails fall through to the generic "check your email" page (no-enumeration preserved).
-  const { data: user } = await supabase
+  const { data: user, error: findError } = await supabase
     .from('users')
     .select('id, name, email_verified')
     .eq('email', email)
     .maybeSingle();
+  if (findError) throw findError;
 
   // Already verified → send them to login with a helpful banner instead of pretending we sent a mail.
   if (user && user.email_verified === true) {
@@ -174,10 +175,11 @@ router.post('/resend-verification', async (req, res) => {
     const token = crypto.randomBytes(48).toString('hex');
     const expiresAt = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
 
-    await supabase
+    const { error: updateError } = await supabase
       .from('users')
       .update({ verification_token: token, verification_expires_at: expiresAt })
       .eq('id', user.id);
+    if (updateError) throw updateError;
 
     try {
       await emailService.sendVerificationEmail(email, user.name, token);
