@@ -81,7 +81,14 @@ function requireAdmin(req, res, next) {
 const loadCurrentUser = asyncHandler(async (req, res, next) => {
   res.locals.currentUser = null;
   res.locals.flash = (req.session && req.session.flash) || {};
+  res.locals.announcement = null;
   if (req.session) delete req.session.flash;
+
+  // D-090: Load the active banner inside the request so views can reliably render it.
+  try {
+    const announcements = require('../services/announcements');
+    res.locals.announcement = await announcements.getActiveAnnouncement();
+  } catch(e) { /* announcement service not available */ }
 
   if (req.session && req.session.userId) {
     const { data: user, error } = await supabase
@@ -102,12 +109,6 @@ const loadCurrentUser = asyncHandler(async (req, res, next) => {
       res.locals.currentUser = user;
       res.locals.canSeePrices = ['admin', 'manager'].includes(user.role);
       res.locals.isWorker = user.role === 'worker';
-
-      // D-090: Load active announcement for banner
-      try {
-        const announcements = require('../services/announcements');
-        announcements.getActiveAnnouncement().then(a => { res.locals.announcement = a; }).catch(() => {});
-      } catch(e) { /* announcement service not available */ }
     } else {
       clearSession(req);
     }
@@ -115,12 +116,14 @@ const loadCurrentUser = asyncHandler(async (req, res, next) => {
   next();
 });
 
-// D-090: Load active announcement for ALL requests (not just auth pages)
-// so the banner renders on /login, /signup, etc.
-try {
-  const announcements = require('../services/announcements');
-  announcements.getActiveAnnouncement().then(a => { res.locals.announcement = a; }).catch(() => {});
-} catch(e) { /* announcement service not available */ }
+/** Load active announcement into res.locals for every request */
+async function loadAnnouncement(req, res, next) {
+  try {
+    const announcements = require('../services/announcements');
+    res.locals.announcement = await announcements.getActiveAnnouncement();
+  } catch(e) { /* announcement service not available */ }
+  next();
+}
 
 function setFlash(req, kind, message) {
   if (!req.session) return;
@@ -128,4 +131,4 @@ function setFlash(req, kind, message) {
   req.session.flash[kind] = message;
 }
 
-module.exports = { requireAuth, requireManager, requireAdmin, loadCurrentUser, setFlash, clearSession, isOwnerEmail, OWNER_EMAILS };
+module.exports = { requireAuth, requireManager, requireAdmin, loadCurrentUser, setFlash, clearSession, loadAnnouncement, isOwnerEmail, OWNER_EMAILS };

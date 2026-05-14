@@ -17,7 +17,7 @@ const session = require('express-session');
 const helmet = require('helmet');
 const morgan = require('morgan');
 
-const { loadCurrentUser, requireAuth, requireManager, requireAdmin, setFlash } = require('./middleware/auth');
+const { loadCurrentUser, loadAnnouncement, requireAuth, requireManager, requireAdmin, setFlash } = require('./middleware/auth');
 const supabase = require('./db/supabase');
 const authRoutes = require('./routes/auth');
 const customersRoutes = require('./routes/customers');
@@ -160,6 +160,10 @@ app.use(async (req, res, next) => {
 });
 
 app.use(loadCurrentUser);
+
+// D-090: Load active announcement for ALL routes (banner on login, etc.)
+app.use(loadAnnouncement);
+
 app.get('/ping', (req, res) => { res.json({ ok: true, ts: new Date().toISOString() }); });
 
 // Health / version endpoint — public, returns deploy info for agent handoffs
