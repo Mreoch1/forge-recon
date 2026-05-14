@@ -225,7 +225,7 @@
           </a>
         <% } %>
         <span class="text-sm text-recon-fog hidden md:inline"><%= currentUser.name %></span>
-        <a href="/settings" class="text-xs text-recon-fog hidden md:inline hover:text-white transition">(<%= currentUser.role %>)</a>
+        <a href="<%= currentUser.role === 'admin' ? '/admin/users' : '/settings' %>" class="text-xs text-recon-fog hidden md:inline hover:text-white transition">(<%= currentUser.role %>)</a>
         <form action="/logout" method="post" class="m-0 p-0 hidden sm:block">
           <button type="submit" class="text-sm text-recon-fog hover:text-white transition">Logout</button>
         </form>
