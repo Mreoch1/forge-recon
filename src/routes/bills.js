@@ -23,6 +23,7 @@ const supabase = require('../db/supabase');
 const { setFlash } = require('../middleware/auth');
 const posting = require('../services/accounting-posting');
 const { writeAudit } = require('../services/audit');
+const { sanitizePostgrestSearch } = require('../services/sanitize');
 
 const router = express.Router();
 const PAGE_SIZE = 25;
@@ -202,9 +203,21 @@ async function loadVendorsAndAccounts() {
 router.get('/', async (req, res) => {
   const status = (req.query.status || '').trim();
   const vendorId = parseInt(req.query.vendor_id, 10) || null;
-  const q = (req.query.q || '').trim();
+  const q = sanitizePostgrestSearch((req.query.q || '').trim());
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
+  let qVendorIds = [];
+
+  if (q) {
+    const { data: vendorMatches, error: vendorSearchError } = await supabase
+      .from('vendors')
+      .select('id')
+      .eq('archived', 0)
+      .ilike('name', `%${q}%`)
+      .limit(100);
+    if (vendorSearchError) throw vendorSearchError;
+    qVendorIds = (vendorMatches || []).map(v => Number(v.id)).filter(Number.isInteger);
+  }
 
   let query = supabase
     .from('bills')
@@ -221,7 +234,9 @@ router.get('/', async (req, res) => {
   }
   if (q) {
     const like = `%${q}%`;
-    query = query.or(`bill_number.ilike.${like},vendors.name.ilike.${like}`);
+    const clauses = [`bill_number.ilike.${like}`];
+    if (qVendorIds.length) clauses.push(`vendor_id.in.(${qVendorIds.join(',')})`);
+    query = query.or(clauses.join(','));
   }
 
   const { data: rows, count: total, error } = await query

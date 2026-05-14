@@ -11,7 +11,7 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div>
         <label class="label" for="vendor-search">Vendor <span class="text-recon-red">*</span>
-          <span class="ml-1 text-recon-fog cursor-help" title="Search your existing vendors, or type a new name to create one on the fly.">ⓘ</span>
+          <span class="ml-1 text-recon-fog cursor-help" title="Search your existing vendors. Add new vendors under Vendors first.">ⓘ</span>
         </label>
         <input type="text" id="vendor-search" list="vendor-list" placeholder="Search or select vendor..." class="input" autocomplete="off"
                value="<%= vendorName || '' %>">
