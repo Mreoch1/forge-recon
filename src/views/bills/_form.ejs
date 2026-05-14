@@ -10,16 +10,17 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
     <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Header</h3>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div>
-        <label class="label" for="vendor_id">Vendor <span class="text-recon-red">*</span>
-          <span class="ml-1 text-recon-fog cursor-help" title="The supplier or subcontractor this bill is from. Add new vendors under Vendors first.">ⓘ</span>
+        <label class="label" for="vendor-search">Vendor <span class="text-recon-red">*</span>
+          <span class="ml-1 text-recon-fog cursor-help" title="Search your existing vendors, or type a new name to create one on the fly.">ⓘ</span>
         </label>
-        <select name="vendor_id" id="vendor_id" class="input<%= errors.vendor_id ? ' border-red-500' : '' %>">
-          <option value="">— Select —</option>
-          <% vendors.forEach(function(v) { %>
-            <option value="<%= v.id %>" <%= String(bill.vendor_id) === String(v.id) ? 'selected' : '' %>><%= v.name %></option>
+        <input type="text" id="vendor-search" list="vendor-list" placeholder="Search or select vendor..." class="input" autocomplete="off"
+               value="<%= vendorName || '' %>">
+        <datalist id="vendor-list">
+          <% (vendors || []).forEach(function(v){ %>
+            <option value="<%= v.name %>" data-id="<%= v.id %>"></option>
           <% }); %>
-        </select>
-        <% if (errors.vendor_id) { %><p class="text-sm text-red-600 mt-1"><%= errors.vendor_id %></p><% } %>
+        </datalist>
+        <input type="hidden" name="vendor_id" id="vendor-id" value="<%= bill.vendor_id || '' %>">
       </div>
       <div>
         <label class="label" for="bill_number">Bill #
@@ -153,3 +154,34 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
 </form>
 
 <script src="/js/line-items.js"></script>
+
+<script>
+// Vendor autocomplete (native datalist) — matches WO customer selector pattern
+(function(){
+  var vendors = <%- JSON.stringify(vendors || []) %>;
+  var search = document.getElementById('vendor-search');
+  var hidden = document.getElementById('vendor-id');
+
+  function showVendor(id) {
+    var v = vendors.find(function(x){ return x.id == id; });
+    if (!v) return;
+    hidden.value = v.id;
+    search.value = v.name;
+  }
+
+  if (hidden.value) showVendor(hidden.value);
+
+  search.addEventListener('change', function(){
+    var selectedName = search.value;
+    var match = vendors.find(function(v){ return v.name === selectedName; });
+    if (match) { hidden.value = match.id; }
+    else { hidden.value = ''; }
+  });
+
+  search.addEventListener('input', function(){
+    var selectedName = search.value;
+    var match = vendors.find(function(v){ return v.name === selectedName; });
+    if (!match) { hidden.value = ''; }
+  });
+})();
+</script>

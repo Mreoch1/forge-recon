@@ -261,7 +261,8 @@ router.get('/new', async (req, res) => {
 
   res.render('bills/new', {
     title: 'New bill', activeNav: 'bills',
-    bill, vendors, expenseAccounts, errors: {}
+    bill, vendors, expenseAccounts, errors: {},
+    vendorName: presetVendor ? (vendors.find(v => v.id === presetVendor)?.name || '') : ''
   });
 });
 
@@ -271,7 +272,8 @@ router.post('/', async (req, res) => {
   if (Object.keys(errors).length) {
     return res.status(400).render('bills/new', {
       title: 'New bill', activeNav: 'bills',
-      bill: { id: null, ...data }, vendors, expenseAccounts, errors
+      bill: { id: null, ...data }, vendors, expenseAccounts, errors,
+      vendorName: data.vendor_id ? (vendors.find(v => String(v.id) === String(data.vendor_id))?.name || '') : ''
     });
   }
 
@@ -339,7 +341,8 @@ router.get('/:id/edit', async (req, res) => {
   const { vendors, expenseAccounts } = await loadVendorsAndAccounts();
   res.render('bills/edit', {
     title: `Edit bill #${bill.id}`, activeNav: 'bills',
-    bill, vendors, expenseAccounts, errors: {}
+    bill, vendors, expenseAccounts, errors: {},
+    vendorName: bill.vendor_name || (vendors.find(v => String(v.id) === String(bill.vendor_id))?.name || '')
   });
 });
 
@@ -355,7 +358,8 @@ router.post('/:id', async (req, res) => {
   if (Object.keys(errors).length) {
     return res.status(400).render('bills/edit', {
       title: `Edit bill #${existing.id}`, activeNav: 'bills',
-      bill: { ...existing, ...data }, vendors, expenseAccounts, errors
+      bill: { ...existing, ...data }, vendors, expenseAccounts, errors,
+      vendorName: data.vendor_id ? (vendors.find(v => String(v.id) === String(data.vendor_id))?.name || '') : ''
     });
   }
 
