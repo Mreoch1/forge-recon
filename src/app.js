@@ -269,51 +269,33 @@ app.post('/account/complete-onboarding', async (req, res) => {
 
 app.use('/', requireAuth, dashboardRoutes);
 
-// POST /report-error — user-triggered error report email (must be before 404 handler)
+// POST /report-error — user-triggered error report
+// D-088: writes to ai_chat_errors table instead of email (keeps the
+// user-facing UX identical — they still see "We've reported this error")
 app.post('/report-error', async (req, res) => {
   const { code, message, url, user_email, error_detail, error_ctx } = req.body;
   let ctx = {};
   try { if (error_ctx) ctx = JSON.parse(error_ctx); } catch(e) {}
-  const subject = `[FORGE Error] ${url || 'unknown page'}`;
-  const bodyHtml = `
-    <div style="max-width:600px;margin:0 auto;font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif">
-    <div style="background:linear-gradient(135deg,#c0202b 0%,#8a0e16 50%,#5a5a5a 100%);padding:24px 32px;border-radius:12px 12px 0 0">
-      <h1 style="color:#fff;margin:0;font-size:20px;font-weight:700;letter-spacing:-.02em">FORGE Error Report</h1>
-      <p style="color:rgba(255,255,255,.85);margin:4px 0 0;font-size:13px">A user encountered a server error</p>
-    </div>
-    <div style="background:#fff;border:1px solid #e0e0e0;border-top:0;padding:24px 32px;border-radius:0 0 12px 12px">
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
-        <tr><td style="color:#888;padding:8px;border:1px solid #eee;font-weight:600;width:100px">Status</td><td style="color:#c0202b;padding:8px;border:1px solid #eee;font-weight:600">${code}</td></tr>
-        <tr><td style="color:#888;padding:8px;border:1px solid #eee;font-weight:600">URL</td><td style="color:#333;padding:8px;border:1px solid #eee">${url || 'unknown'}</td></tr>
-        <tr><td style="color:#888;padding:8px;border:1px solid #eee;font-weight:600">Method</td><td style="color:#333;padding:8px;border:1px solid #eee">${ctx.method || 'unknown'}</td></tr>
-        <tr><td style="color:#888;padding:8px;border:1px solid #eee;font-weight:600">User</td><td style="color:#333;padding:8px;border:1px solid #eee">${ctx.user || user_email || 'unknown'}</td></tr>
-        <tr><td style="color:#888;padding:8px;border:1px solid #eee;font-weight:600">Time</td><td style="color:#333;padding:8px;border:1px solid #eee">${ctx.timestamp || new Date().toISOString()}</td></tr>
-      </table>
-      <div style="background:#fff0f0;border-radius:8px;padding:16px;margin:16px 0;border:1px solid #fcc">
-        <p style="font-size:12px;color:#888;margin:0 0 6px;text-transform:uppercase;letter-spacing:.06em">Error detail</p>
-        <p style="font-size:13px;color:#333;margin:0;font-family:monospace;white-space:pre-wrap">${error_detail || message || 'none'}</p>
-      </div>
-      <div style="text-align:center;margin:16px 0">
-        <a href="${process.env.PUBLIC_BASE_URL || 'https://forge-recon.vercel.app'}${url || '/'}" style="display:inline-block;background:#c0202b;color:#fff;padding:10px 24px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">Open in FORGE</a>
-      </div>
-    </div>
-    </div>`;
+  const userId = req.session?.userId || null;
   try {
-    const emailService = require('./services/email');
-    await emailService.sendEmail({
-      to: 'support@reconenterprises.net',
-      subject,
-      htmlBody: bodyHtml,
-      text: `FORGE Error Report\n\nStatus: ${code}\nURL: ${url || 'unknown'}\nUser: ${ctx.user || user_email || 'unknown'}\nMethod: ${ctx.method || 'unknown'}\nTime: ${ctx.timestamp || 'unknown'}\n\nError: ${error_detail || message || 'none'}`,
+    const feedback = require('./services/feedback');
+    await feedback.submitErrorReport({
+      userId,
+      errorType: 'unknown',
+      errorMessage: error_detail || message || 'User-reported server error',
+      url: url || 'unknown',
+      userEmail: user_email || req.currentUser?.email || 'unknown',
+      errorCtx: ctx,
     });
     res.redirect(url || '/');
   } catch (e) {
-    console.error('[report-error] send failed:', e.message);
+    console.error('[report-error] save failed:', e.message);
     res.redirect(url || '/');
   }
 });
 
 // POST /feedback — support/feedback from the floating button
+// D-088: writes to user_feedback table instead of email
 // Accepts standard form POST and AJAX (JSON) requests.
 app.post('/feedback', async (req, res) => {
   const subject = (req.body.subject || '').trim();
@@ -328,37 +310,24 @@ app.post('/feedback', async (req, res) => {
   if (!subject || !message) {
     return sendJson(400, { error: 'Subject and message are required.' });
   }
-  const userEmail = req.currentUser?.email || req.session?.email || 'unknown';
-  const name = req.currentUser?.name || '';
-  const html = `<div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto">
-    <div style="background:linear-gradient(135deg,#c0202b,#8a0e16);padding:24px;border-radius:12px 12px 0 0">
-      <h1 style="color:#fff;margin:0;font-size:20px">FORGE Feedback</h1>
-    </div>
-    <div style="background:#fff;border:1px solid #e0e0e0;padding:24px;border-radius:0 0 12px 12px">
-      <p style="font-size:14px;color:#555"><strong>From:</strong> ${name} &lt;${userEmail}&gt;</p>
-      <p style="font-size:14px;color:#555"><strong>Page:</strong> ${req.headers.referer || '—'}</p>
-      <p style="font-size:14px;color:#555"><strong>User-Agent:</strong> ${req.headers['user-agent'] || '—'}</p>
-      <div style="background:#f5f5f5;border-radius:8px;padding:16px;margin:16px 0">
-        <p style="font-size:13px;color:#888;margin:0 0 6px;text-transform:uppercase;letter-spacing:.06em">${subject}</p>
-        <p style="font-size:14px;color:#333;margin:0;white-space:pre-line">${message}</p>
-      </div>
-    </div>`;
-
+  const userId = req.session?.userId || null;
   try {
-    const emailService = require('./services/email');
-    await emailService.sendEmail({
-      to: 'support@reconenterprises.net',
-      subject: `[FORGE Feedback] ${subject}`,
-      html,
+    const feedback = require('./services/feedback');
+    await feedback.submitFeedback({
+      userId,
+      subject,
+      message,
+      pageUrl: req.headers.referer || null,
+      userAgent: req.headers['user-agent'] || null,
     });
     await supabase.from('audit_logs').insert({
       entity_type: 'feedback', action: 'submitted', source: 'user',
-      details: { subject, user: userEmail }, user_id: req.session.userId || null,
+      details: { subject, user: req.currentUser?.email || 'unknown' }, user_id: userId,
     }).then().catch(() => {});
     return sendJson(200, { success: 'Thanks for the feedback! Mike will review it.' });
   } catch (e) {
-    console.error('[feedback] send failed:', e.message);
-    return sendJson(500, { error: 'Could not send feedback. Try again later.' });
+    console.error('[feedback] save failed:', e.message);
+    return sendJson(500, { error: 'Could not save feedback. Try again later.' });
   }
 });
 

@@ -398,4 +398,42 @@ router.post('/announcements/:id/deactivate', async (req, res) => {
   res.redirect('/admin/announcements');
 });
 
+// ---- D-088: Unified Inbox (feedback + errors + 👍/👎) ----
+
+router.get('/inbox', async (req, res) => {
+  try {
+    const feedback = require('../services/feedback');
+    const { status } = req.query;
+    const items = await feedback.getInboxFeed(50, status || null);
+    res.render('admin/inbox', {
+      title: 'Inbox',
+      activeNav: 'admin',
+      items,
+      currentFilter: status || 'all',
+    });
+  } catch (e) {
+    console.warn('[admin] inbox error:', e.message);
+    res.render('admin/inbox', {
+      title: 'Inbox',
+      activeNav: 'admin',
+      items: [],
+      currentFilter: 'all',
+      error: 'Could not load inbox: ' + e.message,
+    });
+  }
+});
+
+router.post('/inbox/:source-:id/status', async (req, res) => {
+  try {
+    const feedback = require('../services/feedback');
+    const { source, id } = req.params;
+    await feedback.updateStatus(source, parseInt(id), req.body.status, req.session?.userId);
+    req.flash('success', 'Status updated');
+  } catch (e) {
+    console.warn('[admin] inbox status error:', e.message);
+    req.flash('error', 'Failed to update status: ' + e.message);
+  }
+  res.redirect('/admin/inbox');
+});
+
 module.exports = router;
