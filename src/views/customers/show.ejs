@@ -56,13 +56,37 @@
 
     <div class="lg:col-span-2">
       <div class="card overflow-hidden">
-        <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
-          <h3 class="font-semibold">Work orders (<%= workOrders.length %>)</h3>
+        <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between flex-wrap gap-2">
+          <h3 class="font-semibold">Work orders <% if (woTotal !== undefined) { %><span class="text-recon-fog font-normal text-sm">(<%= woTotal %> total)</span><% } %></h3>
           <a href="/work-orders/new?customer_id=<%= customer.id %>" class="text-sm text-recon-red hover:underline">+ Add work order</a>
         </div>
+
+        <!-- D-071: search + status filter -->
+        <form method="get" action="/customers/<%= customer.id %>" class="px-5 py-2 border-b border-recon-mist flex flex-wrap items-center gap-2">
+          <input type="text" name="wo_q" value="<%= woQ || '' %>" placeholder="Search WOs..." class="input" style="flex:1;min-width:120px;padding:0.35rem 0.6rem;font-size:0.82rem;">
+          <select name="wo_status" class="input" style="padding:0.35rem 0.6rem;font-size:0.82rem;">
+            <option value="">All statuses</option>
+            <option value="open" <%= woStatus === 'open' ? 'selected' : '' %>>Open</option>
+            <option value="scheduled" <%= woStatus === 'scheduled' ? 'selected' : '' %>>Scheduled</option>
+            <option value="in_progress" <%= woStatus === 'in_progress' ? 'selected' : '' %>>In Progress</option>
+            <option value="on_hold" <%= woStatus === 'on_hold' ? 'selected' : '' %>>On Hold</option>
+            <option value="closed" <%= woStatus === 'closed' ? 'selected' : '' %>>Closed</option>
+            <option value="complete" <%= woStatus === 'complete' ? 'selected' : '' %>>Complete</option>
+            <option value="cancelled" <%= woStatus === 'cancelled' ? 'selected' : '' %>>Cancelled</option>
+          </select>
+          <button class="btn btn-secondary" style="padding:0.35rem 0.8rem;font-size:0.82rem;">Filter</button>
+          <% if (woQ || woStatus) { %>
+            <a href="/customers/<%= customer.id %>" class="text-xs text-recon-fog hover:text-recon-red">Clear</a>
+          <% } %>
+        </form>
+
         <% if (workOrders.length === 0) { %>
           <div class="p-8 text-center text-recon-fog text-sm">
-            No work orders for this customer yet. <a href="/work-orders/new?customer_id=<%= customer.id %>" class="text-recon-red underline">Create a work order</a>.
+            <% if (woQ || woStatus) { %>
+              No work orders match your search. <a href="/customers/<%= customer.id %>" class="text-recon-red underline">Clear filter</a>.
+            <% } else { %>
+              No work orders for this customer yet. <a href="/work-orders/new?customer_id=<%= customer.id %>" class="text-recon-red underline">Create a work order</a>.
+            <% } %>
           </div>
         <% } else { %>
           <table class="data">
@@ -82,6 +106,27 @@
               <% }); %>
             </tbody>
           </table>
+
+          <!-- D-071: pagination footer -->
+          <% if (woPages > 1) { %>
+            <div style="display:flex;align-items:center;justify-content:center;gap:0.5rem;padding:0.75rem 1rem;border-top:1px solid #e5e7eb;font-size:0.82rem;">
+              <% if (woPage > 1) { %>
+                <a href="?wo_page=<%= woPage - 1 %><%= woQ ? '&wo_q=' + encodeURIComponent(woQ) : '' %><%= woStatus ? '&wo_status=' + encodeURIComponent(woStatus) : '' %>" style="color:#c0202b;text-decoration:none;">&larr; Prev</a>
+              <% } else { %>
+                <span style="color:#9ca3af;">&larr; Prev</span>
+              <% } %>
+              <select onchange="if(this.value)window.location.href=this.value" style="font-size:0.82rem;padding:0.2rem 0.4rem;border-radius:4px;border:1px solid #d1d5db;">
+                <% for (var p = 1; p <= woPages; p++) { %>
+                  <option value="?wo_page=<%= p %><%= woQ ? '&wo_q=' + encodeURIComponent(woQ) : '' %><%= woStatus ? '&wo_status=' + encodeURIComponent(woStatus) : '' %>" <%= p === woPage ? 'selected' : '' %>>Page <%= p %> of <%= woPages %></option>
+                <% } %>
+              </select>
+              <% if (woPage < woPages) { %>
+                <a href="?wo_page=<%= woPage + 1 %><%= woQ ? '&wo_q=' + encodeURIComponent(woQ) : '' %><%= woStatus ? '&wo_status=' + encodeURIComponent(woStatus) : '' %>" style="color:#c0202b;text-decoration:none;">Next &rarr;</a>
+              <% } else { %>
+                <span style="color:#9ca3af;">Next &rarr;</span>
+              <% } %>
+            </div>
+          <% } %>
         <% } %>
       </div>
     </div>

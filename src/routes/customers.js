@@ -128,23 +128,53 @@ router.get('/:id', async (req, res) => {
   if (custError) throw custError;
   if (!customer) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Customer not found.' });
 
-  const [{ data: workOrders }, { count: fileCountCust }] = await Promise.all([
-    supabase
-      .from('work_orders')
-      .select('id, display_number, status, unit_number, description, scheduled_date, scheduled_time, created_at')
-      .eq('customer_id', id)
-      .order('created_at', { ascending: false }),
+  // D-071: paginated WO list with search + status filter
+  const woPage = Math.max(1, parseInt(req.query.wo_page, 10) || 1);
+  const woQ = sanitizePostgrestSearch((req.query.wo_q || '').trim());
+  const woStatus = (req.query.wo_status || '').trim();
+  const WO_PAGE_SIZE = 25;
+  const woOffset = (woPage - 1) * WO_PAGE_SIZE;
+
+  let woQuery = supabase
+    .from('work_orders')
+    .select('id, display_number, status, unit_number, description, scheduled_date, scheduled_time, created_at', { count: 'exact', head: false })
+    .eq('customer_id', id);
+  let woCountQuery = supabase.from('work_orders').select('*', { count: 'exact', head: true }).eq('customer_id', id);
+
+  if (woStatus) {
+    if (woStatus === 'open') {
+      woQuery = woQuery.in('status', ['scheduled', 'in_progress', 'on_hold']);
+      woCountQuery = woCountQuery.in('status', ['scheduled', 'in_progress', 'on_hold']);
+    } else if (woStatus === 'closed') {
+      woQuery = woQuery.in('status', ['complete', 'cancelled']);
+      woCountQuery = woCountQuery.in('status', ['complete', 'cancelled']);
+    } else {
+      woQuery = woQuery.eq('status', woStatus);
+      woCountQuery = woCountQuery.eq('status', woStatus);
+    }
+  }
+
+  if (woQ) {
+    const like = `%${woQ}%`;
+    woQuery = woQuery.or(`display_number.ilike.${like},description.ilike.${like},unit_number.ilike.${like}`);
+    woCountQuery = woCountQuery.or(`display_number.ilike.${like},description.ilike.${like},unit_number.ilike.${like}`);
+  }
+
+  const [{ data: workOrders, count: woTotal }, { count: fileCountCust }] = await Promise.all([
+    woQuery.order('created_at', { ascending: false }).range(woOffset, woOffset + WO_PAGE_SIZE - 1),
+    woCountQuery,
     supabase.from('files')
       .select('id', { count: 'exact', head: true })
       .eq('folder.entity_type', 'customer')
       .eq('folder.entity_id', id),
   ]);
-  // File count via a simpler approach
   const fileCount = fileCountCust || 0;
+  const woPages = Math.ceil((woTotal || 0) / WO_PAGE_SIZE);
 
   res.render('customers/show', {
     title: customer.name, activeNav: 'customers',
-    customer, workOrders: workOrders || [], fileCount
+    customer, workOrders: workOrders || [], fileCount,
+    woPage, woPages, woTotal, woQ, woStatus, WO_PAGE_SIZE,
   });
 });
 
