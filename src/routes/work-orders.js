@@ -305,7 +305,7 @@ async function buildWorkOrderPdfBuffer(woId) {
       .select('*')
       .eq('id', 1)
       .maybeSingle();
-    return pdf.renderToBuffer(pdf.generateWorkOrderPDF, { ...wo, wo_number: `WO-${wo.display_number}` }, company || {});
+    return pdf.renderToBuffer(pdf.generateWorkOrderPDF, { ...wo, wo_number: `WO-${String(wo.display_number).replace(/^WO-/i, '')}` }, company || {});
   } catch (e) {
     console.warn('[work-orders] WO PDF attachment failed:', e.message);
     return null;
@@ -1327,7 +1327,7 @@ router.get('/:id/pdf', async (req, res) => {
   }
 
   try {
-    pdf.generateWorkOrderPDF({ ...wo, wo_number: `WO-${wo.display_number}` }, company || {}, res);
+    pdf.generateWorkOrderPDF({ ...wo, wo_number: `WO-${String(wo.display_number).replace(/^WO-/i, '')}` }, company || {}, res);
   } catch (err) {
     console.error('WO PDF failed:', err);
     if (!res.headersSent) res.status(500).render('error', { title: 'PDF error', code: 500, message: err.message });
