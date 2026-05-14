@@ -417,6 +417,14 @@
     document.addEventListener('keydown', escHandler);
   }
 
+  function openAssistantWithMessage(text) {
+    if (introEl) introEl.classList.add('hidden');
+    if (chatPanel) chatPanel.style.display = 'block';
+    document.dispatchEvent(new CustomEvent('forge:assistant', {
+      detail: { message: text }
+    }));
+  }
+
   // Intro input: Enter key sends + dismisses; any typing autofocuses
   // (NOTE: deferred focus happens at end of runIntro() so user-typed chars
   // don't race the typewriter sequence.)
@@ -425,14 +433,10 @@
     introInput.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
+        e.stopPropagation();
         var text = introInput.value.trim();
         if (text) {
-          revealChat();
-          // Pipe the text to the chat send
-          setTimeout(function() {
-            var chatInput = document.getElementById('recon-aic-input');
-            if (chatInput) { chatInput.value = text; chatInput.form?.requestSubmit(); }
-          }, 200);
+          openAssistantWithMessage(text);
         } else {
           revealChat();
         }
@@ -449,6 +453,9 @@
 
   // Keyboard: pressing Enter on the intro page triggers Get Started
   document.addEventListener('keydown', function(e) {
+    if (e.defaultPrevented) return;
+    var targetTag = e.target && e.target.tagName ? e.target.tagName.toLowerCase() : '';
+    if (targetTag === 'textarea' || targetTag === 'input' || targetTag === 'button' || targetTag === 'a') return;
     if (e.key === 'Enter' && !introEl.classList.contains('hidden')) {
       revealChat();
     }
