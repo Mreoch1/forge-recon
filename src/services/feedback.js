@@ -2,7 +2,7 @@
  * feedback.js — D-088: user feedback service
  *
  * Handles CRUD for the user_feedback table and provides a unified
- * inbox feed merging user_feedback + ai_chat_errors + ai_chat_message_feedback.
+ * inbox feed merging user_feedback + ai_chat_errors.
  */
 
 const supabase = require('../db/supabase');
@@ -70,7 +70,8 @@ async function getInboxFeed(limit = 50, statusFilter) {
   }
 
   const { data: feedback, error: fbError } = await fbQuery;
-  if (!fbError && feedback) {
+  if (fbError) throw fbError;
+  if (feedback) {
     feedback.forEach(f => {
       results.push({
         id: `fb-${f.id}`,
@@ -96,7 +97,8 @@ async function getInboxFeed(limit = 50, statusFilter) {
     .limit(limit);
 
   const { data: errors, error: errError } = await errQuery;
-  if (!errError && errors) {
+  if (errError) throw errError;
+  if (errors) {
     errors.forEach(e => {
       const isResolved = !!e.resolved_at;
       results.push({

@@ -178,6 +178,33 @@ describe('FeedbackService', () => {
     assert.equal(newError.status, 'new');
   });
 
+  test('getInboxFeed throws when a source query fails', async () => {
+    const originalFrom = mockSupabase.from;
+    const sourceError = new Error('user_feedback query failed');
+
+    function makeFailingQuery() {
+      const obj = {
+        select: () => obj,
+        order: () => obj,
+        limit: () => obj,
+        eq: () => obj,
+        then: (onFulfilled) => {
+          onFulfilled({ data: null, count: 0, error: sourceError });
+        },
+        catch: () => {},
+      };
+      return obj;
+    }
+
+    mockSupabase.from = () => makeFailingQuery();
+
+    try {
+      await assert.rejects(() => feedback.getInboxFeed(50), /user_feedback query failed/);
+    } finally {
+      mockSupabase.from = originalFrom;
+    }
+  });
+
   test('updateStatus updates user_feedback row', async () => {
     let updateCalled = false;
     let eqCalled = false;
