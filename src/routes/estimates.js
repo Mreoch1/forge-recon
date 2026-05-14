@@ -96,6 +96,19 @@ function paymentTermsFromBody(body, fallback = 'Net 30') {
   return selected || fallback;
 }
 
+function assertEstimateRead(result, label) {
+  if (result?.error) {
+    const err = new Error(`${label}: ${result.error.message}`);
+    err.cause = result.error;
+    throw err;
+  }
+  return result || {};
+}
+
+async function checkedEstimateRead(query, label) {
+  return assertEstimateRead(await query, label);
+}
+
 function missingPostgrestColumn(error) {
   const message = String(error?.message || '');
   const quoted = message.match(/'([^']+)' column/);
@@ -203,20 +216,20 @@ async function loadEstimate(id) {
   est.customer_zip = c?.zip;
   delete est.work_orders;
   if (est.sent_by_user_id) {
-    const { data: sentBy } = await supabase
+    const { data: sentBy } = await checkedEstimateRead(supabase
       .from('users')
       .select('name')
       .eq('id', est.sent_by_user_id)
-      .maybeSingle();
+      .maybeSingle(), 'estimate sent-by user read failed');
     est.sent_by_name = sentBy?.name || null;
   }
   // Load line items
-  const { data: lines } = await supabase
+  const { data: lines } = await checkedEstimateRead(supabase
     .from('estimate_line_items')
     .select('*')
     .eq('estimate_id', id)
     .order('sort_order', { ascending: true })
-    .order('id', { ascending: true });
+    .order('id', { ascending: true }), 'estimate line items read failed');
   est.lines = lines || [];
   est.display_number = `EST-${est.wo_display_number}`;
   return est;
@@ -256,11 +269,12 @@ router.get('/', async (req, res) => {
     countQuery = countQuery.not('archived_at', 'is', null);
   }
 
-  const [{ data: estimates, count: total }, { error }] = await Promise.all([
+  const [estimatesResult, countResult] = await Promise.all([
     query.order('created_at', { ascending: false }).range(offset, offset + PAGE_SIZE - 1),
     countQuery,
   ]);
-  if (error) throw error;
+  const { data: estimates, count: total } = assertEstimateRead(estimatesResult, 'estimates list read failed');
+  assertEstimateRead(countResult, 'estimates count read failed');
 
   const filtered = q
     ? (estimates || []).filter(r => {
@@ -297,7 +311,10 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   const estimate = await loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
-  const { data: invoice } = await supabase.from('invoices').select('id, status').eq('estimate_id', estimate.id).maybeSingle();
+  const { data: invoice } = await checkedEstimateRead(
+    supabase.from('invoices').select('id, status').eq('estimate_id', estimate.id).maybeSingle(),
+    'estimate invoice lookup failed',
+  );
   res.render('estimates/show', {
     title: estimate.display_number, activeNav: 'estimates',
     estimate, invoice, canSeePrices: true
@@ -496,7 +513,10 @@ router.get('/:id/create-invoice', async (req, res) => {
     setFlash(req, 'error', `Estimate must be draft, sent, or accepted before invoicing. Current: ${estimate.status}.`);
     return res.redirect(`/estimates/${estimate.id}`);
   }
-  const { data: existingInv } = await supabase.from('invoices').select('id').eq('estimate_id', estimate.id).maybeSingle();
+  const { data: existingInv } = await checkedEstimateRead(
+    supabase.from('invoices').select('id').eq('estimate_id', estimate.id).maybeSingle(),
+    'estimate create-invoice existing invoice lookup failed',
+  );
   if (existingInv) {
     setFlash(req, 'info', `Invoice already exists for ${estimate.display_number}.`);
     return res.redirect(`/invoices/${existingInv.id}`);
@@ -569,7 +589,10 @@ router.post('/:id/generate-invoice', async (req, res) => {
     setFlash(req, 'error', `Estimate must be draft, sent, or accepted before invoicing. Current: ${estimate.status}.`);
     return res.redirect(`/estimates/${estimate.id}`);
   }
-  const { data: existingInv } = await supabase.from('invoices').select('id').eq('estimate_id', estimate.id).maybeSingle();
+  const { data: existingInv } = await checkedEstimateRead(
+    supabase.from('invoices').select('id').eq('estimate_id', estimate.id).maybeSingle(),
+    'estimate generate-invoice existing invoice lookup failed',
+  );
   if (existingInv) {
     setFlash(req, 'info', `Invoice already exists for ${estimate.display_number}.`);
     return res.redirect(`/invoices/${existingInv.id}`);
@@ -609,7 +632,10 @@ router.post('/:id/generate-invoice', async (req, res) => {
   const now = new Date().toISOString();
 
   // Load company settings for payment terms, conditions, etc.
-  const { data: company } = await supabase.from('company_settings').select('*').limit(1).maybeSingle();
+  const { data: company } = await checkedEstimateRead(
+    supabase.from('company_settings').select('*').limit(1).maybeSingle(),
+    'estimate generate-invoice company settings read failed',
+  );
   const terms = estimate.payment_terms || company?.default_payment_terms || 'Net 30';
   // Calculate due date from terms
   let dueDate = null;
@@ -623,7 +649,10 @@ router.post('/:id/generate-invoice', async (req, res) => {
   // Load WO data for unit_number
   let woUnit = null;
   if (estimate.wo_id) {
-    const { data: wo } = await supabase.from('work_orders').select('unit_number, description').eq('id', estimate.wo_id).maybeSingle();
+    const { data: wo } = await checkedEstimateRead(
+      supabase.from('work_orders').select('unit_number, description').eq('id', estimate.wo_id).maybeSingle(),
+      'estimate generate-invoice work order read failed',
+    );
     woUnit = wo?.unit_number || null;
   }
 
@@ -713,7 +742,10 @@ router.get('/:id/select-for-invoice', async (req, res) => {
 router.get('/:id/pdf', async (req, res) => {
   const estimate = await loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
-  const { data: company } = await supabase.from('company_settings').select('*').eq('id', 1).maybeSingle();
+  const { data: company } = await checkedEstimateRead(
+    supabase.from('company_settings').select('*').eq('id', 1).maybeSingle(),
+    'estimate PDF company settings read failed',
+  );
   const filename = `${estimate.display_number}.pdf`;
   const disposition = req.query.download ? 'attachment' : 'inline';
   res.setHeader('Content-Type', 'application/pdf');
