@@ -12,6 +12,7 @@ const https = require('https');
 const smokeEmail = process.env.SMOKE_ADMIN_EMAIL || process.env.SMOKE_EMAIL || 'admin@recon.local';
 const smokePassword = process.env.SMOKE_ADMIN_PASSWORD || process.env.SMOKE_PASSWORD || 'changeme123';
 const usingDefaultSmokeCreds = smokeEmail === 'admin@recon.local' && smokePassword === 'changeme123';
+const isProductionSmoke = /^https:\/\/forge-recon\.vercel\.app\/?$/i.test(base);
 
 const COOKIE_JAR = {};
 let passed = 0, failed = 0;
@@ -70,6 +71,12 @@ async function main() {
 
   for (const check of manifest.filter(c => !c.auth)) {
     await runCheck(check);
+  }
+
+  if (isProductionSmoke && usingDefaultSmokeCreds) {
+    console.log('\nAUTH_SKIPPED_NO_CREDS: set SMOKE_ADMIN_EMAIL/SMOKE_ADMIN_PASSWORD or SMOKE_EMAIL/SMOKE_PASSWORD to run authenticated production checks.');
+    console.log(`\n=== RESULTS: ${passed} public passed, ${failed} failed; auth skipped ===`);
+    process.exit(failed > 0 ? 1 : 0);
   }
 
   await login();
