@@ -12,6 +12,7 @@ const { writeAudit } = require('../services/audit');
 const { logAiChatError } = require('../services/ai-chat-errors');
 const rateLimit = require('express-rate-limit');
 const supabase = require('../db/supabase');
+const hierarchy = require('../services/ai-assistant-state');
 
 // Rate limiter: 30 calls per 5 min per user
 const chatLimiter = rateLimit({
@@ -114,6 +115,7 @@ router.post('/chat/confirm', async (req, res) => {
   }
 
   const { confirmation_id, accept } = req.body;
+  const entityStack = Array.isArray(req.body.entity_stack) ? req.body.entity_stack : [];
   if (!confirmation_id) {
     return res.status(400).json({ error: 'confirmation_id is required.' });
   }
@@ -206,7 +208,31 @@ router.post('/chat/confirm', async (req, res) => {
         ? [{ label: `View ${row.tool.replace(/_/g, ' ')}`, href: result.result.href }]
         : [];
 
-      return res.json({ ok: true, result: result.result, chips });
+      let nextStack = entityStack;
+      let nextActiveIntent = null;
+      let resultSummary = null;
+      if (row.tool === 'create_customer') {
+        const resumeEntry = hierarchy.resumeFromStack(entityStack, 'customer');
+        if (resumeEntry) {
+          const popResult = hierarchy.popStack(entityStack);
+          nextStack = popResult.stack;
+          resultSummary = hierarchy.buildResumeReply(resumeEntry);
+          if (resumeEntry.tool === 'navigate' && resumeEntry.args && resumeEntry.args.path) {
+            chips.push({ label: 'Open work-order builder', href: resumeEntry.args.path });
+          } else if (resumeEntry.tool) {
+            nextActiveIntent = resumeEntry.tool;
+          }
+        }
+      }
+
+      return res.json({
+        ok: true,
+        result: result.result,
+        result_summary: resultSummary || undefined,
+        chips,
+        active_intent: nextActiveIntent,
+        entity_stack: nextStack
+      });
     } else {
       const { error: failErr } = await supabase.from('pending_confirmations').update({ status: 'failed' }).eq('id', row.id);
       if (failErr) {
@@ -222,7 +248,7 @@ router.post('/chat/confirm', async (req, res) => {
       return res.status(500).json({ error: 'Could not cancel confirmation. Please try again.' });
     }
     await writeAudit({ entityType: 'pending_confirmation', entityId: row.id, action: 'cancelled', before: null, after: { tool: row.tool }, source: 'ai', userId: row.user_id });
-    return res.json({ ok: true, cancelled: true });
+    return res.json({ ok: true, cancelled: true, active_intent: null, entity_stack: [] });
   }
 });
 

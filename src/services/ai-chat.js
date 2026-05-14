@@ -118,7 +118,7 @@ async function chat({ message, history, ctx, active_intent, entity_stack }) {
       confirm: null,
       audit_id: `${ctx.userId || 0}_${Date.now()}`,
       active_intent: null,
-      entity_stack: currentStack
+      entity_stack: hierarchy.clearStack()
     };
   }
 
@@ -134,6 +134,9 @@ async function chat({ message, history, ctx, active_intent, entity_stack }) {
   let tokensUsed = 0;
   let confirmPayload = null;
   let resultActiveIntent = active_intent || null;
+
+  const pendingParentReply = handlePendingParentResponse(message, history, currentStack, ctx, startTime);
+  if (pendingParentReply) return pendingParentReply;
 
   // Pre-chat: keep guided write flows deterministic before falling back to the LLM.
   const mutationIntent = resolveMutationIntent(message, history, ctx, active_intent);
@@ -163,124 +166,7 @@ async function chat({ message, history, ctx, active_intent, entity_stack }) {
           latency_ms: Date.now() - startTime,
           confirm: null,
           audit_id: ctx.userId + '_' + Date.now(),
-          active_intent: resultActiveIntent,
-          entity_stack: currentStack
-        };
-      }
-    }
-
-    // D-064: Check if the user is responding to a "create parent" prompt.
-    // When stack has a pending child intent and user says "yes" → route to create_customer.
-    if (currentStack && currentStack.length > 0 && !active_intent) {
-      const pendingEntry = hierarchy.peekStack(currentStack);
-      if (pendingEntry && pendingEntry.pendingParent) {
-        const lastAssistant = lastAssistantText(history);
-        // Check if the last assistant message was asking "want me to create them first?"
-        if (/don't have.*on file/i.test(lastAssistant) && /want me to create/i.test(lastAssistant)) {
-          if (hierarchy.isAffirmCreateParent(message)) {
-            // User said "yes" — route to create_customer with the parent name
-            const popResult = hierarchy.popStack(currentStack);
-            currentStack = popResult.stack;
-            // Re-push with resolved pending parent so resume works after creation
-            currentStack = hierarchy.pushStack(currentStack, {
-              tool: pendingEntry.tool,
-              args: pendingEntry.args,
-              entityType: pendingEntry.entityType,
-              parentName: pendingEntry.parentName,
-              pendingParent: null // No longer pending
-            });
-            const customerIntent = {
-              tool: 'create_customer',
-              args: { name: pendingEntry.parentName || '' }
-            };
-            allToolCalls = []; // Reset tool calls to customer creation
-            resultActiveIntent = 'create_customer';
-            const missingReply = buildMissingMutationReply(customerIntent);
-            if (missingReply) {
-              return {
-                reply: missingReply,
-                chips: buildMissingMutationChips(customerIntent),
-                tool_calls: allToolCalls,
-                tokens_used: 0,
-                latency_ms: Date.now() - startTime,
-                confirm: null,
-                audit_id: ctx.userId + '_' + Date.now(),
-                active_intent: resultActiveIntent,
-                entity_stack: currentStack
-              };
-            }
-          } else if (hierarchy.isRejectCreateParent(message)) {
-            // User said "no" — pop stack and cancel the child intent
-            hierarchy.popStack(currentStack);
-            currentStack = hierarchy.clearStack();
-            return {
-              reply: 'Okay, no ' + (pendingEntry.entityType || 'work order') + ' created. Let me know if you want to try again.',
-              chips: [],
-              tool_calls: [],
-              tokens_used: 0,
-              latency_ms: Date.now() - startTime,
-              confirm: null,
-              audit_id: ctx.userId + '_' + Date.now(),
-              active_intent: null,
-              entity_stack: currentStack
-            };
-          } else {
-            // Could be a different name
-            const diffName = hierarchy.extractDifferentName(message);
-            if (diffName) {
-              const popResult = hierarchy.popStack(currentStack);
-              currentStack = popResult.stack;
-              currentStack = hierarchy.pushStack(currentStack, {
-                tool: pendingEntry.tool,
-                args: pendingEntry.args,
-                entityType: pendingEntry.entityType,
-                parentName: diffName,
-                pendingParent: null
-              });
-              const customerIntent = {
-                tool: 'create_customer',
-                args: { name: diffName }
-              };
-              allToolCalls = [];
-              resultActiveIntent = 'create_customer';
-              const missingReply = buildMissingMutationReply(customerIntent);
-              if (missingReply) {
-                return {
-                  reply: missingReply,
-                  chips: buildMissingMutationChips(customerIntent),
-                  tool_calls: allToolCalls,
-                  tokens_used: 0,
-                  latency_ms: Date.now() - startTime,
-                  confirm: null,
-                  audit_id: ctx.userId + '_' + Date.now(),
-                  active_intent: resultActiveIntent,
-                  entity_stack: currentStack
-                };
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // D-064: When client-side entity_stack exists and we're completing a create_customer,
-    // check if we should resume a pending child intent from the stack.
-    if (active_intent === 'create_customer' && currentStack && currentStack.length > 0) {
-      const resumeEntry = hierarchy.resumeFromStack(currentStack, 'customer');
-      if (resumeEntry) {
-        // Pop the stack — customer creation completed, resume child
-        const popResult = hierarchy.popStack(currentStack);
-        currentStack = popResult.stack;
-        const resumeReply = hierarchy.buildResumeReply(resumeEntry);
-        return {
-          reply: resumeReply,
-          chips: [],
-          tool_calls: [],
-          tokens_used: 0,
-          latency_ms: Date.now() - startTime,
-          confirm: null,
-          audit_id: ctx.userId + '_' + Date.now(),
-          active_intent: resumeEntry.tool,
+          active_intent: null,
           entity_stack: currentStack
         };
       }
@@ -363,6 +249,21 @@ async function chat({ message, history, ctx, active_intent, entity_stack }) {
       },
       audit_id: `${ctx.userId || 0}_${Date.now()}`,
       active_intent: resultActiveIntent,
+      entity_stack: currentStack
+    };
+  }
+
+  const hierarchyGuidance = buildCreateChildGuidance(message);
+  if (hierarchyGuidance) {
+    return {
+      reply: hierarchyGuidance,
+      chips: [],
+      tool_calls: [],
+      tokens_used: 0,
+      latency_ms: Date.now() - startTime,
+      confirm: null,
+      audit_id: `${ctx.userId || 0}_${Date.now()}`,
+      active_intent: null,
       entity_stack: currentStack
     };
   }
@@ -649,6 +550,72 @@ function lastAssistantText(history) {
     if (rows[i] && rows[i].role === 'assistant') return String(rows[i].content || '');
   }
   return '';
+}
+
+function handlePendingParentResponse(message, history, currentStack, ctx, startTime) {
+  const pendingEntry = hierarchy.peekStack(currentStack);
+  if (!pendingEntry || !pendingEntry.pendingParent) return null;
+
+  const lastAssistant = lastAssistantText(history);
+  if (!/don't have.*on file/i.test(lastAssistant) || !/want me to create/i.test(lastAssistant)) {
+    return null;
+  }
+
+  if (hierarchy.isRejectCreateParent(message)) {
+    return {
+      reply: 'Okay, no ' + (pendingEntry.entityType || 'child record') + ' created. Let me know if you want to try again.',
+      chips: [],
+      tool_calls: [],
+      tokens_used: 0,
+      latency_ms: Date.now() - startTime,
+      confirm: null,
+      audit_id: ctx.userId + '_' + Date.now(),
+      active_intent: null,
+      entity_stack: hierarchy.clearStack()
+    };
+  }
+
+  const parentName = hierarchy.isAffirmCreateParent(message)
+    ? pendingEntry.parentName
+    : hierarchy.extractDifferentName(message);
+  if (!parentName) return null;
+
+  const popResult = hierarchy.popStack(currentStack);
+  const nextStack = hierarchy.pushStack(popResult.stack, {
+    ...pendingEntry,
+    parentName,
+    pendingParent: pendingEntry.pendingParent || 'customer'
+  });
+  const customerIntent = { tool: 'create_customer', args: { name: parentName } };
+  const missingReply = buildMissingMutationReply(customerIntent);
+
+  return {
+    reply: missingReply || `I'll prepare to create customer with the name ${parentName}.`,
+    chips: buildMissingMutationChips(customerIntent),
+    tool_calls: [],
+    tokens_used: 0,
+    latency_ms: Date.now() - startTime,
+    confirm: null,
+    audit_id: ctx.userId + '_' + Date.now(),
+    active_intent: 'create_customer',
+    entity_stack: nextStack
+  };
+}
+
+function buildCreateChildGuidance(message) {
+  const msg = String(message || '');
+  const asksCreate = /\b(create|make|add|draft|start|set up|prepare)\b/i.test(msg);
+  if (!asksCreate) return null;
+
+  if (/\binvoice\b/i.test(msg) && !/\b(pay|paid|payment|mark)\b/i.test(msg)) {
+    return 'Invoices in FORGE are created from an approved estimate, not directly from a customer. Give me the estimate number or work order, or start by creating the customer/work order/estimate first.';
+  }
+
+  if (/\bestimate\b/i.test(msg) && !/\b(send|email)\b/i.test(msg)) {
+    return 'Estimates in FORGE belong to a work order. Give me the work order number, or start with the customer and scope so I can help you open the work-order builder first.';
+  }
+
+  return null;
 }
 
 function customerDraftFromHistory(history) {
@@ -1028,6 +995,8 @@ module.exports._internal = {
   buildMissingMutationReply,
   buildMissingMutationChips,
   buildGuidedErrorReply,
+  buildCreateChildGuidance,
+  handlePendingParentResponse,
   detectMutationIntent,
   resolveMutationIntent,
   isCancelFlowMessage,

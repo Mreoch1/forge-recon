@@ -141,3 +141,31 @@ test('AI chat carries actual work-order details into the builder draft', () => {
   assert.match(intent.args.path, /^\/work-orders\/ai-create\?draft=/);
   assert.match(decodeURIComponent(intent.args.path), /Tower 7 unit 2B/);
 });
+
+test('AI chat keeps hierarchy stack alive when user accepts parent creation', () => {
+  const response = chat._internal.handlePendingParentResponse(
+    'yes',
+    [{ role: 'assistant', content: 'I don\'t have a customer named "New Tower" on file. Want me to create them first? (yes / no / different name)' }],
+    [{
+      tool: 'navigate',
+      args: { path: '/work-orders/ai-create?draft=create%20work%20order%20for%20New%20Tower' },
+      entityType: 'work_order',
+      parentName: 'New Tower',
+      pendingParent: 'customer',
+    }],
+    { userId: 1 },
+    Date.now()
+  );
+
+  assert.equal(response.active_intent, 'create_customer');
+  assert.equal(response.entity_stack.length, 1);
+  assert.equal(response.entity_stack[0].pendingParent, 'customer');
+  assert.match(response.reply, /New Tower/i);
+});
+
+test('AI chat gives hierarchy guidance for direct invoice creation requests', () => {
+  const reply = chat._internal.buildCreateChildGuidance('Create an invoice for New Tower');
+
+  assert.match(reply, /approved estimate/i);
+  assert.match(reply, /work order/i);
+});

@@ -23,6 +23,7 @@
 
   const STORAGE_KEY = 'recon_ai_chat_history_v1';
   const ACTIVE_INTENT_KEY = 'recon_ai_chat_active_intent_v1';
+  const ENTITY_STACK_KEY = 'recon_ai_chat_entity_stack_v1';
   const MAX_HISTORY = 20;
 
   // ----- DOM -----
@@ -280,6 +281,7 @@
     sending: false,
     history: [],   // { role: 'user' | 'assistant', content: string, chips?: [] }
     activeIntent: null,
+    entityStack: [],
     disabled: false, // set true if /ai/chat returns 404
   };
 
@@ -289,6 +291,9 @@
       if (raw) state.history = JSON.parse(raw).slice(-MAX_HISTORY);
       const activeIntent = sessionStorage.getItem(ACTIVE_INTENT_KEY);
       state.activeIntent = activeIntent || null;
+      const rawStack = sessionStorage.getItem(ENTITY_STACK_KEY);
+      const parsedStack = rawStack ? JSON.parse(rawStack) : [];
+      state.entityStack = Array.isArray(parsedStack) ? parsedStack : [];
     } catch (_) { /* ignore */ }
   }
   function saveHistory() {
@@ -296,11 +301,17 @@
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state.history.slice(-MAX_HISTORY)));
       if (state.activeIntent) sessionStorage.setItem(ACTIVE_INTENT_KEY, state.activeIntent);
       else sessionStorage.removeItem(ACTIVE_INTENT_KEY);
+      if (state.entityStack && state.entityStack.length) {
+        sessionStorage.setItem(ENTITY_STACK_KEY, JSON.stringify(state.entityStack));
+      } else {
+        sessionStorage.removeItem(ENTITY_STACK_KEY);
+      }
     } catch (_) { /* ignore */ }
   }
   function clearHistory() {
     state.history = [];
     state.activeIntent = null;
+    state.entityStack = [];
     saveHistory();
     render();
   }
@@ -490,6 +501,7 @@
           message: text,
           history: state.history.slice(-MAX_HISTORY),
           active_intent: state.activeIntent,
+          entity_stack: state.entityStack,
         }),
         signal: controller.signal,
       });
@@ -507,6 +519,7 @@
       }
       const data = await res.json();
       state.activeIntent = data.active_intent || null;
+      state.entityStack = Array.isArray(data.entity_stack) ? data.entity_stack : [];
       const msg = {
         role: 'assistant',
         content: data.reply || '(no reply)',
@@ -590,7 +603,7 @@
       const res = await fetch('/ai/chat/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify({ confirmation_id: cid, accept }),
+        body: JSON.stringify({ confirmation_id: cid, accept, entity_stack: state.entityStack }),
       });
       if (!res.ok) {
         const errBody = await safeJSON(res);
@@ -607,9 +620,11 @@
       if (data.cancelled) {
         msg.confirmState = { status: 'cancelled', inflight: false };
         state.activeIntent = null;
+        state.entityStack = [];
       } else if (data.ok) {
         msg.confirmState = { status: 'confirmed', inflight: false };
-        state.activeIntent = null;
+        state.activeIntent = data.active_intent || null;
+        state.entityStack = Array.isArray(data.entity_stack) ? data.entity_stack : [];
         // Append a follow-up assistant message confirming what landed.
         state.history.push({
           role: 'assistant',
