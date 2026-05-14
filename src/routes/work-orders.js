@@ -80,6 +80,12 @@ function requireManagerRole(req, res) {
   return true;
 }
 
+function isMissingOptionalTableError(error) {
+  const code = String(error?.code || '');
+  const message = String(error?.message || '').toLowerCase();
+  return code === '42P01' || code === 'PGRST205' || message.includes('does not exist');
+}
+
 function idInFilter(ids) {
   const cleanIds = Array.from(new Set(ids || []))
     .map(Number)
@@ -1382,8 +1388,10 @@ router.post('/:id/delete', async (req, res) => {
   const { error: lineDeleteErr } = await supabase.from('work_order_line_items').delete().eq('work_order_id', wo.id);
   if (lineDeleteErr) throw lineDeleteErr;
   // Notes + photos best-effort (table may not exist on older DBs)
-  try { await supabase.from('wo_notes').delete().eq('work_order_id', wo.id); } catch (_) {}
-  try { await supabase.from('wo_photos').delete().eq('work_order_id', wo.id); } catch (_) {}
+  const { error: notesDeleteErr } = await supabase.from('wo_notes').delete().eq('work_order_id', wo.id);
+  if (notesDeleteErr && !isMissingOptionalTableError(notesDeleteErr)) throw notesDeleteErr;
+  const { error: photosDeleteErr } = await supabase.from('wo_photos').delete().eq('work_order_id', wo.id);
+  if (photosDeleteErr && !isMissingOptionalTableError(photosDeleteErr)) throw photosDeleteErr;
 
   const { error: delErr } = await supabase.from('work_orders').delete().eq('id', wo.id);
   if (delErr) throw delErr;
