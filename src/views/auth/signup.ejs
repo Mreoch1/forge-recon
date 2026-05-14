@@ -57,6 +57,11 @@
   </style>
 </head>
 <body class="flex items-center justify-center min-h-screen p-4">
+  <% if (typeof announcement !== 'undefined' && announcement && announcement.message) { %>
+    <div class="fixed top-0 left-0 right-0 z-50 text-white text-center text-xs py-2 px-4 shadow-md" style="background:linear-gradient(90deg,#c0202b,#8a0e16)">
+      <span class="font-semibold tracking-wide"><%= announcement.message %></span>
+    </div>
+  <% } %>
   <div class="card w-full max-w-md p-8">
     <div class="flex flex-col items-center mb-6">
       <img src="/logos/recon-logo.jpg" alt="Recon Enterprises Inc." class="h-16 w-auto mb-2">
