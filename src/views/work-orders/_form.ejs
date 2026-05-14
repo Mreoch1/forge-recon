@@ -134,15 +134,6 @@ const selectedAssignees = wo.assignee_ids || [];
               placeholder="Full description with all the details about the work" oninput="this.style.height='';this.style.height=Math.min(this.scrollHeight,400)+'px'"><%= wo.description || '' %></textarea>
   </div>
 
-  <!-- Crew notes (internal) -->
-  <div class="card p-5">
-    <label class="label" for="notes">Crew instructions <span class="text-xs text-recon-fog">(visible to assignees only)</span>
-      <span class="ml-1 text-recon-fog cursor-help" title="Internal-only notes for the field crew. NOT shown to customers or on PDFs/emails sent outside the company.">ⓘ</span>
-    </label>
-    <textarea name="notes" id="notes" rows="4" class="input" style="min-height:8rem;resize:vertical"
-              placeholder="Important crew notes here" oninput="this.style.height='';this.style.height=Math.min(this.scrollHeight,400)+'px'"><%= wo.notes || '' %></textarea>
-  </div>
-
   <div class="flex items-center gap-2 pt-2">
     <button type="submit" class="btn btn-primary"><%= submitLabel %></button>
     <a href="/work-orders" class="btn btn-ghost">Cancel</a>
