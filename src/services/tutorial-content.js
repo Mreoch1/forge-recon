@@ -65,7 +65,14 @@ module.exports = { loadChapters, getChapter, totalChapters, interpolateNarration
 /** Replace {{tokens}} in narration with user data. */
 function interpolateNarration(text, user) {
   if (!text) return '';
-  const vars = { userName: user?.name || 'there', userEmail: user?.email || '' };
+  const name = user?.name || 'there';
+  const firstName = name.split(/\s+/)[0] || name;
+  const vars = {
+    userName: name,
+    first_name: firstName,
+    firstName,
+    userEmail: user?.email || '',
+  };
   return text.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] || `{{${key}}}`);
 }
 

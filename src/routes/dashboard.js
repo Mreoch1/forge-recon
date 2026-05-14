@@ -305,6 +305,11 @@ router.get('/forge/tutorial', async (req, res) => {
 
   const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase);
   await state.save(supabase);
+  const currentChapter = state.getCurrentChapter();
+  const tc = require('../services/tutorial-content');
+  if (currentChapter?.narration) {
+    currentChapter.narration = tc.interpolateNarration(currentChapter.narration, res.locals.currentUser);
+  }
 
   res.render('forge/tutorial', {
     title: 'FORGE Tutorial',
@@ -312,7 +317,7 @@ router.get('/forge/tutorial', async (req, res) => {
     currentUser: res.locals.currentUser || null,
     returnTo: req.query.return || '/forge',
     tutorialSessionId: sessionId,
-    currentChapter: state.getCurrentChapter(),
+    currentChapter,
     chapterIndex: state.currentChapter,
     totalChapters: totalChapters(),
     stepIndex: state.currentStep,
