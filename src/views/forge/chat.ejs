@@ -2,45 +2,158 @@
 <%- include('../layouts/header', { title: 'FORGE AI', activeNav: 'forge', currentUser }) %>
 
 <style>
-  /* D-060: Futuristic FORGE startup intro panel */
+  /* D-060 + D-083 polish: Futuristic FORGE startup intro panel — cinematic, holds until user clicks */
   #forge-intro {
-    min-height: 60vh;
+    min-height: 70vh;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    background: linear-gradient(135deg, #020617 0%, #172554 50%, #0f172a 100%);
-    border-radius: 0.75rem; padding: 3rem 2rem; text-align: center;
+    background:
+      radial-gradient(ellipse at 20% 0%, rgba(34,211,238,0.10) 0%, transparent 55%),
+      radial-gradient(ellipse at 80% 100%, rgba(99,102,241,0.10) 0%, transparent 55%),
+      linear-gradient(135deg, #020617 0%, #0c1228 35%, #172554 60%, #0f172a 100%);
+    border-radius: 0.75rem; padding: 3.5rem 2rem; text-align: center;
     position: relative; overflow: hidden;
     transition: opacity 0.6s ease, max-height 0.6s ease;
   }
   #forge-intro.hidden { opacity: 0; max-height: 0; padding: 0; overflow: hidden; pointer-events: none; }
-  /* Scanline overlay */
+
+  /* Scanline overlay (CRT vibe) */
   #forge-intro::after {
     content: ''; position: absolute; inset: 0;
     background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(34,211,238,0.04) 2px, rgba(34,211,238,0.04) 4px);
     pointer-events: none;
     animation: forge-scanline 3s ease-in-out infinite;
   }
-  @keyframes forge-scanline {
-    0%, 100% { opacity: 0.1; }
-    50% { opacity: 0.25; }
+  @keyframes forge-scanline { 0%, 100% { opacity: 0.1; } 50% { opacity: 0.28; } }
+
+  /* Animated grid floor (perspective-tilted) */
+  #forge-intro::before {
+    content: ''; position: absolute; left: 0; right: 0; bottom: -20%;
+    height: 60%;
+    background:
+      linear-gradient(transparent 0%, rgba(34,211,238,0.18) 100%) 0 0 / 100% 100%,
+      repeating-linear-gradient(90deg, transparent 0 60px, rgba(34,211,238,0.18) 60px 61px),
+      repeating-linear-gradient(0deg, transparent 0 60px, rgba(34,211,238,0.18) 60px 61px);
+    transform: perspective(600px) rotateX(60deg);
+    transform-origin: 50% 100%;
+    mask-image: linear-gradient(to top, black, transparent);
+    -webkit-mask-image: linear-gradient(to top, black, transparent);
+    opacity: 0.55;
+    animation: forge-grid-pulse 6s ease-in-out infinite;
+    pointer-events: none;
   }
-  @keyframes forge-fade-in {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
+  @keyframes forge-grid-pulse {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 0.7; }
   }
+
+  /* Status pill — top right "● ONLINE" indicator */
+  .forge-status {
+    position: absolute; top: 1.25rem; right: 1.25rem; z-index: 3;
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    font-family: 'SF Mono', monospace; font-size: 0.7rem; letter-spacing: 0.15em;
+    color: #22d3ee; padding: 0.25rem 0.65rem; border-radius: 999px;
+    background: rgba(34,211,238,0.08); border: 1px solid rgba(34,211,238,0.25);
+  }
+  .forge-status-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: #22d3ee;
+    box-shadow: 0 0 8px #22d3ee;
+    animation: forge-status-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes forge-status-pulse {
+    0%, 100% { opacity: 0.4; transform: scale(0.85); }
+    50% { opacity: 1; transform: scale(1.15); }
+  }
+
+  /* Boot terminal (Phase 1) */
+  .forge-boot {
+    font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.78rem;
+    color: #67e8f9; text-align: left; max-width: 480px; width: 100%;
+    min-height: 5.5rem; margin-bottom: 1.75rem;
+    line-height: 1.55; letter-spacing: 0.04em;
+    position: relative; z-index: 2;
+  }
+  .forge-boot-line { opacity: 0; transition: opacity 0.25s ease; }
+  .forge-boot-line.shown { opacity: 0.85; }
+  .forge-boot-line.ok { color: #4ade80; }
+  .forge-boot-cursor { display: inline-block; width: 8px; background: #67e8f9; margin-left: 2px;
+    animation: forge-blink-cursor 0.7s step-end infinite; }
+
+  /* Wordmark - subtle small FORGE above greeting */
+  .forge-wordmark-small {
+    font-family: 'Inter', system-ui, sans-serif; font-weight: 900;
+    font-size: 0.8rem; letter-spacing: 0.5em; color: #64748b;
+    margin-bottom: 1rem; opacity: 0; transition: opacity 0.7s ease;
+    position: relative; z-index: 2;
+  }
+  .forge-wordmark-small.shown { opacity: 1; }
+
+  /* Typewriter greeting (Phase 2) — slower, bigger, more dramatic */
   .forge-typewriter {
-    font-family: 'Inter', 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
-    font-size: 2rem; font-weight: 700; color: #e2e8f0;
-    min-height: 2.5rem; letter-spacing: 0.02em;
-    border-right: 2px solid #22d3ee;
+    font-family: 'Inter', 'SF Mono', 'Fira Code', monospace;
+    font-size: 2.6rem; font-weight: 700; color: #f1f5f9;
+    min-height: 3.2rem; letter-spacing: 0.02em;
+    border-right: 3px solid #22d3ee;
     animation: forge-blink-cursor 1s step-end infinite;
     margin-bottom: 0.5rem;
+    text-shadow: 0 0 24px rgba(34,211,238,0.25);
+    position: relative; z-index: 2;
   }
-  @keyframes forge-blink-cursor {
-    50% { border-color: transparent; }
+  @keyframes forge-blink-cursor { 50% { border-color: transparent; } }
+
+  /* Subtitle / tagline (Phase 3+) — start hidden, JS reveals */
+  .forge-subtitle, .forge-tagline {
+    opacity: 0; transform: translateY(8px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+    position: relative; z-index: 2;
   }
-  .forge-subtitle { font-size: 1.1rem; color: #94a3b8; margin-bottom: 0.25rem; animation: forge-fade-in 0.8s ease forwards; opacity: 0; }
-  .forge-tagline { font-size: 0.9rem; color: #64748b; font-style: italic; animation: forge-fade-in 0.8s ease 0.3s forwards; opacity: 0; margin-bottom: 2rem; }
-  .forge-chips-row { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; animation: forge-fade-in 0.8s ease 0.6s forwards; opacity: 0; }
+  .forge-subtitle.shown, .forge-tagline.shown { opacity: 1; transform: translateY(0); }
+  .forge-subtitle { font-size: 1.2rem; color: #cbd5e1; margin-bottom: 0.35rem; }
+  .forge-tagline { font-size: 0.95rem; color: #94a3b8; font-style: italic; margin-bottom: 2rem; }
+
+  /* CTA wrap (Phase 5) */
+  #forge-cta-wrap {
+    opacity: 0; transform: translateY(10px); transition: opacity 0.8s ease, transform 0.8s ease;
+    margin-top: 1rem; display: flex; flex-direction: column; align-items: center; gap: 0.65rem;
+    position: relative; z-index: 2;
+  }
+  #forge-cta-wrap.shown { opacity: 1; transform: translateY(0); }
+
+  /* Pulsing Get Started button */
+  #forge-get-started {
+    padding: 0.95rem 2.5rem; font-size: 1.05rem; border-radius: 999px; cursor: pointer;
+    border: none; background: linear-gradient(135deg, #22d3ee 0%, #06b6d4 100%);
+    color: #020617; font-weight: 800; letter-spacing: 0.04em;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 0 0 0 rgba(34,211,238,0.7), 0 6px 24px rgba(34,211,238,0.25);
+    animation: forge-cta-pulse 2.2s ease-in-out infinite;
+  }
+  #forge-get-started:hover { transform: translateY(-2px) scale(1.04); box-shadow: 0 0 32px rgba(34,211,238,0.6), 0 10px 28px rgba(34,211,238,0.35); }
+  @keyframes forge-cta-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(34,211,238,0.55), 0 6px 24px rgba(34,211,238,0.25); }
+    50%      { box-shadow: 0 0 0 14px rgba(34,211,238,0), 0 8px 28px rgba(34,211,238,0.4); }
+  }
+
+  .forge-press-enter { font-size: 0.75rem; color: #64748b; letter-spacing: 0.05em; }
+  .forge-press-enter kbd { background: #1e293b; color: #e2e8f0; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; border: 1px solid #334155; }
+
+  /* Input wrap (Phase 6) */
+  #forge-intro-input-wrap {
+    margin-top: 1.5rem; width: 100%; max-width: 600px;
+    opacity: 0; transform: translateY(8px); transition: opacity 0.7s ease, transform 0.7s ease;
+    position: relative; z-index: 2;
+  }
+  #forge-intro-input-wrap.shown { opacity: 1; transform: translateY(0); }
+
+  /* Tutorial link (Phase 6) */
+  .forge-tutorial-link-wrap {
+    margin-top: 0.85rem; opacity: 0; transition: opacity 0.6s ease;
+    position: relative; z-index: 2;
+  }
+  .forge-tutorial-link-wrap.shown { opacity: 1; }
+
+  /* Chips */
+  .forge-chips-row { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; opacity: 0; transition: opacity 0.7s ease; position: relative; z-index: 2; }
+  .forge-chips-row.shown { opacity: 1; }
   .forge-chip {
     display: inline-flex; align-items: center; gap: 0.35rem;
     padding: 0.5rem 1rem; border-radius: 999px; cursor: pointer;
@@ -49,10 +162,14 @@
     transition: all 0.2s; backdrop-filter: blur(4px);
   }
   .forge-chip:hover { background: rgba(34,211,238,0.18); border-color: rgba(34,211,238,0.4); transform: translateY(-1px); }
+
   @media (prefers-reduced-motion: reduce) {
-    #forge-intro::after { animation: none; }
+    #forge-intro::after, #forge-intro::before { animation: none; }
     .forge-typewriter { border-right: none; }
-    @keyframes forge-fade-in { from { opacity: 1; transform: none; } to { opacity: 1; transform: none; } }
+    .forge-status-dot, #forge-get-started { animation: none; }
+    .forge-boot-line, .forge-wordmark-small, .forge-subtitle, .forge-tagline,
+    #forge-cta-wrap, #forge-intro-input-wrap, .forge-tutorial-link-wrap, .forge-chips-row
+      { opacity: 1; transform: none; transition: none; }
   }
 
   /* D-083: Cinematic intro — FORGE wordmark reveal, full-page overlay */
@@ -106,19 +223,37 @@
 <div class="max-w-7xl mx-auto px-4 py-4">
   <!-- Intro panel with visible chat input -->
   <div id="forge-intro">
+    <div class="forge-status"><span class="forge-status-dot"></span>STATUS: ONLINE</div>
+
+    <!-- Phase 1: boot terminal -->
+    <div class="forge-boot" id="forge-boot">
+      <div class="forge-boot-line" data-line="0"><span style="color:#64748b">&gt;</span> FORGE_OS v0.6 &mdash; field operations engine</div>
+      <div class="forge-boot-line" data-line="1"><span style="color:#64748b">&gt;</span> initializing workspace<span class="forge-boot-cursor" style="display:none"></span></div>
+      <div class="forge-boot-line" data-line="2"><span style="color:#64748b">&gt;</span> loading projects, work orders, schedule</div>
+      <div class="forge-boot-line ok" data-line="3"><span style="color:#64748b">&gt;</span> ready.</div>
+    </div>
+
+    <!-- Phase 2: small wordmark above greeting -->
+    <div class="forge-wordmark-small" id="forge-wordmark-small">F · O · R · G · E</div>
+
+    <!-- Phase 3: typewriter greeting -->
     <div class="forge-typewriter" id="forge-typewriter"></div>
     <div class="forge-subtitle" id="forge-subtitle">I'm FORGE, your assistant.</div>
-    <div class="forge-tagline" id="forge-tagline">Type a question or just say "help me with&hellip;" — I'll figure it out.</div>
-    <div id="forge-cta-wrap" class="hidden" style="margin-top:1.5rem;animation:forge-fade-in 0.6s ease forwards;display:flex;flex-direction:column;align-items:center;gap:0.5rem;position:relative;z-index:2;">
-      <button id="forge-get-started" class="btn btn-primary" style="padding:0.75rem 2rem;font-size:1rem;border-radius:999px;cursor:pointer;border:none;background:#22d3ee;color:#020617;font-weight:700;transition:all 0.2s;box-shadow:0 0 20px rgba(34,211,238,0.3);">Get Started</button>
-      <span style="font-size:0.75rem;color:#64748b;">press <kbd style="background:#334155;color:#e2e8f0;padding:2px 8px;border-radius:4px;font-size:0.7rem;">Enter</kbd> to start</span>
+    <div class="forge-tagline" id="forge-tagline">Ask me anything &mdash; find, schedule, create, send, or explain.</div>
+
+    <!-- Phase 5: CTA -->
+    <div id="forge-cta-wrap">
+      <button id="forge-get-started" type="button">Get Started</button>
+      <span class="forge-press-enter">press <kbd>Enter</kbd> to begin</span>
     </div>
-    <!-- Visible chat input inside intro — autofocused, typing dismisses intro -->
-    <div style="margin-top:1.5rem;width:100%;max-width:600px;position:relative;z-index:2;" id="forge-intro-input-wrap">
-      <textarea id="recon-aic-input-intro" rows="1" placeholder="Ask FORGE to find, schedule, create, send, or explain..." style="width:100%;padding:0.75rem 1rem;border-radius:8px;border:1px solid rgba(34,211,238,0.3);background:rgba(15,23,42,0.6);color:#e2e8f0;font-size:0.95rem;outline:none;resize:none;transition:all 0.2s;box-shadow:0 0 0 0 rgba(34,211,238,0);" class="forge-intro-input"></textarea>
+
+    <!-- Phase 6: chat input -->
+    <div id="forge-intro-input-wrap">
+      <textarea id="recon-aic-input-intro" rows="1" placeholder="Ask FORGE to find, schedule, create, send, or explain..." style="width:100%;padding:0.75rem 1rem;border-radius:8px;border:1px solid rgba(34,211,238,0.3);background:rgba(15,23,42,0.6);color:#e2e8f0;font-size:0.95rem;outline:none;resize:none;transition:all 0.2s;" class="forge-intro-input"></textarea>
     </div>
-    <div style="margin-top:0.75rem;position:relative;z-index:2;">
-      <a href="/forge/tutorial" style="font-size:0.8rem;color:#64748b;text-decoration:underline;">🎓 Start Tutorial</a>
+
+    <div class="forge-tutorial-link-wrap" id="forge-tutorial-link-wrap">
+      <a href="/forge/tutorial?return=/forge" style="font-size:0.8rem;color:#64748b;text-decoration:underline;">🎓 Start Tutorial</a>
     </div>
   </div>
 
@@ -141,21 +276,101 @@
   var introEl = document.getElementById('forge-intro');
   var chatPanel = document.getElementById('forge-chat-panel');
   var typewriterEl = document.getElementById('forge-typewriter');
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // Personalized typewriter greeting — "Hello, <firstName>."
+  // -----------------------------------------------------------------------
+  // Cinematic intro sequence — boot → wordmark → greeting → subtitle → CTA
+  // Each phase chains off the previous. Holds INDEFINITELY at the CTA.
+  // No auto-dismiss, no time-based exit — only Get Started / Enter / typing
+  // moves to the next screen.
+  // -----------------------------------------------------------------------
+
+  function delay(ms) { return new Promise(function(r){ setTimeout(r, reduceMotion ? Math.min(ms, 50) : ms); }); }
+
+  function showBootLines() {
+    var lines = document.querySelectorAll('#forge-boot .forge-boot-line');
+    return lines.length === 0 ? Promise.resolve() : (async function(){
+      var stagger = reduceMotion ? 0 : 380;
+      for (var i = 0; i < lines.length; i++) {
+        lines[i].classList.add('shown');
+        await delay(stagger);
+      }
+    })();
+  }
+
+  function showEl(id, klass) {
+    var el = document.getElementById(id);
+    if (el) el.classList.add(klass || 'shown');
+  }
+
+  // Personalized typewriter greeting — "Hello, <firstName>." (slow + dramatic)
   var greeting = <%- JSON.stringify('Hello, ' + firstName + '.') %>;
-  var i = 0;
-  function typeChar() {
-    if (i < greeting.length) {
-      typewriterEl.textContent += greeting.charAt(i);
-      i++;
-      setTimeout(typeChar, 30 + Math.random() * 20);
-    } else {
-      // Typewriter done — show the "Get Started" CTA + press Enter hint
-      document.getElementById('forge-cta-wrap').classList.remove('hidden');
+  function typeGreeting() {
+    return new Promise(function(resolve) {
+      if (reduceMotion) { typewriterEl.textContent = greeting; return resolve(); }
+      var i = 0;
+      function step() {
+        if (i >= greeting.length) return resolve();
+        var ch = greeting.charAt(i);
+        typewriterEl.textContent += ch;
+        i++;
+        // Per-char cadence + extra pause on punctuation for drama
+        var base = 85 + Math.random() * 55;            // ≈85-140ms / char
+        if (ch === ',') base += 280;
+        if (ch === '.') base += 420;
+        if (ch === ' ') base += 90;
+        setTimeout(step, base);
+      }
+      step();
+    });
+  }
+
+  async function runIntro() {
+    // Phase 1: boot terminal lines stagger in
+    await delay(reduceMotion ? 0 : 200);
+    await showBootLines();
+    await delay(reduceMotion ? 0 : 350);
+
+    // Phase 2: small FORGE wordmark fades in above greeting
+    showEl('forge-wordmark-small');
+    await delay(reduceMotion ? 0 : 600);
+
+    // Phase 3: typewriter greeting (the slow money shot)
+    await typeGreeting();
+    await delay(reduceMotion ? 0 : 450);
+
+    // Phase 4: subtitle
+    showEl('forge-subtitle');
+    await delay(reduceMotion ? 0 : 600);
+
+    // Phase 5: tagline
+    showEl('forge-tagline');
+    await delay(reduceMotion ? 0 : 550);
+
+    // Phase 6: CTA appears with pulsing glow
+    showEl('forge-cta-wrap');
+    await delay(reduceMotion ? 0 : 350);
+
+    // Phase 7: input field
+    showEl('forge-intro-input-wrap');
+    await delay(reduceMotion ? 0 : 250);
+
+    // Phase 8: tutorial link
+    showEl('forge-tutorial-link-wrap');
+
+    // HOLD — no further action until user clicks Get Started, types, or hits Enter
+    // Autofocus the input AFTER the sequence so user-typed text doesn't race the typewriter
+    var introInput = document.getElementById('recon-aic-input-intro');
+    if (introInput && !introInput.matches(':focus')) {
+      // Only autofocus on desktop — mobile keyboard would pop up jarringly
+      if (window.matchMedia && !window.matchMedia('(max-width: 768px)').matches) {
+        introInput.focus();
+      }
     }
   }
-  typeChar();
+
+  // Kick off the cinematic sequence
+  runIntro();
 
   function revealChat() {
     // D-083: Cinematic intro — show FORGE wordmark reveal, play audio, then redirect to tutorial
@@ -203,9 +418,10 @@
   }
 
   // Intro input: Enter key sends + dismisses; any typing autofocuses
+  // (NOTE: deferred focus happens at end of runIntro() so user-typed chars
+  // don't race the typewriter sequence.)
   var introInput = document.getElementById('recon-aic-input-intro');
   if (introInput) {
-    introInput.focus();
     introInput.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
