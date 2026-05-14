@@ -234,6 +234,49 @@ async function sendWorkOrderAssignedEmail({ to, toName, woNumber, woId, customer
 }
 
 /**
+ * Send a work-order-unassigned notification email.
+ */
+async function sendWorkOrderUnassignedEmail({ to, toName, woNumber, woId, customerName, unitNumber }) {
+  const link = `${BASE}/work-orders/${woId}`;
+  const safeCust = escapeHtml(customerName || '');
+  const safeUnit = escapeHtml(unitNumber || '');
+  const subject = `FORGE · Unassigned from ${woNumber} · ${safeCust}`;
+  const bodyHtml = `
+    <div style="max-width:600px;margin:0 auto;font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif">
+    <div style="background:#fff;border:1px solid #e0e0e0;padding:24px 32px;border-radius:8px">
+      <p style="font-size:12px;color:#888;margin:0 0 12px;text-transform:uppercase;letter-spacing:.08em">Work Order Update</p>
+      <p style="font-size:15px;color:#333">Hello${toName ? ' ' + escapeHtml(toName) : ''},</p>
+      <p style="font-size:14px;color:#555">You've been <strong>unassigned</strong> from the following work order:</p>
+      <div style="background:#f8f8f8;border-radius:8px;padding:16px;margin:16px 0">
+        <p style="font-size:13px;color:#888;margin:0 0 4px;text-transform:uppercase;letter-spacing:.08em">${escapeHtml(woNumber)}</p>
+        <p style="font-size:18px;font-weight:600;color:#1a1a1a;margin:0">${safeCust}${safeUnit ? ' — ' + safeUnit : ''}</p>
+      </div>
+      <p style="font-size:13px;color:#888;text-align:center;margin:8px 0">This WO is no longer assigned to you.</p>
+      <p style="font-size:12px;color:#aaa;text-align:center;margin:16px 0 0">
+        <a href="${BASE}" style="color:#c0202b;text-decoration:none">FORGE at ${BASE}</a>
+      </p>
+    </div>
+    </div>`;
+  const html = renderEmail(bodyHtml);
+  const text = `FORGE Work Order Update
+
+You've been unassigned from ${woNumber} — ${safeCust}${safeUnit ? ' (' + safeUnit + ')' : ''}
+
+Open: ${link}`;
+
+  try {
+    const info = await transporter.sendMail({
+      from: FROM, to, subject, html, text,
+    });
+    console.log('[email] WO unassign sent to', to, 'messageId:', info.messageId);
+    return info;
+  } catch (err) {
+    logSmtpError('sendWorkOrderUnassignedEmail', to, err);
+    throw err;
+  }
+}
+
+/**
  * Send an auto-generated invite email when an admin creates a new user.
  * @param {string} toEmail
  * @param {string} toName
@@ -270,4 +313,4 @@ async function sendUserInviteEmail(toEmail, toName, tempPassword) {
   }
 }
 
-module.exports = { sendEmail, sendVerificationEmail, sendPasswordResetEmail, sendWorkOrderAssignedEmail, sendUserInviteEmail };
+module.exports = { sendEmail, sendVerificationEmail, sendPasswordResetEmail, sendWorkOrderAssignedEmail, sendWorkOrderUnassignedEmail, sendUserInviteEmail };

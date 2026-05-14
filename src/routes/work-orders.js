@@ -1040,6 +1040,19 @@ router.post('/:id', async (req, res) => {
   for (const uid of toRemove) {
     const { error: removeAssigneeErr } = await supabase.from('work_order_assignees').delete().eq('work_order_id', existing.id).eq('user_id', uid);
     if (removeAssigneeErr) throw removeAssigneeErr;
+    // Notify removed assignees (D-067e)
+    const removedUser = (users || []).find(u => Number(u.id) === Number(uid));
+    if (removedUser && removedUser.email) {
+      const { sendWorkOrderUnassignedEmail } = require('../services/email');
+      sendWorkOrderUnassignedEmail({
+        to: removedUser.email,
+        toName: removedUser.name,
+        woNumber: `WO-${existing.display_number}`,
+        woId: existing.id,
+        customerName: existing.customer_name,
+        unitNumber: existing.unit_number,
+      }).catch(err => console.warn('[work-orders] unassign email failed for', removedUser.email, err.message));
+    }
   }
   await saveAssigneesAndNotify({
     workOrderId: existing.id,
