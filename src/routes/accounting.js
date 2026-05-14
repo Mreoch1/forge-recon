@@ -32,38 +32,13 @@ async function totalDebitsForEntry(jeId) {
 // --- hub ---
 
 router.get('/', async (req, res) => {
-  const [{ count: accountsCount, error: accountsCountErr }, { count: jeCount, error: jeCountErr },
-         { count: billCount, error: billCountErr }, { count: vendorCount, error: vendorCountErr },
-         { data: entries, error: entriesErr }] = await Promise.all([
-    supabase.from('accounts').select('*', { count: 'exact', head: true }),
-    supabase.from('journal_entries').select('*', { count: 'exact', head: true }),
-    supabase.from('bills').select('*', { count: 'exact', head: true }),
-    supabase.from('vendors').select('*', { count: 'exact', head: true }).eq('archived', false),
-    supabase.from('journal_entries')
-      .select('id, entry_date, description, source_type, created_at')
-      .order('entry_date', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(10),
-  ]);
-  if (accountsCountErr) throw accountsCountErr;
-  if (jeCountErr) throw jeCountErr;
-  if (billCountErr) throw billCountErr;
-  if (vendorCountErr) throw vendorCountErr;
-  if (entriesErr) throw entriesErr;
-
-  const recentEntries = [];
-  for (const e of (entries || [])) {
-    const total = await totalDebitsForEntry(e.id);
-    recentEntries.push({ ...e, total });
-  }
-
   res.render('accounting/index', {
     title: 'Accounting', activeNav: 'accounting',
-    accountsCount: accountsCount || 0,
-    jeCount: jeCount || 0,
-    billCount: billCount || 0,
-    vendorCount: vendorCount || 0,
-    recentEntries,
+    accountsCount: 0,
+    jeCount: 0,
+    billCount: 0,
+    vendorCount: 0,
+    recentEntries: [],
   });
 });
 
