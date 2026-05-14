@@ -34,7 +34,7 @@ const router = express.Router();
 // --- constants ---
 
 const PAGE_SIZE = 25;
-const VALID_STATUSES = ['scheduled', 'in_progress', 'complete', 'cancelled'];
+const VALID_STATUSES = ['open', 'scheduled', 'in_progress', 'closed', 'complete', 'cancelled'];
 const VALID_UNITS = ['ea', 'hr', 'sqft', 'lf', 'ton', 'lot'];
 
 // Photo upload: multer memory storage, validation
@@ -544,7 +544,7 @@ router.post('/', async (req, res) => {
     const { data: allCustomers } = await supabase.from('customers').select('id, name, email, phone, address, city, state, zip').order('name');
     return res.status(400).render('work-orders/new', {
       title: 'New work order', activeNav: 'work-orders',
-      wo: { id: null, customer_id: customerId || '', unit_number: data.unit_number || '', display_number: req.body.display_number || '', suggested_display_number: '', scheduled_date: data.scheduled_date || '', scheduled_time: data.scheduled_time || '', notes: data.notes || '', description: data.description || '', assignee_ids: normalizeArr(req.body.assignee_ids), lines: data.lines || [] },
+      wo: { id: null, customer_id: customerId || '', status: req.body.status || 'open', unit_number: data.unit_number || '', display_number: req.body.display_number || '', suggested_display_number: '', scheduled_date: data.scheduled_date || '', scheduled_time: data.scheduled_time || '', notes: data.notes || '', description: data.description || '', assignee_ids: normalizeArr(req.body.assignee_ids), lines: data.lines || [] },
       customers: allCustomers || [], users: users || [], customerName: customer?.name || req.body.customer_search || '', errors, units: VALID_UNITS,
     });
   }
@@ -560,7 +560,7 @@ router.post('/', async (req, res) => {
       const { data: allCustomers } = await supabase.from('customers').select('id, name, email, phone, address, city, state, zip').order('name');
       return res.status(400).render('work-orders/new', {
         title: 'New work order', activeNav: 'work-orders',
-        wo: { id: null, customer_id: customerId, unit_number: data.unit_number || '', display_number: req.body.display_number || '', suggested_display_number: '', scheduled_date: data.scheduled_date || '', scheduled_time: data.scheduled_time || '', notes: data.notes || '', description: data.description || '', assignee_ids: normalizeArr(req.body.assignee_ids), lines: data.lines || [] },
+        wo: { id: null, customer_id: customerId, status: req.body.status || 'open', unit_number: data.unit_number || '', display_number: req.body.display_number || '', suggested_display_number: '', scheduled_date: data.scheduled_date || '', scheduled_time: data.scheduled_time || '', notes: data.notes || '', description: data.description || '', assignee_ids: normalizeArr(req.body.assignee_ids), lines: data.lines || [] },
         customers: allCustomers || [], users: users || [], customerName: customer?.name || '', errors, units: VALID_UNITS,
       });
     }
@@ -582,7 +582,7 @@ router.post('/', async (req, res) => {
       wo_number_main: main,
       wo_number_sub: sub,
       display_number: display,
-      status: 'scheduled',
+      status: req.body.status || 'open',
       scheduled_date: data.scheduled_date,
       scheduled_time: data.scheduled_time,
       scheduled_end_time: null,
@@ -1021,6 +1021,7 @@ router.post('/:id', async (req, res) => {
     .from('work_orders')
     .update({
       description: data.description || '',
+      status: req.body.status,
       assigned_to_user_id: assignmentFields.assigned_to_user_id,
       assigned_to: assignmentFields.assigned_to,
     })

@@ -21,6 +21,7 @@
   .wol-dot-sched { background: #b8b8b8; }
   .wol-dot-done { background: #10b981; }
   .wol-dot-cancel { background: #fca5a5; }
+  .wol-dot-open { background: #60a5fa; box-shadow: 0 0 0 0 rgba(96,165,250,.5); animation: wol-pulse 2.4s infinite; }
   @keyframes wol-pulse {
     0%   { box-shadow: 0 0 0 0 rgba(234,88,12,.5); }
     70%  { box-shadow: 0 0 0 5px rgba(234,88,12,0); }
@@ -94,9 +95,13 @@
              const dotClass = w.status === 'in_progress' ? 'wol-dot-live'
                             : w.status === 'complete'    ? 'wol-dot-done'
                             : w.status === 'cancelled'   ? 'wol-dot-cancel'
+                            : w.status === 'open'        ? 'wol-dot-open'
+                            : w.status === 'closed'      ? 'wol-dot-done'
                             :                              'wol-dot-sched';
-             const statusHint = w.status === 'scheduled' ? 'On the calendar but work has not started yet.'
+             const statusHint = w.status === 'open' ? 'Newly created — not yet scheduled.'
+                              : w.status === 'scheduled' ? 'On the calendar but work has not started yet.'
                               : w.status === 'in_progress' ? 'Crew has started work on this WO.'
+                              : w.status === 'closed' ? 'Work completed and closed out.'
                               : w.status === 'complete' ? 'All work finished and signed off.'
                               : w.status === 'cancelled' ? 'WO will not be performed. Read-only.'
                               : w.status === 'on_hold' ? 'Paused for now. Resume by editing the WO.'

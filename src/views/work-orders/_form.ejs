@@ -79,6 +79,21 @@ const selectedAssignees = wo.assignee_ids || [];
     </div>
   </div>
 
+  <!-- Status -->
+  <div class="card p-5">
+    <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Status</h3>
+    <div>
+      <select name="status" class="input">
+        <%
+          var _validStatuses = ['open', 'scheduled', 'in_progress', 'closed', 'complete', 'cancelled'];
+          _validStatuses.forEach(function(s){
+        %>
+          <option value="<%= s %>" <%= (wo.status || 'open') === s ? 'selected' : '' %>><%= s.replace('_',' ') %></option>
+        <% }); %>
+      </select>
+    </div>
+  </div>
+
   <!-- Multi-assignee -->
   <div class="card p-5">
     <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Assignees
