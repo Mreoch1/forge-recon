@@ -102,6 +102,12 @@ const loadCurrentUser = asyncHandler(async (req, res, next) => {
       res.locals.currentUser = user;
       res.locals.canSeePrices = ['admin', 'manager'].includes(user.role);
       res.locals.isWorker = user.role === 'worker';
+
+      // D-090: Load active announcement for banner
+      try {
+        const announcements = require('../services/announcements');
+        announcements.getActiveAnnouncement().then(a => { res.locals.announcement = a; }).catch(() => {});
+      } catch(e) { /* announcement service not available */ }
     } else {
       clearSession(req);
     }

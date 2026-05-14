@@ -321,13 +321,16 @@
 </script>
 <% } %>
 
-<!-- FORGE early-adopter banner -->
+<!-- D-090: FORGE announcement banner (dynamic) -->
+<% if (typeof announcement !== 'undefined' && announcement && announcement.message) { %>
 <div class="bg-gradient-to-r from-recon-red via-red-700 to-recon-red-dark text-white text-center text-sm py-2.5 px-4 shadow-md" style="background:linear-gradient(135deg,#c0202b 0%,#8a0e16 50%,#5a5a5a 100%)">
   <div class="max-w-4xl mx-auto">
-    <span class="font-semibold tracking-wide">🚧 FORGE is live and improving.</span>
-    <span class="opacity-90">Found a bug or need something changed? Hit the <span class="font-mono text-xs bg-black/20 px-1.5 py-0.5 rounded">📧 Send feedback</span> button and it goes straight to our team.</span>
+    <span class="font-semibold tracking-wide"><%= announcement.message %></span>
   </div>
 </div>
+<% } else { %>
+<!-- Fallback: no active announcement — no banner shown -->
+<% } %>
 
 <% if (typeof flash !== 'undefined' && flash) { %>
   <% if (flash.success) { %>

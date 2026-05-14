@@ -341,4 +341,61 @@ router.post('/ai-errors/:id/resolve', async (req, res) => {
   res.redirect('/admin/ai-errors');
 });
 
+// ---- D-090: Announcements (banner changelog) ----
+
+router.get('/announcements', async (req, res) => {
+  try {
+    const announcements = require('../services/announcements');
+    const { data, count } = await announcements.listAll();
+    res.render('admin/announcements', {
+      title: 'Announcements',
+      activeNav: 'admin',
+      announcements: data,
+      count,
+    });
+  } catch (e) {
+    console.warn('[admin] announcements list error:', e.message);
+    res.render('admin/announcements', {
+      title: 'Announcements',
+      activeNav: 'admin',
+      announcements: [],
+      count: 0,
+      error: 'Could not load announcements. The app_announcements table may not exist yet — run the D-090 migration.',
+    });
+  }
+});
+
+router.post('/announcements', async (req, res) => {
+  const announcements = require('../services/announcements');
+  const { message } = req.body;
+  if (!message || !message.trim()) {
+    req.flash('error', 'Message is required');
+    return res.redirect('/admin/announcements');
+  }
+  try {
+    await announcements.createAnnouncement({
+      message: message.trim(),
+      createdById: req.session?.userId,
+      createdByName: req.session?.userName || 'Admin',
+    });
+    req.flash('success', 'Announcement posted!');
+  } catch (e) {
+    console.warn('[admin] createAnnouncement error:', e.message);
+    req.flash('error', 'Failed to create announcement: ' + e.message);
+  }
+  res.redirect('/admin/announcements');
+});
+
+router.post('/announcements/:id/deactivate', async (req, res) => {
+  const announcements = require('../services/announcements');
+  try {
+    await announcements.deactivate(req.params.id);
+    req.flash('success', 'Announcement deactivated');
+  } catch (e) {
+    console.warn('[admin] deactivateAnnouncement error:', e.message);
+    req.flash('error', 'Failed to deactivate: ' + e.message);
+  }
+  res.redirect('/admin/announcements');
+});
+
 module.exports = router;

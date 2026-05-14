@@ -1,0 +1,67 @@
+<%- include('../layouts/header', { title, activeNav }) %>
+
+<div class="max-w-5xl mx-auto px-4 py-6 space-y-6">
+
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-white">Announcements</h1>
+      <p class="text-sm text-recon-fog mt-1">Post changelog updates that appear as a banner across FORGE.</p>
+    </div>
+    <a href="/admin" class="text-sm text-recon-red-light hover:text-white transition">&larr; Back to Admin</a>
+  </div>
+
+  <% if (typeof error !== 'undefined' && error) { %>
+    <div class="bg-red-900/50 border border-red-700 rounded-lg p-4 text-sm text-red-200">
+      <%= error %>
+    </div>
+  <% } %>
+
+  <!-- Create form -->
+  <div class="bg-recon-steel rounded-lg p-6 border border-recon-ash">
+    <h2 class="text-lg font-semibold text-white mb-3">New Announcement</h2>
+    <form method="POST" action="/admin/announcements">
+      <div class="space-y-3">
+        <div>
+          <textarea name="message" rows="3" class="input w-full" placeholder="What changed? Keep it short — one or two lines max." required></textarea>
+          <p class="text-xs text-recon-fog mt-1">Posted as the active banner. Any previously active announcement is automatically deactivated.</p>
+        </div>
+        <button type="submit" class="btn-primary">Post Announcement</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- History -->
+  <div class="bg-recon-steel rounded-lg border border-recon-ash overflow-hidden">
+    <div class="px-6 py-4 border-b border-recon-ash flex items-center justify-between">
+      <h2 class="text-lg font-semibold text-white">History (<%= count || 0 %>)</h2>
+    </div>
+    <% if (announcements && announcements.length) { %>
+      <div class="divide-y divide-recon-ash">
+        <% announcements.forEach(function(a) { %>
+          <div class="px-6 py-4 flex items-start justify-between gap-4">
+            <div class="flex-1 min-w-0">
+              <p class="text-sm text-white <%= a.active ? 'font-medium' : 'text-recon-fog' %>"><%= a.message %></p>
+              <p class="text-xs text-recon-fog mt-1">
+                <span class="<%= a.active ? 'text-green-400' : 'text-recon-fog' %>"><%= a.active ? '● Active' : '○ Inactive' %></span>
+                &middot; <%= a.created_by_name || 'Unknown' %>
+                &middot; <%= new Date(a.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) %>
+              </p>
+            </div>
+            <% if (a.active) { %>
+              <form method="POST" action="/admin/announcements/<%= a.id %>/deactivate" class="shrink-0">
+                <button type="submit" class="text-xs text-recon-fog hover:text-red-400 transition px-2 py-1 border border-recon-ash rounded">Deactivate</button>
+              </form>
+            <% } %>
+          </div>
+        <% }); %>
+      </div>
+    <% } else { %>
+      <div class="px-6 py-8 text-center text-recon-fog text-sm">
+        No announcements yet. Post one above.
+      </div>
+    <% } %>
+  </div>
+
+</div>
+
+<%- include('../layouts/footer') %>
