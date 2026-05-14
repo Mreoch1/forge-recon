@@ -54,7 +54,7 @@
     <div class="coach-body" id="tc-body">
       <div class="coach-narration" id="tc-narration">
         <% if (currentChapter) { %>
-          <%= currentChapter.narction || 'Welcome to the FORGE tutorial.' %>
+          <%- (currentChapter.narration || 'Welcome to the FORGE tutorial.').replace(/\n\n/g, '</p><p>').replace(/^/, '<p>').replace(/$/, '</p>') %>
         <% } else { %>
           <p>Welcome to the FORGE tutorial! Your guide will appear here.</p>
         <% } %>

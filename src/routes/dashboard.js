@@ -303,7 +303,7 @@ router.get('/forge/tutorial', async (req, res) => {
   const sessionId = req.session?.tutorialSessionId || crypto.randomUUID();
   if (req.session) req.session.tutorialSessionId = sessionId;
 
-  const state = await TutorialState.load(sessionId, res.locals.currentUser?.id);
+  const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase);
   await state.save(supabase);
 
   res.render('forge/tutorial', {
@@ -314,7 +314,7 @@ router.get('/forge/tutorial', async (req, res) => {
     tutorialSessionId: sessionId,
     currentChapter: state.getCurrentChapter(),
     chapterIndex: state.currentChapter,
-    totalChapters: require('../services/tutorial-content').totalChapters(),
+    totalChapters: totalChapters(),
     stepIndex: state.currentStep,
   });
 });
@@ -323,7 +323,7 @@ router.get('/forge/tutorial', async (req, res) => {
 router.get('/forge/tutorial/state', async (req, res) => {
   const sessionId = req.session?.tutorialSessionId;
   if (!sessionId) return res.status(404).json({ error: 'No active tutorial' });
-  const state = await TutorialState.load(sessionId, res.locals.currentUser?.id);
+  const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase);
   res.json({
     chapterIndex: state.currentChapter,
     stepIndex: state.currentStep,
@@ -338,7 +338,7 @@ router.post('/forge/tutorial/advance', async (req, res) => {
   const sessionId = req.session?.tutorialSessionId;
   if (!sessionId) return res.status(404).json({ error: 'No active tutorial' });
 
-  const state = await TutorialState.load(sessionId, res.locals.currentUser?.id);
+  const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase);
   const { action, payload } = req.body;
 
   let result;
@@ -363,12 +363,12 @@ router.post('/forge/tutorial/cleanup', async (req, res) => {
   const sessionId = req.session?.tutorialSessionId;
   if (!sessionId) return res.status(404).json({ error: 'No active tutorial' });
 
-  const state = await TutorialState.load(sessionId, res.locals.currentUser?.id);
+  const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase);
   state.cleanupChosen = 'cleanup';
 
-  // Delete in dependency order: payments → invoices → estimates → WOs → customers
+  // Delete in dependency order: project payments -> invoices -> estimates -> WOs -> customers
   const ids = state.createdEntityIds;
-  if (ids.payments.length) await supabase.from('payments').delete().in('id', ids.payments);
+  if (ids.payments.length) await supabase.from('project_payments').delete().in('id', ids.payments);
   if (ids.invoices.length) await supabase.from('invoices').delete().in('id', ids.invoices);
   if (ids.estimates.length) await supabase.from('estimates').delete().in('id', ids.estimates);
   if (ids.work_orders.length) await supabase.from('work_orders').delete().in('id', ids.work_orders);
@@ -385,12 +385,19 @@ router.post('/forge/tutorial/keep', async (req, res) => {
   const sessionId = req.session?.tutorialSessionId;
   if (!sessionId) return res.status(404).json({ error: 'No active tutorial' });
 
-  const state = await TutorialState.load(sessionId, res.locals.currentUser?.id);
+  const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase);
   state.cleanupChosen = 'keep';
 
   // Strip tutorial_session_id from all created entities
-  for (const table of ['payments', 'invoices', 'estimates', 'work_orders', 'customers']) {
-    const ids = state.createdEntityIds[table];
+  const tutorialEntityTables = [
+    ['project_payments', 'payments'],
+    ['invoices', 'invoices'],
+    ['estimates', 'estimates'],
+    ['work_orders', 'work_orders'],
+    ['customers', 'customers'],
+  ];
+  for (const [table, key] of tutorialEntityTables) {
+    const ids = state.createdEntityIds[key];
     if (ids.length) {
       await supabase.from(table).update({ tutorial_session_id: null }).in('id', ids);
     }

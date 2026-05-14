@@ -50,4 +50,12 @@ CREATE TABLE IF NOT EXISTS tutorial_sessions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_tutorial_sessions_user_id ON tutorial_sessions(user_id);
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS completed_tutorial_at timestamptz;
+
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS tutorial_session_id text REFERENCES tutorial_sessions(id) ON DELETE SET NULL;
+ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS tutorial_session_id text REFERENCES tutorial_sessions(id) ON DELETE SET NULL;
+ALTER TABLE estimates ADD COLUMN IF NOT EXISTS tutorial_session_id text REFERENCES tutorial_sessions(id) ON DELETE SET NULL;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS tutorial_session_id text REFERENCES tutorial_sessions(id) ON DELETE SET NULL;
+ALTER TABLE project_payments ADD COLUMN IF NOT EXISTS tutorial_session_id text REFERENCES tutorial_sessions(id) ON DELETE SET NULL;
 ```
