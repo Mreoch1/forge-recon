@@ -89,19 +89,22 @@ function submitFeedback(){
   btn.disabled = true; btn.textContent = 'Sending...';
   fetch('/feedback', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest'
+    },
     body: 'subject=' + encodeURIComponent(subj) + '&message=' + encodeURIComponent(msg)
   }).then(function(r){
-    if (r.redirected || r.ok) {
+    return r.json().catch(function(){ return {}; }).then(function(data){
+      if (!r.ok) throw new Error(data.error || ('Server returned ' + r.status));
       document.getElementById('fb-form-view').style.display = 'none';
       var el = document.getElementById('fb-result');
       el.className = 'fb-result success';
-      el.innerHTML = '✅ Thanks, your feedback was sent to support@reconenterprises.net';
+      el.textContent = data.success || 'Thanks, your feedback was sent to support@reconenterprises.net';
       el.style.display = 'block';
       setTimeout(closeFeedback, 3000);
-    } else {
-      throw new Error('Server returned ' + r.status);
-    }
+    });
   }).catch(function(e){
     var el = document.getElementById('fb-result');
     el.className = 'fb-result error';
