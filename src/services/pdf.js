@@ -368,7 +368,7 @@ function generateEstimatePDF(estimate, company, stream) {
     estimate.customer_phone,
   ], [
     estimate.job_title,
-    estimate.unit_number ? `Unit ${estimate.unit_number}` : '',  // R37j: surface unit on estimate PDF
+    estimate.unit_number ? `Unit ${String(estimate.unit_number).replace(/^(Unit|Apt)\s*/i, '')}` : '',  // R37j: surface unit on estimate PDF, strip duplicate prefix
     estimate.job_address || '',
     [estimate.job_city, estimate.job_state, estimate.job_zip].filter(Boolean).join(', '),
   ].filter(Boolean));
@@ -547,7 +547,7 @@ function generateInvoicePDF(invoice, company, stream) {
     invoice.customer_phone,
   ], [
     invoice.job_title,
-    invoice.unit_number ? `Unit ${invoice.unit_number}` : '',  // R37j: surface unit on invoice PDF
+    invoice.unit_number ? `Unit ${String(invoice.unit_number).replace(/^(Unit|Apt)\s*/i, '')}` : '',  // R37j: surface unit on invoice PDF, strip duplicate prefix
     invoice.job_address || '',
     [invoice.job_city, invoice.job_state, invoice.job_zip].filter(Boolean).join(', '),
   ].filter(Boolean));
