@@ -117,7 +117,7 @@ describe('AnnouncementsService', () => {
   test('createAnnouncement inserts and deactivates old ones', async () => {
     // First call: deactivate existing
     mockResult = { data: null, error: null };
-    
+
     // Track the calls manually since mock fires sequentially
     let callCount = 0;
     const origFrom = mockSupabase.from;
@@ -128,7 +128,7 @@ describe('AnnouncementsService', () => {
         lastQuery = { table, action: 'deactivate' };
         // Return chain that returns success
         const chain = { ...mockSupabase };
-        chain.update = (vals) => { 
+        chain.update = (vals) => {
           lastQuery = { ...lastQuery, update: vals };
           const chain2 = { ...mockSupabase };
           chain2.eq = () => Promise.resolve({ data: null, error: null });
