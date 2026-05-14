@@ -54,6 +54,52 @@
     .forge-typewriter { border-right: none; }
     @keyframes forge-fade-in { from { opacity: 1; transform: none; } to { opacity: 1; transform: none; } }
   }
+
+  /* D-083: Cinematic intro — FORGE wordmark reveal, full-page overlay */
+  #forge-cinematic {
+    position: fixed; inset: 0; z-index: 9999;
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #020617 0%, #172554 50%, #0f172a 100%);
+    opacity: 0; transition: opacity 0.3s ease;
+  }
+  #forge-cinematic.active { display: flex; opacity: 1; }
+  #forge-cinematic.exit { opacity: 0; }
+  #forge-cinematic-wordmark {
+    font-family: 'Inter', system-ui, sans-serif; font-weight: 900;
+    font-size: clamp(3rem, 10vw, 7rem); letter-spacing: 0.12em;
+    background: linear-gradient(100deg, #4a4a4a 0%, #8a8a8a 20%, #cfcfcf 35%, #ffffff 48%, #cfcfcf 60%, #8a8a8a 75%, #4a4a4a 100%);
+    background-size: 250% 100%; background-position: 100% center;
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+    animation: forge-cine-shine 3.5s linear infinite;
+    text-shadow: 0 2px 8px rgba(255,255,255,0.1);
+    transform: scale(0.6); opacity: 0;
+    transition: transform 1s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.8s ease;
+  }
+  #forge-cinematic.active #forge-cinematic-wordmark {
+    transform: scale(1); opacity: 1;
+  }
+  @keyframes forge-cine-shine {
+    0% { background-position: 100% center; }
+    100% { background-position: -150% center; }
+  }
+  #forge-cinematic-sub {
+    font-size: clamp(1rem, 2.5vw, 1.5rem); color: #64748b;
+    margin-top: 1rem; letter-spacing: 0.3em; text-transform: uppercase;
+    opacity: 0; transition: opacity 0.6s ease 0.8s;
+  }
+  #forge-cinematic.active #forge-cinematic-sub { opacity: 1; }
+  #forge-cinematic-skip {
+    position: absolute; bottom: 2rem; right: 2rem;
+    font-size: 0.75rem; color: #64748b; cursor: pointer; text-decoration: underline;
+    opacity: 0; transition: opacity 0.3s ease 1.5s; z-index: 2;
+  }
+  #forge-cinematic.active #forge-cinematic-skip { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) {
+    #forge-cinematic-wordmark { animation: none; background-position: 50% center; transform: none; opacity: 1; }
+    #forge-cinematic-sub { opacity: 1; }
+    #forge-cinematic-skip { opacity: 1; }
+  }
 </style>
 
 <% var firstName = 'there'; try { var nameParts = (currentUser && currentUser.name || '').split(' '); if (nameParts[0]) firstName = nameParts[0]; } catch(e){} %>
@@ -82,6 +128,14 @@
   </div>
 </div>
 
+<!-- D-083: Cinematic intro overlay + audio -->
+<audio id="forge-intro-audio" preload="auto" src="/sounds/forge-intro.mp3"></audio>
+<div id="forge-cinematic">
+  <div id="forge-cinematic-wordmark">FORGE</div>
+  <div id="forge-cinematic-sub">Field Operations &amp; Resource Guidance Engine</div>
+  <div id="forge-cinematic-skip">Skip intro &rarr;</div>
+</div>
+
 <script>
 (function() {
   var introEl = document.getElementById('forge-intro');
@@ -104,8 +158,48 @@
   typeChar();
 
   function revealChat() {
-    // D-067: Get Started now launches the tutorial, not the chat
-    window.location.href = '/forge/tutorial?return=/forge';
+    // D-083: Cinematic intro — show FORGE wordmark reveal, play audio, then redirect to tutorial
+    var introEl = document.getElementById('forge-intro');
+    var cinematic = document.getElementById('forge-cinematic');
+    var audio = document.getElementById('forge-intro-audio');
+
+    // Hide the intro panel
+    introEl.classList.add('hidden');
+
+    // Show the cinematic overlay and play audio
+    cinematic.classList.add('active');
+    audio.currentTime = 0;
+
+    var playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(function() {
+        // Autoplay blocked — skip cinematic, go straight to tutorial
+        window.location.href = '/forge/tutorial?return=/forge';
+      });
+    }
+
+    // After audio ends or ~4s timeout, go to tutorial
+    var timeoutId = setTimeout(function() {
+      window.location.href = '/forge/tutorial?return=/forge';
+    }, 4200);
+
+    audio.addEventListener('ended', function() {
+      clearTimeout(timeoutId);
+      window.location.href = '/forge/tutorial?return=/forge';
+    }, { once: true });
+
+    // Skip on Esc key
+    function escHandler(e) {
+      if (e.key === 'Escape') {
+        clearTimeout(timeoutId);
+        cinematic.classList.add('exit');
+        setTimeout(function() {
+          window.location.href = '/forge/tutorial?return=/forge';
+        }, 300);
+        document.removeEventListener('keydown', escHandler);
+      }
+    }
+    document.addEventListener('keydown', escHandler);
   }
 
   // Intro input: Enter key sends + dismisses; any typing autofocuses
@@ -165,6 +259,12 @@
       clearInterval(hintInterval);
     }
   }, { once: true });
+
+  // D-083: Skip intro button
+  document.getElementById('forge-cinematic-skip')?.addEventListener('click', function() {
+    var e = new KeyboardEvent('keydown', { key: 'Escape' });
+    document.dispatchEvent(e);
+  });
 })();
 </script>
 
