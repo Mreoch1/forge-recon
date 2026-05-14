@@ -248,12 +248,24 @@ async function checkEntityHierarchy(tool, args, ctx, currentStack) {
     return { ok: true, needs_parent: false, stack: currentStack };
   }
 
+  // If the user said "make an invoice" / "create an estimate" without specifying
+  // any parent info, ask for the parent first before checking existence.
+  const infoMissing = hierarchy.parents.some(function(p) {
+    if (p.type === 'customer') return !parentName;
+    if (p.type === 'work_order' && entityType === 'estimate') return !args.work_order_id && !parentName;
+    if (p.type === 'estimate' && entityType === 'invoice') return !args.estimate_id && !parentName;
+    return false;
+  });
+  if (infoMissing) {
+    // Let buildMissingMutationReply handle the "need more info" response
+    return { ok: true, needs_parent: false, stack: currentStack };
+  }
+
   // Check each parent in order
   for (const parent of hierarchy.parents) {
     if (parent.type === 'customer' && parentName) {
       const result = await checkParentExists('customer', parentName);
       if (!result.exists && result.matches && result.matches.length > 1) {
-        // Multiple matches — ask for disambiguation
         return {
           ok: true,
           needs_parent: true,
@@ -266,7 +278,6 @@ async function checkEntityHierarchy(tool, args, ctx, currentStack) {
         };
       }
       if (!result.exists) {
-        // Customer doesn't exist — ask to create
         const newStack = pushStack(currentStack || [], {
           tool,
           args: args || {},
@@ -282,6 +293,40 @@ async function checkEntityHierarchy(tool, args, ctx, currentStack) {
           stack: newStack,
           reply: `I don't have a customer named "${parentName}" on file. Want me to create them first? (yes / no / different name)`
         };
+      }
+    } else if (parent.type === 'work_order' && entityType === 'estimate') {
+      const woId = args && args.work_order_id;
+      const woName = parentName;
+      if (woId) {
+        const result = await checkParentExists('work_order', String(woId));
+        if (!result.exists) {
+          const newStack = pushStack(currentStack || [], {
+            tool, args: args || {}, entityType, parentName,
+            pendingParent: 'work_order',
+          });
+          return {
+            ok: true, needs_parent: true, parentType: 'work_order',
+            parentName: String(woId), stack: newStack,
+            reply: `I don't see work order matching that. Want me to create one first? (yes / no)`
+          };
+        }
+      }
+    } else if (parent.type === 'estimate' && entityType === 'invoice') {
+      const estId = args && args.estimate_id;
+      const estName = parentName;
+      if (estId) {
+        const result = await checkParentExists('estimate', String(estId));
+        if (!result.exists) {
+          const newStack = pushStack(currentStack || [], {
+            tool, args: args || {}, entityType, parentName,
+            pendingParent: 'estimate',
+          });
+          return {
+            ok: true, needs_parent: true, parentType: 'estimate',
+            parentName: String(estId), stack: newStack,
+            reply: `An invoice needs an approved estimate first. Want me to draft one? (yes / no)`
+          };
+        }
       }
     }
   }

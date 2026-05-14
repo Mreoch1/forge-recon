@@ -743,6 +743,28 @@ function buildMissingMutationReply(intent) {
     const intakeReply = customerIntakeReply(args);
     if (intakeReply) return intakeReply;
   }
+  if (tool === 'create_estimate') {
+    if (!args.work_order_id && !args.customer_name) {
+      return 'An estimate needs a work order first. Give me the work order number (like WO-12) or the customer name for the estimate.';
+    }
+    if (args.customer_name && !args.work_order_id) {
+      return `I can draft an estimate for ${args.customer_name}. Do you have a work order number for this, or should I look up the customer's current work orders?`;
+    }
+    if (args.work_order_id && !args.customer_name) {
+      return `What customer or project is WO-${args.work_order_id} for? I need that to create the estimate.`;
+    }
+  }
+  if (tool === 'create_invoice') {
+    if (!args.estimate_id && !args.customer_name) {
+      return 'An invoice needs an approved estimate first. Give me the estimate number (like EST-23) or the customer name so I can look it up.';
+    }
+    if (args.estimate_id) {
+      return `I found estimate reference. Do you also have a customer name for this invoice?`;
+    }
+    if (args.customer_name && !args.estimate_id) {
+      return `An invoice for ${args.customer_name} needs to come from an approved estimate. Do you have an estimate number for this?`;
+    }
+  }
   if (tool === 'navigate' && args.path && String(args.path).startsWith('/work-orders/ai-create')) {
     return 'Absolutely. I can create the work order in FORGE. Give me the customer or property, unit if there is one, the scope of work, and any schedule or assignee details. I will open the AI work-order builder with that draft.';
   }
@@ -818,6 +840,32 @@ const MUTATION_PATTERNS = [
     patterns: [/add\s+(?:a\s+)?(?:new\s+)?customer/i, /create\s+(?:a\s+)?(?:new\s+)?customer/i, /new\s+customer/i],
     extract: (msg) => {
       return parseCustomerArgs(msg, { allowLeadingName: false });
+    }
+  },
+  {
+    tool: 'create_estimate',
+    patterns: [/make\s+(?:an?\s+)?estimate/i, /create\s+(?:an?\s+)?estimate/i, /new\s+estimate/i, /generate\s+(?:an?\s+)?estimate/i],
+    extract: (msg) => {
+      const custMatch = msg.match(/(?:for|to)\s+(.+?)(?:\s+(?:work|from|with)\b|$)/i);
+      const woMatch = msg.match(/WO[-.\s]*(\d+)/i) || msg.match(/work\s*order[#\s]*(\d+)/i);
+      return {
+        customer_name: custMatch && custMatch[1].trim().length > 2 ? custMatch[1].trim() : '',
+        work_order_id: woMatch ? parseInt(woMatch[1], 10) : 0
+      };
+    }
+  },
+  {
+    tool: 'create_invoice',
+    patterns: [/make\s+(?:an?\s+)?invoice/i, /create\s+(?:an?\s+)?invoice/i, /new\s+invoice/i, /generate\s+(?:an?\s+)?invoice/i],
+    extract: (msg) => {
+      const custMatch = msg.match(/(?:for|to)\s+(.+?)(?:\s+(?:estimate|from|with)\b|$)/i);
+      const estMatch = msg.match(/EST[-.\s]*(\d+)/i) || msg.match(/estimate[#\s]*(\d+)/i);
+      const woMatch = msg.match(/WO[-.\s]*(\d+)/i) || msg.match(/work\s*order[#\s]*(\d+)/i);
+      return {
+        customer_name: custMatch && custMatch[1].trim().length > 2 ? custMatch[1].trim() : '',
+        estimate_id: estMatch ? parseInt(estMatch[1], 10) : 0,
+        work_order_id: woMatch ? parseInt(woMatch[1], 10) : 0
+      };
     }
   },
   {
