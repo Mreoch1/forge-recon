@@ -160,7 +160,7 @@ router.get('/:id', async (req, res) => {
     woCountQuery = woCountQuery.or(`display_number.ilike.${like},description.ilike.${like},unit_number.ilike.${like}`);
   }
 
-  const [{ data: workOrders, count: woTotal }, { count: fileCountCust }] = await Promise.all([
+  const [{ data: workOrders, count: woTotal, error: woError }, { error: woCountError }, { count: fileCountCust, error: fileCountError }] = await Promise.all([
     woQuery.order('created_at', { ascending: false }).range(woOffset, woOffset + WO_PAGE_SIZE - 1),
     woCountQuery,
     supabase.from('files')
@@ -168,6 +168,9 @@ router.get('/:id', async (req, res) => {
       .eq('folder.entity_type', 'customer')
       .eq('folder.entity_id', id),
   ]);
+  if (woError) throw woError;
+  if (woCountError) throw woCountError;
+  if (fileCountError) throw fileCountError;
   const fileCount = fileCountCust || 0;
   const woPages = Math.ceil((woTotal || 0) / WO_PAGE_SIZE);
 

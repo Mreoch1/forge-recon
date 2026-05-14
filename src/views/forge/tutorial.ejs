@@ -41,6 +41,7 @@
 
 <script>
 (function() {
+  var returnTo = <%- JSON.stringify(returnTo || '/forge') %>;
   var steps = [
     { msg: "Hi! I'm going to walk you through FORGE in about 2 minutes. Ready?", action: { label: "Start", next: true } },
     { msg: "First, let's create a work order. Click the chip below to try.", action: { label: "📋 Make a work order for Plymouth Square", next: true, fake: true } },
