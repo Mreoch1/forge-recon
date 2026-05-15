@@ -21,6 +21,9 @@ workOrders.filter(w => w.parent_wo_id).forEach(s => {
   <!-- D-007: Financial overview partial -->
   <%- include('_financial_overview', { financials: financials }) %>
 
+  <!-- D-007a: Financial Command Panel -->
+  <%- include('_financial_panel', { financials: projectFinancials, financialsError: projectFinancialsError }) %>
+
   <!-- Work Orders -->
   <div class="card overflow-hidden mb-6">
     <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">

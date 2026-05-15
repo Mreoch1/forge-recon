@@ -1,0 +1,154 @@
+<%
+// D-007a Financial Command Panel partial.
+// Inputs: financials (the object from getProjectFinancials), financialsError (optional string)
+
+function n(v) { var x = Number(v); return isFinite(x) ? x : 0; }
+function fmt(val) {
+  var x = n(val);
+  var neg = x < 0;
+  var abs = Math.abs(x);
+  var s = abs.toFixed(2).replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,');
+  return (neg ? '-$' : '$') + s;
+}
+%>
+
+<div class="card overflow-hidden mb-6">
+  <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
+    <h3 class="font-semibold">Project Financials</h3>
+  </div>
+
+  <% if (typeof financialsError !== 'undefined' && financialsError) { %>
+    <div class="px-5 py-4">
+      <div class="bg-red-50 border border-red-200 text-red-800 rounded-md px-4 py-3 text-sm">
+        ⚠️ Financial panel unavailable — <%= financialsError %>
+      </div>
+    </div>
+  <% } else if (typeof financials !== 'undefined' && financials) { %>
+    <%
+    var f = financials;
+    var flags = f.flags || [];
+    %>
+
+    <!-- Discrepancy banners -->
+    <% if (flags.length > 0) { %>
+      <div class="px-5 pt-4 space-y-2">
+        <% flags.forEach(function(flag) { %>
+          <%
+          var bg, border, text;
+          if (flag.severity === 'error') {
+            bg = 'bg-red-50'; border = 'border-red-200'; text = 'text-red-800';
+          } else if (flag.severity === 'warn') {
+            bg = 'bg-amber-50'; border = 'border-amber-200'; text = 'text-amber-800';
+          } else {
+            bg = 'bg-blue-50'; border = 'border-blue-200'; text = 'text-blue-800';
+          }
+          %>
+          <div class="<%= bg %> border <%= border %> <%= text %> rounded-md px-4 py-2.5 text-sm flex items-start gap-2">
+            <span class="mt-0.5 shrink-0">
+              <% if (flag.severity === 'error') { %>✕<% } else if (flag.severity === 'warn') { %>⚠<% } else { %>ℹ<% } %>
+            </span>
+            <span><%= flag.message %></span>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+
+    <!-- 2-column grid: Income | Costs -->
+    <div class="px-5 py-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Income column -->
+        <div>
+          <h4 class="text-xs uppercase tracking-wider text-recon-fog font-semibold mb-3">Income</h4>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-recon-charcoal">Contract value</span>
+              <span class="font-mono tabular-nums text-sm text-recon-charcoal"><%= fmt(f.contract_value) %></span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-recon-charcoal">Approved change orders</span>
+              <span class="font-mono tabular-nums text-sm text-green-700">+<%= fmt(f.approved_change_orders) %></span>
+            </div>
+            <div class="flex items-center justify-between border-t border-recon-mist pt-2">
+              <span class="text-sm font-semibold text-recon-charcoal">Revised contract value</span>
+              <span class="font-mono tabular-nums text-sm font-semibold text-recon-charcoal"><%= fmt(f.revised_contract_value) %></span>
+            </div>
+            <div class="flex items-center justify-between pt-1">
+              <span class="text-sm text-recon-charcoal">Customer invoiced</span>
+              <span class="font-mono tabular-nums text-sm text-recon-charcoal"><%= fmt(f.customer_invoiced) %></span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-recon-charcoal">Customer paid</span>
+              <span class="font-mono tabular-nums text-sm text-recon-charcoal flex items-center gap-1">
+                <% if (f.customer_paid > 0) { %><span class="text-green-600">✓</span><% } %>
+                <%= fmt(f.customer_paid) %>
+              </span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-recon-charcoal">Customer outstanding</span>
+              <span class="font-mono tabular-nums text-sm <%= f.customer_outstanding > 0 ? 'text-amber-700' : 'text-green-700' %>"><%= fmt(f.customer_outstanding) %></span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-recon-charcoal">Customer unbilled</span>
+              <span class="font-mono tabular-nums text-sm <%= f.customer_unbilled < 0 ? 'text-red-700' : 'text-recon-charcoal' %>"><%= fmt(f.customer_unbilled) %></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Costs column -->
+        <div>
+          <h4 class="text-xs uppercase tracking-wider text-recon-fog font-semibold mb-3">Costs</h4>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-recon-charcoal">RFP committed</span>
+              <span class="font-mono tabular-nums text-sm text-recon-charcoal"><%= fmt(f.rfp_committed) %></span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-recon-charcoal">Vendor billed</span>
+              <span class="font-mono tabular-nums text-sm text-recon-charcoal"><%= fmt(f.vendor_billed) %></span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-recon-charcoal">Vendor paid</span>
+              <span class="font-mono tabular-nums text-sm text-recon-charcoal flex items-center gap-1">
+                <% if (f.vendor_paid > 0) { %><span class="text-green-600">✓</span><% } %>
+                <%= fmt(f.vendor_paid) %>
+              </span>
+            </div>
+            <div class="flex items-center justify-between pt-1 border-t border-recon-mist">
+              <span class="text-sm font-semibold text-recon-charcoal">Total committed</span>
+              <span class="font-mono tabular-nums text-sm font-semibold text-recon-charcoal"><%= fmt(f.total_committed) %></span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-recon-charcoal">Total billed</span>
+              <span class="font-mono tabular-nums text-sm text-recon-charcoal"><%= fmt(f.total_billed) %></span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-recon-charcoal">Total spent</span>
+              <span class="font-mono tabular-nums text-sm text-recon-charcoal"><%= fmt(f.total_spent) %></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Profit row -->
+      <%
+      var profitPositive = f.estimated_profit >= 0;
+      var realizedPositive = f.realized_profit_to_date >= 0;
+      %>
+      <div class="mt-5 pt-4 border-t border-recon-mist">
+        <h4 class="text-xs uppercase tracking-wider text-recon-fog font-semibold mb-3">Profit</h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="p-3 rounded-md border <%= profitPositive ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200' %>">
+            <p class="text-[.65rem] uppercase tracking-wider <%= profitPositive ? 'text-green-700' : 'text-red-700' %>">Estimated profit</p>
+            <p class="text-lg font-bold <%= profitPositive ? 'text-green-700' : 'text-red-700' %> mt-1"><%= fmt(f.estimated_profit) %></p>
+          </div>
+          <div class="p-3 rounded-md border <%= realizedPositive ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200' %>">
+            <p class="text-[.65rem] uppercase tracking-wider <%= realizedPositive ? 'text-green-700' : 'text-red-700' %>">Realized profit to date</p>
+            <p class="text-lg font-bold <%= realizedPositive ? 'text-green-700' : 'text-red-700' %> mt-1"><%= fmt(f.realized_profit_to_date) %></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% } else { %>
+    <div class="px-5 py-4 text-sm text-recon-fog">No financial data available.</div>
+  <% } %>
+</div>
