@@ -24,12 +24,9 @@
     <p class="text-sm whitespace-pre-wrap"><%= contractor.notes || 'No notes.' %></p>
   </div>
 
-  <!-- Work orders referencing this contractor -->
+  <!-- Work orders can be linked once the scheduling/assignment model adds contractor_id. -->
   <div class="card p-4 mb-6"><h3 class="font-semibold mb-3">Work Orders</h3>
-    <% if (!workOrders || workOrders.length === 0) { %><p class="text-recon-fog text-sm">No work orders assigned to this contractor.</p>
-    <% } else { %><table class="data"><thead><tr><th>WO #</th><th>Status</th><th>Date</th></tr></thead><tbody>
-      <% workOrders.forEach(function(wo) { %><tr><td><%= wo.display_number || wo.id %></td><td><%= wo.status %></td><td><%= (wo.created_at || '').slice(0,10) %></td></tr><% }); %>
-    </tbody></table><% } %>
+    <p class="text-recon-fog text-sm">Work order assignment links are not wired to contractors yet.</p>
   </div>
 
   <!-- D-079: Contractor file workspace (license, COI, certs, etc.) -->

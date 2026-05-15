@@ -68,11 +68,12 @@ router.get('/', async (req, res) => {
     countQuery = countQuery.or(`name.ilike.${like},email.ilike.${like},phone.ilike.${like},trade.ilike.${like}`);
   }
 
-  const [{ data: contractors, count: total }, { error }] = await Promise.all([
+  const [{ data: contractors, count: total, error: listError }, { error: countError }] = await Promise.all([
     query.order('name').range(offset, offset + PAGE_SIZE - 1),
     countQuery,
   ]);
-  if (error) throw error;
+  if (listError) throw listError;
+  if (countError) throw countError;
 
   const totalPages = Math.max(1, Math.ceil((total || 0) / PAGE_SIZE));
   res.render('contractors/index', { title: 'Contractors', activeNav: 'contractors', contractors: contractors || [], q, page, totalPages, total: total || 0 });
@@ -116,14 +117,6 @@ router.get('/:id', async (req, res) => {
   if (cError) throw cError;
   if (!contractor) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Contractor not found.' });
 
-  // Check for work orders referencing this contractor
-  const { data: workOrders, error: woError } = await supabase
-    .from('work_orders')
-    .select('id, display_number, status, created_at')
-    .eq('contractor_id', id)
-    .order('created_at', { ascending: false });
-  if (woError) throw woError;
-
   // Contractor file workspace — fetch root folder + first-level contents.
   let rootFolder = null;
   let folders = [];
@@ -147,7 +140,7 @@ router.get('/:id', async (req, res) => {
 
   res.render('contractors/show', {
     title: contractor.name, activeNav: 'contractors',
-    contractor, workOrders: workOrders || [], fileCount,
+    contractor, fileCount,
     rootFolder, folders, files
   });
 });
@@ -184,12 +177,6 @@ router.post('/:id/delete', async (req, res) => {
   const { data: contractor, error: findError } = await supabase.from('contractors').select('id, name').eq('id', id).maybeSingle();
   if (findError) throw findError;
   if (!contractor) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Contractor not found.' });
-  const { count: woCount, error: woCountError } = await supabase.from('work_orders').select('*', { count: 'exact', head: true }).eq('contractor_id', id);
-  if (woCountError) throw woCountError;
-  if (woCount > 0) {
-    setFlash(req, 'error', 'Cannot delete "' + contractor.name + '" — they have ' + woCount + ' work order(s).');
-    return res.redirect('/contractors/' + id);
-  }
   const { error: deleteError } = await supabase.from('contractors').delete().eq('id', id);
   if (deleteError) throw deleteError;
   setFlash(req, 'success', 'Contractor "' + contractor.name + '" deleted.');
