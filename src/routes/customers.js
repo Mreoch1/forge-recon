@@ -186,7 +186,9 @@ router.get('/:id', async (req, res) => {
       files = contents.files || [];
       fileCount = files.length;
     }
-  } catch (e) { console.warn('[customers:show] file workspace load:', e.message); }
+  } catch (e) {
+    throw new Error('[customers:show] file workspace load failed: ' + e.message);
+  }
   const woPages = Math.ceil((woTotal || 0) / WO_PAGE_SIZE);
 
   res.render('customers/show', {

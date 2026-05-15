@@ -131,7 +131,9 @@ router.get('/:id', async (req, res) => {
       folders = contents.subfolders || [];
       files = contents.files || [];
     }
-  } catch (e) { console.warn('[vendors:show] file workspace load:', e.message); }
+  } catch (e) {
+    throw new Error('[vendors:show] file workspace load failed: ' + e.message);
+  }
   const fileCount = files.length;
 
   res.render('vendors/show', {
