@@ -212,22 +212,26 @@
                 </tr>
                 <% (subItems[item.id] || []).forEach(function(sub){ %>
                   <tr class="text-recon-fog">
-                    <td class="pl-4">└ <%= sub.vendor || '—' %></td>
-                    <td><%= sub.description %></td>
-                    <td class="text-right"><%= sub.quantity != null ? Number(sub.quantity).toFixed(2) : '—' %></td>
-                    <td class="text-right"><%= sub.contractor_cost != null ? '$' + Number(sub.contractor_cost).toFixed(2) : '—' %></td>
-                    <td class="text-right"><%= sub.vendor_cost != null ? '$' + Number(sub.vendor_cost).toFixed(2) : '—' %></td>
-                    <td class="text-right"><%= sub.unit_cost != null ? '$' + Number(sub.unit_cost).toFixed(2) : '—' %></td>
-                    <td class="text-right"><%= sub.total_cost != null ? '$' + Number(sub.total_cost).toFixed(2) : '—' %></td>
+                    <form action="/projects/rfps/items/<%= sub.id %>" method="POST" style="display:contents">
+                    <td class="pl-4">└ <input name="vendor" value="<%= sub.vendor || '' %>" class="input text-xs py-0.5 w-24" list="rfp-line-entity-options" autocomplete="off"></td>
+                    <td><input name="description" value="<%= sub.description %>" class="input text-xs py-0.5"></td>
+                    <td class="text-right"><input name="quantity" type="number" step="any" value="<%= sub.quantity != null ? sub.quantity : '' %>" class="input text-xs py-0.5 w-16 text-right"></td>
+                    <td class="text-right"><input name="contractor_cost" type="number" step="any" value="<%= sub.contractor_cost != null ? sub.contractor_cost : '' %>" class="input text-xs py-0.5 w-20 text-right"></td>
+                    <td class="text-right"><input name="vendor_cost" type="number" step="any" value="<%= sub.vendor_cost != null ? sub.vendor_cost : '' %>" class="input text-xs py-0.5 w-20 text-right"></td>
+                    <td><%= sub.unit_cost != null ? '$' + Number(sub.unit_cost).toFixed(2) : '—' %></td>
+                    <td><%= sub.total_cost != null ? '$' + Number(sub.total_cost).toFixed(2) : '—' %></td>
+                    <td></td>
                     <td></td>
                     <td></td>
                     <td></td>
                     <td>
+                      <button type="submit" class="text-green-600 hover:text-green-800 text-xs font-bold" title="Save">&#10003;</button>
                       <form action="/projects/rfps/items/<%= sub.id %>/delete" method="POST"
                             onsubmit="return confirm('Delete?')" class="inline">
                         <button class="text-recon-fog hover:text-recon-red text-xs">&times;</button>
                       </form>
                     </td>
+                    </form>
                   </tr>
                 <% }); %>
               <% }); %>
