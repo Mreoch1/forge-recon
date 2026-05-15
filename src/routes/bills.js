@@ -522,13 +522,28 @@ router.post('/:id/void', async (req, res) => {
   });
   if (rpcErr) throw rpcErr;
   // Reverse journal entry if bill was previously approved
+  let reversalFailed = false;
   try {
-    const posting = require('../services/accounting-posting');
-    const { data: bill } = await supabase.from('bills').select('id, bill_number, total, tax_amount').eq('id', id).single();
-    const { data: lines } = await supabase.from('bill_lines').select('line_total, description, account_id').eq('bill_id', id);
-    await posting.postBillVoid(bill, lines || [], { userId: req.currentUser?.id ?? req.session?.userId ?? null });
-  } catch(e) { console.warn('[bills] JE reversal on void failed:', e.message); }
+    if (bill.status === 'approved') {
+      const { data: voidedBill, error: voidedBillErr } = await supabase
+        .from('bills')
+        .select('id, bill_number, total, tax_amount')
+        .eq('id', id)
+        .single();
+      if (voidedBillErr) throw voidedBillErr;
+      const { data: lines, error: lineErr } = await supabase
+        .from('bill_lines')
+        .select('line_total, description, account_id')
+        .eq('bill_id', id);
+      if (lineErr) throw lineErr;
+      await posting.postBillVoid(voidedBill, lines || [], { userId: req.currentUser?.id ?? req.session?.userId ?? null });
+    }
+  } catch(e) {
+    reversalFailed = true;
+    console.warn('[bills] JE reversal on void failed:', e.message);
+  }
   setFlash(req, 'success', 'Bill voided.');
+  if (reversalFailed) setFlash(req, 'info', 'Bill voided, but the accounting reversal did not post. Review the journal before closing the books.');
   res.redirect(`/bills/${id}`);
 });
 
