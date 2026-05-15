@@ -23,33 +23,33 @@ steps:
 
   - id: "spotlight-nav"
     coach_text: |
-      Look at the left navigation. Click **Customers**.
+      In the real app, customers live in the main navigation. For the tour,
+      we'll keep you inside this tutorial box. Use the practice button below
+      to open the customer list.
     spotlight_selector: "[data-nav='customers']"
     spotlight_label: "Click here"
     expected_action: "click_or_route_change"
     expected_route: "/customers"
     on_wrong_click: |
-      I think you're looking for the **Customers** link on the left side
-      of the screen. Want me to point again?
+      Use the practice button inside the tutorial box so you stay in the tour.
 
   - id: "react-on-customers-page"
     coach_text: |
-      Good. This is your customer list. Right now it's mostly empty for
-      you — we'll fix that. Look for the **New Customer** button. It's
-      in the top-right.
+      Good. This represents your customer list. In the real app, you'd click
+      **New Customer** from there. Use the practice button below to start one.
     spotlight_selector: "[data-action='new-customer']"
     spotlight_label: "Click here"
     expected_action: "click_or_route_change"
     expected_route: "/customers/new"
     on_wrong_click: |
-      The **New Customer** button is in the top-right corner of this page.
+      Use the practice button inside the tutorial box to start the customer.
 
   - id: "fill-form-intro"
     coach_text: |
       This is the customer create form. The only field that's actually
       required is **Customer Name** — everything else is optional. Type a
       memorable name. I'll suggest "Tutorial Customer" so we know what to
-      delete at the end, but you can call it whatever.
+      clean up at the end, but you can call it whatever.
     spotlight_selector: "input[name='name']"
     spotlight_label: "Type a name"
     expected_action: "form_field_filled"
@@ -61,7 +61,7 @@ steps:
       tour — but in real life you'd want them so your invoices and emails
       go to the right place. We'll skip those for now.
 
-      Click **Save**.
+      Use the practice Save button below.
     spotlight_selector: "button[type='submit']"
     spotlight_label: "Save"
     expected_action: "form_submit"
@@ -69,8 +69,8 @@ steps:
 
   - id: "react-after-save"
     coach_text: |
-      Done. You just created your first customer. Look at the top of the
-      page — see the little yellow **TUTORIAL** badge next to the name?
+      Done. You just created your first practice customer. In the real app,
+      the customer detail page shows a yellow **TUTORIAL** badge next to the name.
       That's how FORGE marks data created during this tour, so it doesn't
       get mixed up with your real customers and so we can clean it up
       cleanly at the end.
@@ -81,7 +81,7 @@ steps:
 
   - id: "what-you-see"
     coach_text: |
-      The page you're on now is the **customer detail page**. From here
+      The screen we're modeling now is the **customer detail page**. From here
       you can see all the WOs, estimates, invoices, payments, and files
       tied to this customer. Right now it's empty — we just made the
       customer, no jobs yet. We'll fix that next.

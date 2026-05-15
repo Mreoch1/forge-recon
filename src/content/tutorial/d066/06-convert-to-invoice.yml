@@ -39,19 +39,18 @@ steps:
 
   - id: "spotlight-convert-button"
     coach_text: |
-      OK, ready. Click **Convert to Invoice** at the top right of the
-      estimate.
+      OK, ready. In the real app, you'd click **Convert to Invoice** at the
+      top right of the estimate. Use the practice button below.
     spotlight_selector: "[data-action='convert-to-invoice']"
     spotlight_label: "Click here"
     expected_action: "click_or_route_change"
     expected_route_pattern: "/invoices/\\d+"
     on_wrong_click: |
-      The **Convert to Invoice** button is in the action row at the top of
-      the estimate detail page.
+      Use the practice button inside the tutorial box to convert the estimate.
 
   - id: "after-convert"
     coach_text: |
-      Done. You're on the invoice detail page now. Look at the number —
+      Done. Now imagine the invoice detail page. Look at the number —
       `INV-NNNN-NNNN`. Same digits as the estimate, just a different
       prefix.
     chips: []
@@ -60,7 +59,7 @@ steps:
 
   - id: "linked-estimate-callout"
     coach_text: |
-      See the **Linked Estimate** badge or link at the top? Clicking it
+      The invoice detail page has a **Linked Estimate** badge or link at the top. Clicking it
       takes you back to the estimate. The two docs are permanently
       attached.
     spotlight_selector: "[data-link='source-estimate']"

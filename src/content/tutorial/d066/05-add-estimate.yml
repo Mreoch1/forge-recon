@@ -23,18 +23,17 @@ steps:
 
   - id: "spotlight-estimates-tab"
     coach_text: |
-      On the WO detail page, find the **Estimates** tab (or section).
-      Click it.
+      In the real app, you'd open the **Estimates** tab on the WO detail page.
+      Use the practice button below to model that step here.
     spotlight_selector: "[data-tab='estimates']"
     spotlight_label: "Click here"
     expected_action: "click_or_route_change"
     on_wrong_click: |
-      The **Estimates** tab is usually in the row of tabs below the WO
-      header. Want me to point again?
+      Use the practice button inside the tutorial box to open the estimates area.
 
   - id: "spotlight-new-estimate"
     coach_text: |
-      Empty so far. Click **+ New Estimate** to start one.
+      Empty so far. Use the practice button below to start a new estimate.
     spotlight_selector: "[data-action='new-estimate']"
     spotlight_label: "Click here"
     expected_action: "click_or_route_change"
@@ -82,7 +81,7 @@ steps:
 
   - id: "line-2-add"
     coach_text: |
-      Good. Now click **+ Add line** to add a second row.
+      Good. Now use the practice button below to add a second row.
     spotlight_selector: "[data-action='add-line']"
     spotlight_label: "Add another line"
     expected_action: "click_or_dom_change"
@@ -107,7 +106,7 @@ steps:
 
   - id: "save"
     coach_text: |
-      Total looks right? Click **Save**.
+      Total looks right? Use the practice Save button below.
     spotlight_selector: "button[type='submit']"
     spotlight_label: "Save"
     expected_action: "form_submit"
@@ -115,7 +114,7 @@ steps:
 
   - id: "after-save"
     coach_text: |
-      Done. You're on the estimate detail page now. Look at the number:
+      Done. Now imagine the estimate detail page. Look at the number:
       `EST-NNNN-NNNN`. Notice it matches the parent WO's number — that's
       the mirroring rule from chapter 2 in action.
     chips: []

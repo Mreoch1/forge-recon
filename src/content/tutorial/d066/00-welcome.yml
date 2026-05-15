@@ -100,6 +100,6 @@ faqs:
   - patterns: ["how long", "duration", "how much time"]
     answer: "About 10 to 12 minutes. You can stop anytime — type `exit` and we'll clean up."
   - patterns: ["can i skip", "skip", "skip this"]
-    answer: "Yes — type `exit` and we'll skip the tutorial. You can always replay it later from the Start Tutorial button on /forge."
+    answer: "Yes — type `exit` and we'll skip the tutorial. You can always replay it later from the Get Started area on /forge."
   - patterns: ["i'm in a hurry", "fast", "speed"]
     answer: "Got it. I'll keep moving — type `next` to advance through narration faster, and we'll do the hands-on parts at your pace."

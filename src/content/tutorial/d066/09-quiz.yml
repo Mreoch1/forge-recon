@@ -221,7 +221,7 @@ faqs:
   - patterns: ["why no grade", "no pass fail", "score required"]
     answer: "FORGE doesn't quiz-wall users — construction crews don't want a test, they want to do their job. The quiz exists so the coach knows which concepts to remind you of later, not as a gate."
   - patterns: ["replay later", "redo quiz", "take it again"]
-    answer: "Yes — the Start Tutorial button on /forge stays available after completion. You can replay the whole tour or jump to a specific chapter."
+    answer: "Yes — the Get Started area on /forge stays available after completion. You can replay the whole tour or jump to a specific chapter."
   - patterns: ["where are weak spots saved", "what do you do with my score"]
     answer: "Saved on your user record in `tutorial_completion_weak_spots` (JSONB). Only visible to you and admins. Used to surface contextual hints — e.g. if you got the numbering question wrong, the coach will explain it again the first time you make a real WO."
   - patterns: ["skip the quiz", "no quiz"]

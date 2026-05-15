@@ -71,6 +71,28 @@
   }
   .tw-send:hover { background: #06b6d4; transform: translateY(-1px); }
 
+  .tw-practice {
+    position: relative; z-index: 2; max-width: 720px; width: 100%;
+    margin: 1rem auto 0; padding: 1rem;
+    border: 1px solid rgba(34,211,238,0.22); border-radius: 8px;
+    background: rgba(15,23,42,0.62);
+  }
+  .tw-practice[hidden] { display: none; }
+  .tw-practice-title { font-size: 0.78rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.75rem; }
+  .tw-practice-grid { display: grid; gap: 0.7rem; }
+  .tw-practice-label { display: grid; gap: 0.25rem; color: #cbd5e1; font-size: 0.82rem; }
+  .tw-practice-control {
+    width: 100%; padding: 0.65rem 0.75rem; border-radius: 8px;
+    border: 1px solid rgba(148,163,184,0.35); background: rgba(2,6,23,0.7);
+    color: #e2e8f0; font-size: 0.92rem;
+  }
+  .tw-practice-action {
+    justify-self: start; margin-top: 0.25rem; padding: 0.58rem 1rem;
+    border: none; border-radius: 8px; background: #22d3ee; color: #020617;
+    font-weight: 800; cursor: pointer;
+  }
+  .tw-practice-action:disabled { opacity: 0.45; cursor: not-allowed; }
+
   @media (max-width: 768px) {
     #tutorial-window { padding: 1.25rem 1rem; min-height: 80vh; }
     .tw-title { font-size: 1rem; }
@@ -107,6 +129,7 @@
           <p>Welcome to the FORGE tutorial. Loading your first chapter&hellip;</p>
         <% } %>
       </div>
+      <div class="tw-practice" id="tc-practice" hidden></div>
       <div class="tw-chip-row" id="tc-chips"></div>
     </div>
 
@@ -136,12 +159,18 @@
   var narration = document.getElementById('tc-narration');
   var diagram = document.getElementById('tc-diagram');
   var diagramTemplates = document.getElementById('tc-diagram-templates');
+  var practice = document.getElementById('tc-practice');
   var chips = document.getElementById('tc-chips');
   var progressFill = document.getElementById('tc-progress-fill');
   var currentSpan = document.getElementById('tc-current');
   var totalSpan = document.getElementById('tc-total');
+  var autoTimer = null;
 
   function sendAction(action, payload) {
+    if (autoTimer) {
+      clearTimeout(autoTimer);
+      autoTimer = null;
+    }
     fetch('/forge/tutorial/advance', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -173,6 +202,7 @@
     var text = (step && step.coach_text) || (data.chapter && data.chapter.narration);
     if (text) narration.innerHTML = '<p>' + text.replace(/\n\n+/g, '</p><p>') + '</p>';
     renderDiagram((step && step.diagram_id) || (data.chapter && data.chapter.diagram_id));
+    var hasPractice = renderPractice(step);
 
     // Build chip row — comprehension chips if provided, else Next/Back fallback
     var chipsList;
@@ -182,10 +212,13 @@
         return { label: (typeof c === 'string' ? c : (c.label || 'Continue')), action: 'select_chip', payload: c };
       });
       chipsList.push({ label: 'Back &larr;', action: 'back' });
+    } else if (hasPractice) {
+      chipsList = [{ label: 'Back &larr;', action: 'back' }];
     } else {
       chipsList = [{ label: 'Next &rarr;', action: 'next', primary: true }, { label: 'Back &larr;', action: 'back' }];
     }
     renderChips(chipsList);
+    scheduleAutoAdvance(step, sourceChips.length);
   }
 
   function renderDiagram(diagramId) {
@@ -208,6 +241,113 @@
       });
       chips.appendChild(el);
     });
+  }
+
+  function renderPractice(step) {
+    if (!practice) return false;
+    practice.innerHTML = '';
+    practice.hidden = true;
+    if (!step) return false;
+
+    var action = step.expected_action;
+    var practiceActions = ['click_or_route_change', 'click_or_dom_change', 'form_field_filled', 'form_field_filled_multiple', 'form_submit'];
+    if (practiceActions.indexOf(action) === -1) return false;
+
+    practice.hidden = false;
+    var title = document.createElement('div');
+    title.className = 'tw-practice-title';
+    title.textContent = 'Practice inside the tutorial';
+    practice.appendChild(title);
+
+    if (action === 'click_or_route_change' || action === 'click_or_dom_change' || action === 'form_submit') {
+      var btn = document.createElement('button');
+      btn.className = 'tw-practice-action';
+      btn.type = 'button';
+      btn.textContent = step.spotlight_label || (action === 'form_submit' ? 'Save' : 'Continue');
+      btn.addEventListener('click', function() { sendAction('next'); });
+      practice.appendChild(btn);
+      return true;
+    }
+
+    var fields = step.expected_fields || (step.expected_field ? [step.expected_field] : []);
+    var grid = document.createElement('div');
+    grid.className = 'tw-practice-grid';
+    var controlsByField = {};
+    fields.forEach(function(field) {
+      var label = document.createElement('label');
+      label.className = 'tw-practice-label';
+      label.textContent = fieldLabel(field);
+      var control = field === 'method' ? document.createElement('select') : document.createElement('input');
+      control.className = 'tw-practice-control';
+      control.name = field;
+      if (field === 'method') {
+        ['Check', 'ACH', 'Card', 'Cash', 'Other'].forEach(function(option) {
+          var opt = document.createElement('option');
+          opt.textContent = option;
+          opt.value = option.toLowerCase();
+          control.appendChild(opt);
+        });
+      } else {
+        control.type = field.indexOf('qty') >= 0 || field.indexOf('price') >= 0 || field === 'tax_rate' ? 'number' : 'text';
+        control.placeholder = sampleValue(field);
+      }
+      controlsByField[field] = control;
+      label.appendChild(control);
+      grid.appendChild(label);
+    });
+
+    var submit = document.createElement('button');
+    submit.className = 'tw-practice-action';
+    submit.type = 'button';
+    submit.textContent = action === 'form_field_filled_multiple' ? 'Done' : 'Continue';
+    submit.disabled = fields.length > 0;
+    grid.addEventListener('input', function() {
+      submit.disabled = fields.some(function(field) {
+        var el = controlsByField[field];
+        return !el || !String(el.value || '').trim();
+      });
+    });
+    submit.addEventListener('click', function() { sendAction('next'); });
+    grid.appendChild(submit);
+    practice.appendChild(grid);
+    return true;
+  }
+
+  function fieldLabel(field) {
+    var labels = {
+      name: 'Customer name',
+      description: 'Work order description',
+      tax_rate: 'Tax rate',
+      method: 'Payment method',
+      'line_items[0].description': 'Line 1 description',
+      'line_items[0].qty': 'Line 1 quantity',
+      'line_items[0].unit_price': 'Line 1 unit price',
+      'line_items[1].description': 'Line 2 description',
+      'line_items[1].qty': 'Line 2 quantity',
+      'line_items[1].unit_price': 'Line 2 unit price',
+    };
+    return labels[field] || field;
+  }
+
+  function sampleValue(field) {
+    var samples = {
+      name: 'Tutorial Customer',
+      description: 'Demo job: kitchen drywall repair, unit 1B',
+      tax_rate: '6',
+      'line_items[0].description': 'Labor - drywall repair, kitchen wall',
+      'line_items[0].qty': '4',
+      'line_items[0].unit_price': '80',
+      'line_items[1].description': 'Materials - drywall sheet + compound',
+      'line_items[1].qty': '1',
+      'line_items[1].unit_price': '45',
+    };
+    return samples[field] || '';
+  }
+
+  function scheduleAutoAdvance(step, choiceCount) {
+    if (!step || step.expected_action !== 'auto_advance' || choiceCount) return;
+    var delay = Math.max(300, parseInt(step.delay_after_ms, 10) || 1200);
+    autoTimer = setTimeout(function() { sendAction('next'); }, delay);
   }
 
   function handleInput() {

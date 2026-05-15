@@ -23,14 +23,14 @@ steps:
 
   - id: "spotlight-new-wo"
     coach_text: |
-      Look at the top-right of your customer detail page. Click **+ New WO**
-      (or "New Work Order" — wording may vary slightly).
+      In the real app, you'd use **+ New WO** from the customer detail page.
+      In this tour, use the practice button below so we stay inside the tutorial.
     spotlight_selector: "[data-action='new-wo']"
     spotlight_label: "Click here"
     expected_action: "click_or_route_change"
     expected_route_pattern: "/work-orders/new\\?customer_id=\\d+"
     on_wrong_click: |
-      The **New WO** button is in the top-right of the customer detail page.
+      Use the practice button inside the tutorial box to start the WO.
 
   - id: "form-arrived"
     coach_text: |
@@ -87,7 +87,7 @@ steps:
       here triggers an email alert to them.
 
       Skip the rest of the fields (schedule, scope, notes) — all optional.
-      Click **Save**.
+      Use the practice Save button below.
     spotlight_selector: "button[type='submit']"
     spotlight_label: "Save"
     expected_action: "form_submit"
@@ -95,16 +95,15 @@ steps:
 
   - id: "after-save"
     coach_text: |
-      Saved. Now you're on the WO detail page. Look at the top — your WO
-      number is there, big and clickable. The yellow **TUTORIAL** badge
-      is here too.
+      Saved. Now imagine the WO detail page: the WO number is at the top,
+      big and clickable. The yellow **TUTORIAL** badge is there too.
     chips: []
     expected_action: "auto_advance"
     delay_after_ms: 3000
 
   - id: "wo-tabs-tour"
     coach_text: |
-      Look at the tabs (or sections) on the WO detail page: **Estimates**,
+      On the WO detail page you'll see tabs (or sections): **Estimates**,
       **Invoices**, **Files**, **Schedule**, **Notes**, **Activity**. This
       is the single pane where everything about this job lives. Crew comes
       here on their phone in the field to see what they're doing.

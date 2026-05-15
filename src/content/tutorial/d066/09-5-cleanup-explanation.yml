@@ -129,6 +129,6 @@ faqs:
   - patterns: ["partial cleanup", "delete some not all", "selective"]
     answer: "Not at this UI step — cleanup is all-or-nothing for the tutorial session's data. After exit, you can delete individual records manually from their detail pages."
   - patterns: ["replay the tutorial", "do this again"]
-    answer: "Yes — anytime. Click 'Start Tutorial' on /forge. Each replay creates a fresh tutorial session with its own session_id, so old/new data doesn't tangle."
+    answer: "Yes — anytime. Use the Get Started area on /forge. Each replay creates a fresh tutorial session with its own session_id, so old/new data doesn't tangle."
   - patterns: ["why even ask", "just delete automatically"]
     answer: "Because some users want a reference for their first week using FORGE. The keep option exists for them. Default is cleanup because most users won't want the clutter."

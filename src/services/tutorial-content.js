@@ -17,8 +17,8 @@ const CHAPTER_ORDER = [
   '06-convert-to-invoice',
   '07-record-payment',
   '08-side-quest-loose-estimate',
-  '09-5-cleanup-explanation',
   '09-quiz',
+  '09-5-cleanup-explanation',
 ];
 
 let loaded = false;

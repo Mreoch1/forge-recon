@@ -326,16 +326,97 @@ router.get('/forge', async (req, res) => {
 const crypto = require('crypto');
 const { TutorialState } = require('../services/tutorial-state');
 
+function isMissingTutorialSessionsTable(error) {
+  const message = String(error?.message || '');
+  return error?.code === '42P01'
+    || error?.code === 'PGRST205'
+    || (/tutorial_sessions/i.test(message) && /does not exist|not find|not found|schema cache/i.test(message));
+}
+
 async function assertTutorialWrite(result, label) {
   const { error } = await result;
   if (error) throw new Error(`${label}: ${error.message}`);
 }
 
+async function cleanupTutorialRecords(state) {
+  state.cleanupChosen = 'cleanup';
+
+  // Delete in dependency order: project payments -> invoices -> estimates -> WOs -> customers
+  const ids = state.createdEntityIds;
+  if (ids.payments.length) await assertTutorialWrite(supabase.from('project_payments').delete().in('id', ids.payments), 'tutorial cleanup project_payments delete failed');
+  if (ids.invoices.length) await assertTutorialWrite(supabase.from('invoices').delete().in('id', ids.invoices), 'tutorial cleanup invoices delete failed');
+  if (ids.estimates.length) await assertTutorialWrite(supabase.from('estimates').delete().in('id', ids.estimates), 'tutorial cleanup estimates delete failed');
+  if (ids.work_orders.length) await assertTutorialWrite(supabase.from('work_orders').delete().in('id', ids.work_orders), 'tutorial cleanup work_orders delete failed');
+  if (ids.customers.length) await assertTutorialWrite(supabase.from('customers').delete().in('id', ids.customers), 'tutorial cleanup customers delete failed');
+
+  await assertTutorialWrite(supabase.from('users').update({ completed_tutorial_at: new Date().toISOString() }).eq('id', state.userId), 'tutorial cleanup completion update failed');
+}
+
+async function keepTutorialRecords(state) {
+  state.cleanupChosen = 'keep';
+
+  const tutorialEntityTables = [
+    ['project_payments', 'payments'],
+    ['invoices', 'invoices'],
+    ['estimates', 'estimates'],
+    ['work_orders', 'work_orders'],
+    ['customers', 'customers'],
+  ];
+  for (const [table, key] of tutorialEntityTables) {
+    const ids = state.createdEntityIds[key];
+    if (ids.length) {
+      await assertTutorialWrite(supabase.from(table).update({ tutorial_session_id: null }).in('id', ids), `tutorial keep ${table} update failed`);
+    }
+  }
+
+  await assertTutorialWrite(supabase.from('users').update({ completed_tutorial_at: new Date().toISOString() }).eq('id', state.userId), 'tutorial keep completion update failed');
+}
+
+async function executeTutorialStepEffects(step, state) {
+  if (!step) return;
+
+  state.recordStepAnswer(step.record_answer);
+
+  for (const effect of step.side_effects || []) {
+    if (effect.call_endpoint === 'POST /forge/tutorial/cleanup') {
+      await cleanupTutorialRecords(state);
+    } else if (effect.call_endpoint === 'POST /forge/tutorial/keep') {
+      await keepTutorialRecords(state);
+    } else {
+      await state.executeSideEffects([effect], supabase, state.userId);
+    }
+  }
+}
+
+async function resolveTutorialSessionId(req, userId) {
+  if (req.session?.tutorialSessionId) return req.session.tutorialSessionId;
+  if (userId) {
+    try {
+      const { data, error } = await supabase
+        .from('tutorial_sessions')
+        .select('id,state_json')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      if (data?.id && !data.state_json?.cleanupChosen) {
+        if (req.session) req.session.tutorialSessionId = data.id;
+        return data.id;
+      }
+    } catch (e) {
+      if (!isMissingTutorialSessionsTable(e)) throw e;
+    }
+  }
+  const sessionId = crypto.randomUUID();
+  if (req.session) req.session.tutorialSessionId = sessionId;
+  return sessionId;
+}
+
 router.get('/forge/tutorial', async (req, res) => {
   const { loadChapters, totalChapters } = require('../services/tutorial-content');
   loadChapters();
-  const sessionId = req.session?.tutorialSessionId || crypto.randomUUID();
-  if (req.session) req.session.tutorialSessionId = sessionId;
+  const sessionId = await resolveTutorialSessionId(req, res.locals.currentUser?.id);
 
   const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase, req.session);
   await state.save(supabase, req.session);
@@ -396,31 +477,26 @@ router.post('/forge/tutorial/advance', async (req, res) => {
   const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase, req.session);
   const { action, payload } = req.body;
 
+  const currentStep = state.getCurrentStep();
+  try {
+    await executeTutorialStepEffects(currentStep, state);
+  } catch (e) {
+    console.error('[tutorial] step side effect failed:', e.message);
+    return res.status(500).json({ error: 'Tutorial action failed. Please try again.' });
+  }
+
   const result = state.processAction(action, payload, supabase);
 
   // Handle EXIT_TUTORIAL
   if (result.exit) {
+    await state.save(supabase, req.session);
+    if (state.cleanupChosen && req.session) delete req.session.tutorialSessionId;
     return res.json({ redirect: req.query.return || '/forge' });
   }
 
   // Log any errors returned by the state machine
   if (result.error) {
     console.error('[tutorial] state error:', result.error, 'action:', action);
-  }
-
-  // Handle side_effects from the current chapter step
-  const ch = state.getCurrentChapter();
-  if (ch && ch.side_effects) {
-    try {
-      await state.executeSideEffects(ch.side_effects, supabase, state.userId);
-    } catch (e) {
-      // Silently fail — side effects are non-critical
-    }
-  }
-
-  // Handle record_answer from payload (quiz responses captured at chapter level)
-  if (ch && ch.record_answer && payload?.answers) {
-    // record_answer is defined per-chapter in YAML
   }
 
   await state.save(supabase, req.session);
@@ -450,19 +526,9 @@ router.post('/forge/tutorial/cleanup', async (req, res) => {
   const { loadChapters } = require('../services/tutorial-content');
   loadChapters();
   const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase, req.session);
-  state.cleanupChosen = 'cleanup';
-
-  // Delete in dependency order: project payments -> invoices -> estimates -> WOs -> customers
-  const ids = state.createdEntityIds;
-  if (ids.payments.length) await assertTutorialWrite(supabase.from('project_payments').delete().in('id', ids.payments), 'tutorial cleanup project_payments delete failed');
-  if (ids.invoices.length) await assertTutorialWrite(supabase.from('invoices').delete().in('id', ids.invoices), 'tutorial cleanup invoices delete failed');
-  if (ids.estimates.length) await assertTutorialWrite(supabase.from('estimates').delete().in('id', ids.estimates), 'tutorial cleanup estimates delete failed');
-  if (ids.work_orders.length) await assertTutorialWrite(supabase.from('work_orders').delete().in('id', ids.work_orders), 'tutorial cleanup work_orders delete failed');
-  if (ids.customers.length) await assertTutorialWrite(supabase.from('customers').delete().in('id', ids.customers), 'tutorial cleanup customers delete failed');
-
-  // Mark tutorial complete
-  await assertTutorialWrite(supabase.from('users').update({ completed_tutorial_at: new Date().toISOString() }).eq('id', state.userId), 'tutorial cleanup completion update failed');
+  await cleanupTutorialRecords(state);
   await state.save(supabase, req.session);
+  if (req.session) delete req.session.tutorialSessionId;
 
   res.json({ message: 'All tutorial data cleared. You\'re starting fresh.' });
 });
@@ -474,25 +540,9 @@ router.post('/forge/tutorial/keep', async (req, res) => {
   const { loadChapters } = require('../services/tutorial-content');
   loadChapters();
   const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase, req.session);
-  state.cleanupChosen = 'keep';
-
-  // Strip tutorial_session_id from all created entities
-  const tutorialEntityTables = [
-    ['project_payments', 'payments'],
-    ['invoices', 'invoices'],
-    ['estimates', 'estimates'],
-    ['work_orders', 'work_orders'],
-    ['customers', 'customers'],
-  ];
-  for (const [table, key] of tutorialEntityTables) {
-    const ids = state.createdEntityIds[key];
-    if (ids.length) {
-      await assertTutorialWrite(supabase.from(table).update({ tutorial_session_id: null }).in('id', ids), `tutorial keep ${table} update failed`);
-    }
-  }
-
-  await assertTutorialWrite(supabase.from('users').update({ completed_tutorial_at: new Date().toISOString() }).eq('id', state.userId), 'tutorial keep completion update failed');
+  await keepTutorialRecords(state);
   await state.save(supabase, req.session);
+  if (req.session) delete req.session.tutorialSessionId;
 
   res.json({ message: 'Kept your tutorial records. Find them in your Customers list.' });
 });

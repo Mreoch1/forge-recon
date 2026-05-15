@@ -23,13 +23,13 @@ steps:
 
   - id: "spotlight-record-payment"
     coach_text: |
-      On the invoice detail page, find **Record Payment**. Click it.
+      In the real app, you'd click **Record Payment** on the invoice detail page.
+      Use the practice button below to open that payment step here.
     spotlight_selector: "[data-action='record-payment']"
     spotlight_label: "Click here"
     expected_action: "click_or_route_change"
     on_wrong_click: |
-      The **Record Payment** button is in the action row on the invoice
-      detail page, near the top.
+      Use the practice button inside the tutorial box to record the payment.
 
   - id: "modal-arrived"
     coach_text: |
@@ -70,14 +70,14 @@ steps:
 
   - id: "save-payment"
     coach_text: |
-      Click **Save Payment**.
+      Use the practice Save Payment button below.
     spotlight_selector: "button[type='submit'][data-action='save-payment']"
     spotlight_label: "Save"
     expected_action: "form_submit"
 
   - id: "status-flip"
     coach_text: |
-      Look at the invoice. The status badge just flipped from **OPEN** (or
+      Now look at the invoice state we're modeling. The status badge just flipped from **OPEN** (or
       **SENT**) to **PAID** — with the date marked alongside. The PDF will
       also now show the big PAID stamp when downloaded.
     diagram_id: "paid-stamp-callout"
@@ -87,7 +87,7 @@ steps:
 
   - id: "payment-row"
     coach_text: |
-      Scroll down to the **Payments** section on this invoice. You'll see
+      In the **Payments** section on this invoice, you'd see
       one row — your $387 payment with today's date and method. If they
       paid in two installments, you'd see two rows here, and the invoice
       would flip to PAID when the total covered the balance.
@@ -97,9 +97,9 @@ steps:
 
   - id: "customer-ledger"
     coach_text: |
-      One more thing worth seeing — click back to the **customer** detail
-      page (link in the top breadcrumb). Look for the **Payment Ledger**
-      section.
+      One more thing worth seeing: the **customer** detail page has a
+      **Payment Ledger** section. Use the practice button below to model
+      jumping back there.
     spotlight_selector: "[data-link='customer-from-invoice']"
     spotlight_label: "Click here"
     expected_action: "click_or_route_change"

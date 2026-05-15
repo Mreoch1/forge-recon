@@ -144,6 +144,17 @@ describe('TutorialState', () => {
   });
 
   describe('quiz scoring', () => {
+    test('recordStepAnswer stores correctness and weak spot', () => {
+      const fresh = new tutState.TutorialState('quiz-step-answer', 1);
+      fresh.recordStepAnswer({ question: 'numbering', correct: false, weak_spot: 'numbering' });
+      assert.deepEqual(fresh.quizAnswers, { numbering: false });
+      assert.deepEqual(fresh.quizWeakSpots, ['numbering']);
+
+      fresh.recordStepAnswer({ question: 'numbering_retry', correct: true, weak_spot: 'numbering' });
+      assert.equal(fresh.quizAnswers.numbering_retry, true);
+      assert.deepEqual(fresh.quizWeakSpots, ['numbering']);
+    });
+
     test('submitQuiz marks quizSubmitted = true', () => {
       const fresh = new tutState.TutorialState('quiz-test', 1);
       fresh.currentChapter = 2; // quiz-chapter

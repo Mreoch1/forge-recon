@@ -26,8 +26,7 @@ steps:
 
   - id: "back-to-customer"
     coach_text: |
-      You should still be on the customer detail page from chapter 7. If
-      not, click the customer in the breadcrumb.
+      We're back at the customer detail concept from chapter 7.
     chips:
       - label: "I'm there"
         value: "ok"
@@ -37,15 +36,15 @@ steps:
 
   - id: "spotlight-new-estimate"
     coach_text: |
-      Find **+ New Estimate** on the customer detail page — NOT the New
-      WO button. We're skipping the work order step entirely.
+      In the real app, you'd choose **+ New Estimate** on the customer detail
+      page — NOT the New WO button. We're skipping the work order step entirely.
+      Use the practice button below.
     spotlight_selector: "[data-action='new-estimate-loose']"
     spotlight_label: "Click here (not New WO!)"
     expected_action: "click_or_route_change"
     expected_route_pattern: "/estimates/new\\?customer_id=\\d+(&|$)"
     on_wrong_click: |
-      Look for **+ New Estimate** in the customer's action row. It's a
-      separate button from New WO. The loose estimate path.
+      Use the practice button inside the tutorial box to start the loose estimate.
 
   - id: "form-arrived"
     coach_text: |
@@ -66,7 +65,7 @@ steps:
       Add one quick line item to make it feel real.
       Description: *"Rough quote: bathroom tile"*. Qty 1. Unit price 1500.
 
-      Skip tax for this one. Save.
+      Skip tax for this one, then continue.
     spotlight_selector: "input[name='line_items[0].description']"
     spotlight_label: "Type, then qty 1, $1500"
     expected_action: "form_field_filled_multiple"
@@ -77,7 +76,7 @@ steps:
 
   - id: "save"
     coach_text: |
-      Click **Save**.
+      Use the practice Save button below.
     spotlight_selector: "button[type='submit']"
     spotlight_label: "Save"
     expected_action: "form_submit"

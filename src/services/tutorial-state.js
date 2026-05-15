@@ -194,6 +194,14 @@ class TutorialState {
     return this.advance();
   }
 
+  recordStepAnswer(recordAnswer) {
+    if (!recordAnswer || !recordAnswer.question) return;
+    this.quizAnswers[recordAnswer.question] = Boolean(recordAnswer.correct);
+    if (!recordAnswer.correct && recordAnswer.weak_spot && !this.quizWeakSpots.includes(recordAnswer.weak_spot)) {
+      this.quizWeakSpots.push(recordAnswer.weak_spot);
+    }
+  }
+
   // Quiz
   submitQuiz(answers) {
     this.quizAnswers = answers;
