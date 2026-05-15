@@ -6,6 +6,8 @@ process.env.SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || 'test-ser
 
 const chat = require('../src/services/ai-chat');
 const aiTools = require('../src/services/ai-tools');
+const fs = require('node:fs');
+const path = require('node:path');
 
 test('AI chat asks for required customer details before proposing create', () => {
   const intent = chat._internal.detectMutationIntent('create a customer');
@@ -123,6 +125,15 @@ test('workers cannot execute privileged confirmed AI mutations', async () => {
 
   assert.equal(result.ok, false);
   assert.match(result.error, /managers and admins/i);
+});
+
+test('worker customer scope includes current open and closed work order statuses', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'ai-tools.js'), 'utf8');
+
+  assert.match(
+    source,
+    /\.in\('status', \['open', 'scheduled', 'in_progress', 'closed', 'complete'\]\)/
+  );
 });
 
 test('AI chat routes work-order creation to the guided builder', () => {

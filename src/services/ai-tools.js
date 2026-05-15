@@ -103,7 +103,7 @@ async function customerIdsForWorker(ctx) {
     .from('work_orders')
     .select('customer_id, jobs!left(customer_id)')
     .in('id', workOrderIds)
-    .in('status', ['scheduled', 'in_progress', 'complete'])
+    .in('status', ['open', 'scheduled', 'in_progress', 'closed', 'complete'])
     .limit(100);
   if (error) throw error;
   return [...new Set((data || []).map(r => r.customer_id || oneEmbedded(r.jobs).customer_id).filter(Boolean))];
