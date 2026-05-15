@@ -13,29 +13,57 @@
   </div>
 
 
-  <!-- New RFP form (hidden by default) -->
+  <!-- New RFP "Tab" / scope area — user-defined names like "Cabinet", "Painting", "1st floor"
+       per D-078 spec (matches Michael's Excel template). Contractor/vendor bids go INSIDE
+       each tab as line items (see line-item form below). -->
   <div id="rfp-new-form" class="hidden card p-4 mb-6 bg-recon-deeper border-recon-mist">
-    <h3 class="text-sm font-semibold mb-3">New RFP</h3>
+    <h3 class="text-sm font-semibold mb-3">New RFP Tab</h3>
+    <p class="text-xs text-recon-fog mb-3">Add a scope area (e.g. "Cabinet", "Painting", "1st floor"). Click into it to add line items per contractor/vendor.</p>
     <form action="/projects/<%= job.id %>/rfps" method="POST" class="flex gap-3 items-end flex-wrap">
       <div>
-        <label class="block text-xs text-recon-fog mb-1">Contractor / Vendor name</label>
-        <input name="contractor_name" id="vendor-search-rfp" required class="input" placeholder="Type to filter contractors + vendors" autocomplete="off" list="rfp-entity-options">
-        <datalist id="rfp-entity-options">
-          <% (contractors || []).forEach(function(c) { %>
-            <option value="<%= c.name %>" data-type="contractor"><%= c.name %> — Contractor<% if (c.trade) { %> (<%= c.trade %>)<% } %></option>
-          <% }); %>
-          <% (vendors || []).forEach(function(v) { %>
-            <option value="<%= v.name %>" data-type="vendor"><%= v.name %> — Vendor</option>
-          <% }); %>
+        <label class="block text-xs text-recon-fog mb-1">Category / Tab name</label>
+        <input name="contractor_name" required class="input" placeholder="Pick from list or type custom" style="min-width:240px" maxlength="80" autocomplete="off" list="rfp-tab-presets">
+        <datalist id="rfp-tab-presets">
+          <option value="Cabinets">
+          <option value="Concrete">
+          <option value="Countertops">
+          <option value="Demolition">
+          <option value="Doors">
+          <option value="Drywall">
+          <option value="Electrical">
+          <option value="Flooring">
+          <option value="Framing">
+          <option value="General">
+          <option value="HVAC">
+          <option value="Insulation">
+          <option value="Landscaping">
+          <option value="Painting">
+          <option value="Plumbing">
+          <option value="Roofing">
+          <option value="Site Work">
+          <option value="Tile">
+          <option value="Trim / Finish">
+          <option value="Windows">
         </datalist>
+        <p class="text-xs text-recon-fog mt-1">Type any custom name (e.g. "1st floor", "Activities bldg") — picker is just a suggestion list.</p>
       </div>
       <div>
         <label class="block text-xs text-recon-fog mb-1">Notes (optional)</label>
         <input name="notes" class="input" placeholder="Scope notes" style="min-width:200px">
       </div>
-      <button type="submit" class="btn btn-primary text-sm">Add RFP</button>
+      <button type="submit" class="btn btn-primary text-sm">Add Tab</button>
     </form>
   </div>
+
+  <!-- Shared datalist for line-item vendor/contractor selection (used inside each RFP tab below) -->
+  <datalist id="rfp-line-entity-options">
+    <% (contractors || []).forEach(function(c) { %>
+      <option value="<%= c.name %>" data-type="contractor"><%= c.name %> — Contractor<% if (c.trade) { %> (<%= c.trade %>)<% } %></option>
+    <% }); %>
+    <% (vendors || []).forEach(function(v) { %>
+      <option value="<%= v.name %>" data-type="vendor"><%= v.name %> — Vendor</option>
+    <% }); %>
+  </datalist>
 
   <!-- RFP list -->
   <% if (!rfps || rfps.length === 0) { %>
