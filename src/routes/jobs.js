@@ -644,11 +644,17 @@ async function loadActiveUsers() {
   return data || [];
 }
 
+async function requireProjectId(id) {
+  const { data: job, error } = await supabase.from('jobs').select('id').eq('id', id).maybeSingle();
+  if (error) throw error;
+  return job;
+}
+
 // ---------- Change orders ----------
 
 router.get('/:id/change-orders', async (req, res) => {
   const id = req.params.id;
-  const { data: job } = await supabase.from('jobs').select('id').eq('id', id).maybeSingle();
+  const job = await requireProjectId(id);
   if (!job) return res.status(404).send('Project not found');
   const [changeOrders, vendors] = await Promise.all([loadChangeOrders(id), loadVendors()]);
   res.render('jobs/_change_orders_table', { job: { id }, changeOrders, vendors });
@@ -656,7 +662,7 @@ router.get('/:id/change-orders', async (req, res) => {
 
 router.post('/:id/change-orders', async (req, res) => {
   const id = req.params.id;
-  const { data: job } = await supabase.from('jobs').select('id').eq('id', id).maybeSingle();
+  const job = await requireProjectId(id);
   if (!job) return res.status(404).send('Project not found');
   const description = emptyToNull(req.body.description);
   if (!description) return res.status(400).send('Description required');
@@ -716,7 +722,7 @@ router.post('/:id/change-orders/:coId/reject', async (req, res) => {
 
 router.get('/:id/line-items', async (req, res) => {
   const id = req.params.id;
-  const { data: job } = await supabase.from('jobs').select('id').eq('id', id).maybeSingle();
+  const job = await requireProjectId(id);
   if (!job) return res.status(404).send('Project not found');
   const [lineItems, vendors] = await Promise.all([loadLineItems(id), loadVendors()]);
   res.render('jobs/_line_items_table', { job: { id }, lineItems, vendors });
@@ -724,7 +730,7 @@ router.get('/:id/line-items', async (req, res) => {
 
 router.post('/:id/line-items', async (req, res) => {
   const id = req.params.id;
-  const { data: job } = await supabase.from('jobs').select('id').eq('id', id).maybeSingle();
+  const job = await requireProjectId(id);
   if (!job) return res.status(404).send('Project not found');
   const description = emptyToNull(req.body.description);
   if (!description) return res.status(400).send('Description required');
@@ -732,13 +738,14 @@ router.post('/:id/line-items', async (req, res) => {
   const quantity = req.body.quantity === '' || req.body.quantity == null ? 1 : Number(req.body.quantity);
   const unitCost = req.body.unit_cost === '' || req.body.unit_cost == null ? 0 : Number(req.body.unit_cost);
   // Compute next sort_order so new items append.
-  const { data: maxRow } = await supabase
+  const { data: maxRow, error: maxRowError } = await supabase
     .from('job_vendor_line_items')
     .select('sort_order')
     .eq('job_id', id)
     .order('sort_order', { ascending: false })
     .limit(1)
     .maybeSingle();
+  if (maxRowError) throw maxRowError;
   const nextSort = (maxRow && Number.isFinite(Number(maxRow.sort_order)) ? Number(maxRow.sort_order) : 0) + 1;
   const { error } = await supabase.from('job_vendor_line_items').insert({
     job_id: parseInt(id, 10),
@@ -770,7 +777,7 @@ router.delete('/:id/line-items/:itemId', async (req, res) => {
 router.post('/:id/vendor-invoices', async (req, res) => {
   const id = req.params.id;
   const jobId = parseInt(id, 10);
-  const { data: job } = await supabase.from('jobs').select('id').eq('id', id).maybeSingle();
+  const job = await requireProjectId(id);
   if (!job) return res.status(404).send('Project not found');
   const vendorName = emptyToNull(req.body.vendor_name);
   if (!vendorName) return res.status(400).send('Vendor name required');
@@ -782,11 +789,12 @@ router.post('/:id/vendor-invoices', async (req, res) => {
   // Also auto-link to project_contractors so the new vendor shows up in the
   // datalist on next render.
   let vendorId = null;
-  const { data: existing } = await supabase
+  const { data: existing, error: existingVendorError } = await supabase
     .from('vendors')
     .select('id')
     .ilike('name', vendorName)
     .maybeSingle();
+  if (existingVendorError) throw existingVendorError;
   if (existing) {
     vendorId = existing.id;
   } else {
@@ -820,7 +828,7 @@ router.post('/:id/vendor-invoices', async (req, res) => {
 
 router.get('/:id/payments', async (req, res) => {
   const id = req.params.id;
-  const { data: job } = await supabase.from('jobs').select('id').eq('id', id).maybeSingle();
+  const job = await requireProjectId(id);
   if (!job) return res.status(404).send('Project not found');
   const { data: payments, error: pErr } = await supabase
     .from('project_payments')
@@ -838,7 +846,7 @@ router.get('/:id/payments', async (req, res) => {
 
 router.post('/:id/payments', async (req, res) => {
   const id = req.params.id;
-  const { data: job } = await supabase.from('jobs').select('id').eq('id', id).maybeSingle();
+  const job = await requireProjectId(id);
   if (!job) return res.status(404).send('Project not found');
   const amount = Number(req.body.amount);
   if (!amount || amount <= 0) return res.status(400).send('Valid amount required');
@@ -937,7 +945,7 @@ router.post('/:id/draws/generate', async (req, res) => {
 
 router.post('/:id/decisions', async (req, res) => {
   const id = req.params.id;
-  const { data: job } = await supabase.from('jobs').select('id').eq('id', id).maybeSingle();
+  const job = await requireProjectId(id);
   if (!job) return res.status(404).send('Project not found');
   const decisionTypes = new Set(['rfi', 'submittal', 'field_decision']);
   const decisionType = decisionTypes.has(req.body.decision_type) ? req.body.decision_type : 'rfi';
@@ -1018,7 +1026,7 @@ router.get('/:id/export.xlsx', async (req, res) => {
 
 router.get('/:id/members', async (req, res) => {
   const id = req.params.id;
-  const { data: job } = await supabase.from('jobs').select('id').eq('id', id).maybeSingle();
+  const job = await requireProjectId(id);
   if (!job) return res.status(404).send('Project not found');
   const [members, users] = await Promise.all([loadMembers(id), loadActiveUsers()]);
   res.render('jobs/_members_list', { job: { id }, members, users });
@@ -1026,18 +1034,19 @@ router.get('/:id/members', async (req, res) => {
 
 router.post('/:id/members', async (req, res) => {
   const id = req.params.id;
-  const { data: job } = await supabase.from('jobs').select('id').eq('id', id).maybeSingle();
+  const job = await requireProjectId(id);
   if (!job) return res.status(404).send('Project not found');
   const userId = parseInt(req.body.user_id, 10);
   if (!userId) return res.status(400).send('user_id required');
   const role = VALID_ROLES.includes(req.body.role) ? req.body.role : 'member';
   // UNIQUE(job_id, user_id) — if already a member, just update role.
-  const { data: existing } = await supabase
+  const { data: existing, error: existingMemberError } = await supabase
     .from('job_members')
     .select('id')
     .eq('job_id', id)
     .eq('user_id', userId)
     .maybeSingle();
+  if (existingMemberError) throw existingMemberError;
   if (existing) {
     const { error } = await supabase.from('job_members').update({ role }).eq('id', existing.id);
     if (error) throw error;
