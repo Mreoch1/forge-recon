@@ -397,6 +397,11 @@ router.post('/forge/tutorial/advance', async (req, res) => {
     return res.json({ redirect: req.query.return || '/forge' });
   }
 
+  // Log any errors returned by the state machine
+  if (result.error) {
+    console.error('[tutorial] state error:', result.error, 'action:', action);
+  }
+
   // Handle side_effects from the current chapter step
   const ch = state.getCurrentChapter();
   if (ch && ch.side_effects) {

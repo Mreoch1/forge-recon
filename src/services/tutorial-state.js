@@ -35,7 +35,8 @@ class TutorialState {
       if (error) throw error;
       if (data?.state_json) return Object.assign(new TutorialState(sessionId, userId), data.state_json);
     } catch (e) {
-      // Table might not exist yet
+      // Table might not exist yet — session fallback handles persistence
+      console.error('[tutorial] load error (non-fatal):', e.message);
     }
     return new TutorialState(sessionId, userId);
   }

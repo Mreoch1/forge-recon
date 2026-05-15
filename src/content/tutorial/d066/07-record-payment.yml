@@ -112,7 +112,7 @@ steps:
       called asking "what have I paid you this year", this is where you'd
       look.
 
-Click **Next** to keep going.
+      Click **Next** to keep going.
     chips:
       - label: "Next"
         value: "next"

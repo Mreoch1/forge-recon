@@ -60,15 +60,15 @@ steps:
     expected_action: "auto_advance"
     delay_after_ms: 3800
 
-  - id: "numbering-loose-estimate"
+  - id: "numbering-loose-estimate-not-a-thing"
     coach_text: |
-      One edge case: if you make a **loose estimate** (no WO attached yet,
-      like a quick quote), the number will look like `EST-????-????`. The
-      question marks mean "no WO yet — number will fill in when you attach
-      this estimate to a WO."
+      One thing worth noting: unlike some construction software, FORGE
+      **doesn't allow** an estimate without a Work Order. Every estimate
+      is tied to a WO from the start. That way you always know which job
+      a quote belongs to.
     chips: []
     expected_action: "auto_advance"
-    delay_after_ms: 4000
+    delay_after_ms: 3500
 
   - id: "numbering-comprehension"
     coach_text: |

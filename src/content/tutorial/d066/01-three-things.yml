@@ -74,13 +74,12 @@ steps:
 
   - id: "rule-1"
     coach_text: |
-      **Rule 1 — Estimates can stand alone or live under a WO.**
-      Want to send a quick quote before there's even a job? Make a loose
-      estimate directly under the customer. It just sits there until the
-      customer says yes — then you attach it to a new WO.
+      **Rule 1 — Every estimate needs a Work Order.**
+      FORGE won't let you create an estimate without one. The estimate lives
+      under the WO and inherits its number.
     chips: []
     expected_action: "auto_advance"
-    delay_after_ms: 3800
+    delay_after_ms: 3000
 
   - id: "rule-2"
     coach_text: |
@@ -94,36 +93,35 @@ steps:
 
   - id: "rule-3"
     coach_text: |
-      **Rule 3 — Work Orders can stand alone too.**
-      Sometimes you do the work first and bill after — time and materials.
-      The WO captures the field reality (who did what, when), then you
-      attach an estimate + invoice once you know the numbers.
+      **Rule 3 — Work Orders are the starting point.**
+      A WO comes first on every job. Once you know the scope and pricing,
+      you add the estimate under the WO, then convert to an invoice when
+      the customer approves.
     chips: []
     expected_action: "auto_advance"
-    delay_after_ms: 4000
+    delay_after_ms: 3500
 
   - id: "comprehension-check"
     coach_text: |
-      Quick check — which of these is **not allowed** in FORGE?
+      Quick check — which of these does FORGE **require**?
     chips:
-      - label: "Estimate without a WO"
-        value: "est_no_wo"
-      - label: "WO without an estimate yet"
-        value: "wo_no_est"
-      - label: "Invoice without an estimate"
-        value: "inv_no_est"
+      - label: "A WO before creating an estimate"
+        value: "wo_before_est"
+      - label: "An estimate before creating a WO"
+        value: "est_before_wo"
+      - label: "An invoice before creating an estimate"
+        value: "inv_before_est"
     expected_action: "chip_or_text"
     branches:
-      est_no_wo: "wrong-est-no-wo"
-      wo_no_est: "wrong-wo-no-est"
-      inv_no_est: "correct-inv-no-est"
+      wo_before_est: "correct-wo-before-est"
+      est_before_wo: "wrong-est-before-wo"
+      inv_before_est: "wrong-inv-before-est"
       "*": "wrong-freetext"
 
-  - id: "correct-inv-no-est"
+  - id: "correct-wo-before-est"
     coach_text: |
-      Right. Invoice always needs an estimate. The other two are fine —
-      you can have a loose estimate sitting there waiting to be approved,
-      or a WO running with no pricing attached yet.
+      Right. Every estimate needs a Work Order behind it. You can't make a
+      quote without a job to attach it to.
 
       Click **Next** to move on.
     chips:
@@ -133,61 +131,61 @@ steps:
     branches:
       "*": "ADVANCE_CHAPTER"
 
-  - id: "wrong-est-no-wo"
+  - id: "wrong-est-before-wo"
     coach_text: |
-      Not quite — that one's actually allowed. Estimates can live under a
-      customer without a WO yet. It's the "quick quote" pattern.
+      Not quite. You can absolutely start a WO without an estimate yet.
+      The work gets done first, you price it later.
 
-      Try again — which of the three is NOT allowed?
+      Try again — which one is required?
     chips:
-      - label: "Estimate without a WO"
-        value: "est_no_wo"
-      - label: "WO without an estimate yet"
-        value: "wo_no_est"
-      - label: "Invoice without an estimate"
-        value: "inv_no_est"
+      - label: "A WO before creating an estimate"
+        value: "wo_before_est"
+      - label: "An estimate before creating a WO"
+        value: "est_before_wo"
+      - label: "An invoice before creating an estimate"
+        value: "inv_before_est"
     expected_action: "chip_or_text"
     branches:
-      est_no_wo: "wrong-est-no-wo"
-      wo_no_est: "wrong-wo-no-est"
-      inv_no_est: "correct-inv-no-est"
+      wo_before_est: "correct-wo-before-est"
+      est_before_wo: "wrong-est-before-wo"
+      inv_before_est: "wrong-inv-before-est"
       "*": "wrong-freetext"
 
-  - id: "wrong-wo-no-est"
+  - id: "wrong-inv-before-est"
     coach_text: |
-      Not quite — WOs without an estimate are fine. That's the time-and-
-      materials pattern. The WO runs first, you bill against it later.
+      Not quite. Invoices DO need an estimate — that part is true. But the
+      question is what's required BEFORE you can create one.
 
-      Try again — which of the three is NOT allowed?
+      Try again — which one is required?
     chips:
-      - label: "Estimate without a WO"
-        value: "est_no_wo"
-      - label: "WO without an estimate yet"
-        value: "wo_no_est"
-      - label: "Invoice without an estimate"
-        value: "inv_no_est"
+      - label: "A WO before creating an estimate"
+        value: "wo_before_est"
+      - label: "An estimate before creating a WO"
+        value: "est_before_wo"
+      - label: "An invoice before creating an estimate"
+        value: "inv_before_est"
     expected_action: "chip_or_text"
     branches:
-      est_no_wo: "wrong-est-no-wo"
-      wo_no_est: "wrong-wo-no-est"
-      inv_no_est: "correct-inv-no-est"
+      wo_before_est: "correct-wo-before-est"
+      est_before_wo: "wrong-est-before-wo"
+      inv_before_est: "wrong-inv-before-est"
       "*": "wrong-freetext"
 
   - id: "wrong-freetext"
     coach_text: |
       Tap one of the three options below to answer.
     chips:
-      - label: "Estimate without a WO"
-        value: "est_no_wo"
-      - label: "WO without an estimate yet"
-        value: "wo_no_est"
-      - label: "Invoice without an estimate"
-        value: "inv_no_est"
+      - label: "A WO before creating an estimate"
+        value: "wo_before_est"
+      - label: "An estimate before creating a WO"
+        value: "est_before_wo"
+      - label: "An invoice before creating an estimate"
+        value: "inv_before_est"
     expected_action: "chip_or_text"
     branches:
-      est_no_wo: "wrong-est-no-wo"
-      wo_no_est: "wrong-wo-no-est"
-      inv_no_est: "correct-inv-no-est"
+      wo_before_est: "correct-wo-before-est"
+      est_before_wo: "wrong-est-before-wo"
+      inv_before_est: "wrong-inv-before-est"
       "*": "wrong-freetext"
 
 # --- FAQs for off-script questions in this chapter ---
