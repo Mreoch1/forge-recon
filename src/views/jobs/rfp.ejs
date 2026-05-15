@@ -81,55 +81,63 @@
     });
     %>
 
-    <!-- RFP summary cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-      <% rfps.forEach(function(rfp){ %>
-        <div class="card p-4 border-l-4 <%= rfp.status === 'awarded' ? 'border-l-green-500' : rfp.status === 'submitted' ? 'border-l-blue-500' : rfp.status === 'declined' ? 'border-l-red-500' : 'border-l-recon-fog' %>">
-          <div class="flex items-center justify-between mb-2">
-            <!-- D-101: click-to-edit category name -->
-            <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>" method="POST" class="flex items-center gap-1"
-                  onsubmit="this.querySelector('input').removeAttribute('disabled');">
-              <span class="font-semibold text-base cursor-pointer hover:text-recon-red transition"
-                    onclick="var p=this.parentElement;var i=p.querySelector('input');i.value=this.textContent.trim();this.style.display='none';i.style.display='inline';i.focus();p.querySelector('button').style.display='inline-block';">
-                <%= rfp.contractor_name %>
-              </span>
-              <input name="contractor_name" style="display:none" class="input text-xs py-0.5 px-1"
-                     list="rfp-tab-presets" autocomplete="off">
-              <button type="submit" style="display:none" class="btn btn-primary text-xs py-0.5 px-1.5">Save</button>
-            </form>
-            <span class="badge badge-<%= rfp.status %>"><%= rfp.status %></span>
-          </div>
-          <p class="text-2xl font-bold <%= rfp.status === 'awarded' ? 'text-green-700' : 'text-recon-charcoal' %>">
-            $<%= rfpTotals[rfp.id].toFixed(2) %>
-          </p>
-          <p class="text-xs text-recon-fog mt-1">Total bid amount</p>
-          <% if (rfp.notes) { %><p class="text-xs text-recon-fog mt-2 italic"><%= rfp.notes %></p><% } %>
-          <div class="mt-3 pt-3 border-t border-recon-mist flex gap-2 text-xs">
-            <button onclick="document.getElementById('rfp-items-<%= rfp.id %>').classList.toggle('hidden')"
-                    class="text-recon-red hover:underline">View items</button>
-            <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>" method="POST" class="inline">
-              <select name="status" onchange="this.form.submit()" class="text-xs border rounded px-1 py-0.5">
-                <option value="">— Update status —</option>
-                <option value="pending" <%= rfp.status === 'pending' ? 'selected' : '' %>>Pending</option>
-                <option value="submitted" <%= rfp.status === 'submitted' ? 'selected' : '' %>>Submitted</option>
-                <option value="awarded" <%= rfp.status === 'awarded' ? 'selected' : '' %>>Awarded</option>
-                <option value="declined" <%= rfp.status === 'declined' ? 'selected' : '' %>>Declined</option>
-              </select>
-            </form>
-            <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/delete" method="POST"
-                  onsubmit="return confirm('Delete this RFP and all its items?')" class="inline">
-              <button class="text-recon-fog hover:text-recon-red">Delete</button>
-            </form>
-          </div>
-        </div>
-      <% }); %>
-    </div>
+    <!-- D-104: RFP summary table (FORGE format — single card, table layout) -->
+    <div class="card overflow-hidden mb-6">
+      <div class="px-5 py-3 border-b border-recon-mist">
+        <h3 class="font-semibold text-sm">RFP / Bid Summary</h3>
+      </div>
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Status</th>
+            <th class="text-right">Items</th>
+            <th class="text-right">Approved Total</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% rfps.forEach(function(rfp){ %>
+            <tr class="cursor-pointer hover:bg-recon-cloud/20" onclick="document.getElementById('rfp-items-<%= rfp.id %>').classList.toggle('hidden')">
+              <td>
+                <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>" method="POST" class="flex items-center gap-1" onclick="event.stopPropagation()"
+                      onsubmit="this.querySelector('input').removeAttribute('disabled');">
+                  <span class="font-semibold text-sm cursor-pointer hover:text-recon-red"
+                        onclick="var p=this.parentElement;var i=p.querySelector('input');i.value=this.textContent.trim();this.style.display='none';i.style.display='inline';i.focus();p.querySelector('button').style.display='inline-block';">
+                    <%= rfp.contractor_name %>
+                  </span>
+                  <input name="contractor_name" style="display:none" class="input text-xs py-0.5 px-1 w-32"
+                         list="rfp-tab-presets" autocomplete="off">
+                  <button type="submit" style="display:none" class="btn btn-primary text-xs py-0.5 px-1.5">Save</button>
+                </form>
+              </td>
+              <td>
+                <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>" method="POST" onclick="event.stopPropagation()">
+                  <select name="status" onchange="this.form.submit()" class="text-xs border rounded px-1 py-0.5">
+                    <option value="pending" <%= rfp.status === 'pending' ? 'selected' : '' %>>Pending</option>
+                    <option value="submitted" <%= rfp.status === 'submitted' ? 'selected' : '' %>>Submitted</option>
+                    <option value="awarded" <%= rfp.status === 'awarded' ? 'selected' : '' %>>Awarded</option>
+                    <option value="declined" <%= rfp.status === 'declined' ? 'selected' : '' %>>Declined</option>
+                  </select>
+                </form>
+              </td>
+              <td class="text-right"><%= (rfpItemsMap && rfpItemsMap[rfp.id] ? rfpItemsMap[rfp.id].length : 0) %></td>
+              <td class="text-right font-semibold <%= rfp.status === 'awarded' ? 'text-green-700' : '' %>">$<%= rfpTotals[rfp.id].toFixed(2) %></td>
+              <td class="text-right">
+                <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/delete" method="POST" onclick="event.stopPropagation()"
+                      onsubmit="return confirm('Delete this RFP and all its items?')" class="inline">
+                  <button class="text-recon-fog hover:text-recon-red text-xs">&times;</button>
+                </form>
+              </td>
+            </tr>
+            <tr id="rfp-items-<%= rfp.id %>" class="hidden">
+              <td colspan="5" class="p-0">
 
-    <!-- Detailed RFP tables (collapsible) -->
+    <!-- D-104: Line-item content for each RFP (inside summary table rows) -->
     <% rfps.forEach(function(rfp){ %>
-      <div id="rfp-items-<%= rfp.id %>" class="card overflow-hidden mb-6">
-        <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
-          <h3 class="font-semibold"><%= rfp.contractor_name %> — Line Items</h3>
+      <div>
+        <div class="px-5 py-2 border-b border-recon-mist bg-recon-deeper/10 flex items-center justify-between">
+          <span class="text-xs font-medium text-recon-fog">Line items</span>
           <button onclick="document.getElementById('rfp-item-form-<%= rfp.id %>').classList.toggle('hidden')"
                   class="text-sm text-recon-red hover:underline">+ Add item</button>
         </div>
@@ -251,9 +259,42 @@
           </table>
         </div>
       </div>
+    </td></tr>
     <% }); %>
+  </tbody></table>
+  </div>
   <% } %>
 </div>
+
+<!-- D-104: Auto-total calculator for line-item add form -->
+<script>
+(function(){
+  var forms = document.querySelectorAll('.rfp-line-form');
+  forms.forEach(function(form){
+    var inputs = form.querySelectorAll('[data-compute-input]');
+    var outputs = {};
+    form.querySelectorAll('[data-compute-output]').forEach(function(el){
+      outputs[el.getAttribute('data-compute-output')] = el;
+    });
+    function recalc(){
+      var qty = parseFloat(form.querySelector('[name="quantity"]')?.value) || 0;
+      var cCost = parseFloat(form.querySelector('[name="contractor_cost"]')?.value) || 0;
+      var vCost = parseFloat(form.querySelector('[name="vendor_cost"]')?.value) || 0;
+      var markup = parseFloat(form.querySelector('[name="markup_pct"]')?.value) || 20;
+      var unit = cCost + vCost;
+      var total = unit * qty;
+      var withMarkup = total * (1 + markup / 100) * 1.06;
+      var finalUnit = qty > 0 ? withMarkup / qty : 0;
+      if (outputs.unit_cost) outputs.unit_cost.value = unit.toFixed(2);
+      if (outputs.total_cost) outputs.total_cost.value = total.toFixed(2);
+      if (outputs.total_with_markup) outputs.total_with_markup.value = withMarkup.toFixed(2);
+      if (outputs.final_unit_cost) outputs.final_unit_cost.value = finalUnit.toFixed(2);
+    }
+    inputs.forEach(function(el){ el.addEventListener('input', recalc); });
+    recalc();
+  });
+})();
+</script>
 
 <%- include('../layouts/footer') %>
 

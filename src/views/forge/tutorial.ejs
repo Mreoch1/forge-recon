@@ -2,6 +2,24 @@
 <%# Coach lives INSIDE the FORGE interactive window — same dark gradient as /forge intro. %>
 <%# Builds on D-063 v3 tutorial_session_id columns + D-076 narration interpolation. %>
 <%- include('../layouts/header', { title: 'FORGE Tutorial', activeNav: 'forge', currentUser }) %>
+<%
+  function renderTutorialCoachText(text) {
+    function esc(value) {
+      return String(value || '').replace(/[&<>"']/g, function(ch) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+      });
+    }
+    return '<p>' + String(text || '')
+      .split(/\n\n+/)
+      .map(function(part) {
+        return esc(part)
+          .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+          .replace(/`([^`]+)`/g, '<code>$1</code>')
+          .replace(/\n/g, '<br>');
+      })
+      .join('</p><p>') + '</p>';
+  }
+%>
 
 <style>
   /* Match /forge intro panel — same dark gradient, scanlines, cyan accents */
@@ -41,7 +59,7 @@
 
   /* Body — narration + diagrams */
   .tw-body {
-    position: relative; z-index: 2; flex: 1; overflow-y: auto; padding: 0.5rem 0;
+    position: relative; z-index: 2; flex: 1; min-height: 0; overflow-y: auto; padding: 0.5rem 0;
     scrollbar-width: thin; scrollbar-color: rgba(34,211,238,0.65) rgba(15,23,42,0.45);
   }
   .tw-body:focus { outline: 2px solid rgba(34,211,238,0.45); outline-offset: 4px; border-radius: 8px; }
@@ -144,6 +162,9 @@
   .tw-app-tabs { display: flex; gap: 0.35rem; border-bottom: 1px solid #e2e8f0; margin-bottom: 0.75rem; overflow-x: auto; }
   .tw-app-tab { padding: 0.48rem 0.65rem; color: #64748b; font-size: 0.78rem; white-space: nowrap; border-bottom: 2px solid transparent; }
   .tw-app-tab.active { color: #0f172a; border-bottom-color: #c0202b; font-weight: 900; }
+  .tw-app-tab.tw-app-highlight {
+    color: #020617; background: #cffafe; border-bottom-color: #0891b2; border-radius: 6px 6px 0 0;
+  }
   .tw-app-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
   .tw-app-table th, .tw-app-table td { padding: 0.48rem; border-bottom: 1px solid #e2e8f0; text-align: left; }
   .tw-app-table th { color: #64748b; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; }
@@ -165,6 +186,7 @@
   .tw-feedback-modal {
     position: fixed; z-index: 51; left: 50%; top: 50%; transform: translate(-50%, -50%);
     width: min(440px, calc(100vw - 32px)); display: none; color: #0f172a;
+    max-height: calc(100vh - 32px); overflow-y: auto;
     background: #ffffff; border-radius: 10px; padding: 1rem; box-shadow: 0 22px 70px rgba(2,6,23,0.42);
   }
   .tw-feedback-modal.open { display: block; }
@@ -189,16 +211,38 @@
   .tw-feedback-status.error { display: block; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
 
   @media (max-width: 768px) {
-    #tutorial-window { padding: 1.25rem 1rem; min-height: 80vh; }
-    .tw-header { align-items: flex-start; flex-wrap: wrap; }
-    .tw-progress { flex-basis: 100%; order: 3; }
+    #tutorial-window { padding: 1.1rem 0.85rem; min-height: calc(100vh - 7rem); max-height: calc(100vh - 2rem); }
+    .tw-header { align-items: flex-start; flex-wrap: wrap; gap: 0.55rem; margin-bottom: 0.7rem; }
+    .tw-progress { flex-basis: 100%; order: 5; }
     .tw-title { font-size: 1rem; }
+    .tw-version { margin-left: auto; }
+    .tw-feedback-open, .tw-exit { font-size: 0.72rem; }
     .tw-narration { font-size: 0.95rem; }
+    .tw-input-row { flex-direction: column; margin-top: 0.8rem; }
+    .tw-send { width: 100%; }
+    .tw-chip-row { justify-content: stretch; }
+    .tw-chip { justify-content: center; flex: 1 1 9rem; text-align: center; }
+    .tw-app-surface { border-radius: 7px; }
+    .tw-app-topbar { align-items: flex-start; flex-direction: column; gap: 0.55rem; }
+    .tw-app-nav { width: 100%; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 0.15rem; }
+    .tw-app-nav span { flex: 0 0 auto; }
+    .tw-app-page { padding: 0.78rem; }
     .tw-app-grid, .tw-app-form.two { grid-template-columns: 1fr; }
     .tw-app-heading { flex-direction: column; }
     .tw-app-actions { justify-content: flex-start; }
-    .tw-scroll-controls { right: 0.55rem; top: 4.25rem; }
-    .tw-scroll-hint { right: 2.95rem; top: 4.67rem; }
+    .tw-app-card { overflow-x: auto; }
+    .tw-app-table { min-width: 420px; }
+    .tw-scroll-controls { right: 0.55rem; top: 5.6rem; }
+    .tw-scroll-hint { right: 2.95rem; top: 6.02rem; }
+  }
+
+  @media (max-width: 420px) {
+    .tw-version { display: none; }
+    .tw-app-h1 { font-size: 1.08rem; }
+    .tw-app-btn { width: 100%; }
+    .tw-app-actions { width: 100%; }
+    .tw-feedback-actions { flex-direction: column-reverse; }
+    .tw-feedback-btn { width: 100%; }
   }
 </style>
 
@@ -234,7 +278,7 @@
       <div class="tw-narration" id="tc-narration">
         <% var initialText = (initialStep && initialStep.coach_text) || (currentChapter && currentChapter.narration); %>
         <% if (initialText) { %>
-          <%- ('<p>' + initialText.replace(/\n\n+/g, '</p><p>') + '</p>') %>
+          <%- renderTutorialCoachText(initialText) %>
         <% } else { %>
           <p>Welcome to the FORGE tutorial. Loading your first chapter&hellip;</p>
         <% } %>
@@ -360,7 +404,7 @@
       step: step,
       text: text || ''
     };
-    if (text) narration.innerHTML = '<p>' + text.replace(/\n\n+/g, '</p><p>') + '</p>';
+    if (text) narration.innerHTML = formatCoachText(text);
     renderDiagram((step && step.diagram_id) || (data.chapter && data.chapter.diagram_id));
     var hasPractice = renderPractice(step, data.chapter);
 
@@ -691,18 +735,21 @@
 
   function scheduleAutoAdvance(step, choiceCount) {
     if (!step || step.expected_action !== 'auto_advance' || choiceCount) return;
-    var coachText = String(step.coach_text || '').trim();
-    var wordCount = coachText ? coachText.split(/\s+/).length : 0;
-    var paragraphCount = coachText ? coachText.split(/\n\s*\n/).filter(Boolean).length : 0;
+    // Keep every tutorial beat user-paced. Even tiny transition copy can be
+    // important when someone is learning the workflow for the first time.
+    return;
+  }
 
-    // Auto-advance is only for very tiny transition beats. If there is real
-    // instructional copy, keep the visible Next button and let the user pace it.
-    if (wordCount > 10 || paragraphCount > 1) return;
-
-    var requestedDelay = parseInt(step.delay_after_ms, 10) || 1200;
-    var readingDelay = Math.max(4500, wordCount * 650);
-    var delay = Math.max(requestedDelay, readingDelay);
-    autoTimer = setTimeout(function() { sendAction('next'); }, delay);
+  function formatCoachText(text) {
+    return '<p>' + String(text || '')
+      .split(/\n\n+/)
+      .map(function(part) {
+        return escapeHtml(part)
+          .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+          .replace(/`([^`]+)`/g, '<code>$1</code>')
+          .replace(/\n/g, '<br>');
+      })
+      .join('</p><p>') + '</p>';
   }
 
   function handleInput() {

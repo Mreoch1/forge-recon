@@ -249,7 +249,7 @@
     #forge-cinematic-skip { opacity: 1; }
   }
   @media (max-width: 640px) {
-    #forge-cinematic { padding-inline: 1rem; }
+    #forge-cinematic { padding-inline: 1rem; text-align: center; }
     #forge-cinematic-wordmark {
       font-size: clamp(3rem, 18vw, 4.5rem);
       letter-spacing: 0.08em;
@@ -257,11 +257,14 @@
     }
     #forge-cinematic-sub {
       width: min(21rem, 100%);
+      margin-left: auto;
+      margin-right: auto;
       padding-inline: 0;
       font-size: clamp(0.78rem, 3.2vw, 0.95rem);
       line-height: 1.75;
-      letter-spacing: 0.14em;
+      letter-spacing: 0.1em;
       text-wrap: balance;
+      overflow-wrap: anywhere;
     }
     #forge-cinematic-continue { text-align: center; }
     #forge-cinematic-skip { right: 1rem; bottom: 1rem; }
