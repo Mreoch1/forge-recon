@@ -301,6 +301,19 @@ function primaryAssigneeFields(assigneeIds, users = []) {
   };
 }
 
+async function loadWorkOrderFormRefs() {
+  const [
+    { data: customers, error: customersError },
+    { data: users, error: usersError },
+  ] = await Promise.all([
+    supabase.from('customers').select('id, name, email, phone, address, city, state, zip').order('name'),
+    supabase.from('users').select('id, name, email').eq('active', 1).order('name'),
+  ]);
+  if (customersError) throw customersError;
+  if (usersError) throw usersError;
+  return { customers: customers || [], users: users || [] };
+}
+
 async function buildWorkOrderPdfBuffer(woId) {
   if (!pdf) return null;
   try {
@@ -557,13 +570,12 @@ router.post('/', async (req, res) => {
     customer = data;
   }
 
-  const { data: users } = await supabase.from('users').select('id, name, email').eq('active', 1).order('name');
+  const { customers: allCustomers, users } = await loadWorkOrderFormRefs();
 
   const { errors, data } = validateWorkOrder(req.body);
   if (!customer) errors.customer_id = 'Customer is required.';
 
   if (Object.keys(errors).length) {
-    const { data: allCustomers } = await supabase.from('customers').select('id, name, email, phone, address, city, state, zip').order('name');
     return res.status(400).render('work-orders/new', {
       title: 'New work order', activeNav: 'work-orders',
       wo: { id: null, customer_id: customerId || '', status: data.status || 'open', unit_number: data.unit_number || '', display_number: req.body.display_number || '', suggested_display_number: '', scheduled_date: data.scheduled_date || '', scheduled_time: data.scheduled_time || '', notes: data.notes || '', description: data.description || '', assignee_ids: normalizeArr(req.body.assignee_ids), lines: data.lines || [] },
@@ -576,10 +588,10 @@ router.post('/', async (req, res) => {
   if (data.display_number_override) {
     ({ main, sub } = data.display_number_override);
     display = numbering.formatDisplay(main, sub);
-    const { data: dup } = await supabase.from('work_orders').select('id').eq('display_number', display).maybeSingle();
+    const { data: dup, error: dupError } = await supabase.from('work_orders').select('id').eq('display_number', display).maybeSingle();
+    if (dupError) throw dupError;
     if (dup) {
       errors.display_number = `WO ${display} already exists.`;
-      const { data: allCustomers } = await supabase.from('customers').select('id, name, email, phone, address, city, state, zip').order('name');
       return res.status(400).render('work-orders/new', {
         title: 'New work order', activeNav: 'work-orders',
         wo: { id: null, customer_id: customerId, status: data.status || 'open', unit_number: data.unit_number || '', display_number: req.body.display_number || '', suggested_display_number: '', scheduled_date: data.scheduled_date || '', scheduled_time: data.scheduled_time || '', notes: data.notes || '', description: data.description || '', assignee_ids: normalizeArr(req.body.assignee_ids), lines: data.lines || [] },
