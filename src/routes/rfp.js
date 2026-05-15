@@ -62,6 +62,29 @@ router.get('/projects/:id/rfp', async (req, res) => {
     }
   }
 
+  // Fallback vendor/contractor names for autocomplete (used if Supabase queries return empty)
+  var vendorNames = [
+    'Advanced Specialties', 'Amistee', "Anderson & Son's Painting", 'Architectural Hardware & Supply',
+    'DWG Plumbing', 'Eastbay', 'Electric Doctor', 'ES Repair Pros', 'Ferguson',
+    'Hardrock Stoneworks', 'Home Depot', 'Main Flooring', 'Motor City Heating And Cooling',
+    'RT Acoustical', 'Runco', 'Wholesale Builder Supply', 'WillScot', "Benson's",
+    'Demo Paint Supply Co.', 'Demo Roofing Supply Inc.',
+  ];
+  var contractorFallbacks = [
+    {name: "Anderson & Son's Painting", trade: 'drywall'}, {name: 'DWG Plumbing', trade: 'plumbing'},
+    {name: 'Electric Doctor', trade: 'electrical'}, {name: 'ES Repair Pros', trade: 'general'},
+    {name: 'Motor City Heating And Cooling', trade: 'HVAC'}, {name: 'RT Acoustical', trade: 'general'},
+    {name: 'Advanced Specialties', trade: 'general'}, {name: 'Amistee', trade: 'general'},
+    {name: 'Architectural Hardware & Supply', trade: 'general'}, {name: 'Eastbay', trade: 'general'},
+    {name: 'Ferguson', trade: 'general'}, {name: 'Hardrock Stoneworks', trade: 'general'},
+    {name: 'Home Depot', trade: 'general'}, {name: 'Main Flooring', trade: 'general'},
+    {name: 'Runco', trade: 'general'}, {name: 'WillScot', trade: 'general'},
+    {name: 'Wholesale Builder Supply', trade: 'general'}, {name: "Benson's", trade: 'general'},
+    {name: 'Demo Paint Supply Co.', trade: 'drywall'}, {name: 'Demo Roofing Supply Inc.', trade: 'general'},
+  ];
+  if (!vendors || vendors.length === 0) vendors = vendorNames.map(function(n) { return { id: null, name: n }; });
+  if (!contractors || contractors.length === 0) contractors = contractorFallbacks;
+
   res.render('jobs/rfp', {
     title: 'RFP — ' + (job.title || job.name),
     activeNav: 'projects',
