@@ -73,31 +73,69 @@
   .tw-send:hover { background: #06b6d4; transform: translateY(-1px); }
 
   .tw-practice {
-    position: relative; z-index: 2; max-width: 720px; width: 100%;
-    margin: 1rem auto 0; padding: 1rem;
-    border: 1px solid rgba(34,211,238,0.22); border-radius: 8px;
-    background: rgba(15,23,42,0.62);
+    position: relative; z-index: 2; max-width: 980px; width: 100%;
+    margin: 1rem auto 0;
   }
   .tw-practice[hidden] { display: none; }
-  .tw-practice-title { font-size: 0.78rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.75rem; }
-  .tw-practice-grid { display: grid; gap: 0.7rem; }
-  .tw-practice-label { display: grid; gap: 0.25rem; color: #cbd5e1; font-size: 0.82rem; }
-  .tw-practice-control {
-    width: 100%; padding: 0.65rem 0.75rem; border-radius: 8px;
-    border: 1px solid rgba(148,163,184,0.35); background: rgba(2,6,23,0.7);
-    color: #e2e8f0; font-size: 0.92rem;
+  .tw-app-surface {
+    color: #0f172a; background: #f8fafc; border-radius: 8px; overflow: hidden;
+    border: 1px solid rgba(148,163,184,0.45);
+    box-shadow: 0 18px 48px rgba(2,6,23,0.35);
   }
-  .tw-practice-action {
-    justify-self: start; margin-top: 0.25rem; padding: 0.58rem 1rem;
-    border: none; border-radius: 8px; background: #22d3ee; color: #020617;
-    font-weight: 800; cursor: pointer;
+  .tw-app-topbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    padding: 0.7rem 1rem; background: #ffffff; border-bottom: 1px solid #e2e8f0;
   }
-  .tw-practice-action:disabled { opacity: 0.45; cursor: not-allowed; }
+  .tw-app-brand { font-weight: 900; letter-spacing: 0.14em; color: #991b1b; font-size: 0.82rem; }
+  .tw-app-nav { display: flex; gap: 0.45rem; flex-wrap: wrap; font-size: 0.78rem; color: #64748b; }
+  .tw-app-nav span { padding: 0.28rem 0.5rem; border-radius: 6px; }
+  .tw-app-nav .active { color: #0f172a; background: #e0f2fe; font-weight: 800; }
+  .tw-app-page { padding: 1rem; }
+  .tw-app-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 0.85rem; }
+  .tw-app-kicker { color: #64748b; font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 800; }
+  .tw-app-h1 { margin: 0.15rem 0 0; font-size: 1.35rem; font-weight: 900; color: #0f172a; }
+  .tw-badge { display: inline-flex; align-items: center; padding: 0.18rem 0.48rem; border-radius: 999px; font-size: 0.68rem; font-weight: 900; background: #fef3c7; color: #92400e; margin-left: 0.45rem; vertical-align: middle; }
+  .tw-status { display: inline-flex; padding: 0.18rem 0.48rem; border-radius: 999px; font-size: 0.7rem; font-weight: 900; background: #dbeafe; color: #1d4ed8; }
+  .tw-status.paid { background: #dcfce7; color: #166534; }
+  .tw-status.draft { background: #f1f5f9; color: #334155; }
+  .tw-app-actions { display: flex; gap: 0.45rem; flex-wrap: wrap; justify-content: flex-end; }
+  .tw-app-btn {
+    border: 1px solid #cbd5e1; background: #ffffff; color: #0f172a; border-radius: 6px;
+    padding: 0.48rem 0.72rem; font-weight: 800; font-size: 0.78rem; cursor: pointer;
+  }
+  .tw-app-btn.primary { background: #0f172a; color: #ffffff; border-color: #0f172a; }
+  .tw-app-btn.accent { background: #c0202b; color: #ffffff; border-color: #c0202b; }
+  .tw-app-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .tw-app-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 0.75rem; }
+  .tw-app-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.85rem; }
+  .tw-app-card h4 { margin: 0 0 0.65rem; font-size: 0.86rem; font-weight: 900; color: #0f172a; }
+  .tw-app-tabs { display: flex; gap: 0.35rem; border-bottom: 1px solid #e2e8f0; margin-bottom: 0.75rem; overflow-x: auto; }
+  .tw-app-tab { padding: 0.48rem 0.65rem; color: #64748b; font-size: 0.78rem; white-space: nowrap; border-bottom: 2px solid transparent; }
+  .tw-app-tab.active { color: #0f172a; border-bottom-color: #c0202b; font-weight: 900; }
+  .tw-app-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+  .tw-app-table th, .tw-app-table td { padding: 0.48rem; border-bottom: 1px solid #e2e8f0; text-align: left; }
+  .tw-app-table th { color: #64748b; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  .tw-app-form { display: grid; gap: 0.7rem; }
+  .tw-app-form.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tw-app-label { display: grid; gap: 0.25rem; color: #334155; font-size: 0.76rem; font-weight: 800; }
+  .tw-app-input, .tw-app-select, .tw-app-textarea {
+    width: 100%; border: 1px solid #cbd5e1; background: #ffffff; color: #0f172a;
+    border-radius: 6px; padding: 0.55rem 0.65rem; font-size: 0.84rem;
+  }
+  .tw-app-textarea { min-height: 5.5rem; resize: vertical; }
+  .tw-app-muted { color: #64748b; font-size: 0.78rem; }
+  .tw-app-total { display: flex; justify-content: flex-end; gap: 1.5rem; font-size: 0.86rem; font-weight: 900; }
+  .tw-app-callout { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 0.75rem; color: #1e3a8a; font-size: 0.82rem; }
+  .tw-app-paid-stamp { transform: rotate(-12deg); color: #15803d; border: 3px solid #22c55e; padding: 0.25rem 0.7rem; font-weight: 900; font-size: 1.4rem; display: inline-block; }
+  .tw-app-highlight { outline: 3px solid rgba(34,211,238,0.85); box-shadow: 0 0 0 6px rgba(34,211,238,0.18); }
 
   @media (max-width: 768px) {
     #tutorial-window { padding: 1.25rem 1rem; min-height: 80vh; }
     .tw-title { font-size: 1rem; }
     .tw-narration { font-size: 0.95rem; }
+    .tw-app-grid, .tw-app-form.two { grid-template-columns: 1fr; }
+    .tw-app-heading { flex-direction: column; }
+    .tw-app-actions { justify-content: flex-start; }
   }
 </style>
 
@@ -207,7 +245,7 @@
     var text = (step && step.coach_text) || (data.chapter && data.chapter.narration);
     if (text) narration.innerHTML = '<p>' + text.replace(/\n\n+/g, '</p><p>') + '</p>';
     renderDiagram((step && step.diagram_id) || (data.chapter && data.chapter.diagram_id));
-    var hasPractice = renderPractice(step);
+    var hasPractice = renderPractice(step, data.chapter);
 
     // Build chip row — comprehension chips if provided, else Next/Back fallback
     var chipsList;
@@ -248,7 +286,7 @@
     });
   }
 
-  function renderPractice(step) {
+  function renderPractice(step, chapter) {
     if (!practice) return false;
     practice.innerHTML = '';
     practice.hidden = true;
@@ -256,66 +294,219 @@
 
     var action = step.expected_action;
     var practiceActions = ['click_or_route_change', 'click_or_dom_change', 'form_field_filled', 'form_field_filled_multiple', 'form_submit'];
-    if (practiceActions.indexOf(action) === -1) return false;
+    var isHandsOn = chapter && /^0[3-8]-/.test(chapter.id || '');
+    if (!isHandsOn && practiceActions.indexOf(action) === -1) return false;
 
+    var page = tutorialMockPage(chapter, step);
+    if (!page) return false;
     practice.hidden = false;
-    var title = document.createElement('div');
-    title.className = 'tw-practice-title';
-    title.textContent = 'Practice inside the tutorial';
-    practice.appendChild(title);
+    practice.innerHTML = page;
 
-    if (action === 'click_or_route_change' || action === 'click_or_dom_change' || action === 'form_submit') {
-      var btn = document.createElement('button');
-      btn.className = 'tw-practice-action';
-      btn.type = 'button';
-      btn.textContent = step.spotlight_label || (action === 'form_submit' ? 'Save' : 'Continue');
-      btn.addEventListener('click', function() { sendAction('next'); });
-      practice.appendChild(btn);
-      return true;
+    var actionable = practiceActions.indexOf(action) !== -1;
+    var fields = step.expected_fields || (step.expected_field ? [step.expected_field] : []);
+    var submit = practice.querySelector('[data-tutorial-submit]');
+    if (fields.length && !submit) {
+      submit = document.createElement('button');
+      submit.type = 'button';
+      submit.className = 'tw-app-btn primary tw-app-highlight';
+      submit.setAttribute('data-tutorial-submit', '1');
+      submit.setAttribute('data-tutorial-action', '1');
+      submit.textContent = action === 'form_field_filled_multiple' ? 'Done' : 'Continue';
+      var target = practice.querySelector('.tw-app-form') || practice.querySelector('.tw-app-page') || practice;
+      target.appendChild(submit);
     }
 
-    var fields = step.expected_fields || (step.expected_field ? [step.expected_field] : []);
-    var grid = document.createElement('div');
-    grid.className = 'tw-practice-grid';
-    var controlsByField = {};
-    fields.forEach(function(field) {
-      var label = document.createElement('label');
-      label.className = 'tw-practice-label';
-      label.textContent = fieldLabel(field);
-      var control = field === 'method' ? document.createElement('select') : document.createElement('input');
-      control.className = 'tw-practice-control';
-      control.name = field;
-      if (field === 'method') {
-        ['Check', 'ACH', 'Card', 'Cash', 'Other'].forEach(function(option) {
-          var opt = document.createElement('option');
-          opt.textContent = option;
-          opt.value = option.toLowerCase();
-          control.appendChild(opt);
-        });
-      } else {
-        control.type = field.indexOf('qty') >= 0 || field.indexOf('price') >= 0 || field === 'tax_rate' ? 'number' : 'text';
-        control.placeholder = sampleValue(field);
-      }
-      controlsByField[field] = control;
-      label.appendChild(control);
-      grid.appendChild(label);
+    Array.prototype.forEach.call(practice.querySelectorAll('[data-tutorial-action]'), function(el) {
+      el.addEventListener('click', function() { sendAction('next'); });
     });
 
-    var submit = document.createElement('button');
-    submit.className = 'tw-practice-action';
-    submit.type = 'button';
-    submit.textContent = action === 'form_field_filled_multiple' ? 'Done' : 'Continue';
-    submit.disabled = fields.length > 0;
-    grid.addEventListener('input', function() {
-      submit.disabled = fields.some(function(field) {
-        var el = controlsByField[field];
-        return !el || !String(el.value || '').trim();
+    if (fields.length && submit) {
+      submit.disabled = true;
+      var validate = function() {
+        submit.disabled = fields.some(function(field) {
+          var el = practice.querySelector('[name="' + selectorName(field) + '"]');
+          return !el || !String(el.value || '').trim();
+        });
+      };
+      Array.prototype.forEach.call(practice.querySelectorAll('input, textarea, select'), function(el) {
+        el.addEventListener('input', validate);
+        el.addEventListener('change', validate);
       });
+      validate();
+    }
+    return actionable;
+  }
+
+  function tutorialMockPage(chapter, step) {
+    var chapterId = chapter && chapter.id || '';
+    var stepId = step && step.id || '';
+    if (chapterId === '03-create-customer') return customerMock(stepId);
+    if (chapterId === '04-create-wo') return workOrderMock(stepId);
+    if (chapterId === '05-add-estimate') return estimateMock(stepId, false);
+    if (chapterId === '06-convert-to-invoice') return invoiceMock(stepId, false);
+    if (chapterId === '07-record-payment') return paymentMock(stepId);
+    if (chapterId === '08-side-quest-loose-estimate') return estimateMock(stepId, true);
+    return '';
+  }
+
+  function appFrame(active, title, body, actions) {
+    return [
+      '<div class="tw-app-surface">',
+        '<div class="tw-app-topbar">',
+          '<div class="tw-app-brand">FORGE</div>',
+          '<div class="tw-app-nav">',
+            navItem('Customers', active === 'customers'),
+            navItem('Work Orders', active === 'work-orders'),
+            navItem('Estimates', active === 'estimates'),
+            navItem('Invoices', active === 'invoices'),
+            navItem('Payments', active === 'payments'),
+          '</div>',
+        '</div>',
+        '<div class="tw-app-page">',
+          '<div class="tw-app-heading">',
+            '<div><div class="tw-app-kicker">Tutorial workspace</div><h3 class="tw-app-h1">' + title + '</h3></div>',
+            '<div class="tw-app-actions">' + (actions || '') + '</div>',
+          '</div>',
+          body,
+        '</div>',
+      '</div>',
+    ].join('');
+  }
+
+  function navItem(label, active) {
+    return '<span class="' + (active ? 'active' : '') + '">' + label + '</span>';
+  }
+
+  function actionButton(label, variant) {
+    return '<button type="button" class="tw-app-btn ' + (variant || '') + ' tw-app-highlight" data-tutorial-action>' + label + '</button>';
+  }
+
+  function customerMock(stepId) {
+    if (stepId === 'spotlight-nav') {
+      return appFrame('customers', 'Customers', '<div class="tw-app-card"><h4>Customer list</h4><p class="tw-app-muted">This is where every customer record starts. Open the list to find, add, or review customers.</p></div>', actionButton('Open Customers', 'primary'));
+    }
+    if (stepId === 'react-on-customers-page') {
+      return appFrame('customers', 'Customers', '<div class="tw-app-card"><h4>Recent customers</h4><table class="tw-app-table"><tbody><tr><td class="tw-app-muted">No tutorial customer yet.</td><td></td></tr></tbody></table></div>', actionButton('+ New Customer', 'primary'));
+    }
+    if (stepId === 'fill-form-intro') {
+      return appFrame('customers', 'New Customer', '<div class="tw-app-card"><h4>Customer information</h4><div class="tw-app-form">' + field('name', 'Customer name', 'Tutorial Customer') + '<div class="tw-app-form two">' + field('email', 'Email (optional)', 'manager@example.com') + field('phone', 'Phone (optional)', '(555) 010-1000') + '</div></div></div>');
+    }
+    if (stepId === 'after-name-typed') {
+      return appFrame('customers', 'New Customer', '<div class="tw-app-card"><h4>Customer information</h4><div class="tw-app-form">' + field('name', 'Customer name', 'Tutorial Customer', 'Tutorial Customer') + '<button type="button" class="tw-app-btn primary tw-app-highlight" data-tutorial-submit data-tutorial-action>Save Customer</button></div></div>');
+    }
+    return customerDetail();
+  }
+
+  function customerDetail() {
+    return appFrame('customers', 'Tutorial Customer <span class="tw-badge">TUTORIAL</span>',
+      '<div class="tw-app-grid"><div class="tw-app-card"><h4>Customer detail</h4><p class="tw-app-muted">Billing contact, job history, payments, files, and notes live here.</p><div class="tw-app-tabs">' + tabs(['Work Orders','Estimates','Invoices','Payments','Files'], 'Work Orders') + '</div><table class="tw-app-table"><tbody><tr><td class="tw-app-muted">No work orders yet.</td><td></td></tr></tbody></table></div><div class="tw-app-card"><h4>Summary</h4><p>Open WOs: <strong>0</strong></p><p>Total billed: <strong>$0.00</strong></p><p>AR balance: <strong>$0.00</strong></p></div></div>',
+      '<button class="tw-app-btn">Upload File</button><button class="tw-app-btn primary">+ New WO</button>');
+  }
+
+  function workOrderMock(stepId) {
+    if (stepId === 'spotlight-new-wo') return customerDetail().replace('+ New WO', '+ New WO').replace('tw-app-btn primary', 'tw-app-btn primary tw-app-highlight" data-tutorial-action="1');
+    if (stepId === 'form-arrived' || stepId === 'wo-number-callout' || stepId === 'description-prompt' || stepId === 'status-callout' || stepId === 'assignee-callout') {
+      var save = stepId === 'assignee-callout' ? '<button type="button" class="tw-app-btn primary tw-app-highlight" data-tutorial-submit data-tutorial-action>Save Work Order</button>' : '';
+      var descValue = stepId === 'description-prompt' ? '' : 'Demo job: kitchen drywall repair, unit 1B';
+      return appFrame('work-orders', 'New Work Order',
+        '<div class="tw-app-card"><h4>Work order details</h4><div class="tw-app-form"><div class="tw-app-form two">' + field('customer', 'Customer', 'Tutorial Customer', 'Tutorial Customer') + field('display_number', 'WO number', 'WO-0001-0014', 'WO-0001-0014') + '</div>' + textarea('description', 'Description', 'Demo job: kitchen drywall repair, unit 1B', descValue) + '<div class="tw-app-form two">' + selectField('status', 'Status', ['OPEN','SCHEDULED','IN PROGRESS','CLOSED']) + field('assigned_to', 'Assignees (optional)', 'Crew member') + '</div>' + save + '</div></div>');
+    }
+    return workOrderDetail();
+  }
+
+  function workOrderDetail() {
+    return appFrame('work-orders', 'WO-0001-0014 <span class="tw-badge">TUTORIAL</span> <span class="tw-status">OPEN</span>',
+      '<div class="tw-app-tabs">' + tabs(['Overview','Estimates','Invoices','Files','Schedule','Notes','Activity'], 'Estimates') + '</div><div class="tw-app-grid"><div class="tw-app-card"><h4>Job description</h4><p>Demo job: kitchen drywall repair, unit 1B</p><h4>Estimates</h4><table class="tw-app-table"><tbody><tr><td class="tw-app-muted">No estimates yet.</td><td></td></tr></tbody></table></div><div class="tw-app-card"><h4>Quick stats</h4><p>Customer: <strong>Tutorial Customer</strong></p><p>Estimate total: <strong>$0.00</strong></p><p>Invoice balance: <strong>$0.00</strong></p></div></div>',
+      '<button class="tw-app-btn primary">+ New Estimate</button>');
+  }
+
+  function estimateMock(stepId, loose) {
+    if (loose && stepId === 'spotlight-new-estimate') {
+      return appFrame('customers', 'Tutorial Customer <span class="tw-badge">TUTORIAL</span>',
+        '<div class="tw-app-tabs">' + tabs(['Work Orders','Estimates','Invoices','Payments','Files'], 'Estimates') + '</div><div class="tw-app-card"><h4>Customer estimates</h4><table class="tw-app-table"><tbody><tr><td class="tw-app-muted">No loose estimates yet.</td><td></td></tr></tbody></table></div>',
+        '<button class="tw-app-btn">+ New WO</button><button class="tw-app-btn primary tw-app-highlight" data-tutorial-action>+ New Estimate</button>');
+    }
+    if (stepId === 'spotlight-estimates-tab') return workOrderDetail();
+    if (stepId === 'spotlight-new-estimate') return workOrderDetail().replace('tw-app-btn primary', 'tw-app-btn primary tw-app-highlight" data-tutorial-action="1');
+    if (stepId === 'back-to-customer') return customerDetail();
+    if (stepId === 'quick-fill' || stepId === 'line-1-description' || stepId === 'line-1-qty-rate' || stepId === 'line-2-add' || stepId === 'line-2-fill' || stepId === 'tax-input' || stepId === 'save' || stepId === 'form-arrived' || stepId === 'line-1-intro') {
+      return estimateForm(stepId, loose);
+    }
+    return estimateDetail(loose);
+  }
+
+  function estimateForm(stepId, loose) {
+    var number = loose ? 'EST-????-????' : 'EST-0001-0014';
+    var line2 = stepId === 'line-2-add' || stepId === 'line-2-fill' || stepId === 'tax-input' || stepId === 'save';
+    var save = stepId === 'save' ? '<button type="button" class="tw-app-btn primary tw-app-highlight" data-tutorial-submit data-tutorial-action>Save Estimate</button>' : '';
+    var add = stepId === 'line-2-add' ? '<button type="button" class="tw-app-btn primary tw-app-highlight" data-tutorial-action>+ Add line</button>' : '';
+    return appFrame('estimates', loose ? 'New Loose Estimate' : 'New Estimate',
+      '<div class="tw-app-card"><h4>Estimate form</h4><div class="tw-app-form"><div class="tw-app-form two">' + field('display_number', 'Estimate number', number, number) + field('work_order', 'Work Order', loose ? 'No WO attached' : 'WO-0001-0014', loose ? '' : 'WO-0001-0014') + '</div><table class="tw-app-table"><thead><tr><th>Description</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead><tbody><tr><td>' + input('line_items[0].description', 'Labor - drywall repair, kitchen wall', stepId === 'line-1-description' ? '' : (loose ? 'Rough quote: bathroom tile' : 'Labor - drywall repair, kitchen wall')) + '</td><td>' + input('line_items[0].qty', '4', loose ? '1' : '4') + '</td><td>' + input('line_items[0].unit_price', '80', loose ? '1500' : '80') + '</td><td>' + (loose ? '$1,500.00' : '$320.00') + '</td></tr>' + (line2 && !loose ? '<tr><td>' + input('line_items[1].description', 'Materials - drywall sheet + compound', stepId === 'line-2-fill' ? '' : 'Materials - drywall sheet + compound') + '</td><td>' + input('line_items[1].qty', '1', '1') + '</td><td>' + input('line_items[1].unit_price', '45', '45') + '</td><td>$45.00</td></tr>' : '') + '</tbody></table>' + add + '<div class="tw-app-form two">' + field('tax_rate', 'Tax rate %', '6', loose ? '0' : (stepId === 'tax-input' ? '' : '6')) + field('status', 'Status', 'DRAFT', 'DRAFT') + '</div><div class="tw-app-total"><span>Subtotal ' + (loose ? '$1,500.00' : '$365.00') + '</span><span>Total ' + (loose ? '$1,500.00' : '$386.90') + '</span></div>' + save + '</div></div>');
+  }
+
+  function estimateDetail(loose) {
+    return appFrame('estimates', (loose ? 'EST-????-????' : 'EST-0001-0014') + ' <span class="tw-badge">TUTORIAL</span> <span class="tw-status draft">DRAFT</span>',
+      '<div class="tw-app-grid"><div class="tw-app-card"><h4>Line items</h4><table class="tw-app-table"><tbody><tr><td>' + (loose ? 'Rough quote: bathroom tile' : 'Labor - drywall repair, kitchen wall') + '</td><td>' + (loose ? '$1,500.00' : '$320.00') + '</td></tr>' + (!loose ? '<tr><td>Materials - drywall sheet + compound</td><td>$45.00</td></tr>' : '') + '</tbody></table><div class="tw-app-total"><span>Total ' + (loose ? '$1,500.00' : '$386.90') + '</span></div></div><div class="tw-app-card"><h4>Source</h4><p>' + (loose ? 'No work order yet. Attach to a WO before invoicing.' : 'Linked to WO-0001-0014.') + '</p></div></div>',
+      loose ? '<button class="tw-app-btn">Send PDF</button><button class="tw-app-btn primary">Attach to WO</button>' : '<button class="tw-app-btn">Send PDF</button><button class="tw-app-btn accent">Convert to Invoice</button>');
+  }
+
+  function invoiceMock(stepId) {
+    if (stepId === 'spotlight-convert-button') return estimateDetail(false).replace('tw-app-btn accent', 'tw-app-btn accent tw-app-highlight" data-tutorial-action="1');
+    return appFrame('invoices', 'INV-0001-0014 <span class="tw-badge">TUTORIAL</span> <span class="tw-status">OPEN</span>',
+      '<div class="tw-app-grid"><div class="tw-app-card"><h4>Invoice line items</h4><table class="tw-app-table"><tbody><tr><td>Labor - drywall repair, kitchen wall</td><td>$320.00</td></tr><tr><td>Materials - drywall sheet + compound</td><td>$45.00</td></tr></tbody></table><div class="tw-app-callout">Line items are read-only here. Edit the estimate, then re-convert if the bill changes.</div><div class="tw-app-total"><span>Total $386.90</span></div></div><div class="tw-app-card"><h4>Linked records</h4><p>Customer: <strong>Tutorial Customer</strong></p><p>Work Order: <strong>WO-0001-0014</strong></p><p>Linked Estimate: <strong>EST-0001-0014</strong></p></div></div>',
+      '<button class="tw-app-btn">Send to customer</button><button class="tw-app-btn primary">Record Payment</button>');
+  }
+
+  function paymentMock(stepId) {
+    if (stepId === 'spotlight-record-payment') return invoiceMock(stepId).replace('tw-app-btn primary', 'tw-app-btn primary tw-app-highlight" data-tutorial-action="1');
+    if (stepId === 'modal-arrived' || stepId === 'amount-prefilled' || stepId === 'date-prefilled' || stepId === 'method-select' || stepId === 'save-payment') {
+      return appFrame('payments', 'Record Payment',
+        '<div class="tw-app-grid"><div class="tw-app-card"><h4>Payment for INV-0001-0014</h4><div class="tw-app-form"><div class="tw-app-form two">' + field('amount', 'Amount', '386.90', '386.90') + field('payment_date', 'Date', 'Today', 'Today') + '</div>' + selectField('method', 'Method', ['Check','ACH','Card','Cash','Other']) + '<button type="button" class="tw-app-btn primary tw-app-highlight" data-tutorial-submit data-tutorial-action>Save Payment</button></div></div><div class="tw-app-card"><h4>Balance</h4><p>Invoice total: <strong>$386.90</strong></p><p>Amount due after save: <strong>$0.00</strong></p></div></div>');
+    }
+    if (stepId === 'customer-ledger') return invoicePaid().replace('Tutorial Customer', '<button type="button" class="tw-app-btn primary tw-app-highlight" data-tutorial-action>Tutorial Customer</button>');
+    if (stepId === 'ledger-callout') return customerLedger();
+    return invoicePaid();
+  }
+
+  function invoicePaid() {
+    return appFrame('invoices', 'INV-0001-0014 <span class="tw-badge">TUTORIAL</span> <span class="tw-status paid">PAID</span>',
+      '<div class="tw-app-grid"><div class="tw-app-card"><h4>Invoice</h4><div class="tw-app-paid-stamp">PAID</div><div class="tw-app-total"><span>Total $386.90</span><span>Balance $0.00</span></div></div><div class="tw-app-card"><h4>Payments</h4><table class="tw-app-table"><tbody><tr><td>Today</td><td>Check</td><td>$386.90</td></tr></tbody></table></div></div>',
+      '<button class="tw-app-btn">Download PDF</button><button class="tw-app-btn">Tutorial Customer</button>');
+  }
+
+  function customerLedger() {
+    return appFrame('customers', 'Tutorial Customer <span class="tw-badge">TUTORIAL</span>',
+      '<div class="tw-app-tabs">' + tabs(['Work Orders','Estimates','Invoices','Payments','Files'], 'Payments') + '</div><div class="tw-app-card"><h4>Payment Ledger</h4><table class="tw-app-table"><thead><tr><th>Date</th><th>Invoice</th><th>Method</th><th>Amount</th></tr></thead><tbody><tr><td>Today</td><td>INV-0001-0014</td><td>Check</td><td>$386.90</td></tr></tbody></table></div>');
+  }
+
+  function tabs(items, active) {
+    return items.map(function(item) { return '<span class="tw-app-tab ' + (item === active ? 'active' : '') + '">' + item + '</span>'; }).join('');
+  }
+
+  function field(name, label, placeholder, value) {
+    return '<label class="tw-app-label">' + label + '<input class="tw-app-input" name="' + name + '" placeholder="' + placeholder + '" value="' + escapeHtml(value || '') + '"></label>';
+  }
+
+  function textarea(name, label, placeholder, value) {
+    return '<label class="tw-app-label">' + label + '<textarea class="tw-app-textarea" name="' + name + '" placeholder="' + placeholder + '">' + escapeHtml(value || '') + '</textarea></label>';
+  }
+
+  function input(name, placeholder, value) {
+    return '<input class="tw-app-input" name="' + name + '" placeholder="' + placeholder + '" value="' + escapeHtml(value || '') + '">';
+  }
+
+  function selectField(name, label, options) {
+    return '<label class="tw-app-label">' + label + '<select class="tw-app-select" name="' + name + '">' + options.map(function(option) { return '<option>' + option + '</option>'; }).join('') + '</select></label>';
+  }
+
+  function selectorName(name) {
+    return String(name).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  }
+
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, function(ch) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
     });
-    submit.addEventListener('click', function() { sendAction('next'); });
-    grid.appendChild(submit);
-    practice.appendChild(grid);
-    return true;
   }
 
   function fieldLabel(field) {

@@ -38,13 +38,13 @@ steps:
     coach_text: |
       In the real app, you'd choose **+ New Estimate** on the customer detail
       page — NOT the New WO button. We're skipping the work order step entirely.
-      Use the practice button below.
+      Use the highlighted **+ New Estimate** button in the embedded page.
     spotlight_selector: "[data-action='new-estimate-loose']"
     spotlight_label: "Click here (not New WO!)"
     expected_action: "click_or_route_change"
     expected_route_pattern: "/estimates/new\\?customer_id=\\d+(&|$)"
     on_wrong_click: |
-      Use the practice button inside the tutorial box to start the loose estimate.
+      Use the highlighted **+ New Estimate** button in the embedded page to start the loose estimate.
 
   - id: "form-arrived"
     coach_text: |
@@ -76,7 +76,7 @@ steps:
 
   - id: "save"
     coach_text: |
-      Use the practice Save button below.
+      Use the **Save Estimate** button on the embedded form.
     spotlight_selector: "button[type='submit']"
     spotlight_label: "Save"
     expected_action: "form_submit"

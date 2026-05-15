@@ -24,12 +24,13 @@ steps:
   - id: "spotlight-record-payment"
     coach_text: |
       In the real app, you'd click **Record Payment** on the invoice detail page.
-      Use the practice button below to open that payment step here.
+      Use the highlighted **Record Payment** button in the embedded invoice
+      page to open that payment step here.
     spotlight_selector: "[data-action='record-payment']"
     spotlight_label: "Click here"
     expected_action: "click_or_route_change"
     on_wrong_click: |
-      Use the practice button inside the tutorial box to record the payment.
+      Use the highlighted **Record Payment** button in the embedded page to record the payment.
 
   - id: "modal-arrived"
     coach_text: |
@@ -70,7 +71,7 @@ steps:
 
   - id: "save-payment"
     coach_text: |
-      Use the practice Save Payment button below.
+      Use the **Save Payment** button on the embedded payment form.
     spotlight_selector: "button[type='submit'][data-action='save-payment']"
     spotlight_label: "Save"
     expected_action: "form_submit"
@@ -98,8 +99,8 @@ steps:
   - id: "customer-ledger"
     coach_text: |
       One more thing worth seeing: the **customer** detail page has a
-      **Payment Ledger** section. Use the practice button below to model
-      jumping back there.
+      **Payment Ledger** section. Use the highlighted customer link in the
+      embedded page to model jumping back there.
     spotlight_selector: "[data-link='customer-from-invoice']"
     spotlight_label: "Click here"
     expected_action: "click_or_route_change"

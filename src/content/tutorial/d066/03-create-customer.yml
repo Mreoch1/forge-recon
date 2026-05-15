@@ -24,25 +24,26 @@ steps:
   - id: "spotlight-nav"
     coach_text: |
       In the real app, customers live in the main navigation. For the tour,
-      we'll keep you inside this tutorial box. Use the practice button below
-      to open the customer list.
+      we'll keep you inside this tutorial box. Use the highlighted control
+      in the embedded page below to open the customer list.
     spotlight_selector: "[data-nav='customers']"
     spotlight_label: "Click here"
     expected_action: "click_or_route_change"
     expected_route: "/customers"
     on_wrong_click: |
-      Use the practice button inside the tutorial box so you stay in the tour.
+      Use the highlighted control in the embedded page so you stay in the tour.
 
   - id: "react-on-customers-page"
     coach_text: |
       Good. This represents your customer list. In the real app, you'd click
-      **New Customer** from there. Use the practice button below to start one.
+      **New Customer** from there. Use the highlighted **New Customer** button
+      in the embedded page to start one.
     spotlight_selector: "[data-action='new-customer']"
     spotlight_label: "Click here"
     expected_action: "click_or_route_change"
     expected_route: "/customers/new"
     on_wrong_click: |
-      Use the practice button inside the tutorial box to start the customer.
+      Use the highlighted **New Customer** button in the embedded page to start the customer.
 
   - id: "fill-form-intro"
     coach_text: |
@@ -61,7 +62,7 @@ steps:
       tour — but in real life you'd want them so your invoices and emails
       go to the right place. We'll skip those for now.
 
-      Use the practice Save button below.
+      Use the **Save Customer** button on the embedded form.
     spotlight_selector: "button[type='submit']"
     spotlight_label: "Save"
     expected_action: "form_submit"
@@ -69,7 +70,7 @@ steps:
 
   - id: "react-after-save"
     coach_text: |
-      Done. You just created your first practice customer. In the real app,
+      Done. You just created your first tutorial customer. In the real app,
       the customer detail page shows a yellow **TUTORIAL** badge next to the name.
       That's how FORGE marks data created during this tour, so it doesn't
       get mixed up with your real customers and so we can clean it up

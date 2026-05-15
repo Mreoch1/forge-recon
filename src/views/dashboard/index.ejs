@@ -24,7 +24,16 @@ function typeLabel(t) {
       <p class="page-sub">Welcome back, <%= currentUser.name %>.</p>
     </div>
     <div class="flex flex-wrap gap-2 items-center">
-      <a href="/" class="text-xs text-recon-fog hover:text-recon-red mr-2">← back to operational dashboard</a>
+      <%# D-093: classic-view lock — return path to FORGE mode posts default_landing=chat
+          so the user is taken back out of "classic" lock. Otherwise the root route
+          would just bounce them back here on next login. %>
+      <form method="post" action="/account/landing-mode" style="margin:0;">
+        <input type="hidden" name="mode" value="chat">
+        <input type="hidden" name="redirect_to" value="/forge">
+        <button type="submit" class="text-xs text-recon-fog hover:text-recon-red mr-2 bg-transparent border-0 p-0 cursor-pointer">
+          ← back to FORGE mode
+        </button>
+      </form>
       <a href="/customers/new" class="btn btn-secondary min-h-[44px]">+ Customer</a>
       <a href="/work-orders/new" class="btn btn-primary min-h-[44px]">+ Work order</a>
     </div>

@@ -40,13 +40,14 @@ steps:
   - id: "spotlight-convert-button"
     coach_text: |
       OK, ready. In the real app, you'd click **Convert to Invoice** at the
-      top right of the estimate. Use the practice button below.
+      top right of the estimate. Use the highlighted **Convert to Invoice**
+      button in the embedded page.
     spotlight_selector: "[data-action='convert-to-invoice']"
     spotlight_label: "Click here"
     expected_action: "click_or_route_change"
     expected_route_pattern: "/invoices/\\d+"
     on_wrong_click: |
-      Use the practice button inside the tutorial box to convert the estimate.
+      Use the highlighted **Convert to Invoice** button in the embedded page to convert the estimate.
 
   - id: "after-convert"
     coach_text: |

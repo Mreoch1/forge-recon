@@ -24,13 +24,14 @@ steps:
   - id: "spotlight-new-wo"
     coach_text: |
       In the real app, you'd use **+ New WO** from the customer detail page.
-      In this tour, use the practice button below so we stay inside the tutorial.
+      In this tour, use the highlighted **+ New WO** button in the embedded
+      page so we stay inside the tutorial.
     spotlight_selector: "[data-action='new-wo']"
     spotlight_label: "Click here"
     expected_action: "click_or_route_change"
     expected_route_pattern: "/work-orders/new\\?customer_id=\\d+"
     on_wrong_click: |
-      Use the practice button inside the tutorial box to start the WO.
+      Use the highlighted **+ New WO** button in the embedded page to start the WO.
 
   - id: "form-arrived"
     coach_text: |
@@ -87,7 +88,7 @@ steps:
       here triggers an email alert to them.
 
       Skip the rest of the fields (schedule, scope, notes) — all optional.
-      Use the practice Save button below.
+      Use the **Save Work Order** button on the embedded form.
     spotlight_selector: "button[type='submit']"
     spotlight_label: "Save"
     expected_action: "form_submit"

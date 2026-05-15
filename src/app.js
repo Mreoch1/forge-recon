@@ -273,6 +273,38 @@ app.post('/account/complete-onboarding', async (req, res) => {
   res.redirect('/');
 });
 
+// D-093: landing-mode toggle — when the user clicks "Switch to classic view" on
+// /forge, lock them into the classic landing until they choose FORGE mode again.
+// Persists to users.default_landing ('chat' or 'classic') so the preference
+// survives logout. Honors `redirect_to` so the same endpoint serves both
+// directions (classic → ?redirect_to=/dashboard-classic, back → /forge).
+app.post('/account/landing-mode', async (req, res) => {
+  if (!req.session.userId) return res.status(401).redirect('/login');
+  const requested = String(req.body?.mode || '').toLowerCase();
+  if (requested !== 'classic' && requested !== 'chat') {
+    return res.status(400).send('mode must be classic or chat');
+  }
+  try {
+    const supabase = require('./db/supabase');
+    const { error } = await supabase
+      .from('users')
+      .update({ default_landing: requested, updated_at: new Date().toISOString() })
+      .eq('id', req.session.userId);
+    if (error) throw error;
+    if (res.locals.currentUser) res.locals.currentUser.default_landing = requested;
+    if (req.currentUser) req.currentUser.default_landing = requested;
+  } catch (e) {
+    console.warn('[account] landing-mode update failed:', e.message);
+    // Don't block navigation on a preference update failure — log + continue.
+  }
+  // Default redirects: classic → /dashboard-classic, chat → /forge. Allow override.
+  const fallback = requested === 'classic' ? '/dashboard-classic' : '/forge';
+  const target = req.body?.redirect_to && /^\/[\w\-\/?=&%]*$/.test(req.body.redirect_to)
+    ? req.body.redirect_to
+    : fallback;
+  res.redirect(target);
+});
+
 app.use('/', requireAuth, dashboardRoutes);
 
 // POST /report-error — user-triggered error report

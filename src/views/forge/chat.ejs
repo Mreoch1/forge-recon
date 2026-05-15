@@ -133,6 +133,30 @@
     50%      { box-shadow: 0 0 0 14px rgba(34,211,238,0), 0 8px 28px rgba(34,211,238,0.4); }
   }
 
+  /* Side-by-side button row inside the CTA wrap */
+  .forge-cta-row {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+    gap: 0.85rem; row-gap: 0.65rem;
+  }
+
+  /* Secondary CTA — outline / muted, doesn't compete with Get Started */
+  .forge-cta-secondary {
+    padding: 0.85rem 1.5rem; font-size: 0.9rem; border-radius: 999px;
+    background: transparent; color: #94a3b8;
+    border: 1px solid rgba(148,163,184,0.35);
+    text-decoration: none; letter-spacing: 0.02em; font-weight: 600;
+    transition: all 0.2s; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 0.4rem;
+  }
+  .forge-cta-secondary:hover {
+    color: #e2e8f0; border-color: rgba(148,163,184,0.7); background: rgba(148,163,184,0.08);
+    transform: translateY(-1px);
+  }
+  @media (max-width: 480px) {
+    .forge-cta-row { flex-direction: column; gap: 0.6rem; }
+    .forge-cta-secondary { width: 100%; justify-content: center; }
+  }
+
   .forge-press-enter { font-size: 0.75rem; color: #64748b; letter-spacing: 0.05em; }
   .forge-press-enter kbd { background: #1e293b; color: #e2e8f0; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; border: 1px solid #334155; }
 
@@ -248,7 +272,14 @@
 
     <!-- Phase 5: CTA -->
     <div id="forge-cta-wrap">
-      <button id="forge-get-started" type="button">Get Started</button>
+      <div class="forge-cta-row">
+        <button id="forge-get-started" type="button">Get Started</button>
+        <form method="post" action="/account/landing-mode" style="margin:0;">
+          <input type="hidden" name="mode" value="classic">
+          <input type="hidden" name="redirect_to" value="/dashboard-classic">
+          <button id="forge-go-classic" type="submit" class="forge-cta-secondary">Switch to classic view</button>
+        </form>
+      </div>
       <span class="forge-press-enter">press <kbd>Enter</kbd> to begin</span>
     </div>
 

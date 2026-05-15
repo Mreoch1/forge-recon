@@ -50,6 +50,7 @@ describe('D-066 tutorial content flow', () => {
     ]);
     const allText = JSON.stringify(chapters);
     assert.doesNotMatch(allText, /left navigation|Click \*\*Customers\*\*|click back to the \*\*customer\*\*/i);
+    assert.doesNotMatch(allText, /practice button|practice Save|practice customer/i);
 
     for (const chapter of chapters) {
       for (const step of chapter.steps || []) {

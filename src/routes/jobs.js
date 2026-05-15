@@ -313,6 +313,7 @@ router.get('/:id', async (req, res) => {
       .select('*')
       .eq('job_id', id)
       .order('created_at', { ascending: false })
+      .then(r => r)
       .catch(function() { return { data: [] }; }),
   ]);
 

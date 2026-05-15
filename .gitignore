@@ -14,3 +14,5 @@ sessions/
 
 .vercel
 .env*.local
+scripts/apply-rfp-migration.js
+supabase/.temp/
