@@ -204,7 +204,7 @@ window.RFP_SOURCES = [
   <%= i > 0 ? ',' : '' %>{name:<%= JSON.stringify(v.name) %>,label:'(Vendor)',type:'vendor'}
 <% }); %>
 <% (contractors || []).forEach(function(c, i){ %>
-  <%= i > 0 || ((vendors || []).length > 0) ? ',' : '' %>{name:<%= JSON.stringify(c.name) %>,label:'(Contractor<%= c.trade ? ", " + JSON.stringify(c.trade) : "" %>)',type:'contractor'}
+  <%= i > 0 || ((vendors || []).length > 0) ? ',' : '' %>{name:<%= JSON.stringify(c.name) %>,label:<%= JSON.stringify('(Contractor' + (c.trade ? ', ' + c.trade : '') + ')') %>,type:'contractor'}
 <% }); %>
 ];
 </script>

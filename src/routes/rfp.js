@@ -11,6 +11,63 @@ const { requireManager } = require('../middleware/auth');
 
 const router = express.Router();
 
+const FALLBACK_VENDOR_NAMES = [
+  'Advanced Specialties',
+  'Amistee',
+  "Anderson & Son's Painting",
+  'Architectural Hardware & Supply',
+  'DWG Plumbing',
+  'Eastbay',
+  'Electric Doctor',
+  'ES Repair Pros',
+  'Ferguson',
+  'Hardrock Stoneworks',
+  'Home Depot',
+  'Main Flooring',
+  'Motor City Heating And Cooling',
+  'RT Acoustical',
+  'Runco',
+  'Wholesale Builder Supply',
+  'WillScot',
+  "Benson's",
+  'Demo Paint Supply Co.',
+  'Demo Roofing Supply Inc.',
+];
+
+const FALLBACK_CONTRACTORS = [
+  { name: "Anderson & Son's Painting", trade: 'drywall' },
+  { name: 'DWG Plumbing', trade: 'plumbing' },
+  { name: 'Electric Doctor', trade: 'electrical' },
+  { name: 'ES Repair Pros', trade: 'general' },
+  { name: 'Motor City Heating And Cooling', trade: 'HVAC' },
+  { name: 'RT Acoustical', trade: 'general' },
+  { name: 'Advanced Specialties', trade: 'general' },
+  { name: 'Amistee', trade: 'general' },
+  { name: 'Architectural Hardware & Supply', trade: 'general' },
+  { name: 'Eastbay', trade: 'general' },
+  { name: 'Ferguson', trade: 'general' },
+  { name: 'Hardrock Stoneworks', trade: 'general' },
+  { name: 'Home Depot', trade: 'general' },
+  { name: 'Main Flooring', trade: 'general' },
+  { name: 'Runco', trade: 'general' },
+  { name: 'WillScot', trade: 'general' },
+  { name: 'Wholesale Builder Supply', trade: 'general' },
+  { name: "Benson's", trade: 'general' },
+  { name: 'Demo Paint Supply Co.', trade: 'drywall' },
+  { name: 'Demo Roofing Supply Inc.', trade: 'general' },
+];
+
+function fallbackVendors() {
+  return FALLBACK_VENDOR_NAMES.map(name => ({ id: null, name }));
+}
+
+function normalizeAutocompleteSources(vendors, contractors) {
+  return {
+    vendors: vendors && vendors.length ? vendors : fallbackVendors(),
+    contractors: contractors && contractors.length ? contractors : FALLBACK_CONTRACTORS,
+  };
+}
+
 function isMissingOptionalRfpTable(error) {
   const message = String(error?.message || error || '').toLowerCase();
   return (
@@ -38,8 +95,8 @@ router.get('/projects/:id/rfp', async (req, res) => {
 
   if (jobError) throw jobError;
   if (rfpsError && !isMissingOptionalRfpTable(rfpsError)) throw rfpsError;
-  if (vendorsError) throw vendorsError;
-  if (contractorsError) throw contractorsError;
+  if (vendorsError) console.warn('[rfp] vendor autocomplete source failed:', vendorsError.message);
+  if (contractorsError) console.warn('[rfp] contractor autocomplete source failed:', contractorsError.message);
   if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Project not found.' });
 
   // Load RFP line items for each RFP
@@ -62,28 +119,7 @@ router.get('/projects/:id/rfp', async (req, res) => {
     }
   }
 
-  // Fallback vendor/contractor names for autocomplete (used if Supabase queries return empty)
-  var vendorNames = [
-    'Advanced Specialties', 'Amistee', "Anderson & Son's Painting", 'Architectural Hardware & Supply',
-    'DWG Plumbing', 'Eastbay', 'Electric Doctor', 'ES Repair Pros', 'Ferguson',
-    'Hardrock Stoneworks', 'Home Depot', 'Main Flooring', 'Motor City Heating And Cooling',
-    'RT Acoustical', 'Runco', 'Wholesale Builder Supply', 'WillScot', "Benson's",
-    'Demo Paint Supply Co.', 'Demo Roofing Supply Inc.',
-  ];
-  var contractorFallbacks = [
-    {name: "Anderson & Son's Painting", trade: 'drywall'}, {name: 'DWG Plumbing', trade: 'plumbing'},
-    {name: 'Electric Doctor', trade: 'electrical'}, {name: 'ES Repair Pros', trade: 'general'},
-    {name: 'Motor City Heating And Cooling', trade: 'HVAC'}, {name: 'RT Acoustical', trade: 'general'},
-    {name: 'Advanced Specialties', trade: 'general'}, {name: 'Amistee', trade: 'general'},
-    {name: 'Architectural Hardware & Supply', trade: 'general'}, {name: 'Eastbay', trade: 'general'},
-    {name: 'Ferguson', trade: 'general'}, {name: 'Hardrock Stoneworks', trade: 'general'},
-    {name: 'Home Depot', trade: 'general'}, {name: 'Main Flooring', trade: 'general'},
-    {name: 'Runco', trade: 'general'}, {name: 'WillScot', trade: 'general'},
-    {name: 'Wholesale Builder Supply', trade: 'general'}, {name: "Benson's", trade: 'general'},
-    {name: 'Demo Paint Supply Co.', trade: 'drywall'}, {name: 'Demo Roofing Supply Inc.', trade: 'general'},
-  ];
-  if (!vendors || vendors.length === 0) vendors = vendorNames.map(function(n) { return { id: null, name: n }; });
-  if (!contractors || contractors.length === 0) contractors = contractorFallbacks;
+  const sources = normalizeAutocompleteSources(vendorsError ? [] : vendors, contractorsError ? [] : contractors);
 
   res.render('jobs/rfp', {
     title: 'RFP — ' + (job.title || job.name),
@@ -92,8 +128,8 @@ router.get('/projects/:id/rfp', async (req, res) => {
     rfps: rfpsError ? [] : (rfps || []),
     rfpItemsMap,
     customers: job.customers || {},
-    vendors: vendors || [],
-    contractors: contractors || [],
+    vendors: sources.vendors,
+    contractors: sources.contractors,
   });
 });
 
@@ -104,10 +140,13 @@ router.get('/api/rfp-sources', async (req, res) => {
       supabase.from('vendors').select('id, name').order('name'),
       supabase.from('contractors').select('id, name, trade').order('name'),
     ]);
-    res.json({ vendors: vr.data || [], contractors: cr.data || [] });
+    if (vr.error) console.warn('[rfp-sources] vendors fetch failed:', vr.error.message);
+    if (cr.error) console.warn('[rfp-sources] contractors fetch failed:', cr.error.message);
+    const sources = normalizeAutocompleteSources(vr.error ? [] : vr.data, cr.error ? [] : cr.data);
+    res.json(sources);
   } catch (e) {
     console.warn('[rfp-sources] fetch failed:', e.message);
-    res.json({ vendors: [], contractors: [] });
+    res.json(normalizeAutocompleteSources([], []));
   }
 });
 
