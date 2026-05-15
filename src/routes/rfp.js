@@ -266,11 +266,12 @@ router.post('/projects/:id/rfps/:rId/delete', requireManager, async (req, res) =
 //    isn't installed; clicks on × actually hit the POST update route below) ──
 router.post('/projects/rfps/items/:itemId/delete', requireManager, async (req, res) => {
   // Resolve job_id BEFORE delete so we can redirect back to the right project
-  const { data: lineItem } = await supabase
+  const { data: lineItem, error: lineItemError } = await supabase
     .from('rfp_line_items')
     .select('rfp_id, project_rfps(job_id)')
     .eq('id', req.params.itemId)
     .maybeSingle();
+  if (lineItemError) throw lineItemError;
   const jobId = lineItem?.project_rfps?.job_id;
   const { error } = await supabase.from('rfp_line_items').delete().eq('id', req.params.itemId);
   if (error) throw error;
@@ -296,7 +297,7 @@ router.delete('/projects/rfps/items/:itemId', requireManager, async (req, res) =
 // ── POST /projects/rfps/items/:itemId — update a line item (D-101 inline edit) ──
 router.post('/projects/rfps/items/:itemId', requireManager, async (req, res) => {
   const { vendor, description, quantity, contractor_cost, vendor_cost,
-          unit_cost, total_cost, markup_pct } = req.body;
+          unit_cost, total_cost, markup_pct, approved } = req.body;
 
   const markup = parseFloat(markup_pct) || 20;
   const cCost = parseFloat(contractor_cost) || 0;
@@ -305,7 +306,8 @@ router.post('/projects/rfps/items/:itemId', requireManager, async (req, res) => 
   const tCost = parseFloat(total_cost) || 0;
   const qty = parseFloat(quantity) || 0;
 
-  const baseCost = tCost || (uCost * qty) || (cCost + vCost);
+  const computedUnit = uCost || (cCost + vCost);
+  const baseCost = tCost || (computedUnit * (qty || 0));
   const withMarkup = baseCost * (1 + markup / 100) * 1.06;
 
   // First get the rfp_id so we can redirect back
@@ -324,18 +326,20 @@ router.post('/projects/rfps/items/:itemId', requireManager, async (req, res) => 
       quantity: qty || null,
       contractor_cost: cCost || null,
       vendor_cost: vCost || null,
-      unit_cost: uCost || null,
+      unit_cost: computedUnit || null,
       total_cost: baseCost || null,
       markup_pct: markup,
       total_with_markup: withMarkup,
       final_unit_cost: baseCost > 0 ? withMarkup / (qty || 1) : 0,
+      approved: approved === '1' || approved === 'true' || approved === 'on',
       updated_at: new Date().toISOString(),
     })
     .eq('id', req.params.itemId);
   if (error) throw error;
 
   // Get the RFP's job_id for redirect
-  const { data: rfp } = await supabase.from('project_rfps').select('job_id').eq('id', item.rfp_id).single();
+  const { data: rfp, error: rfpError } = await supabase.from('project_rfps').select('job_id').eq('id', item.rfp_id).single();
+  if (rfpError) throw rfpError;
   const jobId = rfp?.job_id || req.body.job_id;
   res.redirect(`/projects/${jobId}/rfp`);
 });
