@@ -5,6 +5,13 @@ const chapters = []; // Populated by content loader
 
 const VALID_ACTIONS = ['next', 'back', 'skip_chapter', 'restart_chapter', 'exit', 'submit_quiz', 'select_chip'];
 
+function isMissingTutorialSessionsTable(error) {
+  const message = String(error?.message || '');
+  return error?.code === '42P01'
+    || error?.code === 'PGRST205'
+    || (/tutorial_sessions/i.test(message) && /does not exist|not find|not found|schema cache/i.test(message));
+}
+
 class TutorialState {
   constructor(sessionId, userId) {
     this.sessionId = sessionId;
@@ -35,7 +42,7 @@ class TutorialState {
       if (error) throw error;
       if (data?.state_json) return Object.assign(new TutorialState(sessionId, userId), data.state_json);
     } catch (e) {
-      // Table might not exist yet — session fallback handles persistence
+      if (!isMissingTutorialSessionsTable(e)) throw e;
       console.error('[tutorial] load error (non-fatal):', e.message);
     }
     return new TutorialState(sessionId, userId);
@@ -76,7 +83,7 @@ class TutorialState {
       }, { onConflict: 'id' });
       if (error) throw error;
     } catch (e) {
-      // Supabase persistence unavailable — session-only mode is fine
+      if (!isMissingTutorialSessionsTable(e)) throw e;
     }
   }
 
@@ -216,21 +223,17 @@ class TutorialState {
   async executeSideEffects(sideEffects, supabase, userId) {
     if (!sideEffects || !sideEffects.length) return;
     for (const effect of sideEffects) {
-      try {
-        if (effect.record_completion) {
-          const { error } = await supabase.from('users').update({ completed_tutorial_at: new Date().toISOString() }).eq('id', userId);
-          if (error) throw error;
-        }
-        if (effect.persist_weak_spots && this.quizWeakSpots.length) {
-          const { error } = await supabase.from('users').update({ tutorial_completion_weak_spots: JSON.stringify(this.quizWeakSpots) }).eq('id', userId);
-          if (error) throw error;
-        }
-        if (effect.call_endpoint) {
-          // effect.call_endpoint is a URL path like "POST /forge/tutorial/cleanup"
-          // Handled by route handler, not state machine
-        }
-      } catch (e) {
-        // Silently fail — side effects are non-critical
+      if (effect.record_completion) {
+        const { error } = await supabase.from('users').update({ completed_tutorial_at: new Date().toISOString() }).eq('id', userId);
+        if (error) throw error;
+      }
+      if (effect.persist_weak_spots && this.quizWeakSpots.length) {
+        const { error } = await supabase.from('users').update({ tutorial_completion_weak_spots: JSON.stringify(this.quizWeakSpots) }).eq('id', userId);
+        if (error) throw error;
+      }
+      if (effect.call_endpoint) {
+        // effect.call_endpoint is a URL path like "POST /forge/tutorial/cleanup"
+        // Handled by route handler, not state machine
       }
     }
   }
