@@ -177,7 +177,7 @@
         var grandTotalAll = allItems.reduce(function(s, i) { return s + Number(i.total_with_markup || 0); }, 0);
         %>
         <div class="overflow-x-auto">
-          <table class="data text-xs">
+          <table class="data text-xs rfp-items-table">
             <thead>
               <tr>
                 <th>Line Item</th>
@@ -260,9 +260,33 @@
   <% } %>
 </div>
 
-<!-- D-104: Auto-total calculator for line-item add form -->
+<!-- D-105: SortableJS drag-drop for line items + auto-total calculator -->
 <script>
 (function(){
+  // Drag-drop reorder
+  if (typeof Sortable !== 'undefined') {
+    var tbodies = document.querySelectorAll('.rfp-items-table tbody');
+    tbodies.forEach(function(tbody){
+      new Sortable(tbody, {
+        animation: 150,
+        handle: 'tr',
+        onEnd: function(evt) {
+          var ids = [];
+          tbody.querySelectorAll('tr').forEach(function(tr){
+            var form = tr.querySelector('form[id^=rfp-li-form-]');
+            if (form) ids.push(form.action.split('/').pop());
+          });
+          if (ids.length) {
+            var rfpId = new URLSearchParams(window.location.search).get('rfp_id') || '';
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/projects/rfps/items/reorder', true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            xhr.send('item_ids=' + JSON.stringify(ids) + '&rfp_id=' + rfpId);
+          }
+        }
+      });
+    });
+  }
   var forms = document.querySelectorAll('.rfp-line-form');
   forms.forEach(function(form){
     var inputs = form.querySelectorAll('[data-compute-input]');
