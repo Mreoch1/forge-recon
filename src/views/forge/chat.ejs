@@ -212,6 +212,18 @@
     opacity: 0; transition: opacity 0.3s ease 1.5s; z-index: 2;
   }
   #forge-cinematic.active #forge-cinematic-skip { opacity: 1; }
+  #forge-cinematic-continue {
+    margin-top: 2rem; font-size: 1rem; color: #22d3ee; cursor: pointer;
+    opacity: 0; transition: opacity 0.6s ease; z-index: 2;
+    animation: forge-cine-pulse 2s ease-in-out infinite;
+    display: none;
+  }
+  #forge-cinematic-continue.shown { display: block; opacity: 1; }
+  #forge-cinematic.active.clickable { cursor: pointer; }
+  @keyframes forge-cine-pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
   @media (prefers-reduced-motion: reduce) {
     #forge-cinematic-wordmark { animation: none; background-position: 50% center; transform: none; opacity: 1; }
     #forge-cinematic-sub { opacity: 1; }
@@ -268,6 +280,7 @@
 <div id="forge-cinematic">
   <div id="forge-cinematic-wordmark">FORGE</div>
   <div id="forge-cinematic-sub">Field Operations &amp; Resource Guidance Engine</div>
+  <div id="forge-cinematic-continue">Click anywhere to continue &rarr;</div>
   <div id="forge-cinematic-skip">Skip intro &rarr;</div>
 </div>
 
@@ -373,10 +386,11 @@
   runIntro();
 
   function revealChat() {
-    // D-083: Cinematic intro — show FORGE wordmark reveal, play audio, then redirect to tutorial
+    // D-083: Cinematic intro — show FORGE wordmark reveal, play audio, then HOLD for user click
     var introEl = document.getElementById('forge-intro');
     var cinematic = document.getElementById('forge-cinematic');
     var audio = document.getElementById('forge-intro-audio');
+    var continueEl = document.getElementById('forge-cinematic-continue');
 
     // Hide the intro panel
     introEl.classList.add('hidden');
@@ -385,36 +399,55 @@
     cinematic.classList.add('active');
     audio.currentTime = 0;
 
-    var playPromise = audio.play();
-    if (playPromise !== undefined) {
-      playPromise.catch(function() {
-        // Autoplay blocked — skip cinematic, go straight to tutorial
-        window.location.href = '/forge/tutorial?return=/forge';
-      });
+    function goToTutorial() {
+      window.location.href = '/forge/tutorial?return=/forge';
     }
 
-    // After audio ends or ~4s timeout, go to tutorial
+    // After audio ends (or ~5s fallback), show the "click to continue" prompt
+    // HOLD — do NOT auto-redirect. User must click to proceed.
+    var ready = false;
     var timeoutId = setTimeout(function() {
-      window.location.href = '/forge/tutorial?return=/forge';
-    }, 4200);
+      ready = true;
+      continueEl.classList.add('shown');
+      cinematic.classList.add('clickable');
+    }, 5000);
 
     audio.addEventListener('ended', function() {
       clearTimeout(timeoutId);
-      window.location.href = '/forge/tutorial?return=/forge';
+      ready = true;
+      continueEl.classList.add('shown');
+      cinematic.classList.add('clickable');
     }, { once: true });
 
-    // Skip on Esc key
-    function escHandler(e) {
+    // Click anywhere on the cinematic overlay to advance
+    cinematic.addEventListener('click', function onClick() {
+      if (!ready) return;
+      goToTutorial();
+    });
+
+    // Enter/Space also advances
+    function keyHandler(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        if (!ready) return;
+        goToTutorial();
+      }
       if (e.key === 'Escape') {
-        clearTimeout(timeoutId);
-        cinematic.classList.add('exit');
-        setTimeout(function() {
-          window.location.href = '/forge/tutorial?return=/forge';
-        }, 300);
-        document.removeEventListener('keydown', escHandler);
+        // Esc always skips — go immediately
+        goToTutorial();
       }
     }
-    document.addEventListener('keydown', escHandler);
+    document.addEventListener('keydown', keyHandler);
+
+    var playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(function() {
+        // Autoplay blocked — still show the cinematic, just make it clickable sooner
+        clearTimeout(timeoutId);
+        ready = true;
+        continueEl.classList.add('shown');
+        cinematic.classList.add('clickable');
+      });
+    }
   }
 
   function openAssistantWithMessage(text) {
