@@ -205,7 +205,7 @@
     sources.push({ name: <%= JSON.stringify(v.name) %>, label: '(Vendor)', type: 'vendor' });
   <% }); %>
   <% (contractors || []).forEach(function(c){ %>
-    sources.push({ name: <%= JSON.stringify(c.name) %>, label: '(Contractor<%= c.trade ? ", " + JSON.stringify(c.trade) : "" %>)', type: 'contractor' });
+    sources.push({ name: <%= JSON.stringify(c.name) %>, label: <%= JSON.stringify('(Contractor' + (c.trade ? ', ' + c.trade : '') + ')') %>, type: 'contractor' });
   <% }); %>
 
   function setupAutocomplete(inputId) {
@@ -233,7 +233,13 @@
       matches.forEach(function(m){
         var item = document.createElement('div');
         item.style.cssText = 'padding:.5rem .75rem;cursor:pointer;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center;';
-        item.innerHTML = '<span>' + m.name + '</span> <span style="font-size:.75rem;color:#888">' + m.label + '</span>';
+        var name = document.createElement('span');
+        name.textContent = m.name;
+        var label = document.createElement('span');
+        label.style.cssText = 'font-size:.75rem;color:#888';
+        label.textContent = m.label;
+        item.appendChild(name);
+        item.appendChild(label);
         item.addEventListener('mouseenter', function(){ this.style.background = '#f5f5f5'; });
         item.addEventListener('mouseleave', function(){ this.style.background = ''; });
         item.addEventListener('click', function(){
@@ -261,4 +267,3 @@
   });
 })();
 </script>
-
