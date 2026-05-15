@@ -109,6 +109,16 @@ const loadCurrentUser = asyncHandler(async (req, res, next) => {
       res.locals.currentUser = user;
       res.locals.canSeePrices = ['admin', 'manager'].includes(user.role);
       res.locals.isWorker = user.role === 'worker';
+      // D-073: show back button on detail/edit pages (not index pages)
+      const _detailMatch = req.path.match(/^\/(work-orders|customers|vendors|projects|estimates|invoices|bills|schedule)\/\d+/);
+      res.locals.showBackButton = !!_detailMatch || /\/edit$/.test(req.path);
+      // Sensible fallback if no browser history: the entity's index page
+      if (_detailMatch) {
+        const _fallbacks = { 'work-orders':'/work-orders', 'customers':'/customers', 'vendors':'/vendors', 'projects':'/projects', 'estimates':'/estimates', 'invoices':'/invoices', 'bills':'/bills', 'schedule':'/schedule' };
+        res.locals.backButtonFallback = _fallbacks[_detailMatch[1]] || '/';
+      } else {
+        res.locals.backButtonFallback = '/';
+      }
     } else {
       clearSession(req);
     }

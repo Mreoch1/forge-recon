@@ -265,12 +265,8 @@
     </div>
   </nav>
 
-<!-- D-073: universal back button — shown on detail/edit pages (not index pages) -->
-<% if (typeof activeNav !== 'undefined' && activeNav && !/^(dashboard|forge)$/i.test(activeNav)) { %>
-  <div style="max-width:80rem;margin:0 auto;width:100%;padding:0.5rem 1rem 0">
-    <a href="#" onclick="history.back();return false" style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.82rem;color:#64748b;text-decoration:none;transition:color 0.15s" onmouseover="this.style.color='#c0202b'" onmouseout="this.style.color='#64748b'">← Back</a>
-  </div>
-<% } %>
+<!-- D-073: universal back button — shown on detail/edit pages only (not index pages) -->
+<%- include('../partials/_back_button') %>
 
 <script>
 // Theme toggle (also updates iOS Safari status bar tint via meta theme-color)

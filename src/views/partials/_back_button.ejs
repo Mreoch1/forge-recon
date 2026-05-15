@@ -1,0 +1,8 @@
+<%# D-073: Universal back button — shown on detail/edit pages %>
+<% if (typeof showBackButton !== 'undefined' && showBackButton) { %>
+<div class="max-w-7xl mx-auto px-3 md:px-4 pt-2">
+  <a href="javascript:history.back()" class="inline-flex items-center gap-1 text-sm text-recon-fog hover:text-recon-red transition" onclick="if (document.referrer && document.referrer.startsWith(window.location.origin)) return true; else { window.location.href = this.getAttribute('data-fallback'); return false; }" data-fallback="<%= backButtonFallback || '/' %>">
+    <span class="text-lg leading-none">&larr;</span> Back
+  </a>
+</div>
+<% } %>

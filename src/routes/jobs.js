@@ -33,6 +33,23 @@ function emptyToNumber(v) {
   return isFinite(n) && n >= 0 ? n : null;
 }
 
+function throwIfSupabaseError(result, label) {
+  if (result && result.error) {
+    result.error.message = `${label}: ${result.error.message}`;
+    throw result.error;
+  }
+  return result;
+}
+
+function isMissingOptionalRfpTable(error) {
+  const message = String(error?.message || '').toLowerCase();
+  return error?.code === '42P01' ||
+    error?.code === 'PGRST205' ||
+    message.includes('project_rfps') ||
+    message.includes('rfp_line_items') ||
+    message.includes('could not find the table');
+}
+
 async function validateJob(body) {
   const errors = {};
   const title = emptyToNull(body.title);
@@ -227,11 +244,13 @@ router.get('/:id', async (req, res) => {
 
   // D-007: financial roll-up from v_job_financials. View aggregates contract,
   // change orders, vendor commitments, and posted bills server-side.
-  const { data: fin } = await supabase
+  const finResult = await supabase
     .from('v_job_financials')
     .select('*')
     .eq('job_id', id)
     .maybeSingle();
+  throwIfSupabaseError(finResult, 'Project financials load failed');
+  const fin = finResult.data;
   const financials = fin || {
     contract_value: job.contract_value || 0,
     budget_mode: job.budget_mode || 'manual',
@@ -245,18 +264,18 @@ router.get('/:id', async (req, res) => {
   // FORGE-native tables. Plymouth Square (and future RPM imports) carry 200+
   // vendor invoices that need to render on the project show page.
   const [
-    { data: workOrders },
-    { data: changeOrders },
-    { data: lineItems },
-    { data: members },
-    { data: vendors },
-    { data: users },
-    { data: vendorInvoices },
-    { data: projectContractors },
-    { data: payments },
-    { data: sovItems },
-    { data: decisions },
-    { data: rfps },
+    workOrdersResult,
+    changeOrdersResult,
+    lineItemsResult,
+    membersResult,
+    vendorsResult,
+    usersResult,
+    vendorInvoicesResult,
+    projectContractorsResult,
+    paymentsResult,
+    sovItemsResult,
+    decisionsResult,
+    rfpsResult,
   ] = await Promise.all([
     supabase
       .from('work_orders')
@@ -314,8 +333,36 @@ router.get('/:id', async (req, res) => {
       .eq('job_id', id)
       .order('created_at', { ascending: false })
       .then(r => r)
-      .catch(function() { return { data: [] }; }),
+      .catch(function(error) { return { data: [], error }; }),
   ]);
+
+  throwIfSupabaseError(workOrdersResult, 'Project work orders load failed');
+  throwIfSupabaseError(changeOrdersResult, 'Project change orders load failed');
+  throwIfSupabaseError(lineItemsResult, 'Project vendor commitments load failed');
+  throwIfSupabaseError(membersResult, 'Project members load failed');
+  throwIfSupabaseError(vendorsResult, 'Vendor options load failed');
+  throwIfSupabaseError(usersResult, 'Active users load failed');
+  throwIfSupabaseError(vendorInvoicesResult, 'Project vendor invoices load failed');
+  throwIfSupabaseError(projectContractorsResult, 'Project contractor links load failed');
+  throwIfSupabaseError(paymentsResult, 'Project payments load failed');
+  throwIfSupabaseError(sovItemsResult, 'Project SOV load failed');
+  throwIfSupabaseError(decisionsResult, 'Project decisions load failed');
+  if (rfpsResult.error && !isMissingOptionalRfpTable(rfpsResult.error)) {
+    throwIfSupabaseError(rfpsResult, 'Project RFPs load failed');
+  }
+
+  const workOrders = workOrdersResult.data;
+  const changeOrders = changeOrdersResult.data;
+  const lineItems = lineItemsResult.data;
+  const members = membersResult.data;
+  const vendors = vendorsResult.data;
+  const users = usersResult.data;
+  const vendorInvoices = vendorInvoicesResult.data;
+  const projectContractors = projectContractorsResult.data;
+  const payments = paymentsResult.data;
+  const sovItems = sovItemsResult.data;
+  const decisions = decisionsResult.data;
+  const rfps = rfpsResult.error ? [] : rfpsResult.data;
 
   const paymentTotal = (payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
 
@@ -323,18 +370,20 @@ router.get('/:id', async (req, res) => {
   const approverIds = Array.from(new Set((changeOrders || []).map(co => co.approved_by_user_id).filter(Boolean)));
   let approverMap = {};
   if (approverIds.length) {
-    const { data: approvers } = await supabase.from('users').select('id, name').in('id', approverIds);
+    const { data: approvers, error: approversError } = await supabase.from('users').select('id, name').in('id', approverIds);
+    if (approversError) throw approversError;
     (approvers || []).forEach(u => { approverMap[u.id] = u.name; });
   }
 
   // Project manager lookup (uses denormalized FK on jobs.project_manager_user_id)
   let projectManager = null;
   if (job.project_manager_user_id) {
-    const { data: pm } = await supabase
+    const { data: pm, error: pmError } = await supabase
       .from('users')
       .select('id, name, email')
       .eq('id', job.project_manager_user_id)
       .maybeSingle();
+    if (pmError) throw pmError;
     projectManager = pm;
   }
 
@@ -343,16 +392,18 @@ router.get('/:id', async (req, res) => {
   if (rfps && rfps.length) {
     try {
       const rfpIds = rfps.map(r => r.id);
-      const { data: allItems } = await supabase
+      const { data: allItems, error: itemsError } = await supabase
         .from('rfp_line_items')
         .select('*')
         .in('rfp_id', rfpIds)
         .order('sort_order', { ascending: true })
         .order('id', { ascending: true });
+      if (itemsError) throw itemsError;
       (allItems || []).forEach(item => {
         (rfpItemsMap[item.rfp_id] = rfpItemsMap[item.rfp_id] || []).push(item);
       });
     } catch (e) {
+      if (!isMissingOptionalRfpTable(e)) throw e;
       console.warn('[rfp] could not load line items (table may not exist yet):', e.message);
     }
   }
