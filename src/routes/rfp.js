@@ -306,9 +306,11 @@ router.post('/projects/rfps/items/:itemId', requireManager, async (req, res) => 
   const tCost = parseFloat(total_cost) || 0;
   const qty = parseFloat(quantity) || 0;
 
-  const computedUnit = uCost || (cCost + vCost);
-  const baseCost = tCost || (computedUnit * (qty || 0));
-  const withMarkup = baseCost * (1 + markup / 100) * 1.06;
+  // D-105: use computeSubLineTotals helper with general_requirements_pct
+  var comp = computeSubLineTotals({ quantity, contractor_cost, vendor_cost, markup_pct, general_requirements_pct: req.body.general_requirements_pct });
+  var computedUnit = comp.unit_cost;
+  var baseCost = comp.total_cost;
+  var withMarkup = comp.total_with_markup;
 
   // First get the rfp_id so we can redirect back
   const { data: item, error: fetchError } = await supabase
@@ -332,6 +334,9 @@ router.post('/projects/rfps/items/:itemId', requireManager, async (req, res) => 
       total_with_markup: withMarkup,
       final_unit_cost: baseCost > 0 ? withMarkup / (qty || 1) : 0,
       approved: approved === '1' || approved === 'true' || approved === 'on',
+      general_requirements_pct: req.body.general_requirements_pct !== undefined ? (parseFloat(req.body.general_requirements_pct) || 6) : undefined,
+      location: req.body.location || undefined,
+      sort_order: req.body.sort_order !== undefined ? parseInt(req.body.sort_order) : undefined,
       updated_at: new Date().toISOString(),
     })
     .eq('id', req.params.itemId);
@@ -342,6 +347,39 @@ router.post('/projects/rfps/items/:itemId', requireManager, async (req, res) => 
   if (rfpError) throw rfpError;
   const jobId = rfp?.job_id || req.body.job_id;
   res.redirect(`/projects/${jobId}/rfp`);
+});
+
+// ── D-105: Sub-line item total computation helper ──
+function computeSubLineTotals(params) {
+  const qty = parseFloat(params.quantity) || 0;
+  const cCost = parseFloat(params.contractor_cost) || 0;
+  const vCost = parseFloat(params.vendor_cost) || 0;
+  const markup = parseFloat(params.markup_pct) || 20;
+  const gr = parseFloat(params.general_requirements_pct) !== undefined ? (parseFloat(params.general_requirements_pct) || 6) : 6;
+  
+  const computedUnit = cCost + vCost;
+  const baseCost = computedUnit * qty;
+  const withMarkup = baseCost * (1 + markup / 100) * (1 + gr / 100);
+  
+  return {
+    unit_cost: computedUnit,
+    total_cost: baseCost,
+    total_with_markup: withMarkup,
+    final_unit_cost: qty > 0 ? withMarkup / qty : 0,
+  };
+}
+
+// ── D-105: POST /projects/rfps/items/reorder — drag-drop save new sort order ──
+router.post('/projects/rfps/items/reorder', requireManager, async (req, res) => {
+  const { item_ids, rfp_id } = req.body;
+  if (!item_ids || !Array.isArray(item_ids)) return res.status(400).json({ error: 'item_ids array required' });
+  const updates = item_ids.map((id, i) => ({ id, sort_order: i }));
+  for (const u of updates) {
+    const { error } = await supabase.from('rfp_line_items').update({ sort_order: u.sort_order }).eq('id', u.id);
+    if (error) throw error;
+  }
+  const { data: rfp } = await supabase.from('project_rfps').select('job_id').eq('id', rfp_id).single();
+  res.redirect(`/projects/${rfp?.job_id}/rfp`);
 });
 
 module.exports = router;

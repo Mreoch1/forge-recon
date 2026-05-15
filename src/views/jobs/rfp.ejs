@@ -180,73 +180,73 @@
           <table class="data text-xs">
             <thead>
               <tr>
-                <th>Vendor</th>
+                <th>Line Item</th>
                 <th>Description</th>
+                <th>Location</th>
                 <th class="text-right">Qty</th>
-                <th class="text-right">Contr. Cost</th>
-                <th class="text-right">Vendor Cost</th>
                 <th class="text-right">Unit Cost</th>
                 <th class="text-right">Total Cost</th>
                 <th class="text-right">Markup</th>
+                <th class="text-right">GR %</th>
                 <th class="text-right">Total w/ mrkup</th>
                 <th class="text-right">Final Unit</th>
-                <th class="text-center" title="Include in grand total">✓</th>
+                <th class="text-center">✓</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               <% items.forEach(function(item){ %>
-                <% var itemFormId = 'rfp-item-form-' + item.id; var itemDeleteFormId = 'rfp-item-delete-' + item.id; %>
-                <tr>
-                  <td><form id="<%= itemFormId %>" action="/projects/rfps/items/<%= item.id %>" method="POST"></form><input form="<%= itemFormId %>" name="vendor" value="<%= item.vendor || '' %>" class="input text-xs py-0.5" list="rfp-line-entity-options" autocomplete="off"></td>
-                  <td><input form="<%= itemFormId %>" name="description" value="<%= item.description %>" class="input text-xs py-0.5"></td>
+                <% var itemFormId = 'rfp-li-form-' + item.id; var itemDelFormId = 'rfp-li-del-' + item.id; var children = subItems[item.id] || []; %>
+                <% var liUnit = children.filter(function(s){return s.approved;}).reduce(function(s,c){return s + (Number(c.contractor_cost||0)+Number(c.vendor_cost||0));},0); %>
+                <% var liTotal = children.filter(function(s){return s.approved;}).reduce(function(s,c){return s + (Number(c.total_with_markup||0));},0); %>
+                <!-- D-105: Line item container row -->
+                <tr class="bg-recon-deeper/20 hover:bg-recon-cloud/20" style="cursor:pointer" onclick="var n=this.nextElementSibling;while(n&&n.classList.contains('rfp-sub-row')){n.style.display=n.style.display==='none'?'':'none';n=n.nextElementSibling;}">
+                  <td><form id="<%= itemFormId %>" action="/projects/rfps/items/<%= item.id %>" method="POST"></form><input form="<%= itemFormId %>" name="description" value="<%= item.description %>" class="input text-xs py-0.5 font-medium"></td>
+                  <td colspan="1" class="text-xs text-recon-fog"><input form="<%= itemFormId %>" name="location" value="<%= item.location || '' %>" class="input text-xs py-0.5" placeholder="Location"></td>
                   <td class="text-right"><input form="<%= itemFormId %>" name="quantity" type="number" step="any" value="<%= item.quantity != null ? item.quantity : '' %>" class="input text-xs py-0.5 w-16 text-right"></td>
-                  <td class="text-right"><input form="<%= itemFormId %>" name="contractor_cost" type="number" step="any" value="<%= item.contractor_cost != null ? item.contractor_cost : '' %>" class="input text-xs py-0.5 w-20 text-right"></td>
-                  <td class="text-right"><input form="<%= itemFormId %>" name="vendor_cost" type="number" step="any" value="<%= item.vendor_cost != null ? item.vendor_cost : '' %>" class="input text-xs py-0.5 w-20 text-right"></td>
-                  <td class="text-right"><%= item.unit_cost != null ? '$' + Number(item.unit_cost).toFixed(2) : '-' %></td>
-                  <td class="text-right"><%= item.total_cost != null ? '$' + Number(item.total_cost).toFixed(2) : '-' %></td>
-                  <td class="text-right"><input form="<%= itemFormId %>" name="markup_pct" type="number" step="any" value="<%= item.markup_pct != null ? item.markup_pct : '' %>" class="input text-xs py-0.5 w-14 text-right"></td>
-                  <td class="text-right font-medium"><%= item.total_with_markup != null ? '$' + Number(item.total_with_markup).toFixed(2) : '-' %></td>
-                  <td class="text-right font-medium"><%= item.final_unit_cost != null ? '$' + Number(item.final_unit_cost).toFixed(2) : '-' %></td>
+                  <td class="text-right font-medium">$<%= liUnit.toFixed(2) %></td>
+                  <td class="text-right font-medium">$<%= liTotal.toFixed(2) %></td>
+                  <td></td><td></td>
+                  <td class="text-right font-medium">$<%= liTotal.toFixed(2) %></td>
+                  <td class="text-right"><%= liUnit > 0 && item.quantity > 0 ? '$' + (liTotal / Number(item.quantity)).toFixed(2) : '-' %></td>
                   <td class="text-center"><input form="<%= itemFormId %>" type="hidden" name="approved" value="0"><input form="<%= itemFormId %>" type="checkbox" name="approved" value="1" <%= item.approved ? 'checked' : '' %>></td>
                   <td class="text-right flex gap-1">
                     <button type="submit" form="<%= itemFormId %>" class="text-green-600 hover:text-green-800 text-xs font-bold" title="Save">&#10003;</button>
-                    <form id="<%= itemDeleteFormId %>" action="/projects/rfps/items/<%= item.id %>/delete" method="POST" onsubmit="return confirm('Delete this line item?')"></form>
-                    <button type="submit" form="<%= itemDeleteFormId %>" class="text-recon-fog hover:text-recon-red text-xs">&times;</button>
+                    <form id="<%= itemDelFormId %>" action="/projects/rfps/items/<%= item.id %>/delete" method="POST" onsubmit="return confirm('Delete?')"></form>
+                    <button type="submit" form="<%= itemDelFormId %>" class="text-recon-fog hover:text-recon-red text-xs">&times;</button>
                   </td>
                 </tr>
-                <% (subItems[item.id] || []).forEach(function(sub){ %>
-                  <% var subFormId = 'rfp-item-form-' + sub.id; var subDeleteFormId = 'rfp-item-delete-' + sub.id; %>
-                  <tr class="text-recon-fog">
-                    <td class="pl-4"><form id="<%= subFormId %>" action="/projects/rfps/items/<%= sub.id %>" method="POST"></form>- <input form="<%= subFormId %>" name="vendor" value="<%= sub.vendor || '' %>" class="input text-xs py-0.5 w-24" list="rfp-line-entity-options" autocomplete="off"></td>
-                    <td><input form="<%= subFormId %>" name="description" value="<%= sub.description %>" class="input text-xs py-0.5"></td>
-                    <td class="text-right"><input form="<%= subFormId %>" name="quantity" type="number" step="any" value="<%= sub.quantity != null ? sub.quantity : '' %>" class="input text-xs py-0.5 w-16 text-right"></td>
-                    <td class="text-right"><input form="<%= subFormId %>" name="contractor_cost" type="number" step="any" value="<%= sub.contractor_cost != null ? sub.contractor_cost : '' %>" class="input text-xs py-0.5 w-20 text-right"></td>
-                    <td class="text-right"><input form="<%= subFormId %>" name="vendor_cost" type="number" step="any" value="<%= sub.vendor_cost != null ? sub.vendor_cost : '' %>" class="input text-xs py-0.5 w-20 text-right"></td>
+                <!-- D-105: Sub-line items under this line item (initially hidden, toggled by clicking parent) -->
+                <% children.forEach(function(sub){ %>
+                  <% var subFid = 'rfp-sub-form-' + sub.id; var subDid = 'rfp-sub-del-' + sub.id; %>
+                  <tr class="rfp-sub-row">
+                    <td class="pl-4 text-recon-fog text-xs"><form id="<%= subFid %>" action="/projects/rfps/items/<%= sub.id %>" method="POST"></form><input form="<%= subFid %>" name="description" value="<%= sub.description %>" class="input text-xs py-0.5" placeholder="Sub description"></td>
+                    <td></td>
+                    <td class="text-right"><input form="<%= subFid %>" name="quantity" type="number" step="any" value="<%= sub.quantity != null ? sub.quantity : '' %>" class="input text-xs py-0.5 w-16 text-right"></td>
+                    <td class="text-right"><input form="<%= subFid %>" name="contractor_cost" type="number" step="any" value="<%= sub.contractor_cost != null ? sub.contractor_cost : '' %>" class="input text-xs py-0.5 w-20 text-right" placeholder="Contr"><br><input form="<%= subFid %>" name="vendor_cost" type="number" step="any" value="<%= sub.vendor_cost != null ? sub.vendor_cost : '' %>" class="input text-xs py-0.5 w-20 text-right" placeholder="Vendor"></td>
                     <td class="text-right"><%= sub.unit_cost != null ? '$' + Number(sub.unit_cost).toFixed(2) : '-' %></td>
                     <td class="text-right"><%= sub.total_cost != null ? '$' + Number(sub.total_cost).toFixed(2) : '-' %></td>
-                    <td class="text-right"><input form="<%= subFormId %>" name="markup_pct" type="number" step="any" value="<%= sub.markup_pct != null ? sub.markup_pct : '' %>" class="input text-xs py-0.5 w-14 text-right"></td>
+                    <td class="text-right"><input form="<%= subFid %>" name="markup_pct" type="number" step="any" value="<%= sub.markup_pct != null ? sub.markup_pct : '20' %>" class="input text-xs py-0.5 w-14 text-right"></td>
+                    <td class="text-right"><input form="<%= subFid %>" name="general_requirements_pct" type="number" step="any" value="<%= sub.general_requirements_pct != null ? sub.general_requirements_pct : '6' %>" class="input text-xs py-0.5 w-14 text-right"></td>
                     <td class="text-right font-medium"><%= sub.total_with_markup != null ? '$' + Number(sub.total_with_markup).toFixed(2) : '-' %></td>
                     <td class="text-right font-medium"><%= sub.final_unit_cost != null ? '$' + Number(sub.final_unit_cost).toFixed(2) : '-' %></td>
-                    <td class="text-center"><input form="<%= subFormId %>" type="hidden" name="approved" value="0"><input form="<%= subFormId %>" type="checkbox" name="approved" value="1" <%= sub.approved ? 'checked' : '' %>></td>
-                    <td>
-                      <button type="submit" form="<%= subFormId %>" class="text-green-600 hover:text-green-800 text-xs font-bold" title="Save">&#10003;</button>
-                      <form id="<%= subDeleteFormId %>" action="/projects/rfps/items/<%= sub.id %>/delete" method="POST" onsubmit="return confirm('Delete?')"></form>
-                      <button type="submit" form="<%= subDeleteFormId %>" class="text-recon-fog hover:text-recon-red text-xs">&times;</button>
+                    <td class="text-center"><input form="<%= subFid %>" type="hidden" name="approved" value="0"><input form="<%= subFid %>" type="checkbox" name="approved" value="1" <%= sub.approved ? 'checked' : '' %>></td>
+                    <td class="text-right flex gap-1">
+                      <button type="submit" form="<%= subFid %>" class="text-green-600 hover:text-green-800 text-xs font-bold" title="Save">&#10003;</button>
+                      <form id="<%= subDid %>" action="/projects/rfps/items/<%= sub.id %>/delete" method="POST" onsubmit="return confirm('Delete?')"></form>
+                      <button type="submit" form="<%= subDid %>" class="text-recon-fog hover:text-recon-red text-xs">&times;</button>
                     </td>
                   </tr>
                 <% }); %>
               <% }); %>
               <% if (items.length === 0) { %>
-                <tr><td colspan="11" class="text-center text-recon-fog py-4">No line items yet. Click + Add item to add one.</td></tr>
+                <tr><td colspan="12" class="text-center text-recon-fog py-4">No line items yet. Click + Add item to add one.</td></tr>
               <% } %>
             </tbody>
             <tfoot>
               <tr class="font-semibold bg-recon-deeper/50">
-                <td colspan="8" class="text-right">Grand Total (approved)</td>
+                <td colspan="10" class="text-right">Grand Total (approved)</td>
                 <td class="text-right text-recon-red">$<%= grandTotal.toFixed(2) %></td>
-                <td></td>
-                <td></td>
                 <td></td>
               </tr>
             </tfoot>
