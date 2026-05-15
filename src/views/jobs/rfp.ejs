@@ -168,15 +168,13 @@
           <table class="data text-xs rfp-items-table">
             <thead>
               <tr>
-                <th>Line Item</th>
-                <th>Description</th>
-                <th>Location</th>
+                <th class="w-[28%]">Description</th>
                 <th class="text-right">Qty</th>
                 <th class="text-right">Unit Cost</th>
                 <th class="text-right">Total Cost</th>
                 <th class="text-right">Markup</th>
                 <th class="text-right">GR %</th>
-                <th class="text-right">Total w/ mrkup</th>
+                <th class="text-right">Total w/ Markup</th>
                 <th class="text-right">Final Unit</th>
                 <th class="text-center">✓</th>
                 <th></th>
@@ -195,8 +193,7 @@
                      ? (item.quantity > 0 ? liTotal / Number(item.quantity) : 0)
                      : (Number(item.final_unit_cost) || 0); %>
                 <tr class="bg-recon-deeper/20 hover:bg-recon-cloud/20" style="cursor:pointer" onclick="var n=this.nextElementSibling;while(n&&n.classList.contains('rfp-sub-row')){n.style.display=n.style.display==='none'?'':'none';n=n.nextElementSibling;}">
-                  <td><form id="<%= itemFormId %>" action="/projects/rfps/items/<%= item.id %>" method="POST" onclick="event.stopPropagation();"></form><textarea form="<%= itemFormId %>" name="description" class="input text-xs py-0.5 font-medium w-full" placeholder="Item" rows="1" data-autosize><%= item.description %></textarea></td>
-                  <td><input form="<%= itemFormId %>" name="location" value="<%= item.location || '' %>" class="input text-xs py-0.5 w-full" placeholder="Location"></td>
+                  <td><form id="<%= itemFormId %>" action="/projects/rfps/items/<%= item.id %>" method="POST" onclick="event.stopPropagation();"></form><textarea form="<%= itemFormId %>" name="description" class="input text-xs py-0.5 font-medium w-full" placeholder="Item description" rows="1" data-autosize><%= item.description %></textarea></td>
                   <td class="text-right"><input form="<%= itemFormId %>" name="quantity" type="number" step="any" value="<%= item.quantity != null ? item.quantity : '' %>" class="input text-xs py-0.5 w-12 text-right"></td>
                   <td class="text-right font-medium">$<%= (liApprovedSubs > 0 ? liUnit : Number(item.unit_cost) || 0).toFixed(2) %></td>
                   <td class="text-right font-medium">$<%= (liApprovedSubs > 0 ? liTotal : Number(item.total_cost) || 0).toFixed(2) %></td>
@@ -215,7 +212,7 @@
                 <!-- D-105: Sub-line items under this line item (initially hidden, toggled by clicking parent) -->
                 <!-- D-105b: Add sub-line row + inline form (parent_id pre-filled) -->
                 <tr class="rfp-sub-row bg-recon-deeper/5">
-                  <td colspan="12" class="pl-4 py-1.5">
+                  <td colspan="10" class="pl-4 py-1.5">
                     <button type="button" onclick="document.getElementById('add-sub-<%= item.id %>').classList.toggle('hidden'); event.stopPropagation();" class="text-xs text-recon-red hover:underline">+ Add sub-line under "<%= item.description || 'item' %>"</button>
                     <div id="add-sub-<%= item.id %>" class="hidden mt-2 p-2 bg-recon-cloud/10 border border-recon-mist rounded">
                       <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/items" method="POST" class="rfp-line-form grid grid-cols-2 md:grid-cols-6 gap-2 text-xs" onclick="event.stopPropagation();">
@@ -237,11 +234,18 @@
                 <% children.forEach(function(sub){ %>
                   <% var subFid = 'rfp-sub-form-' + sub.id; var subDid = 'rfp-sub-del-' + sub.id; %>
                   <tr class="rfp-sub-row">
-                    <td class="pl-4 text-recon-fog text-xs"><form id="<%= subFid %>" action="/projects/rfps/items/<%= sub.id %>" method="POST"></form><textarea form="<%= subFid %>" name="description" class="input text-xs py-0.5 w-full" placeholder="Sub description" rows="1" data-autosize><%= sub.description %></textarea></td>
-                    <td></td>
+                    <td class="pl-6 text-recon-fog text-xs">
+                      <form id="<%= subFid %>" action="/projects/rfps/items/<%= sub.id %>" method="POST"></form>
+                      <div class="flex flex-col gap-1">
+                        <input form="<%= subFid %>" name="vendor" value="<%= sub.vendor || '' %>" class="input text-xs py-0.5 w-full" placeholder="Vendor or contractor" list="rfp-line-entity-options" autocomplete="off">
+                        <textarea form="<%= subFid %>" name="description" class="input text-xs py-0.5 w-full" placeholder="Sub-line description" rows="1" data-autosize><%= sub.description %></textarea>
+                      </div>
+                    </td>
                     <td class="text-right"><input form="<%= subFid %>" name="quantity" type="number" step="any" value="<%= sub.quantity != null ? sub.quantity : '' %>" class="input text-xs py-0.5 w-12 text-right"></td>
-                    <td class="text-right"><input form="<%= subFid %>" name="contractor_cost" type="number" step="any" value="<%= sub.contractor_cost != null ? sub.contractor_cost : '' %>" class="input text-xs py-0.5 w-16 text-right" placeholder="Contr"><br><input form="<%= subFid %>" name="vendor_cost" type="number" step="any" value="<%= sub.vendor_cost != null ? sub.vendor_cost : '' %>" class="input text-xs py-0.5 w-16 text-right" placeholder="Vendor"></td>
-                    <td class="text-right"><%= sub.unit_cost != null ? '$' + Number(sub.unit_cost).toFixed(2) : '-' %></td>
+                    <td class="text-right">
+                      <input form="<%= subFid %>" name="contractor_cost" type="number" step="any" value="<%= sub.contractor_cost != null ? sub.contractor_cost : '' %>" class="input text-xs py-0.5 w-16 text-right" placeholder="Contr">
+                      <input form="<%= subFid %>" name="vendor_cost" type="number" step="any" value="<%= sub.vendor_cost != null ? sub.vendor_cost : '' %>" class="input text-xs py-0.5 w-16 text-right mt-0.5" placeholder="Vendor">
+                    </td>
                     <td class="text-right"><%= sub.total_cost != null ? '$' + Number(sub.total_cost).toFixed(2) : '-' %></td>
                     <td class="text-right"><input form="<%= subFid %>" name="markup_pct" type="number" step="any" value="<%= sub.markup_pct != null ? sub.markup_pct : '20' %>" class="input text-xs py-0.5 w-12 text-right"></td>
                     <td class="text-right"><input form="<%= subFid %>" name="general_requirements_pct" type="number" step="any" value="<%= sub.general_requirements_pct != null ? sub.general_requirements_pct : '6' %>" class="input text-xs py-0.5 w-12 text-right"></td>
@@ -257,12 +261,12 @@
                 <% }); %>
               <% }); %>
               <% if (items.length === 0) { %>
-                <tr><td colspan="12" class="text-center text-recon-fog py-4">No line items yet. Click + Add item to add one.</td></tr>
+                <tr><td colspan="10" class="text-center text-recon-fog py-4">No line items yet. Click + Add item to add one.</td></tr>
               <% } %>
             </tbody>
             <tfoot>
               <tr class="font-semibold bg-recon-deeper/50">
-                <td colspan="10" class="text-right">Grand Total (approved)</td>
+                <td colspan="8" class="text-right">Grand Total (approved)</td>
                 <td class="text-right text-recon-red">$<%= grandTotal.toFixed(2) %></td>
                 <td></td>
               </tr>
