@@ -465,6 +465,136 @@ html.dark .sc-hour-line {
 html.dark .sc-hour-line.anchor-hour {
   border-top-color: var(--dark-border-strong) !important;
 }
+/* Hour gutter labels (6:00, 7:00, etc.) */
+html.dark .sc-hour-label {
+  color: var(--dark-text-muted) !important;
+}
+/* Sidebar background + pills */
+html.dark .sc-sidebar {
+  background: var(--dark-surface) !important;
+  border-right-color: var(--dark-border) !important;
+}
+html.dark .sc-sb-header {
+  color: var(--dark-text-muted) !important;
+  border-bottom-color: var(--dark-border) !important;
+}
+html.dark .sc-sb-pill {
+  background: var(--dark-elevated) !important;
+  border-color: var(--dark-border) !important;
+}
+html.dark .sc-sb-pill-job,
+html.dark .sc-sb-pill-assignee {
+  color: var(--dark-text-muted) !important;
+}
+html.dark .sc-sb-chip {
+  background: var(--dark-border) !important;
+  color: var(--dark-text-muted) !important;
+}
+/* Unscheduled sidebar empty state */
+html.dark .sc-sb-empty {
+  color: #34d399 !important;
+}
+/* View toggle bar */
+html.dark .sc-view-toggle a {
+  color: var(--dark-text-muted) !important;
+}
+html.dark .sc-view-toggle a:hover {
+  color: var(--dark-text) !important;
+}
+html.dark .sc-view-toggle a.active {
+  color: #e63946 !important;
+  border-bottom-color: #e63946 !important;
+}
+/* Month view: view-toggle has border style */
+html.dark .sc-view-toggle a {
+  border-color: var(--dark-border-strong) !important;
+}
+html.dark .sc-view-toggle a:hover {
+  background: var(--dark-hover) !important;
+}
+html.dark .sc-view-toggle a.active {
+  background: #c0202b !important;
+  color: #fff !important;
+  border-color: #c0202b !important;
+}
+html.dark .sc-toggle-sep {
+  background: var(--dark-border) !important;
+}
+/* Today button */
+html.dark .sc-today-btn {
+  background: var(--dark-elevated) !important;
+  color: var(--dark-text) !important;
+  border-color: var(--dark-border-strong) !important;
+}
+html.dark .sc-today-btn:hover {
+  background: var(--dark-hover) !important;
+}
+/* Today column highlight */
+html.dark .sc-day-col.is-today {
+  background: rgba(37, 99, 235, 0.06) !important;
+}
+html.dark .sc-day-header.is-today {
+  background: var(--dark-elevated) !important;
+}
+html.dark .sc-day-header.is-today .sc-day-num {
+  color: #60a5fa !important;
+}
+/* Month view cells */
+html.dark .sc-month-day {
+  border-right-color: var(--dark-border) !important;
+  border-bottom-color: var(--dark-border) !important;
+}
+html.dark .sc-month-day.other-month {
+  background: var(--dark-surface) !important;
+}
+html.dark .sc-month-day.other-month .sc-day-num {
+  color: var(--dark-border-strong) !important;
+}
+html.dark .sc-month-day.is-today {
+  border-top-color: #e63946 !important;
+}
+html.dark .sc-month-grid {
+  border-left-color: var(--dark-border) !important;
+  border-top-color: var(--dark-border) !important;
+}
+html.dark .sc-wo-pill.sc-unassigned {
+  color: var(--dark-text-muted) !important;
+  background-image: repeating-linear-gradient(45deg, var(--dark-elevated) 0 6px, var(--dark-surface) 6px 12px) !important;
+  border-color: var(--dark-border) !important;
+}
+html.dark .sc-more-link {
+  color: #60a5fa !important;
+}
+html.dark .sc-month-day .sc-day-num {
+  color: var(--dark-text) !important;
+}
+/* Closures overlay */
+html.dark .sc-closure-overlay {
+  background-color: var(--dark-surface) !important;
+  color: var(--dark-text-muted) !important;
+}
+/* Hour grid background */
+html.dark .sc-day-col {
+  background: transparent !important;
+}
+html.dark .sc-grid-wrap {
+  background: var(--dark-bg) !important;
+}
+/* Header select */
+html.dark .sc-header select {
+  background: var(--dark-elevated) !important;
+  color: var(--dark-text) !important;
+  border-color: var(--dark-border-strong) !important;
+}
+/* New WO button */
+html.dark .sc-header a[href*="/work-orders/new"] {
+  color: var(--dark-text) !important;
+  background: var(--dark-elevated) !important;
+  border-color: var(--dark-border-strong) !important;
+}
+html.dark .sc-header a[href*="/work-orders/new"]:hover {
+  background: var(--dark-hover) !important;
+}
 /* Drag-confirm reschedule card (was white) */
 html.dark .sc-confirm-card {
   background: var(--dark-elevated) !important;
