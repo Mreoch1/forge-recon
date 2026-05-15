@@ -9,7 +9,7 @@
 
   <div class="mb-6">
     <h1 class="page-h1">RFP / Bid Comparison</h1>
-    <p class="text-sm text-recon-fog mt-1">Project: <a href="/projects/<%= job.id %>" class="text-recon-red hover:underline"><%= job.title %></a></p>
+    <p class="text-sm text-recon-fog mt-1">Project: <a href="/projects/<%= job.id %>" class="text-recon-red hover:underline"><%= job.title || job.name %></a></p>
   </div>
 
   <!-- Combined vendor + contractor autocomplete options -->
