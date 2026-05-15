@@ -541,6 +541,7 @@ html.dark .sc-day-header.is-today .sc-day-num {
 }
 /* Month view cells */
 html.dark .sc-month-day {
+  background: transparent !important;
   border-right-color: var(--dark-border) !important;
   border-bottom-color: var(--dark-border) !important;
 }

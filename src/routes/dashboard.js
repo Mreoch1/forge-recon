@@ -367,6 +367,8 @@ router.get('/forge/tutorial', async (req, res) => {
 router.get('/forge/tutorial/state', async (req, res) => {
   const sessionId = req.session?.tutorialSessionId;
   if (!sessionId) return res.status(404).json({ error: 'No active tutorial' });
+  const { loadChapters } = require('../services/tutorial-content');
+  loadChapters();
   const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase, req.session);
   const ch = state.getCurrentChapter();
   const tc = require('../services/tutorial-content');
@@ -386,6 +388,10 @@ router.get('/forge/tutorial/state', async (req, res) => {
 router.post('/forge/tutorial/advance', async (req, res) => {
   const sessionId = req.session?.tutorialSessionId;
   if (!sessionId) return res.status(404).json({ error: 'No active tutorial' });
+
+  // Ensure chapters are loaded (serverless instances may not share state)
+  const { loadChapters } = require('../services/tutorial-content');
+  loadChapters();
 
   const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase, req.session);
   const { action, payload } = req.body;
@@ -441,6 +447,8 @@ router.post('/forge/tutorial/cleanup', async (req, res) => {
   const sessionId = req.session?.tutorialSessionId;
   if (!sessionId) return res.status(404).json({ error: 'No active tutorial' });
 
+  const { loadChapters } = require('../services/tutorial-content');
+  loadChapters();
   const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase, req.session);
   state.cleanupChosen = 'cleanup';
 
@@ -463,6 +471,8 @@ router.post('/forge/tutorial/keep', async (req, res) => {
   const sessionId = req.session?.tutorialSessionId;
   if (!sessionId) return res.status(404).json({ error: 'No active tutorial' });
 
+  const { loadChapters } = require('../services/tutorial-content');
+  loadChapters();
   const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase, req.session);
   state.cleanupChosen = 'keep';
 
