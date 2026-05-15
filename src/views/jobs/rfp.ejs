@@ -127,7 +127,7 @@
         <!-- Add item form -->
         <div id="rfp-item-form-<%= rfp.id %>" class="hidden p-3 bg-recon-deeper/30 border-b border-recon-mist">
           <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/items" method="POST" class="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
-            <input name="vendor" class="input rfp-vendor-autocomplete" placeholder="Vendor/supplier" autocomplete="off">
+            <input name="vendor" class="input rfp-vendor-autocomplete" placeholder="Vendor or contractor" autocomplete="off" list="rfp-line-entity-options">
             <input name="description" placeholder="Description" class="input" required>
             <input name="quantity" type="number" step="any" placeholder="Qty" class="input">
             <input name="contractor_cost" type="number" step="any" placeholder="Contr. cost" class="input">
