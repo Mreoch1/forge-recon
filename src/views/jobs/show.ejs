@@ -119,13 +119,6 @@ workOrders.filter(w => w.parent_wo_id).forEach(s => {
     }) %>
   </div>
 
-  <!-- D-093: RFP / Bid comparison -->
-  <%- include('_rfp_table', {
-    job: job, rfps: rfps || [],
-    rfpItemsMap: typeof rfpItemsMap !== 'undefined' ? rfpItemsMap : {},
-    rfpFmt: function(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
-  }) %>
-
   <!-- D-007: Members -->
   <details class="mb-6">
     <summary class="cursor-pointer text-sm font-medium text-recon-fog mb-2 hover:text-recon-red">Project team</summary>

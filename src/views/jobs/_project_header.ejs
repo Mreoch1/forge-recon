@@ -26,6 +26,7 @@ var custSiteSame = job.customers && (job.address === job.customers.address) && (
         </p>
       </div>
       <div class="flex gap-2">
+        <a href="/projects/<%= job.id %>/rfp" class="btn btn-secondary">RFP</a>
         <a href="/projects/<%= job.id %>/edit" class="btn btn-secondary">Edit</a>
         <a href="/work-orders/new?job_id=<%= job.id %>" class="btn btn-primary">+ Work order</a>
       </div>

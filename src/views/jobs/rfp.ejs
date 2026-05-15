@@ -1,0 +1,197 @@
+<%- include('../layouts/header', { title: 'RFP — ' + job.title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<div class="max-w-7xl mx-auto px-4 py-6">
+  <div class="mb-4 flex items-center justify-between">
+    <a href="/projects/<%= job.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; Back to <%= job.title %></a>
+    <button onclick="document.getElementById('rfp-new-form').classList.toggle('hidden')"
+            class="btn btn-primary text-sm">+ New RFP</button>
+  </div>
+
+  <div class="mb-6">
+    <h1 class="page-h1">RFP / Bid Comparison</h1>
+    <p class="text-sm text-recon-fog mt-1">Project: <a href="/projects/<%= job.id %>" class="text-recon-red hover:underline"><%= job.title %></a></p>
+  </div>
+
+  <!-- New RFP form (hidden by default) -->
+  <div id="rfp-new-form" class="hidden card p-4 mb-6 bg-recon-deeper border-recon-mist">
+    <h3 class="text-sm font-semibold mb-3">New RFP</h3>
+    <form action="/projects/<%= job.id %>/rfps" method="POST" class="flex gap-3 items-end flex-wrap">
+      <div>
+        <label class="block text-xs text-recon-fog mb-1">Contractor name</label>
+        <input name="contractor_name" required class="input" placeholder="e.g. Esrepairpros">
+      </div>
+      <div>
+        <label class="block text-xs text-recon-fog mb-1">Notes (optional)</label>
+        <input name="notes" class="input" placeholder="Scope notes" style="min-width:200px">
+      </div>
+      <button type="submit" class="btn btn-primary text-sm">Add RFP</button>
+    </form>
+  </div>
+
+  <!-- RFP list -->
+  <% if (!rfps || rfps.length === 0) { %>
+    <div class="card p-12 text-center text-recon-fog text-sm">
+      No RFPs yet. Click <strong>+ New RFP</strong> to add a contractor bid.
+    </div>
+  <% } else { %>
+    <% 
+    // Calculate RFP-level totals for summary cards
+    var rfpTotals = {};
+    rfps.forEach(function(r) { 
+      var items = (rfpItemsMap && rfpItemsMap[r.id]) || [];
+      var total = items.reduce(function(s, i) { return s + Number(i.total_with_markup || 0); }, 0);
+      rfpTotals[r.id] = total;
+    });
+    %>
+
+    <!-- RFP summary cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+      <% rfps.forEach(function(rfp){ %>
+        <div class="card p-4 border-l-4 <%= rfp.status === 'awarded' ? 'border-l-green-500' : rfp.status === 'submitted' ? 'border-l-blue-500' : rfp.status === 'declined' ? 'border-l-red-500' : 'border-l-recon-fog' %>">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-semibold text-base"><%= rfp.contractor_name %></span>
+            <span class="badge badge-<%= rfp.status %>"><%= rfp.status %></span>
+          </div>
+          <p class="text-2xl font-bold <%= rfp.status === 'awarded' ? 'text-green-700' : 'text-recon-charcoal' %>">
+            $<%= rfpTotals[rfp.id].toFixed(2) %>
+          </p>
+          <p class="text-xs text-recon-fog mt-1">Total bid amount</p>
+          <% if (rfp.notes) { %><p class="text-xs text-recon-fog mt-2 italic"><%= rfp.notes %></p><% } %>
+          <div class="mt-3 pt-3 border-t border-recon-mist flex gap-2 text-xs">
+            <button onclick="document.getElementById('rfp-items-<%= rfp.id %>').classList.toggle('hidden')"
+                    class="text-recon-red hover:underline">View items</button>
+            <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>" method="POST" class="inline">
+              <select name="status" onchange="this.form.submit()" class="text-xs border rounded px-1 py-0.5">
+                <option value="">— Update status —</option>
+                <option value="pending" <%= rfp.status === 'pending' ? 'selected' : '' %>>Pending</option>
+                <option value="submitted" <%= rfp.status === 'submitted' ? 'selected' : '' %>>Submitted</option>
+                <option value="awarded" <%= rfp.status === 'awarded' ? 'selected' : '' %>>Awarded</option>
+                <option value="declined" <%= rfp.status === 'declined' ? 'selected' : '' %>>Declined</option>
+              </select>
+            </form>
+            <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>?_method=DELETE" method="POST"
+                  onsubmit="return confirm('Delete this RFP and all its items?')" class="inline">
+              <button class="text-recon-fog hover:text-recon-red">Delete</button>
+            </form>
+          </div>
+        </div>
+      <% }); %>
+    </div>
+
+    <!-- Detailed RFP tables (collapsible) -->
+    <% rfps.forEach(function(rfp){ %>
+      <div id="rfp-items-<%= rfp.id %>" class="card overflow-hidden mb-6">
+        <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
+          <h3 class="font-semibold"><%= rfp.contractor_name %> — Line Items</h3>
+          <button onclick="document.getElementById('rfp-item-form-<%= rfp.id %>').classList.toggle('hidden')"
+                  class="text-sm text-recon-red hover:underline">+ Add item</button>
+        </div>
+
+        <!-- Add item form -->
+        <div id="rfp-item-form-<%= rfp.id %>" class="hidden p-3 bg-recon-deeper/30 border-b border-recon-mist">
+          <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/items" method="POST" class="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+            <input name="vendor" placeholder="Vendor/supplier" class="input">
+            <input name="description" placeholder="Description" class="input" required>
+            <input name="quantity" type="number" step="any" placeholder="Qty" class="input">
+            <input name="contractor_cost" type="number" step="any" placeholder="Contr. cost" class="input">
+            <input name="vendor_cost" type="number" step="any" placeholder="Vendor cost" class="input">
+            <input name="unit_cost" type="number" step="any" placeholder="Unit cost" class="input">
+            <input name="total_cost" type="number" step="any" placeholder="Total cost" class="input">
+            <div class="flex gap-1 items-center">
+              <input name="markup_pct" type="number" step="any" placeholder="Markup %" value="20" class="input w-16">
+              <span class="text-recon-fog">%</span>
+              <button type="submit" class="btn btn-primary text-xs ml-1">Add</button>
+            </div>
+            <input name="parent_id" type="hidden" value="">
+          </form>
+        </div>
+
+        <!-- Line items table -->
+        <%
+        var items = (rfpItemsMap && rfpItemsMap[rfp.id] ? rfpItemsMap[rfp.id].filter(function(i) { return !i.parent_line_item_id; }) : []);
+        var subItems = {};
+        if (rfpItemsMap && rfpItemsMap[rfp.id]) {
+          rfpItemsMap[rfp.id].filter(function(i) { return i.parent_line_item_id; }).forEach(function(s) {
+            (subItems[s.parent_line_item_id] = subItems[s.parent_line_item_id] || []).push(s);
+          });
+        }
+        var grandTotal = items.reduce(function(s, i) { return s + Number(i.total_with_markup || 0); }, 0);
+        %>
+        <div class="overflow-x-auto">
+          <table class="data text-xs">
+            <thead>
+              <tr>
+                <th>Vendor</th>
+                <th>Description</th>
+                <th class="text-right">Qty</th>
+                <th class="text-right">Contr. Cost</th>
+                <th class="text-right">Vendor Cost</th>
+                <th class="text-right">Unit Cost</th>
+                <th class="text-right">Total Cost</th>
+                <th class="text-right">Markup</th>
+                <th class="text-right">Total w/ mrkup</th>
+                <th class="text-right">Final Unit</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <% items.forEach(function(item){ %>
+                <tr>
+                  <td><%= item.vendor || '—' %></td>
+                  <td><%= item.description %></td>
+                  <td class="text-right"><%= item.quantity != null ? Number(item.quantity).toFixed(2) : '—' %></td>
+                  <td class="text-right"><%= item.contractor_cost != null ? '$' + Number(item.contractor_cost).toFixed(2) : '—' %></td>
+                  <td class="text-right"><%= item.vendor_cost != null ? '$' + Number(item.vendor_cost).toFixed(2) : '—' %></td>
+                  <td class="text-right"><%= item.unit_cost != null ? '$' + Number(item.unit_cost).toFixed(2) : '—' %></td>
+                  <td class="text-right"><%= item.total_cost != null ? '$' + Number(item.total_cost).toFixed(2) : '—' %></td>
+                  <td class="text-right"><%= item.markup_pct != null ? Number(item.markup_pct).toFixed(1) + '%' : '—' %></td>
+                  <td class="text-right font-medium"><%= item.total_with_markup != null ? '$' + Number(item.total_with_markup).toFixed(2) : '—' %></td>
+                  <td class="text-right font-medium"><%= item.final_unit_cost != null ? '$' + Number(item.final_unit_cost).toFixed(2) : '—' %></td>
+                  <td class="text-right">
+                    <form action="/projects/rfps/items/<%= item.id %>?_method=DELETE" method="POST"
+                          onsubmit="return confirm('Delete this line item?')" class="inline">
+                      <button class="text-recon-fog hover:text-recon-red text-xs">&times;</button>
+                    </form>
+                  </td>
+                </tr>
+                <% (subItems[item.id] || []).forEach(function(sub){ %>
+                  <tr class="text-recon-fog">
+                    <td class="pl-4">└ <%= sub.vendor || '—' %></td>
+                    <td><%= sub.description %></td>
+                    <td class="text-right"><%= sub.quantity != null ? Number(sub.quantity).toFixed(2) : '—' %></td>
+                    <td class="text-right"><%= sub.contractor_cost != null ? '$' + Number(sub.contractor_cost).toFixed(2) : '—' %></td>
+                    <td class="text-right"><%= sub.vendor_cost != null ? '$' + Number(sub.vendor_cost).toFixed(2) : '—' %></td>
+                    <td class="text-right"><%= sub.unit_cost != null ? '$' + Number(sub.unit_cost).toFixed(2) : '—' %></td>
+                    <td class="text-right"><%= sub.total_cost != null ? '$' + Number(sub.total_cost).toFixed(2) : '—' %></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td>
+                      <form action="/projects/rfps/items/<%= sub.id %>?_method=DELETE" method="POST"
+                            onsubmit="return confirm('Delete?')" class="inline">
+                        <button class="text-recon-fog hover:text-recon-red text-xs">&times;</button>
+                      </form>
+                    </td>
+                  </tr>
+                <% }); %>
+              <% }); %>
+              <% if (items.length === 0) { %>
+                <tr><td colspan="11" class="text-center text-recon-fog py-4">No line items yet. Click + Add item to add one.</td></tr>
+              <% } %>
+            </tbody>
+            <tfoot>
+              <tr class="font-semibold bg-recon-deeper/50">
+                <td colspan="8" class="text-right">Grand Total</td>
+                <td class="text-right text-recon-red">$<%= grandTotal.toFixed(2) %></td>
+                <td></td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    <% }); %>
+  <% } %>
+</div>
+
+<%- include('../layouts/footer') %>

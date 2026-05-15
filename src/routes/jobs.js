@@ -364,6 +364,25 @@ router.get('/:id', async (req, res) => {
   const decisions = decisionsResult.data;
   const rfps = rfpsResult.error ? [] : rfpsResult.data;
 
+  // D-078: pull awarded RFP amounts into cost_committed
+  if (rfps && rfps.length) {
+    try {
+      const rfpIds = rfps.filter(r => r.status === 'awarded').map(r => r.id);
+      if (rfpIds.length) {
+        const { data: rfpItemTotals } = await supabase
+          .from('rfp_line_items')
+          .select('total_with_markup')
+          .in('rfp_id', rfpIds);
+        const rfpCommitted = (rfpItemTotals || []).reduce((s, i) => s + Number(i.total_with_markup || 0), 0);
+        financials.cost_committed = (financials.cost_committed || 0) + rfpCommitted;
+        // Recalculate projected profit
+        financials.profit_projected = (financials.revenue_projected || 0) - (financials.cost_committed || 0) - (financials.cost_actual || 0);
+      }
+    } catch (e) {
+      if (!isMissingOptionalRfpTable(e)) throw e;
+    }
+  }
+
   const paymentTotal = (payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
 
   // Resolve approver names for change orders (avoid ambiguous users FK alias).
