@@ -20,7 +20,11 @@ class TutorialState {
     this.startedAt = new Date().toISOString();
   }
 
-  static async load(sessionId, userId, supabase) {
+  static async load(sessionId, userId, supabase, session) {
+    // If we have session-cached state, restore it
+    if (session?.tutorialState && session.tutorialState.sessionId === sessionId) {
+      return Object.assign(new TutorialState(sessionId, userId), session.tutorialState);
+    }
     try {
       const { data, error } = await supabase
         .from('tutorial_sessions')
@@ -31,25 +35,27 @@ class TutorialState {
       if (error) throw error;
       if (data?.state_json) return Object.assign(new TutorialState(sessionId, userId), data.state_json);
     } catch (e) {
-      // Table might not exist yet — create it on first use
-      try {
-        await supabase.rpc('exec_sql', { sql: `
-          CREATE TABLE IF NOT EXISTS tutorial_sessions (
-            id UUID PRIMARY KEY,
-            user_id BIGINT NOT NULL,
-            state_json JSONB NOT NULL DEFAULT '{}',
-            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-          );
-        ` });
-      } catch (e2) {
-        // RPC might not exist either — just fall through to fresh state
-      }
+      // Table might not exist yet
     }
     return new TutorialState(sessionId, userId);
   }
 
-  async save(supabase) {
+  async save(supabase, session) {
+    // Always cache in session for reliable cross-request persistence
+    if (session) {
+      session.tutorialState = {
+        sessionId: this.sessionId,
+        currentChapter: this.currentChapter,
+        currentStep: this.currentStep,
+        completedChapters: this.completedChapters,
+        createdEntityIds: this.createdEntityIds,
+        quizAnswers: this.quizAnswers,
+        quizSubmitted: this.quizSubmitted,
+        quizWeakSpots: this.quizWeakSpots,
+        cleanupChosen: this.cleanupChosen,
+        startedAt: this.startedAt,
+      };
+    }
     try {
       const { error } = await supabase.from('tutorial_sessions').upsert({
         id: this.sessionId,
@@ -69,7 +75,7 @@ class TutorialState {
       }, { onConflict: 'id' });
       if (error) throw error;
     } catch (e) {
-      // Silently fail — tutorial works in-memory without persistence
+      // Supabase persistence unavailable — session-only mode is fine
     }
   }
 

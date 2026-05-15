@@ -337,8 +337,8 @@ router.get('/forge/tutorial', async (req, res) => {
   const sessionId = req.session?.tutorialSessionId || crypto.randomUUID();
   if (req.session) req.session.tutorialSessionId = sessionId;
 
-  const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase);
-  await state.save(supabase);
+  const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase, req.session);
+  await state.save(supabase, req.session);
   const currentChapter = state.getCurrentChapter();
   const currentStep = state.getCurrentStep();
   const tc = require('../services/tutorial-content');
@@ -367,7 +367,7 @@ router.get('/forge/tutorial', async (req, res) => {
 router.get('/forge/tutorial/state', async (req, res) => {
   const sessionId = req.session?.tutorialSessionId;
   if (!sessionId) return res.status(404).json({ error: 'No active tutorial' });
-  const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase);
+  const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase, req.session);
   const ch = state.getCurrentChapter();
   const tc = require('../services/tutorial-content');
   res.json({
@@ -387,7 +387,7 @@ router.post('/forge/tutorial/advance', async (req, res) => {
   const sessionId = req.session?.tutorialSessionId;
   if (!sessionId) return res.status(404).json({ error: 'No active tutorial' });
 
-  const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase);
+  const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase, req.session);
   const { action, payload } = req.body;
 
   const result = state.processAction(action, payload, supabase);
@@ -412,7 +412,7 @@ router.post('/forge/tutorial/advance', async (req, res) => {
     // record_answer is defined per-chapter in YAML
   }
 
-  await state.save(supabase);
+  await state.save(supabase, req.session);
 
   // Inject chapterIndex + totalChapters into response for progress tracking
   const tc = require('../services/tutorial-content');
@@ -436,7 +436,7 @@ router.post('/forge/tutorial/cleanup', async (req, res) => {
   const sessionId = req.session?.tutorialSessionId;
   if (!sessionId) return res.status(404).json({ error: 'No active tutorial' });
 
-  const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase);
+  const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase, req.session);
   state.cleanupChosen = 'cleanup';
 
   // Delete in dependency order: project payments -> invoices -> estimates -> WOs -> customers
@@ -449,7 +449,7 @@ router.post('/forge/tutorial/cleanup', async (req, res) => {
 
   // Mark tutorial complete
   await assertTutorialWrite(supabase.from('users').update({ completed_tutorial_at: new Date().toISOString() }).eq('id', state.userId), 'tutorial cleanup completion update failed');
-  await state.save(supabase);
+  await state.save(supabase, req.session);
 
   res.json({ message: 'All tutorial data cleared. You\'re starting fresh.' });
 });
@@ -458,7 +458,7 @@ router.post('/forge/tutorial/keep', async (req, res) => {
   const sessionId = req.session?.tutorialSessionId;
   if (!sessionId) return res.status(404).json({ error: 'No active tutorial' });
 
-  const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase);
+  const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase, req.session);
   state.cleanupChosen = 'keep';
 
   // Strip tutorial_session_id from all created entities
@@ -477,7 +477,7 @@ router.post('/forge/tutorial/keep', async (req, res) => {
   }
 
   await assertTutorialWrite(supabase.from('users').update({ completed_tutorial_at: new Date().toISOString() }).eq('id', state.userId), 'tutorial keep completion update failed');
-  await state.save(supabase);
+  await state.save(supabase, req.session);
 
   res.json({ message: 'Kept your tutorial records. Find them in your Customers list.' });
 });
