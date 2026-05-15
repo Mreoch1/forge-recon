@@ -25,7 +25,7 @@ function isMissingOptionalRfpTable(error) {
 router.get('/projects/:id/rfp', async (req, res) => {
   const jobId = req.params.id;
 
-  const [{ data: job, error: jobError }, { data: rfps, error: rfpsError }, { data: vendorsResult, error: vendorsError }, { data: contractorsResult, error: contractorsError }] = await Promise.all([
+  const [{ data: job, error: jobError }, { data: rfps, error: rfpsError }, { data: vendors, error: vendorsError }, { data: contractors, error: contractorsError }] = await Promise.all([
     supabase.from('jobs').select('*, customers!inner(name)').eq('id', jobId).maybeSingle(),
     supabase
       .from('project_rfps')
@@ -69,8 +69,8 @@ router.get('/projects/:id/rfp', async (req, res) => {
     rfps: rfpsError ? [] : (rfps || []),
     rfpItemsMap,
     customers: job.customers || {},
-    vendors: (vendorsResult && vendorsResult.data) || [],
-    contractors: (contractorsResult && contractorsResult.data) || [],
+    vendors: vendors || [],
+    contractors: contractors || [],
   });
 });
 
