@@ -96,21 +96,23 @@
           <% rfps.forEach(function(rfp){ %>
             <tr class="cursor-pointer hover:bg-recon-cloud/20" onclick="var el=document.getElementById('rfp-items-<%= rfp.id %>');var icon=document.getElementById('rfp-chev-<%= rfp.id %>');el.classList.toggle('hidden');if(icon){icon.textContent=el.classList.contains('hidden')?'▶':'▼';}">
               <td>
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1">
                   <button type="button" id="rfp-chev-<%= rfp.id %>"
-                          class="text-recon-fog hover:text-recon-red text-base leading-none px-1 select-none"
-                          style="min-width:1.25rem;"
+                          class="text-recon-fog hover:text-recon-red text-lg leading-none px-1.5 py-1 select-none"
+                          style="min-width:1.75rem;"
                           onclick="event.stopPropagation();var el=document.getElementById('rfp-items-<%= rfp.id %>');el.classList.toggle('hidden');this.textContent=el.classList.contains('hidden')?'▶':'▼';"
                           aria-label="Toggle line items">▶</button>
-                  <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>" method="POST" class="flex items-center gap-1" onclick="event.stopPropagation()"
-                        onsubmit="this.querySelector('input').removeAttribute('disabled');">
-                    <span class="font-semibold text-sm cursor-pointer hover:text-recon-red"
-                          onclick="var p=this.parentElement;var i=p.querySelector('input');i.value=this.textContent.trim();this.style.display='none';i.style.display='inline';i.focus();p.querySelector('button').style.display='inline-block';">
-                      <%= rfp.contractor_name %>
-                    </span>
-                    <input name="contractor_name" style="display:none" class="input text-xs py-0.5 px-1 w-32"
-                           list="rfp-tab-presets" autocomplete="off">
-                    <button type="submit" style="display:none" class="btn btn-primary text-xs py-0.5 px-1.5">Save</button>
+                  <span class="font-semibold text-sm cursor-pointer hover:text-recon-red flex-1 rfp-rename-trigger"
+                        onclick="var el=document.getElementById('rfp-items-<%= rfp.id %>');var icon=document.getElementById('rfp-chev-<%= rfp.id %>');el.classList.toggle('hidden');if(icon){icon.textContent=el.classList.contains('hidden')?'▶':'▼';}"
+                        title="Click to expand/collapse line items">
+                    <%= rfp.contractor_name %>
+                  </span>
+                  <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>" method="POST" class="flex items-center gap-1 ml-1"
+                        onsubmit="this.querySelector('input.rename-input').style.display='none';this.querySelector('.rename-save').style.display='none';this.querySelector('input').removeAttribute('disabled');">
+                    <input name="contractor_name" class="input text-xs py-0.5 px-1 w-32 rename-input" style="display:none"
+                           list="rfp-tab-presets" autocomplete="off"
+                           onblur="var s=this.previousElementSibling;if(s){s.style.display='';}this.style.display='none';this.nextElementSibling.style.display='none';">
+                    <button type="submit" style="display:none" class="btn btn-primary text-xs py-0.5 px-1.5 rename-save">Save</button>
                   </form>
                 </div>
               </td>
@@ -173,6 +175,18 @@
         %>
         <div class="overflow-x-auto">
           <table class="data text-xs rfp-items-table" data-rfp-id="<%= rfp.id %>">
+            <colgroup>
+              <col class="w-[28%]">
+              <col class="w-[8%]">
+              <col class="w-[12%]">
+              <col class="w-[10%]">
+              <col class="w-[8%]">
+              <col class="w-[8%]">
+              <col class="w-[10%]">
+              <col class="w-[8%]">
+              <col class="w-10">
+              <col class="w-[6%]">
+            </colgroup>
             <thead>
               <tr>
                 <th class="w-[28%]">Description</th>
@@ -201,7 +215,7 @@
                      : (Number(item.final_unit_cost) || 0); %>
                 <tr class="bg-recon-deeper/20 hover:bg-recon-cloud/20" style="cursor:pointer" onclick="var n=this.nextElementSibling;while(n&&n.classList.contains('rfp-sub-row')){n.style.display=n.style.display==='none'?'':'none';n=n.nextElementSibling;}">
                   <td><form id="<%= itemFormId %>" action="/projects/rfps/items/<%= item.id %>" method="POST" onclick="event.stopPropagation();"></form><textarea form="<%= itemFormId %>" name="description" class="input text-xs py-0.5 font-medium w-full" placeholder="Item description" rows="1" data-autosize><%= item.description %></textarea></td>
-                  <td class="text-right"><input form="<%= itemFormId %>" name="quantity" type="number" step="any" value="<%= item.quantity != null ? item.quantity : '' %>" class="input text-xs py-0.5 w-12 text-right"></td>
+                  <td class="text-right"><input form="<%= itemFormId %>" name="quantity" type="number" step="any" value="<%= item.quantity != null ? item.quantity : '' %>" class="input text-xs py-0.5 w-16 text-right"></td>
                   <td class="text-right font-medium">$<%= (liApprovedSubs > 0 ? liUnit : Number(item.unit_cost) || 0).toFixed(2) %></td>
                   <td class="text-right font-medium">$<%= (liApprovedSubs > 0 ? liTotal : Number(item.total_cost) || 0).toFixed(2) %></td>
                   <td class="text-right text-xs text-recon-fog">—</td>
@@ -223,11 +237,11 @@
                     <button type="button" onclick="document.getElementById('add-sub-<%= item.id %>').classList.toggle('hidden'); event.stopPropagation();" class="text-xs text-recon-red hover:underline">+ Add sub-line under "<%= item.description || 'item' %>"</button>
                     <div id="add-sub-<%= item.id %>" class="hidden mt-2 p-2 bg-recon-cloud/10 border border-recon-mist rounded">
                       <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/items" method="POST" class="rfp-line-form grid grid-cols-2 md:grid-cols-6 gap-2 text-xs" onclick="event.stopPropagation();">
-                        <input name="vendor" class="input" placeholder="Vendor or contractor" autocomplete="off" list="rfp-line-entity-options">
-                        <input name="description" placeholder="Sub-line description" class="input" required>
-                        <input name="quantity" data-compute-input type="number" step="any" placeholder="Qty" class="input">
-                        <input name="contractor_cost" data-compute-input type="number" step="any" placeholder="Contr. cost" class="input">
-                        <input name="vendor_cost" data-compute-input type="number" step="any" placeholder="Vendor cost" class="input">
+                        <input name="vendor" class="input w-full" placeholder="Vendor or contractor" autocomplete="off" list="rfp-line-entity-options">
+                        <textarea name="description" placeholder="Sub-line description" class="input w-full" rows="1" data-autosize required></textarea>
+                        <input name="quantity" data-compute-input type="number" step="any" placeholder="Qty" class="input w-16">
+                        <input name="contractor_cost" data-compute-input type="number" step="any" placeholder="Contr. cost" class="input w-20">
+                        <input name="vendor_cost" data-compute-input type="number" step="any" placeholder="Vendor cost" class="input w-20">
                         <div class="flex gap-1 items-center">
                           <input name="markup_pct" data-compute-input type="number" step="any" placeholder="MU%" value="20" class="input w-14">
                           <input name="general_requirements_pct" data-compute-input type="number" step="any" placeholder="GR%" value="6" class="input w-14">
@@ -248,14 +262,14 @@
                         <textarea form="<%= subFid %>" name="description" class="input text-xs py-0.5 w-full" placeholder="Sub-line description" rows="1" data-autosize><%= sub.description %></textarea>
                       </div>
                     </td>
-                    <td class="text-right"><input form="<%= subFid %>" name="quantity" type="number" step="any" value="<%= sub.quantity != null ? sub.quantity : '' %>" class="input text-xs py-0.5 w-12 text-right"></td>
+                    <td class="text-right"><input form="<%= subFid %>" name="quantity" type="number" step="any" value="<%= sub.quantity != null ? sub.quantity : '' %>" class="input text-xs py-0.5 w-16 text-right"></td>
                     <td class="text-right">
-                      <input form="<%= subFid %>" name="contractor_cost" type="number" step="any" value="<%= sub.contractor_cost != null ? sub.contractor_cost : '' %>" class="input text-xs py-0.5 w-16 text-right" placeholder="Contr">
-                      <input form="<%= subFid %>" name="vendor_cost" type="number" step="any" value="<%= sub.vendor_cost != null ? sub.vendor_cost : '' %>" class="input text-xs py-0.5 w-16 text-right mt-0.5" placeholder="Vendor">
+                      <input form="<%= subFid %>" name="contractor_cost" type="number" step="any" value="<%= sub.contractor_cost != null ? sub.contractor_cost : '' %>" class="input text-xs py-0.5 w-20 text-right" placeholder="Contr">
+                      <input form="<%= subFid %>" name="vendor_cost" type="number" step="any" value="<%= sub.vendor_cost != null ? sub.vendor_cost : '' %>" class="input text-xs py-0.5 w-20 text-right mt-0.5" placeholder="Vendor">
                     </td>
                     <td class="text-right"><%= sub.total_cost != null ? '$' + Number(sub.total_cost).toFixed(2) : '-' %></td>
-                    <td class="text-right"><input form="<%= subFid %>" name="markup_pct" type="number" step="any" value="<%= sub.markup_pct != null ? sub.markup_pct : '20' %>" class="input text-xs py-0.5 w-12 text-right"></td>
-                    <td class="text-right"><input form="<%= subFid %>" name="general_requirements_pct" type="number" step="any" value="<%= sub.general_requirements_pct != null ? sub.general_requirements_pct : '6' %>" class="input text-xs py-0.5 w-12 text-right"></td>
+                    <td class="text-right"><input form="<%= subFid %>" name="markup_pct" type="number" step="any" value="<%= sub.markup_pct != null ? sub.markup_pct : '20' %>" class="input text-xs py-0.5 w-14 text-right"></td>
+                    <td class="text-right"><input form="<%= subFid %>" name="general_requirements_pct" type="number" step="any" value="<%= sub.general_requirements_pct != null ? sub.general_requirements_pct : '6' %>" class="input text-xs py-0.5 w-14 text-right"></td>
                     <td class="text-right font-medium"><%= sub.total_with_markup != null ? '$' + Number(sub.total_with_markup).toFixed(2) : '-' %></td>
                     <td class="text-right font-medium"><%= sub.final_unit_cost != null ? '$' + Number(sub.final_unit_cost).toFixed(2) : '-' %></td>
                     <td class="text-center"><input form="<%= subFid %>" type="hidden" name="approved" value="0"><input form="<%= subFid %>" type="checkbox" name="approved" value="1" <%= sub.approved ? 'checked' : '' %>></td>
@@ -288,8 +302,30 @@
   <% } %>
 </div>
 
-<!-- D-105: SortableJS drag-drop for line items + auto-total calculator -->
+<!-- D-105: SortableJS drag-drop + auto-total calculator + rename-on-dblclick -->
+<style>
+  /* D-120: field-sizing ensures textareas start at rows="1" even inside hidden containers */
+  .rfp-items-table textarea.input { field-sizing: content; min-height: 1.5rem; }
+</style>
 <script>
+(function(){
+  // Rename RFP tab on double-click
+  document.addEventListener('dblclick', function(e) {
+    var target = e.target.closest('.rfp-rename-trigger');
+    if (!target) return;
+    e.stopPropagation();
+    var span = target;
+    var form = span.nextElementSibling;
+    if (!form || !form.querySelector) return;
+    var inp = form.querySelector('.rename-input');
+    var btn = form.querySelector('.rename-save');
+    if (!inp) return;
+    inp.value = span.textContent.trim();
+    span.style.display = 'none';
+    inp.style.display = 'inline';
+    btn.style.display = 'inline-block';
+    inp.focus();
+  });
 (function(){
   // Drag-drop reorder
   if (typeof Sortable !== 'undefined') {
