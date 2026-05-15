@@ -32,6 +32,12 @@
   .tw-version { font-size: 0.68rem; color: #475569; font-family: 'SF Mono', monospace; }
   .tw-exit { font-size: 0.75rem; color: #64748b; text-decoration: underline; cursor: pointer; }
   .tw-exit:hover { color: #94a3b8; }
+  .tw-feedback-open {
+    border: 1px solid rgba(34,211,238,0.28); background: rgba(15,23,42,0.72);
+    color: #67e8f9; border-radius: 999px; padding: 0.36rem 0.68rem;
+    font-size: 0.75rem; font-weight: 800; cursor: pointer; white-space: nowrap;
+  }
+  .tw-feedback-open:hover { background: rgba(34,211,238,0.14); border-color: rgba(34,211,238,0.5); }
 
   /* Body — narration + diagrams */
   .tw-body {
@@ -154,9 +160,38 @@
   .tw-app-callout { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 0.75rem; color: #1e3a8a; font-size: 0.82rem; }
   .tw-app-paid-stamp { transform: rotate(-12deg); color: #15803d; border: 3px solid #22c55e; padding: 0.25rem 0.7rem; font-weight: 900; font-size: 1.4rem; display: inline-block; }
   .tw-app-highlight { outline: 3px solid rgba(34,211,238,0.85); box-shadow: 0 0 0 6px rgba(34,211,238,0.18); }
+  .tw-feedback-overlay { position: fixed; inset: 0; z-index: 50; display: none; background: rgba(2,6,23,0.62); }
+  .tw-feedback-overlay.open { display: block; }
+  .tw-feedback-modal {
+    position: fixed; z-index: 51; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: min(440px, calc(100vw - 32px)); display: none; color: #0f172a;
+    background: #ffffff; border-radius: 10px; padding: 1rem; box-shadow: 0 22px 70px rgba(2,6,23,0.42);
+  }
+  .tw-feedback-modal.open { display: block; }
+  .tw-feedback-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.75rem; }
+  .tw-feedback-title { margin: 0; font-size: 1rem; font-weight: 900; color: #0f172a; }
+  .tw-feedback-close { border: none; background: transparent; color: #64748b; cursor: pointer; font-size: 1.35rem; line-height: 1; }
+  .tw-feedback-context { margin: 0 0 0.75rem; color: #64748b; font-size: 0.78rem; }
+  .tw-feedback-label { display: grid; gap: 0.3rem; color: #334155; font-size: 0.78rem; font-weight: 800; }
+  .tw-feedback-input, .tw-feedback-textarea {
+    width: 100%; border: 1px solid #cbd5e1; border-radius: 7px; padding: 0.6rem 0.7rem;
+    font-size: 0.9rem; color: #0f172a; box-sizing: border-box;
+  }
+  .tw-feedback-textarea { min-height: 120px; resize: vertical; }
+  .tw-feedback-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.85rem; }
+  .tw-feedback-btn {
+    border: 1px solid #cbd5e1; background: #ffffff; color: #0f172a; border-radius: 7px;
+    padding: 0.55rem 0.8rem; font-weight: 900; cursor: pointer; font-size: 0.82rem;
+  }
+  .tw-feedback-btn.primary { background: #c0202b; border-color: #c0202b; color: #ffffff; }
+  .tw-feedback-status { display: none; margin-top: 0.75rem; padding: 0.65rem; border-radius: 7px; font-size: 0.84rem; }
+  .tw-feedback-status.success { display: block; background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+  .tw-feedback-status.error { display: block; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
 
   @media (max-width: 768px) {
     #tutorial-window { padding: 1.25rem 1rem; min-height: 80vh; }
+    .tw-header { align-items: flex-start; flex-wrap: wrap; }
+    .tw-progress { flex-basis: 100%; order: 3; }
     .tw-title { font-size: 1rem; }
     .tw-narration { font-size: 0.95rem; }
     .tw-app-grid, .tw-app-form.two { grid-template-columns: 1fr; }
@@ -178,6 +213,7 @@
         </div>
       </div>
       <span class="tw-version" id="tc-version"><%= String(tutorialContentVersion || '').slice(0, 10) %></span>
+      <button type="button" class="tw-feedback-open" id="tc-feedback-open">Feedback</button>
       <span class="tw-exit" id="tc-exit">Exit</span>
     </div>
 
@@ -214,6 +250,30 @@
   </div>
 </div>
 
+<div class="tw-feedback-overlay" id="tc-feedback-overlay"></div>
+<div class="tw-feedback-modal" id="tc-feedback-modal" role="dialog" aria-modal="true" aria-labelledby="tc-feedback-title">
+  <div class="tw-feedback-head">
+    <div>
+      <h2 class="tw-feedback-title" id="tc-feedback-title">Send tutorial feedback</h2>
+      <p class="tw-feedback-context" id="tc-feedback-context">Current tutorial step will be included.</p>
+    </div>
+    <button type="button" class="tw-feedback-close" id="tc-feedback-close" aria-label="Close feedback">&times;</button>
+  </div>
+  <label class="tw-feedback-label">
+    Subject
+    <input type="text" class="tw-feedback-input" id="tc-feedback-subject" maxlength="100">
+  </label>
+  <label class="tw-feedback-label" style="margin-top:0.7rem">
+    What happened?
+    <textarea class="tw-feedback-textarea" id="tc-feedback-message" maxlength="2000" placeholder="Tell us what felt confusing, broken, too fast, or missing..."></textarea>
+  </label>
+  <div class="tw-feedback-actions">
+    <button type="button" class="tw-feedback-btn" id="tc-feedback-cancel">Cancel</button>
+    <button type="button" class="tw-feedback-btn primary" id="tc-feedback-submit">Send feedback</button>
+  </div>
+  <div class="tw-feedback-status" id="tc-feedback-status"></div>
+</div>
+
 <div id="tc-diagram-templates" hidden>
   <div data-diagram-id="hierarchy-customer-wo-est-inv"><%- include('tutorial/diagrams/hierarchy-customer-wo-est-inv') %></div>
   <div data-diagram-id="numbering-wo-est-inv"><%- include('tutorial/diagrams/numbering-wo-est-inv') %></div>
@@ -245,7 +305,18 @@
   var currentSpan = document.getElementById('tc-current');
   var totalSpan = document.getElementById('tc-total');
   var versionSpan = document.getElementById('tc-version');
+  var feedbackOpen = document.getElementById('tc-feedback-open');
+  var feedbackOverlay = document.getElementById('tc-feedback-overlay');
+  var feedbackModal = document.getElementById('tc-feedback-modal');
+  var feedbackClose = document.getElementById('tc-feedback-close');
+  var feedbackCancel = document.getElementById('tc-feedback-cancel');
+  var feedbackSubmit = document.getElementById('tc-feedback-submit');
+  var feedbackSubject = document.getElementById('tc-feedback-subject');
+  var feedbackMessage = document.getElementById('tc-feedback-message');
+  var feedbackContext = document.getElementById('tc-feedback-context');
+  var feedbackStatus = document.getElementById('tc-feedback-status');
   var autoTimer = null;
+  var currentTutorial = { chapter: initialChapter, chapterIndex: <%- JSON.stringify(chapterIndex || 0) %>, stepIndex: initialStepIndex, step: null, text: '' };
 
   function sendAction(action, payload) {
     if (autoTimer) {
@@ -282,6 +353,13 @@
     var stepIndex = data.step || 0;
     var step = data.chapter && data.chapter.steps ? data.chapter.steps[stepIndex] : null;
     var text = (step && step.coach_text) || (data.chapter && data.chapter.narration);
+    currentTutorial = {
+      chapter: data.chapter || null,
+      chapterIndex: data.chapterIndex || 0,
+      stepIndex: stepIndex,
+      step: step,
+      text: text || ''
+    };
     if (text) narration.innerHTML = '<p>' + text.replace(/\n\n+/g, '</p><p>') + '</p>';
     renderDiagram((step && step.diagram_id) || (data.chapter && data.chapter.diagram_id));
     var hasPractice = renderPractice(step, data.chapter);
@@ -641,11 +719,105 @@
     }
   }
 
+  function tutorialFeedbackContext() {
+    var chapter = currentTutorial.chapter || {};
+    var step = currentTutorial.step || {};
+    var chapterNumber = (currentTutorial.chapterIndex || 0) + 1;
+    var stepNumber = (currentTutorial.stepIndex || 0) + 1;
+    return {
+      chapterLabel: 'Chapter ' + chapterNumber + '/' + (parseInt(totalSpan.textContent, 10) || 11),
+      chapterTitle: chapter.title || chapter.id || 'Tutorial',
+      stepLabel: 'step ' + stepNumber,
+      stepId: step.id || step.title || '',
+      textPreview: String(currentTutorial.text || '').replace(/\s+/g, ' ').slice(0, 240)
+    };
+  }
+
+  function openTutorialFeedback() {
+    if (autoTimer) {
+      clearTimeout(autoTimer);
+      autoTimer = null;
+    }
+    var ctx = tutorialFeedbackContext();
+    if (feedbackSubject) feedbackSubject.value = 'Tutorial feedback: ' + ctx.chapterLabel + ' ' + ctx.stepLabel;
+    if (feedbackContext) {
+      feedbackContext.textContent = ctx.chapterLabel + ' - ' + ctx.chapterTitle + ', ' + ctx.stepLabel + (ctx.stepId ? ' (' + ctx.stepId + ')' : '');
+    }
+    if (feedbackMessage) feedbackMessage.value = '';
+    if (feedbackStatus) {
+      feedbackStatus.className = 'tw-feedback-status';
+      feedbackStatus.textContent = '';
+    }
+    if (feedbackSubmit) {
+      feedbackSubmit.disabled = false;
+      feedbackSubmit.textContent = 'Send feedback';
+    }
+    feedbackOverlay.classList.add('open');
+    feedbackModal.classList.add('open');
+    setTimeout(function() { if (feedbackMessage) feedbackMessage.focus(); }, 0);
+  }
+
+  function closeTutorialFeedback() {
+    feedbackOverlay.classList.remove('open');
+    feedbackModal.classList.remove('open');
+  }
+
+  function submitTutorialFeedback() {
+    var subject = (feedbackSubject && feedbackSubject.value || '').trim();
+    var message = (feedbackMessage && feedbackMessage.value || '').trim();
+    if (!subject || !message) {
+      if (feedbackStatus) {
+        feedbackStatus.className = 'tw-feedback-status error';
+        feedbackStatus.textContent = 'Add a short note before sending.';
+      }
+      return;
+    }
+    var ctx = tutorialFeedbackContext();
+    var fullMessage = message
+      + '\n\n--- Tutorial context ---'
+      + '\n' + ctx.chapterLabel + ': ' + ctx.chapterTitle
+      + '\n' + ctx.stepLabel + (ctx.stepId ? ': ' + ctx.stepId : '')
+      + '\nSession: ' + sessionId
+      + '\nContent version: ' + (versionSpan ? versionSpan.textContent : initialContentVersion)
+      + '\nPage: ' + window.location.pathname + window.location.search
+      + (ctx.textPreview ? '\nStep text: ' + ctx.textPreview : '');
+
+    feedbackSubmit.disabled = true;
+    feedbackSubmit.textContent = 'Sending...';
+    fetch('/feedback', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: 'subject=' + encodeURIComponent(subject) + '&message=' + encodeURIComponent(fullMessage)
+    }).then(function(r) {
+      return r.json().catch(function() { return {}; }).then(function(data) {
+        if (!r.ok) throw new Error(data.error || ('Server returned ' + r.status));
+        feedbackStatus.className = 'tw-feedback-status success';
+        feedbackStatus.textContent = data.success || 'Thanks. Your tutorial feedback was sent.';
+        feedbackSubmit.textContent = 'Sent';
+        setTimeout(closeTutorialFeedback, 1600);
+      });
+    }).catch(function(err) {
+      feedbackStatus.className = 'tw-feedback-status error';
+      feedbackStatus.textContent = err.message || 'Could not send feedback. Try again.';
+      feedbackSubmit.disabled = false;
+      feedbackSubmit.textContent = 'Send feedback';
+    });
+  }
+
   input.addEventListener('keydown', function(e) { if (e.key === 'Enter') handleInput(); });
   sendBtn.addEventListener('click', handleInput);
   if (body) body.addEventListener('scroll', updateScrollControls, { passive: true });
   if (scrollUp) scrollUp.addEventListener('click', function() { scrollTutorialBody(-1); });
   if (scrollDown) scrollDown.addEventListener('click', function() { scrollTutorialBody(1); });
+  if (feedbackOpen) feedbackOpen.addEventListener('click', openTutorialFeedback);
+  if (feedbackOverlay) feedbackOverlay.addEventListener('click', closeTutorialFeedback);
+  if (feedbackClose) feedbackClose.addEventListener('click', closeTutorialFeedback);
+  if (feedbackCancel) feedbackCancel.addEventListener('click', closeTutorialFeedback);
+  if (feedbackSubmit) feedbackSubmit.addEventListener('click', submitTutorialFeedback);
   window.addEventListener('resize', updateScrollControls);
   document.getElementById('tc-exit').addEventListener('click', function() {
     if (confirm('Exit the tutorial? Your progress will be saved.')) sendAction('exit');
