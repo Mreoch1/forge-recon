@@ -198,20 +198,22 @@ router.get('/ai-usage', async (req, res) => {
   const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
 
   // Total calls
-  const { count: totalCalls } = await supabase
+  const { count: totalCalls, error: totalCallsError } = await supabase
     .from('audit_logs')
     .select('*', { count: 'exact', head: true })
     .eq('entity_type', 'ai_chat')
     .eq('source', 'ai');
+  if (totalCallsError) throw totalCallsError;
 
   // Token data — fetch all and aggregate in JS
-  const { data: tokenRows } = await supabase
+  const { data: tokenRows, error: tokenRowsError } = await supabase
     .from('audit_logs')
     .select('after_json, user_id, created_at, users!left(name)')
     .eq('entity_type', 'ai_chat')
     .eq('source', 'ai')
     .order('created_at', { ascending: false })
     .limit(500);
+  if (tokenRowsError) throw tokenRowsError;
 
   let totalTokens = 0;
   const userTokens = {};
@@ -291,10 +293,11 @@ router.get('/audit', async (req, res) => {
   if (error) throw error;
 
   // Get distinct entity types for the filter dropdown
-  const { data: types } = await supabase.from('audit_logs')
+  const { data: types, error: typesError } = await supabase.from('audit_logs')
     .select('entity_type')
     .order('entity_type')
     .limit(100);
+  if (typesError) throw typesError;
   const distinctTypes = [...new Set((types || []).map(t => t.entity_type))].sort();
 
   res.render('admin/audit', {
