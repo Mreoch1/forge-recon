@@ -366,7 +366,7 @@ app.post('/feedback', async (req, res) => {
       entity_type: 'feedback', action: 'submitted', source: 'user',
       details: { subject, user: req.currentUser?.email || 'unknown' }, user_id: userId,
     }).then().catch(() => {});
-    return sendJson(200, { success: 'Thanks for the feedback! Mike will review it.' });
+    return sendJson(200, { success: 'Thanks for the feedback! FORGE will review it.' });
   } catch (e) {
     console.error('[feedback] save failed:', e.message);
     return sendJson(500, { error: 'Could not save feedback. Try again later.' });

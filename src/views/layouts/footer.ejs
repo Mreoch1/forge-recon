@@ -50,7 +50,7 @@
   /* R37p-fix2: move feedback to the bottom-LEFT corner. AI chat pill owns
      bottom-right (bottom:1rem;right:1rem) and the previous stacking attempt
      still overlapped. Different corner = guaranteed no collision. */
-  .fb-btn { position: fixed; bottom: 20px; left: 20px; z-index: 999; background: #c0202b; color: #fff; border: none; border-radius: 999px; padding: 10px 18px; font-size: 13px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2); transition: all .2s; }
+  .fb-btn { position: fixed; bottom: 20px; left: 20px; z-index: 9999; background: #c0202b; color: #fff; border: none; border-radius: 999px; padding: 10px 18px; font-size: 13px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2); transition: all .2s; }
   .fb-btn:hover { background: #a01f24; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
   .fb-overlay { position: fixed; inset: 0; z-index: 998; background: rgba(0,0,0,0.4); display: none; }
   .fb-overlay.open { display: block; }
