@@ -74,6 +74,10 @@ async function getEntityList(entityType) {
     const { data } = await checkedFileRead(supabase.from('vendors').select('id, name').order('name', { ascending: true }), 'file vendor list read failed');
     return data || [];
   }
+  if (entityType === 'contractor') {
+    const { data } = await checkedFileRead(supabase.from('contractors').select('id, name').order('name', { ascending: true }), 'file contractor list read failed');
+    return data || [];
+  }
   if (entityType === 'user' || entityType === 'worker') {
     const { data } = await checkedFileRead(supabase.from('users').select('id, name, role').eq('active', true).order('name', { ascending: true }), 'file user list read failed');
     return data || [];
