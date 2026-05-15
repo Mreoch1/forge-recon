@@ -216,7 +216,7 @@ router.post('/:id/delete', requireAuth, async (req, res) => {
   const isAdmin = req.session.role === 'admin';
   const isUploader = file.uploaded_by_user_id === req.session.userId;
   if (!isAdmin && !isUploader) return res.status(403).json({ error: 'Permission denied.' });
-  try { await storage.remove('entity-files', file.storage_path || file.name); } catch(e) { /* best effort */ }
+  await storage.remove('entity-files', file.storage_path || file.name);
   const { error: fileDeleteErr } = await supabase.from('files').delete().eq('id', file.id);
   if (fileDeleteErr) throw fileDeleteErr;
   try {
