@@ -58,10 +58,18 @@ router.get('/dashboard-classic', async (req, res) => {
   const currentMonth = today.slice(0, 7);
   const currentYear = today.slice(0, 4);
 
-  const [{ count: openEstimates }, { count: scheduledWOs }, { count: unpaidInvoices }, { data: arData },
-         { data: revMonthData }, { data: revYTDData },
-         { count: overdueCount }, { data: overdueBalData },
-         { count: customerCount }, { count: workOrderCount }] = await Promise.all([
+  const [
+    openEstimatesResult,
+    scheduledWOsResult,
+    unpaidInvoicesResult,
+    arResult,
+    revMonthResult,
+    revYTDResult,
+    overdueCountResult,
+    overdueBalResult,
+    customerCountResult,
+    workOrderCountResult,
+  ] = await Promise.all([
     supabase.from('estimates').select('*', { count: 'exact', head: true }).in('status', ['draft', 'sent']),
     supabase.from('work_orders').select('*', { count: 'exact', head: true }).in('status', ACTIVE_WORK_ORDER_STATUSES),
     supabase.from('invoices').select('*', { count: 'exact', head: true }).in('status', ['sent', 'overdue']),
@@ -73,6 +81,16 @@ router.get('/dashboard-classic', async (req, res) => {
     supabase.from('customers').select('*', { count: 'exact', head: true }),
     supabase.from('work_orders').select('*', { count: 'exact', head: true }),
   ]);
+  const { count: openEstimates } = assertDashboardRead(openEstimatesResult, 'classic dashboard open estimates count failed');
+  const { count: scheduledWOs } = assertDashboardRead(scheduledWOsResult, 'classic dashboard active work orders count failed');
+  const { count: unpaidInvoices } = assertDashboardRead(unpaidInvoicesResult, 'classic dashboard unpaid invoices count failed');
+  const { data: arData } = assertDashboardRead(arResult, 'classic dashboard AR balance read failed');
+  const { data: revMonthData } = assertDashboardRead(revMonthResult, 'classic dashboard monthly revenue read failed');
+  const { data: revYTDData } = assertDashboardRead(revYTDResult, 'classic dashboard YTD revenue read failed');
+  const { count: overdueCount } = assertDashboardRead(overdueCountResult, 'classic dashboard overdue invoice count failed');
+  const { data: overdueBalData } = assertDashboardRead(overdueBalResult, 'classic dashboard overdue balance read failed');
+  const { count: customerCount } = assertDashboardRead(customerCountResult, 'classic dashboard customer count failed');
+  const { count: workOrderCount } = assertDashboardRead(workOrderCountResult, 'classic dashboard work order count failed');
 
   const arBalance = (arData || []).reduce((s, r) => s + Number(r.total || 0) - Number(r.amount_paid || 0), 0);
   const revenueThisMonth = (revMonthData || []).reduce((s, r) => s + Number(r.amount_paid || 0), 0);
@@ -85,6 +103,9 @@ router.get('/dashboard-classic', async (req, res) => {
     supabase.from('estimates').select(EST_DASHBOARD_SELECT).order('created_at', { ascending: false }).limit(10),
     supabase.from('invoices').select(INV_DASHBOARD_SELECT).order('created_at', { ascending: false }).limit(10),
   ]);
+  assertDashboardRead(woAct, 'classic dashboard work order activity read failed');
+  assertDashboardRead(estAct, 'classic dashboard estimate activity read failed');
+  assertDashboardRead(invAct, 'classic dashboard invoice activity read failed');
 
   const activity = [
     ...(woAct.data || []).map(r => ({
