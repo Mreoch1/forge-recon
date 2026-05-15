@@ -12,23 +12,14 @@
     <p class="text-sm text-recon-fog mt-1">Project: <a href="/projects/<%= job.id %>" class="text-recon-red hover:underline"><%= job.title || job.name %></a></p>
   </div>
 
-  <!-- Combined vendor + contractor autocomplete options -->
-  <datalist id="vendor-contractor-list">
-    <% (vendors || []).forEach(function(v){ %>
-      <option value="<%= v.name %>" data-type="vendor"><%= v.name %> (Vendor)</option>
-    <% }); %>
-    <% (contractors || []).forEach(function(c){ %>
-      <option value="<%= c.name %>" data-type="contractor"><%= c.name %> (Contractor<%= c.trade ? ', ' + c.trade : '' %>)</option>
-    <% }); %>
-  </datalist>
 
   <!-- New RFP form (hidden by default) -->
   <div id="rfp-new-form" class="hidden card p-4 mb-6 bg-recon-deeper border-recon-mist">
     <h3 class="text-sm font-semibold mb-3">New RFP</h3>
     <form action="/projects/<%= job.id %>/rfps" method="POST" class="flex gap-3 items-end flex-wrap">
       <div>
-        <label class="block text-xs text-recon-fog mb-1">Contractor name</label>
-        <input name="contractor_name" required class="input" placeholder="e.g. Esrepairpros" list="vendor-contractor-list" autocomplete="off">
+        <label class="block text-xs text-recon-fog mb-1">Contractor / Vendor name</label>
+        <input name="contractor_name" id="vendor-search-rfp" required class="input" placeholder="e.g. Esrepairpros" autocomplete="off">
       </div>
       <div>
         <label class="block text-xs text-recon-fog mb-1">Notes (optional)</label>
@@ -100,7 +91,7 @@
         <!-- Add item form -->
         <div id="rfp-item-form-<%= rfp.id %>" class="hidden p-3 bg-recon-deeper/30 border-b border-recon-mist">
           <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/items" method="POST" class="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
-            <input name="vendor" placeholder="Vendor/supplier" class="input" list="vendor-contractor-list" autocomplete="off">
+            <input name="vendor" class="input rfp-vendor-autocomplete" placeholder="Vendor/supplier" autocomplete="off">
             <input name="description" placeholder="Description" class="input" required>
             <input name="quantity" type="number" step="any" placeholder="Qty" class="input">
             <input name="contractor_cost" type="number" step="any" placeholder="Contr. cost" class="input">
@@ -205,3 +196,69 @@
 </div>
 
 <%- include('../layouts/footer') %>
+
+<script>
+// RFP autocomplete — search vendors + contractors as user types
+(function(){
+  var sources = [];
+  <% (vendors || []).forEach(function(v){ %>
+    sources.push({ name: <%= JSON.stringify(v.name) %>, label: '(Vendor)', type: 'vendor' });
+  <% }); %>
+  <% (contractors || []).forEach(function(c){ %>
+    sources.push({ name: <%= JSON.stringify(c.name) %>, label: '(Contractor<%= c.trade ? ", " + JSON.stringify(c.trade) : "" %>)', type: 'contractor' });
+  <% }); %>
+
+  function setupAutocomplete(inputId) {
+    var input = document.getElementById(inputId);
+    setupAutocompleteFromElement(input);
+  }
+
+  function setupAutocompleteFromElement(input) {
+    if (!input) return;
+
+    var dropdown = document.createElement('div');
+    dropdown.className = 'rfp-autocomplete-dropdown';
+    dropdown.style.cssText = 'position:absolute;z-index:9999;background:#fff;border:1px solid #d0d0d0;border-radius:6px;max-height:240px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.12);display:none;width:100%;font-size:.82rem;';
+    input.parentNode.style.position = 'relative';
+    input.parentNode.appendChild(dropdown);
+
+    input.addEventListener('input', function(){
+      var q = this.value.toLowerCase().trim();
+      dropdown.innerHTML = '';
+      if (q.length < 1) { dropdown.style.display = 'none'; return; }
+
+      var matches = sources.filter(function(s){ return s.name.toLowerCase().indexOf(q) !== -1; }).slice(0, 10);
+      if (matches.length === 0) { dropdown.style.display = 'none'; return; }
+
+      matches.forEach(function(m){
+        var item = document.createElement('div');
+        item.style.cssText = 'padding:.5rem .75rem;cursor:pointer;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center;';
+        item.innerHTML = '<span>' + m.name + '</span> <span style="font-size:.75rem;color:#888">' + m.label + '</span>';
+        item.addEventListener('mouseenter', function(){ this.style.background = '#f5f5f5'; });
+        item.addEventListener('mouseleave', function(){ this.style.background = ''; });
+        item.addEventListener('click', function(){
+          input.value = m.name;
+          dropdown.style.display = 'none';
+          input.dispatchEvent(new Event('change'));
+        });
+        dropdown.appendChild(item);
+      });
+      dropdown.style.display = 'block';
+    });
+
+    input.addEventListener('blur', function(){
+      setTimeout(function(){ dropdown.style.display = 'none'; }, 200);
+    });
+
+    input.addEventListener('focus', function(){
+      if (dropdown.children.length) dropdown.style.display = 'block';
+    });
+  }
+
+  setupAutocomplete('vendor-search-rfp');
+  document.querySelectorAll('.rfp-vendor-autocomplete').forEach(function(el) {
+    setupAutocompleteFromElement(el);
+  });
+})();
+</script>
+
