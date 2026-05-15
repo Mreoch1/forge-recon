@@ -74,7 +74,7 @@ router.post('/users', async (req, res) => {
     setFlash(req, 'success', 'User "' + name + '" created. Invite sent to ' + email + '. Check spam if it doesn\'t arrive in 5 min.');
   } catch (e) {
     console.warn('[admin] invite email failed:', e.message);
-    setFlash(req, 'error', 'User "' + name + '" created but invite email FAILED to send to ' + email + '. Error: ' + e.message + '. You can send a password reset from the user edit page.');
+    setFlash(req, 'error', 'User "' + name + '" created but invite email FAILED to send to ' + email + '. Error: ' + e.message + '. Set a new temporary password from the user edit page, or ask them to use Forgot password.');
   }
   res.redirect('/admin/users');
 });
