@@ -385,14 +385,20 @@ function computeSubLineTotals(params) {
 
 // ── D-105: POST /projects/rfps/items/reorder — drag-drop save new sort order ──
 router.post('/projects/rfps/items/reorder', requireManager, async (req, res) => {
-  const { item_ids, rfp_id } = req.body;
-  if (!item_ids || !Array.isArray(item_ids)) return res.status(400).json({ error: 'item_ids array required' });
-  const updates = item_ids.map((id, i) => ({ id, sort_order: i }));
+  const { rfp_id } = req.body;
+  let itemIds = req.body.item_ids;
+  if (typeof itemIds === 'string' && itemIds.trim().startsWith('[')) {
+    try { itemIds = JSON.parse(itemIds); } catch (e) { itemIds = []; }
+  }
+  if (typeof itemIds === 'string') itemIds = [itemIds];
+  if (!Array.isArray(itemIds) || itemIds.length === 0) return res.status(400).json({ error: 'item_ids array required' });
+  const updates = itemIds.map((id, i) => ({ id, sort_order: i }));
   for (const u of updates) {
     const { error } = await supabase.from('rfp_line_items').update({ sort_order: u.sort_order }).eq('id', u.id);
     if (error) throw error;
   }
-  const { data: rfp } = await supabase.from('project_rfps').select('job_id').eq('id', rfp_id).single();
+  const { data: rfp, error: rfpError } = await supabase.from('project_rfps').select('job_id').eq('id', rfp_id).single();
+  if (rfpError) throw rfpError;
   res.redirect(`/projects/${rfp?.job_id}/rfp`);
 });
 

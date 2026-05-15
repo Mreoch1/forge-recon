@@ -25,7 +25,7 @@ Approximately 100+ assertions tested green by Hermes across the seven phases. Sa
 
 1. **Never block on Michael.** If something needs his judgment, write it to `TODO_FOR_MICHAEL.md` and move on. Do not stop the train.
 2. **Local only.** No deploys to the internet. No real API keys. No sending real emails to real customers (use a local mock/file-drop for emails until Michael wires real SMTP). No payment integrations.
-3. **Stay in this folder.** All work happens inside `C:\Users\Mreoc\hermes-claude-link\construction-app\` and the bridge folder. Do not touch other locations on the Windows host.
+3. **Stay in this folder.** All work happens inside `C:\Users\Mreoc\forge-recon\construction-app\` and the bridge folder. Do not touch other locations on the Windows host.
 4. **No destructive operations.** No `rm`, no DROP TABLE, no force-pushes, no overwrites without backup. If a file needs to be replaced, write to a new file or comment-out the old block.
 5. **Log every directive executed** to `executed.log` in the bridge folder (append-only) and update **CHANGELOG.md** in this folder.
 6. **Always reply on the bridge.** Even "blocked, here's why" — never silent.

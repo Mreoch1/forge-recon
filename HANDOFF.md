@@ -7,7 +7,7 @@ Hey Michael. While you slept, Claude (planner) and Hermes (executor) built the f
 Open a terminal:
 
 ```
-cd C:\Users\Mreoc\hermes-claude-link\construction-app
+cd C:\Users\Mreoc\forge-recon\construction-app
 npm install        # already done if Hermes finished phase 0, harmless to re-run
 npm run init-db    # already done, harmless if DB exists
 npm run seed       # already done, idempotent

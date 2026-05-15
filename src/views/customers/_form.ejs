@@ -72,7 +72,7 @@
       <label class="label" for="notes">Notes
         <span class="ml-1 text-recon-fog cursor-help" title="Internal notes about this customer (gate codes, preferences, billing quirks). NOT shown to the customer.">ⓘ</span>
       </label>
-      <textarea name="notes" id="notes" rows="3" class="input"><%= customer.notes || '' %></textarea>
+      <textarea name="notes" id="notes" rows="3" class="input" data-autosize><%= customer.notes || '' %></textarea>
     </div>
   </div>
 

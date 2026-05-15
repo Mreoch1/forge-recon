@@ -3,7 +3,7 @@
 Append-only. Every architectural decision made without Michael goes here. He can review and reverse anything in the morning.
 
 ## 2026-05-10T06:42:00Z — Project location
-**Decision:** Built inside `C:\Users\Mreoc\hermes-claude-link\construction-app\` rather than at `C:\Users\Mreoc\construction-app\`.
+**Decision:** Built inside `C:\Users\Mreoc\forge-recon\construction-app\` rather than at `C:\Users\Mreoc\construction-app\`.
 **Reason:** The bridge folder is the only one mounted into Cowork, so Claude has direct file access here. Functionally optimal. Can be moved later by `git mv` and a re-mount.
 
 ## 2026-05-10T06:42:00Z — Stack: Node/Express

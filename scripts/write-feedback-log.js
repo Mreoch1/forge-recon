@@ -7,7 +7,7 @@
  * without DB access.
  *
  * Usage: node scripts/write-feedback-log.js
- * Output: updates ~/hermes-claude-link/bridges/FEEDBACK_AND_ERRORS_LOG.md
+ * Output: updates ~/forge-recon/bridges/FEEDBACK_AND_ERRORS_LOG.md
  *
  * Designed to be called from the watcher cycle or manually.
  * Idempotent — overwrites, doesn't append.

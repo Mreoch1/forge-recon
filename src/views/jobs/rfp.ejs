@@ -94,18 +94,25 @@
         </thead>
         <tbody>
           <% rfps.forEach(function(rfp){ %>
-            <tr class="cursor-pointer hover:bg-recon-cloud/20" onclick="document.getElementById('rfp-items-<%= rfp.id %>').classList.toggle('hidden')">
+            <tr class="cursor-pointer hover:bg-recon-cloud/20" onclick="var el=document.getElementById('rfp-items-<%= rfp.id %>');var icon=document.getElementById('rfp-chev-<%= rfp.id %>');el.classList.toggle('hidden');if(icon){icon.textContent=el.classList.contains('hidden')?'▶':'▼';}">
               <td>
-                <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>" method="POST" class="flex items-center gap-1" onclick="event.stopPropagation()"
-                      onsubmit="this.querySelector('input').removeAttribute('disabled');">
-                  <span class="font-semibold text-sm cursor-pointer hover:text-recon-red"
-                        onclick="var p=this.parentElement;var i=p.querySelector('input');i.value=this.textContent.trim();this.style.display='none';i.style.display='inline';i.focus();p.querySelector('button').style.display='inline-block';">
-                    <%= rfp.contractor_name %>
-                  </span>
-                  <input name="contractor_name" style="display:none" class="input text-xs py-0.5 px-1 w-32"
-                         list="rfp-tab-presets" autocomplete="off">
-                  <button type="submit" style="display:none" class="btn btn-primary text-xs py-0.5 px-1.5">Save</button>
-                </form>
+                <div class="flex items-center gap-2">
+                  <button type="button" id="rfp-chev-<%= rfp.id %>"
+                          class="text-recon-fog hover:text-recon-red text-base leading-none px-1 select-none"
+                          style="min-width:1.25rem;"
+                          onclick="event.stopPropagation();var el=document.getElementById('rfp-items-<%= rfp.id %>');el.classList.toggle('hidden');this.textContent=el.classList.contains('hidden')?'▶':'▼';"
+                          aria-label="Toggle line items">▶</button>
+                  <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>" method="POST" class="flex items-center gap-1" onclick="event.stopPropagation()"
+                        onsubmit="this.querySelector('input').removeAttribute('disabled');">
+                    <span class="font-semibold text-sm cursor-pointer hover:text-recon-red"
+                          onclick="var p=this.parentElement;var i=p.querySelector('input');i.value=this.textContent.trim();this.style.display='none';i.style.display='inline';i.focus();p.querySelector('button').style.display='inline-block';">
+                      <%= rfp.contractor_name %>
+                    </span>
+                    <input name="contractor_name" style="display:none" class="input text-xs py-0.5 px-1 w-32"
+                           list="rfp-tab-presets" autocomplete="off">
+                    <button type="submit" style="display:none" class="btn btn-primary text-xs py-0.5 px-1.5">Save</button>
+                  </form>
+                </div>
               </td>
               <td>
                 <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>" method="POST" onclick="event.stopPropagation()">
@@ -165,7 +172,7 @@
         var grandTotalAll = allItems.reduce(function(s, i) { return s + Number(i.total_with_markup || 0); }, 0);
         %>
         <div class="overflow-x-auto">
-          <table class="data text-xs rfp-items-table">
+          <table class="data text-xs rfp-items-table" data-rfp-id="<%= rfp.id %>">
             <thead>
               <tr>
                 <th class="w-[28%]">Description</th>
@@ -298,11 +305,14 @@
             if (form) ids.push(form.action.split('/').pop());
           });
           if (ids.length) {
-            var rfpId = new URLSearchParams(window.location.search).get('rfp_id') || '';
+            var rfpId = tbody.closest('.rfp-items-table')?.getAttribute('data-rfp-id') || '';
             var xhr = new XMLHttpRequest();
             xhr.open('POST', '/projects/rfps/items/reorder', true);
             xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-            xhr.send('item_ids=' + JSON.stringify(ids) + '&rfp_id=' + rfpId);
+            var body = ids.map(function(id) {
+              return 'item_ids=' + encodeURIComponent(id);
+            }).join('&') + '&rfp_id=' + encodeURIComponent(rfpId);
+            xhr.send(body);
           }
         }
       });

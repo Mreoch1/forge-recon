@@ -130,8 +130,8 @@ const selectedAssignees = wo.assignee_ids || [];
     <label class="label" for="description">Description
       <span class="ml-1 text-recon-fog cursor-help" title="Customer-visible description of the work to be done. Appears on the WO PDF, the assignee email, and the WO show page.">ⓘ</span>
     </label>
-    <textarea name="description" id="description" rows="5" class="input" style="min-height:8rem;resize:vertical"
-              placeholder="Full description with all the details about the work" oninput="this.style.height='';this.style.height=Math.min(this.scrollHeight,400)+'px'"><%= wo.description || '' %></textarea>
+    <textarea name="description" id="description" rows="5" class="input" data-autosize style="min-height:8rem;resize:vertical"
+              placeholder="Full description with all the details about the work"><%= wo.description || '' %></textarea>
   </div>
 
   <div class="flex items-center gap-2 pt-2">
