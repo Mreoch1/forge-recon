@@ -18,7 +18,8 @@ const CODES = {
 };
 
 async function lookupAccount(code) {
-  const { data } = await supabase.from('accounts').select('id, code, name').eq('code', code).eq('active', true).maybeSingle();
+  const { data, error } = await supabase.from('accounts').select('id, code, name').eq('code', code).eq('active', true).maybeSingle();
+  if (error) throw error;
   return data || null;
 }
 
@@ -77,7 +78,8 @@ async function postInvoiceSent(invoice, opts = {}) {
     lookupAccount(CODES.SALES_TAX_PAYABLE),
   ]);
   if (!ar || !rev || !tax) { console.warn('[accounting] missing AR/Revenue/Tax — invoice NOT posted'); return null; }
-  const { data: existing } = await supabase.from('journal_entries').select('id').eq('source_type', 'invoice').eq('source_id', String(invoice.id)).maybeSingle();
+  const { data: existing, error: existingErr } = await supabase.from('journal_entries').select('id').eq('source_type', 'invoice').eq('source_id', String(invoice.id)).maybeSingle();
+  if (existingErr) throw existingErr;
   if (existing) return existing.id;
 
   const total = Number(invoice.total) || 0;
@@ -132,7 +134,8 @@ async function postBillApproved(bill, lines, opts = {}) {
   if (!await isAccountingReady()) { console.warn('[accounting] skipping bill post — chart not seeded'); return null; }
   const ap = await lookupAccount(CODES.ACCOUNTS_PAYABLE);
   if (!ap) { console.warn('[accounting] missing AP — bill NOT posted'); return null; }
-  const { data: existing } = await supabase.from('journal_entries').select('id').eq('source_type', 'bill').eq('source_id', String(bill.id)).maybeSingle();
+  const { data: existing, error: existingErr } = await supabase.from('journal_entries').select('id').eq('source_type', 'bill').eq('source_id', String(bill.id)).maybeSingle();
+  if (existingErr) throw existingErr;
   if (existing) return existing.id;
   const total = Number(bill.total) || 0; const taxAmount = Number(bill.tax_amount) || 0;
   const desc = `Bill ${bill.bill_number || '#' + bill.id} from vendor`;
@@ -140,7 +143,8 @@ async function postBillApproved(bill, lines, opts = {}) {
   const jeLines = [];
   for (const li of lines) {
     const amt = Number(li.line_total) || 0; if (amt <= 0) continue;
-    const { data: acct } = li.account_id ? await supabase.from('accounts').select('id').eq('id', li.account_id).maybeSingle() : { data: null };
+    const { data: acct, error: acctErr } = li.account_id ? await supabase.from('accounts').select('id').eq('id', li.account_id).maybeSingle() : { data: null, error: null };
+    if (acctErr) throw acctErr;
     const targetAcct = acct || fallback; if (!targetAcct) continue;
     jeLines.push({ accountId: targetAcct.id, debit: amt, credit: 0, description: `${desc} — ${li.description || 'expense'}` });
   }
@@ -178,7 +182,8 @@ async function postBillVoid(bill, lines, opts = {}) {
   const jeLines = [];
   for (const li of lines) {
     const amt = Number(li.line_total) || 0; if (amt <= 0) continue;
-    const { data: acct } = li.account_id ? await supabase.from('accounts').select('id').eq('id', li.account_id).maybeSingle() : { data: null };
+    const { data: acct, error: acctErr } = li.account_id ? await supabase.from('accounts').select('id').eq('id', li.account_id).maybeSingle() : { data: null, error: null };
+    if (acctErr) throw acctErr;
     const targetAcct = acct || fallback; if (!targetAcct) continue;
     jeLines.push({ accountId: targetAcct.id, debit: 0, credit: amt, description: `${desc} — ${li.description || 'expense'}` });
   }
