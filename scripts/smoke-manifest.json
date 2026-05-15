@@ -6,7 +6,7 @@
   {"label":"bogus route unauth","method":"GET","path":"/this-does-not-exist","expect":302,"auth":false},
   {"label":"verify-email bad token","method":"GET","path":"/verify-email/invalid-token-here","expect":200,"auth":false},
   {"label":"/health/version","method":"GET","path":"/health/version","expect":200,"auth":false},
-  {"label":"/ dashboard","method":"GET","path":"/","expect":200,"auth":true},
+  {"label":"/ landing redirects to FORGE chat","method":"GET","path":"/","expect":302,"auth":true},
   {"label":"/dashboard compatibility redirect","method":"GET","path":"/dashboard","expect":302,"auth":true},
   {"label":"/customers list","method":"GET","path":"/customers","expect":200,"auth":true},
   {"label":"/jobs redirect to /projects","method":"GET","path":"/jobs","expect":302,"auth":true},
