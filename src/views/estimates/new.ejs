@@ -7,8 +7,8 @@
   <h1 class="page-h1 mb-6">New estimate</h1>
 
   <%- include('_form', {
-    estimate: estimate, job: job, errors: errors,
-    trades: trades, units: units,
+    estimate: estimate, errors: errors, units: units,
+    paymentTermsPresets: paymentTermsPresets,
     formAction: '/estimates', submitLabel: 'Create estimate'
   }) %>
 </div>
