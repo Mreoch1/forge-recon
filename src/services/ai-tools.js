@@ -429,11 +429,15 @@ tools.get_dashboard_summary = {
   args: {},
   needs_user: 'read',
   handler: async (args, ctx) => {
-    const { count: openEst } = await supabase.from('estimates').select('*', { count: 'exact', head: true }).in('status', ['draft','sent']);
-    const { count: activeWO } = await supabase.from('work_orders').select('*', { count: 'exact', head: true }).in('status', ['scheduled','in_progress']);
-    const { data: unpaid } = await supabase.from('invoices').select('total, amount_paid').in('status', ['draft','sent','overdue']);
+    const { count: openEst, error: openEstError } = await supabase.from('estimates').select('*', { count: 'exact', head: true }).in('status', ['draft','sent']);
+    if (openEstError) throw openEstError;
+    const { count: activeWO, error: activeWOError } = await supabase.from('work_orders').select('*', { count: 'exact', head: true }).in('status', ['scheduled','in_progress', 'open']);
+    if (activeWOError) throw activeWOError;
+    const { data: unpaid, error: unpaidError } = await supabase.from('invoices').select('total, amount_paid').in('status', ['draft','sent','overdue']);
+    if (unpaidError) throw unpaidError;
     const arBalance = (unpaid || []).reduce((s, inv) => s + (Number(inv.total) || 0) - (Number(inv.amount_paid) || 0), 0);
-    const { count: overdueCount } = await supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'overdue');
+    const { count: overdueCount, error: overdueCountError } = await supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'overdue');
+    if (overdueCountError) throw overdueCountError;
     return {
       open_estimates: openEst,
       active_work_orders: activeWO,

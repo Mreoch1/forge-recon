@@ -168,6 +168,7 @@
     /* Bigger tap targets in the mobile panel */
     #mobile-panel .navlink { display: block; padding: .75rem .85rem; font-size: .95rem; min-height: 44px; }
   </style>
+  <script defer src="/js/toast.js"></script>
 </head>
 <body class="min-h-screen flex flex-col">
 
@@ -332,19 +333,13 @@
 
 <% if (typeof flash !== 'undefined' && flash) { %>
   <% if (flash.success) { %>
-    <div class="bg-green-50 border-b border-green-200 text-green-800 px-4 py-2 text-sm">
-      <div class="max-w-7xl mx-auto"><%= flash.success %></div>
-    </div>
+    <div data-toast="success" style="display:none"><%= flash.success %></div>
   <% } %>
   <% if (flash.error) { %>
-    <div class="bg-red-50 border-b border-red-200 text-red-800 px-4 py-2 text-sm">
-      <div class="max-w-7xl mx-auto"><%= flash.error %></div>
-    </div>
+    <div data-toast="error" style="display:none"><%= flash.error %></div>
   <% } %>
   <% if (flash.info) { %>
-    <div class="bg-blue-50 border-b border-blue-200 text-blue-800 px-4 py-2 text-sm">
-      <div class="max-w-7xl mx-auto"><%= flash.info %></div>
-    </div>
+    <div data-toast="info" style="display:none"><%= flash.info %></div>
   <% } %>
 <% } %>
 
