@@ -191,12 +191,15 @@ router.post('/:id/delete', async (req, res) => {
   res.redirect('/vendors');
 });
 
-module.exports = router;
-
 // POST /vendors/:id/init-files — initialize root folder for vendor file workspace
 router.post('/:id/init-files', async (req, res) => {
   const id = req.params.id;
-  const { data: vendor } = await supabase.from('vendors').select('id, name').eq('id', id).maybeSingle();
+  const { data: vendor, error } = await supabase
+    .from('vendors')
+    .select('id, name')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
   if (!vendor) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Vendor not found.' });
   try {
     const filesSvc = require('../services/files');
@@ -213,3 +216,5 @@ router.post('/:id/init-files', async (req, res) => {
     res.redirect('/vendors/' + id);
   }
 });
+
+module.exports = router;

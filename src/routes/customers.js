@@ -246,12 +246,15 @@ router.post('/:id/delete', async (req, res) => {
   res.redirect('/customers');
 });
 
-module.exports = router;
-
 // POST /customers/:id/init-files — initialize root folder for customer file workspace
 router.post('/:id/init-files', async (req, res) => {
   const id = req.params.id;
-  const { data: customer } = await supabase.from('customers').select('id, name').eq('id', id).maybeSingle();
+  const { data: customer, error } = await supabase
+    .from('customers')
+    .select('id, name')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
   if (!customer) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Customer not found.' });
   try {
     const filesSvc = require('../services/files');
@@ -268,3 +271,5 @@ router.post('/:id/init-files', async (req, res) => {
     res.redirect('/customers/' + id);
   }
 });
+
+module.exports = router;
