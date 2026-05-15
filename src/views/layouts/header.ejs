@@ -222,7 +222,7 @@
       <div class="flex items-center gap-1 md:gap-2 shrink-0">
         <!-- D-081: Mode toggle — minimal toggle on /forge, full toggle elsewhere -->
         <% if (typeof isForgeRoute !== 'undefined' && isForgeRoute) { %>
-          <a href="/dashboard-classic" class="hidden lg:inline-flex items-center gap-1 text-[.7rem] text-recon-fog hover:text-white transition whitespace-nowrap" aria-label="Switch to classic dashboard">
+          <a href="/dashboard-classic" class="inline-flex items-center gap-1 text-[.7rem] text-recon-fog hover:text-white transition whitespace-nowrap" aria-label="Switch to classic dashboard">
             <span>&larr;</span> Classic
           </a>
         <% } else if (typeof activeNav !== 'undefined' && ['dashboard','home',''].includes(activeNav)) { %>
@@ -238,10 +238,12 @@
           <button type="submit" class="text-xs text-recon-fog hover:text-white transition">Logout</button>
         </form>
         <button id="theme-toggle" class="text-base text-recon-fog hover:text-white transition w-9 h-9 md:w-10 md:h-10 flex items-center justify-center rounded shrink-0" title="Toggle dark mode" aria-label="Toggle dark mode">☀</button>
-        <!-- R33: hamburger label (mobile/tablet only) — shown below lg breakpoint -->
-        <label for="r33-nav-toggle" class="r33-hamburger lg:hidden" aria-label="Toggle menu">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
-        </label>
+        <% if (!(typeof isForgeRoute !== 'undefined' && isForgeRoute)) { %>
+          <!-- R33: hamburger label (mobile/tablet only) — shown below lg breakpoint -->
+          <label for="r33-nav-toggle" class="r33-hamburger lg:hidden" aria-label="Toggle menu">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+          </label>
+        <% } %>
       </div>
     </div>
     <!-- D-081: Mobile panel hidden on /forge (no nav to show) -->
