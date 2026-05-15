@@ -111,9 +111,8 @@
   window.toast = toast;
 
   // Auto-show server-side flash messages as toasts (if data-toast attributes are present)
-  var flashEl = document.querySelector('[data-toast]');
-  if (flashEl) {
+  document.querySelectorAll('[data-toast]').forEach(function(flashEl) {
     toast.show(flashEl.textContent.trim(), flashEl.getAttribute('data-toast') || 'info');
     flashEl.remove();
-  }
+  });
 })();
