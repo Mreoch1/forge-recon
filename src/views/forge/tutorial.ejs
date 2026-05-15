@@ -473,12 +473,14 @@
       return appFrame('work-orders', 'New Work Order',
         '<div class="tw-app-card"><h4>Work order details</h4><div class="tw-app-form"><div class="tw-app-form two">' + field('customer', 'Customer', 'Tutorial Customer', 'Tutorial Customer') + field('display_number', 'WO number', 'WO-0001-0014', 'WO-0001-0014') + '</div>' + textarea('description', 'Description', 'Demo job: kitchen drywall repair, unit 1B', descValue) + '<div class="tw-app-form two">' + selectField('status', 'Status', ['OPEN','SCHEDULED','IN PROGRESS','CLOSED']) + field('assigned_to', 'Assignees (optional)', 'Crew member') + '</div>' + save + '</div></div>');
     }
-    return workOrderDetail();
+    return workOrderDetail(stepId);
   }
 
-  function workOrderDetail() {
+  function workOrderDetail(stepId) {
+    var activeTab = stepId === 'spotlight-estimates-tab' ? 'Overview' : 'Estimates';
+    var highlightTab = stepId === 'spotlight-estimates-tab' ? 'Estimates' : '';
     return appFrame('work-orders', 'WO-0001-0014 <span class="tw-badge">TUTORIAL</span> <span class="tw-status">OPEN</span>',
-      '<div class="tw-app-tabs">' + tabs(['Overview','Estimates','Invoices','Files','Schedule','Notes','Activity'], 'Estimates') + '</div><div class="tw-app-grid"><div class="tw-app-card"><h4>Job description</h4><p>Demo job: kitchen drywall repair, unit 1B</p><h4>Estimates</h4><table class="tw-app-table"><tbody><tr><td class="tw-app-muted">No estimates yet.</td><td></td></tr></tbody></table></div><div class="tw-app-card"><h4>Quick stats</h4><p>Customer: <strong>Tutorial Customer</strong></p><p>Estimate total: <strong>$0.00</strong></p><p>Invoice balance: <strong>$0.00</strong></p></div></div>',
+      '<div class="tw-app-tabs">' + tabs(['Overview','Estimates','Invoices','Files','Schedule','Notes','Activity'], activeTab, highlightTab) + '</div><div class="tw-app-grid"><div class="tw-app-card"><h4>Job description</h4><p>Demo job: kitchen drywall repair, unit 1B</p><h4>Estimates</h4><table class="tw-app-table"><tbody><tr><td class="tw-app-muted">No estimates yet.</td><td></td></tr></tbody></table></div><div class="tw-app-card"><h4>Quick stats</h4><p>Customer: <strong>Tutorial Customer</strong></p><p>Estimate total: <strong>$0.00</strong></p><p>Invoice balance: <strong>$0.00</strong></p></div></div>',
       '<button class="tw-app-btn primary">+ New Estimate</button>');
   }
 
@@ -488,8 +490,8 @@
         '<div class="tw-app-tabs">' + tabs(['Work Orders','Estimates','Invoices','Payments','Files'], 'Estimates') + '</div><div class="tw-app-card"><h4>Customer estimates</h4><table class="tw-app-table"><tbody><tr><td class="tw-app-muted">No loose estimates yet.</td><td></td></tr></tbody></table></div>',
         '<button class="tw-app-btn">+ New WO</button><button class="tw-app-btn primary tw-app-highlight" data-tutorial-action>+ New Estimate</button>');
     }
-    if (stepId === 'spotlight-estimates-tab') return workOrderDetail();
-    if (stepId === 'spotlight-new-estimate') return workOrderDetail().replace('tw-app-btn primary', 'tw-app-btn primary tw-app-highlight" data-tutorial-action="1');
+    if (stepId === 'spotlight-estimates-tab') return workOrderDetail(stepId);
+    if (stepId === 'spotlight-new-estimate') return workOrderDetail(stepId).replace('tw-app-btn primary', 'tw-app-btn primary tw-app-highlight" data-tutorial-action="1');
     if (stepId === 'back-to-customer') return customerDetail();
     if (stepId === 'quick-fill' || stepId === 'line-1-description' || stepId === 'line-1-qty-rate' || stepId === 'line-2-add' || stepId === 'line-2-fill' || stepId === 'tax-input' || stepId === 'save' || stepId === 'form-arrived' || stepId === 'line-1-intro') {
       return estimateForm(stepId, loose);
@@ -541,8 +543,15 @@
       '<div class="tw-app-tabs">' + tabs(['Work Orders','Estimates','Invoices','Payments','Files'], 'Payments') + '</div><div class="tw-app-card"><h4>Payment Ledger</h4><table class="tw-app-table"><thead><tr><th>Date</th><th>Invoice</th><th>Method</th><th>Amount</th></tr></thead><tbody><tr><td>Today</td><td>INV-0001-0014</td><td>Check</td><td>$386.90</td></tr></tbody></table></div>');
   }
 
-  function tabs(items, active) {
-    return items.map(function(item) { return '<span class="tw-app-tab ' + (item === active ? 'active' : '') + '">' + item + '</span>'; }).join('');
+  function tabs(items, active, highlight) {
+    return items.map(function(item) {
+      var classes = 'tw-app-tab'
+        + (item === active ? ' active' : '')
+        + (item === highlight ? ' tw-app-highlight' : '');
+      var tab = item.toLowerCase().replace(/\s+/g, '-');
+      var action = item === highlight ? ' data-tutorial-action="1"' : '';
+      return '<span class="' + classes + '" data-tab="' + tab + '"' + action + '>' + item + '</span>';
+    }).join('');
   }
 
   function field(name, label, placeholder, value) {
