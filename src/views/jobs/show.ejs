@@ -18,10 +18,7 @@ workOrders.filter(w => w.parent_wo_id).forEach(s => {
   <!-- D-007: Project header partial -->
   <%- include('_project_header', { job: job, projectManager: typeof projectManager !== 'undefined' ? projectManager : null }) %>
 
-  <!-- D-007: Financial overview partial -->
-  <%- include('_financial_overview', { financials: financials }) %>
-
-  <!-- D-007a: Financial Command Panel -->
+  <!-- D-007a: Financial Command Panel (replaces legacy Financial Overview) -->
   <%- include('_financial_panel', { financials: projectFinancials, financialsError: projectFinancialsError }) %>
 
   <!-- Work Orders -->
