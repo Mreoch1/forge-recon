@@ -191,7 +191,7 @@
 
   /* D-083: Cinematic intro — FORGE wordmark reveal, full-page overlay */
   #forge-cinematic {
-    position: fixed; inset: 0; z-index: 9999;
+    position: fixed; inset: 0; z-index: 10050;
     display: none; flex-direction: column; align-items: center; justify-content: center;
     background: linear-gradient(135deg, #020617 0%, #172554 50%, #0f172a 100%);
     opacity: 0; transition: opacity 0.3s ease;
@@ -228,12 +228,12 @@
   #forge-cinematic-skip {
     position: absolute; bottom: 2rem; right: 2rem;
     font-size: 0.75rem; color: #64748b; cursor: pointer; text-decoration: underline;
-    opacity: 0; transition: opacity 0.3s ease 1.5s; z-index: 2;
+    opacity: 0; transition: opacity 0.3s ease 1.5s; z-index: 10051;
   }
   #forge-cinematic.active #forge-cinematic-skip { opacity: 1; }
   #forge-cinematic-continue {
     margin-top: 2rem; font-size: 1rem; color: #22d3ee; cursor: pointer;
-    opacity: 0; transition: opacity 0.6s ease; z-index: 2;
+    opacity: 0; transition: opacity 0.6s ease; z-index: 10051;
     animation: forge-cine-pulse 2s ease-in-out infinite;
     display: none;
   }
