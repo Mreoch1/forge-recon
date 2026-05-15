@@ -34,7 +34,33 @@
   .tw-exit:hover { color: #94a3b8; }
 
   /* Body — narration + diagrams */
-  .tw-body { position: relative; z-index: 2; flex: 1; overflow-y: auto; padding: 0.5rem 0; }
+  .tw-body {
+    position: relative; z-index: 2; flex: 1; overflow-y: auto; padding: 0.5rem 0;
+    scrollbar-width: thin; scrollbar-color: rgba(34,211,238,0.65) rgba(15,23,42,0.45);
+  }
+  .tw-body:focus { outline: 2px solid rgba(34,211,238,0.45); outline-offset: 4px; border-radius: 8px; }
+  .tw-body::-webkit-scrollbar { width: 10px; }
+  .tw-body::-webkit-scrollbar-track { background: rgba(15,23,42,0.45); border-radius: 999px; }
+  .tw-body::-webkit-scrollbar-thumb { background: rgba(34,211,238,0.65); border-radius: 999px; }
+  .tw-scroll-controls {
+    position: absolute; right: 1rem; top: 4.6rem; z-index: 4;
+    display: none; flex-direction: column; gap: 0.35rem;
+  }
+  .tw-scroll-controls.visible { display: flex; }
+  .tw-scroll-btn {
+    width: 2rem; height: 2rem; border-radius: 999px; border: 1px solid rgba(34,211,238,0.4);
+    background: rgba(15,23,42,0.88); color: #67e8f9; cursor: pointer; font-weight: 900;
+    box-shadow: 0 8px 20px rgba(2,6,23,0.32);
+  }
+  .tw-scroll-btn:hover { background: rgba(34,211,238,0.16); }
+  .tw-scroll-btn:disabled { opacity: 0.35; cursor: default; }
+  .tw-scroll-hint {
+    position: absolute; right: 3.45rem; top: 5.05rem; z-index: 4;
+    display: none; padding: 0.22rem 0.5rem; border-radius: 999px;
+    background: rgba(15,23,42,0.86); border: 1px solid rgba(34,211,238,0.22);
+    color: #94a3b8; font-size: 0.68rem; white-space: nowrap;
+  }
+  .tw-scroll-hint.visible { display: block; }
   .tw-narration { font-size: 1rem; line-height: 1.7; color: #e2e8f0; max-width: 720px; margin: 0 auto; }
   .tw-narration p { margin-bottom: 0.85rem; animation: tw-fade-in 0.4s ease forwards; }
   .tw-narration p strong { color: #22d3ee; }
@@ -136,6 +162,8 @@
     .tw-app-grid, .tw-app-form.two { grid-template-columns: 1fr; }
     .tw-app-heading { flex-direction: column; }
     .tw-app-actions { justify-content: flex-start; }
+    .tw-scroll-controls { right: 0.55rem; top: 4.25rem; }
+    .tw-scroll-hint { right: 2.95rem; top: 4.67rem; }
   }
 </style>
 
@@ -153,7 +181,13 @@
       <span class="tw-exit" id="tc-exit">Exit</span>
     </div>
 
-    <div class="tw-body">
+    <div class="tw-scroll-hint" id="tc-scroll-hint">Scroll text</div>
+    <div class="tw-scroll-controls" id="tc-scroll-controls" aria-label="Tutorial text scroll controls">
+      <button type="button" class="tw-scroll-btn" id="tc-scroll-up" aria-label="Scroll tutorial text up">&uarr;</button>
+      <button type="button" class="tw-scroll-btn" id="tc-scroll-down" aria-label="Scroll tutorial text down">&darr;</button>
+    </div>
+
+    <div class="tw-body" id="tc-body" tabindex="0" aria-label="Tutorial text and practice area">
       <% var initialStep = typeof currentStep !== 'undefined' && currentStep ? currentStep : ((currentChapter && currentChapter.steps && currentChapter.steps[stepIndex || 0]) || null); %>
       <% var initialDiagramId = (initialStep && initialStep.diagram_id) || (currentChapter && currentChapter.diagram_id); %>
       <div class="tw-diagram" id="tc-diagram">
@@ -197,6 +231,11 @@
   var initialStepIndex = <%- JSON.stringify(stepIndex || 0) %>;
   var input = document.getElementById('tc-input');
   var sendBtn = document.getElementById('tc-send');
+  var body = document.getElementById('tc-body');
+  var scrollControls = document.getElementById('tc-scroll-controls');
+  var scrollHint = document.getElementById('tc-scroll-hint');
+  var scrollUp = document.getElementById('tc-scroll-up');
+  var scrollDown = document.getElementById('tc-scroll-down');
   var narration = document.getElementById('tc-narration');
   var diagram = document.getElementById('tc-diagram');
   var diagramTemplates = document.getElementById('tc-diagram-templates');
@@ -261,7 +300,30 @@
       chipsList = [{ label: 'Next &rarr;', action: 'next', primary: true }, { label: 'Back &larr;', action: 'back' }];
     }
     renderChips(chipsList);
+    resetTutorialScroll();
     scheduleAutoAdvance(step, sourceChips.length);
+  }
+
+  function updateScrollControls() {
+    if (!body || !scrollControls) return;
+    var canScroll = body.scrollHeight > body.clientHeight + 4;
+    scrollControls.classList.toggle('visible', canScroll);
+    if (scrollHint) scrollHint.classList.toggle('visible', canScroll);
+    if (!canScroll) return;
+    if (scrollUp) scrollUp.disabled = body.scrollTop <= 2;
+    if (scrollDown) scrollDown.disabled = body.scrollTop + body.clientHeight >= body.scrollHeight - 2;
+  }
+
+  function resetTutorialScroll() {
+    if (!body) return;
+    body.scrollTop = 0;
+    setTimeout(updateScrollControls, 0);
+  }
+
+  function scrollTutorialBody(direction) {
+    if (!body) return;
+    body.scrollBy({ top: direction * Math.max(160, Math.floor(body.clientHeight * 0.6)), behavior: 'smooth' });
+    setTimeout(updateScrollControls, 220);
   }
 
   function renderDiagram(diagramId) {
@@ -562,6 +624,10 @@
 
   input.addEventListener('keydown', function(e) { if (e.key === 'Enter') handleInput(); });
   sendBtn.addEventListener('click', handleInput);
+  if (body) body.addEventListener('scroll', updateScrollControls, { passive: true });
+  if (scrollUp) scrollUp.addEventListener('click', function() { scrollTutorialBody(-1); });
+  if (scrollDown) scrollDown.addEventListener('click', function() { scrollTutorialBody(1); });
+  window.addEventListener('resize', updateScrollControls);
   document.getElementById('tc-exit').addEventListener('click', function() {
     if (confirm('Exit the tutorial? Your progress will be saved.')) sendAction('exit');
   });
