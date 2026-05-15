@@ -91,7 +91,7 @@ async function getInboxFeed(limit = 50, statusFilter) {
   // 2. Fetch ai_chat_errors (only unresolved, skip user_feedback tool_name)
   let errQuery = supabase
     .from('ai_chat_errors')
-    .select('id, error_type, error_message, tool_name, created_at, user_id, resolved_at')
+    .select('id, error_type, error_message, tool_name, created_at, user_id, resolved_at, request_payload')
     .neq('tool_name', 'user_feedback')
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -101,6 +101,7 @@ async function getInboxFeed(limit = 50, statusFilter) {
   if (errors) {
     errors.forEach(e => {
       const isResolved = !!e.resolved_at;
+      const reqPayload = e.request_payload || {};
       results.push({
         id: `err-${e.id}`,
         source: 'ai_chat_errors',
@@ -112,6 +113,7 @@ async function getInboxFeed(limit = 50, statusFilter) {
         status: isResolved ? 'fixed' : 'new',
         userId: e.user_id,
         createdAt: e.created_at,
+        requestPayload: reqPayload,
       });
     });
   }

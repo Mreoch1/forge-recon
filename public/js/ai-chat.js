@@ -671,11 +671,48 @@
       e.preventDefault();
       const msgIdx = Number(target.dataset.msgIdx);
       const feedbackMsg = Number.isInteger(msgIdx) ? state.history[msgIdx] : null;
+      // Collect rich context for bug reports
+      const activeIntentRaw = sessionStorage.getItem(ACTIVE_INTENT_KEY);
+      let activeIntent = null;
+      try { activeIntent = JSON.parse(activeIntentRaw); } catch(e) {}
+      // Build context turns — last 5 messages around the reported one
+      var contextTurns = [];
+      if (Number.isInteger(msgIdx) && state.history.length > 0) {
+        var start = Math.max(0, msgIdx - 4);
+        var end = Math.min(state.history.length, msgIdx + 2);
+        for (var i = start; i < end; i++) {
+          var m = state.history[i];
+          contextTurns.push({ role: m.role, content: (m.content || '').slice(0, 500) });
+        }
+      }
+      // Find the user message that preceded this AI reply
+      var userMsg = '';
+      if (Number.isInteger(msgIdx)) {
+        for (var j = msgIdx - 1; j >= 0; j--) {
+          if (state.history[j] && state.history[j].role === 'user') {
+            userMsg = state.history[j].content || '';
+            break;
+          }
+        }
+      }
+      var payload = {
+        type: target.dataset.fb,
+        message: feedbackMsg ? (feedbackMsg.content || '').slice(0, 2000) : '',
+        userMessage: userMsg.slice(0, 2000),
+        contextTurns: contextTurns,
+        pageUrl: window.location.href,
+        pageTitle: document.title,
+        userAgent: navigator.userAgent,
+        msgIdx: msgIdx,
+        activeIntent: activeIntent,
+        screenSize: window.innerWidth + 'x' + window.innerHeight,
+        reportedAt: new Date().toISOString()
+      };
       // Fire-and-forget feedback to /ai/feedback
       fetch('/ai/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: target.dataset.fb, message: feedbackMsg?.content?.slice(0,200) || '' }),
+        body: JSON.stringify(payload),
       }).catch(function(){});
       const group = target.closest('.recon-aic-feedback');
       if (group) {

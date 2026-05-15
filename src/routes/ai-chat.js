@@ -252,17 +252,42 @@ router.post('/chat/confirm', async (req, res) => {
 });
 
 // AI chat feedback (👍/👎/⚠️ buttons)
-router.post('/feedback', (req, res) => {
-  const { type, message } = req.body || {};
+router.post('/feedback', async (req, res) => {
+  const { type, message, userMessage, contextTurns, pageUrl, pageTitle, userAgent, msgIdx, activeIntent, screenSize, reportedAt } = req.body || {};
   const userId = req.session?.userId || null;
+  // Look up user name + email for the report
+  let userName = null, userEmail = null, userRole = null;
+  if (userId) {
+    try {
+      const { data: user } = await supabase.from('users').select('name, email, role').eq('id', userId).single();
+      if (user) { userName = user.name; userEmail = user.email; userRole = user.role; }
+    } catch(e) { /* non-blocking */ }
+  }
   // Fire-and-forget — never block
   supabase.from('ai_chat_errors').insert({
     user_id: userId,
-    user_message: (message || '').slice(0, 500),
+    session_id: req.session?.id || null,
+    user_message: (userMessage || '').slice(0, 500) || (message || '').slice(0, 500),
     error_type: type === 'bug' ? 'unknown' : 'unknown',
     error_message: `User feedback: ${type || 'unknown'} — ${(message || '').slice(0, 200)}`,
     tool_name: 'ai_chat_bug_report',
-  }).then(() => {}).catch(() => {});
+    request_payload: {
+      type,
+      messagePreview: (message || '').slice(0, 2000),
+      userMessage: (userMessage || '').slice(0, 2000),
+      contextTurns: contextTurns || [],
+      pageUrl: pageUrl || null,
+      pageTitle: pageTitle || null,
+      userAgent: userAgent || null,
+      screenSize: screenSize || null,
+      reportedAt: reportedAt || null,
+      activeIntent: activeIntent || null,
+      userName,
+      userEmail,
+      userRole,
+      serverReceivedAt: new Date().toISOString(),
+    },
+  }).then(() => {}).catch((err) => { console.warn('[ai-chat] feedback insert failed:', err.message); });
   res.json({ ok: true });
 });
 

@@ -63,6 +63,21 @@ async function main() {
         content += `- **User ID:** ${item.userId || 'anonymous'}\n`;
         if (item.pageUrl) content += `- **Page:** ${item.pageUrl}\n`;
         content += `- **Body:** ${item.body.slice(0, 300)}${item.body.length > 300 ? '...' : ''}\n`;
+        // Rich context from request_payload
+        const rp = item.requestPayload || {};
+        if (rp.userName) content += `- **User:** ${rp.userName} (${rp.userEmail || 'no email'}, ${rp.userRole || 'no role'})\n`;
+        if (rp.userMessage) content += `- **User said:** ${rp.userMessage.slice(0, 300)}\n`;
+        if (rp.pageTitle) content += `- **Page:** ${rp.pageTitle}\n`;
+        if (rp.screenSize) content += `- **Screen:** ${rp.screenSize}\n`;
+        if (rp.userAgent) content += `- **Browser:** ${rp.userAgent.slice(0, 100)}\n`;
+        if (rp.activeIntent && rp.activeIntent.name) content += `- **Active intent:** ${rp.activeIntent.name}\n`;
+        if (rp.contextTurns && rp.contextTurns.length > 0) {
+          content += `- **Context (${rp.contextTurns.length} turns):** `;
+          rp.contextTurns.forEach(function(t, idx) {
+            content += `${t.role}: "${(t.content || '').slice(0, 80)}"${idx < rp.contextTurns.length - 1 ? ' → ' : ''}`;
+          });
+          content += '\n';
+        }
         content += `- **Status action:** \`/admin/inbox?status=new\`\n\n`;
       });
 
