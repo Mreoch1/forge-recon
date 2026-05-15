@@ -521,11 +521,20 @@ router.get('/', async (req, res) => {
 router.get('/new', async (req, res) => {
   if (!requireManagerRole(req, res)) return;
 
-  const { data: customers } = await supabase.from('customers').select('id, name, email, phone, address, city, state, zip').order('name');
-  const { data: users } = await supabase.from('users').select('id, name').eq('active', 1).order('name');
+  const [
+    { data: customers, error: customersError },
+    { data: users, error: usersError },
+    { data: settings, error: settingsError },
+  ] = await Promise.all([
+    supabase.from('customers').select('id, name, email, phone, address, city, state, zip').order('name'),
+    supabase.from('users').select('id, name').eq('active', 1).order('name'),
+    supabase.from('company_settings').select('next_wo_main_number').eq('id', 1).maybeSingle(),
+  ]);
+  if (customersError) throw customersError;
+  if (usersError) throw usersError;
+  if (settingsError) throw settingsError;
 
   // Read next number WITHOUT incrementing (just for display)
-  const { data: settings } = await supabase.from('company_settings').select('next_wo_main_number').eq('id', 1).maybeSingle();
   const suggestedNumber = settings ? { display: numbering.formatDisplay(settings.next_wo_main_number, 0) } : { display: '' };
   res.render('work-orders/new', {
     title: 'New work order', activeNav: 'work-orders',
