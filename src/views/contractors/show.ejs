@@ -1,0 +1,115 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<div class="max-w-4xl mx-auto px-4 py-6">
+  <div class="mb-4"><a href="/contractors" class="text-sm text-recon-fog hover:text-recon-red">&larr; Contractors</a></div>
+  <div class="flex items-baseline justify-between mb-6">
+    <h1 class="page-h1"><%= contractor.name %></h1>
+    <div class="flex gap-2">
+      <a href="/contractors/<%= contractor.id %>/edit" class="btn btn-secondary text-sm">Edit</a>
+      </div></div>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+    <div class="card p-4"><div class="text-xs text-recon-fog uppercase tracking-wide mb-1">Contact</div>
+      <p><%= contractor.email || '-' %></p><p><%= contractor.phone || '-' %></p></div>
+    <div class="card p-4"><div class="text-xs text-recon-fog uppercase tracking-wide mb-1">Address</div>
+      <p><%= [contractor.address, contractor.city, contractor.state, contractor.zip].filter(Boolean).join(', ') || '-' %></p></div>
+  </div>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+    <div class="card p-4"><div class="text-xs text-recon-fog uppercase tracking-wide mb-1">Trade</div>
+      <p><% if (contractor.trade) { %><span class="font-medium"><%= contractor.trade %></span><% } else { %>-<% } %></p></div>
+    <div class="card p-4"><div class="text-xs text-recon-fog uppercase tracking-wide mb-1">License #</div>
+      <p><%= contractor.license_number || '-' %></p></div>
+    <div class="card p-4"><div class="text-xs text-recon-fog uppercase tracking-wide mb-1">Insurance expiry</div>
+      <p><%= contractor.insurance_expiry_date || '-' %></p></div>
+  </div>
+  <div class="card p-4 mb-6"><h3 class="font-semibold mb-2">Notes</h3>
+    <p class="text-sm whitespace-pre-wrap"><%= contractor.notes || 'No notes.' %></p>
+  </div>
+
+  <!-- Work orders referencing this contractor -->
+  <div class="card p-4 mb-6"><h3 class="font-semibold mb-3">Work Orders</h3>
+    <% if (!workOrders || workOrders.length === 0) { %><p class="text-recon-fog text-sm">No work orders assigned to this contractor.</p>
+    <% } else { %><table class="data"><thead><tr><th>WO #</th><th>Status</th><th>Date</th></tr></thead><tbody>
+      <% workOrders.forEach(function(wo) { %><tr><td><%= wo.display_number || wo.id %></td><td><%= wo.status %></td><td><%= (wo.created_at || '').slice(0,10) %></td></tr><% }); %>
+    </tbody></table><% } %>
+  </div>
+
+  <!-- D-079: Contractor file workspace (license, COI, certs, etc.) -->
+  <details class="mt-6" <%= ((typeof folders !== 'undefined' && folders.length > 0) || (typeof files !== 'undefined' && files.length > 0)) ? 'open' : '' %>>
+    <summary class="cursor-pointer text-sm font-medium text-recon-fog mb-2 hover:text-recon-red">
+      Files
+      <% var _cfCount = (typeof folders !== 'undefined' ? folders.length : 0) + (typeof files !== 'undefined' ? files.length : 0); %>
+      <% if (_cfCount > 0) { %><span class="text-xs text-recon-fog">(<%= _cfCount %>)</span><% } %>
+    </summary>
+    <div class="card p-4 mt-2">
+      <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <p class="text-xs text-recon-fog m-0">Store license, COI, certificates, and other contractor docs here.</p>
+        <% if (typeof rootFolder !== 'undefined' && rootFolder) { %>
+          <a href="/files/folders/<%= rootFolder.id %>" class="btn btn-secondary text-sm">Open full file workspace &rarr;</a>
+        <% } else { %>
+          <form method="post" action="/contractors/<%= contractor.id %>/init-files" class="inline">
+            <button type="submit" class="btn btn-secondary text-sm">Initialize file workspace &rarr;</button>
+          </form>
+        <% } %>
+      </div>
+
+      <% if (typeof rootFolder !== 'undefined' && rootFolder && (currentUser.role === 'admin' || currentUser.role === 'manager')) { %>
+        <div class="flex flex-wrap gap-2 mb-4">
+          <form method="post" action="/files/folders/<%= rootFolder.id %>/subfolder" class="inline-flex gap-1 items-center">
+            <input type="text" name="name" placeholder="Subfolder name" class="input text-sm" style="width:140px;padding:.3rem .5rem;" required>
+            <button type="submit" class="btn btn-secondary text-sm">+ Folder</button>
+          </form>
+          <form method="post" action="/files/folders/<%= rootFolder.id %>/upload" enctype="multipart/form-data" class="inline-flex gap-1 items-center">
+            <input type="file" name="files" multiple class="text-sm" required>
+            <button type="submit" class="btn btn-primary text-sm">Upload</button>
+          </form>
+        </div>
+      <% } %>
+
+      <% if ((typeof folders === 'undefined' || folders.length === 0) && (typeof files === 'undefined' || files.length === 0)) { %>
+        <p class="text-recon-fog text-sm m-0">No files yet for this contractor.</p>
+      <% } else { %>
+        <% if (typeof folders !== 'undefined' && folders.length > 0) { %>
+          <h4 class="text-xs font-semibold uppercase tracking-wide text-recon-fog mb-2">Subfolders</h4>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+            <% folders.forEach(function(sf){ %>
+              <a href="/files/folders/<%= sf.id %>" class="card p-3 hover:shadow-md transition block text-sm">
+                <div class="font-medium text-recon-charcoal">&#128193; <%= sf.name %></div>
+              </a>
+            <% }); %>
+          </div>
+        <% } %>
+
+        <% if (typeof files !== 'undefined' && files.length > 0) { %>
+          <h4 class="text-xs font-semibold uppercase tracking-wide text-recon-fog mb-2">Files</h4>
+          <table class="data">
+            <thead><tr><th>Name</th><th>Type</th><th>Size</th><th>Uploaded</th><th></th></tr></thead>
+            <tbody>
+              <% files.forEach(function(f){ %>
+                <tr>
+                  <td class="font-medium"><a href="/files/<%= f.id %>/view" target="_blank" class="hover:text-recon-red"><%= f.original_filename %></a></td>
+                  <td class="text-sm text-recon-fog"><%= f.mime_type || '&mdash;' %></td>
+                  <td class="text-sm text-recon-fog"><%= f.size_bytes ? (f.size_bytes / 1024).toFixed(1) + ' KB' : '&mdash;' %></td>
+                  <td class="text-sm text-recon-fog"><%= (f.created_at || '').slice(0,10) %></td>
+                  <td class="text-right">
+                    <% if (currentUser.role === 'admin' || f.uploaded_by_user_id === currentUser.id) { %>
+                      <form method="post" action="/files/<%= f.id %>/delete" class="inline" onsubmit="return confirm('Delete <%= f.original_filename %>?')">
+                        <button type="submit" class="text-xs text-recon-fog hover:text-recon-red">Delete</button>
+                      </form>
+                    <% } %>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        <% } %>
+      <% } %>
+    </div>
+  </details>
+
+  <div class="card p-5 border-red-200 mt-6">
+    <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
+    <form action="/contractors/<%= contractor.id %>/delete" method="post" onsubmit="return confirm('Delete this contractor?');" class="m-0">
+      <button type="submit" class="btn btn-danger" title="Permanently delete this contractor. Only works if they have no work orders assigned.">Delete contractor</button>
+    </form>
+  </div>
+</div>
+<%- include("../layouts/footer") %>

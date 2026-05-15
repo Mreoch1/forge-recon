@@ -1,0 +1,58 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<div class="max-w-2xl mx-auto px-4 py-6">
+  <div class="mb-4"><a href="/contractors" class="text-sm text-recon-fog hover:text-recon-red">&larr; Contractors</a></div>
+  <h1 class="page-h1 mb-6"><%= title %></h1>
+  <div class="card p-6">
+    <form action="<%= contractor.id ? '/contractors/' + contractor.id : '/contractors' %>" method="post" class="space-y-4">
+      <div><label class="label">Name <span class="text-recon-red">*</span>
+          <span class="ml-1 text-recon-fog cursor-help" title="Contractor or subcontractor name as they appear on their business cards and invoices.">ⓘ</span>
+        </label>
+        <input type="text" name="name" value="<%= contractor.name || '' %>" class="input<%= errors.name ? ' border-red-500' : '' %>" required>
+        <% if (errors.name) { %><p class="text-sm text-red-600 mt-1"><%= errors.name %></p><% } %></div>
+      <div class="grid grid-cols-2 gap-4">
+        <div><label class="label">Email
+          <span class="ml-1 text-recon-fog cursor-help" title="Email used for work order communication and payment.">ⓘ</span>
+        </label><input type="email" name="email" value="<%= contractor.email || '' %>" class="input"></div>
+        <div><label class="label">Phone
+          <span class="ml-1 text-recon-fog cursor-help" title="Best contact number for this contractor.">ⓘ</span>
+        </label><input type="text" name="phone" value="<%= contractor.phone || '' %>" class="input"></div>
+      </div>
+      <div><label class="label">Street
+          <span class="ml-1 text-recon-fog cursor-help" title="Contractor's business address.">ⓘ</span>
+        </label><input type="text" name="address" value="<%= contractor.address || '' %>" class="input"></div>
+      <div class="grid grid-cols-3 gap-4">
+        <div><label class="label">City</label><input type="text" name="city" value="<%= contractor.city || '' %>" class="input"></div>
+        <div><label class="label">State</label><input type="text" name="state" value="<%= contractor.state || '' %>" class="input" maxlength="2"></div>
+        <div><label class="label">ZIP</label><input type="text" name="zip" value="<%= contractor.zip || '' %>" class="input" maxlength="10"></div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div><label class="label">Trade
+          <span class="ml-1 text-recon-fog cursor-help" title="Type of subcontractor work they perform.">ⓘ</span>
+        </label>
+          <select name="trade" class="input<%= errors.trade ? ' border-red-500' : '' %>">
+            <option value="">— Select —</option>
+            <option value="drywall" <%= contractor.trade === 'drywall' ? 'selected' : '' %>>Drywall</option>
+            <option value="plumbing" <%= contractor.trade === 'plumbing' ? 'selected' : '' %>>Plumbing</option>
+            <option value="electrical" <%= contractor.trade === 'electrical' ? 'selected' : '' %>>Electrical</option>
+            <option value="HVAC" <%= contractor.trade === 'HVAC' ? 'selected' : '' %>>HVAC</option>
+            <option value="general" <%= contractor.trade === 'general' ? 'selected' : '' %>>General</option>
+            <option value="other" <%= contractor.trade === 'other' ? 'selected' : '' %>>Other</option>
+          </select>
+          <% if (errors.trade) { %><p class="text-sm text-red-600 mt-1"><%= errors.trade %></p><% } %></div>
+        <div><label class="label">License #
+          <span class="ml-1 text-recon-fog cursor-help" title="State contractor license number.">ⓘ</span>
+        </label><input type="text" name="license_number" value="<%= contractor.license_number || '' %>" class="input"></div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div><label class="label">Insurance expiry date
+          <span class="ml-1 text-recon-fog cursor-help" title="Date contractor's general liability / workers comp insurance expires.">ⓘ</span>
+        </label><input type="date" name="insurance_expiry_date" value="<%= contractor.insurance_expiry_date || '' %>" class="input"></div>
+      </div>
+      <div><label class="label">Notes
+          <span class="ml-1 text-recon-fog cursor-help" title="Internal notes about this contractor (crew size, specialties, rates, etc.). Not shown outside the company.">ⓘ</span>
+        </label><textarea name="notes" class="input" rows="3"><%= contractor.notes || '' %></textarea></div>
+      <div class="flex gap-2 pt-4 border-t"><button type="submit" class="btn btn-primary">Save</button><a href="/contractors" class="btn btn-ghost">Cancel</a></div>
+    </form>
+  </div>
+</div>
+<%- include('../layouts/footer') %>

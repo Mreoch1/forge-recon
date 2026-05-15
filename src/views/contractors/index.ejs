@@ -1,0 +1,28 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<div class="max-w-7xl mx-auto px-4 py-6">
+  <div class="flex items-baseline justify-between mb-2"><div><h1 class="page-h1">Contractors</h1><p class="page-sub"><%= total %> total<% if (q) { %> &middot; filter: "<%= q %>"<% } %></p></div>
+  </div>
+  <form method="get" class="list-utility-bar"><input type="text" name="q" value="<%= q %>" placeholder="Search name, email, phone, trade..." class="list-search"><button class="btn btn-secondary">Search</button>
+    <% if (q) { %><a href="/contractors" class="list-clear">Clear</a><% } %>
+    <a href="/contractors/new" class="btn btn-primary">+ New contractor</a></form>
+  <% if (!contractors || contractors.length === 0) { %>
+    <div class="card p-8 text-center"><p class="text-recon-fog"><% if (q) { %>No contractors match "<%= q %>".<% } else { %>No contractors yet. <a href="/contractors/new" class="text-recon-red underline">Add your first contractor</a> to start tracking subs.<% } %></p>
+      <% if (q) { %><a href="/contractors" class="btn btn-ghost mt-2">Clear filter</a><% } %></div>
+  <% } else { %>
+    <div class="card overflow-hidden"><table class="data"><thead><tr><th>Name</th><th>Trade</th><th>Email</th><th>Phone</th><th>Location</th></tr></thead><tbody>
+      <% contractors.forEach(function(c) { %>
+        <tr class="row-link" data-href="/contractors/<%= c.id %>"><td><%= c.name %></td>
+          <td><% if (c.trade) { %><span class="badge badge-<%= c.trade %>"><%= c.trade %></span><% } else { %>-<% } %></td>
+          <td><%= c.email || '-' %></td><td><%= c.phone || '-' %></td>
+          <td><%= [c.city, c.state].filter(Boolean).join(', ') || '-' %></td></tr>
+      <% }); %>
+    </tbody></table></div>
+    <div class="flex justify-between items-center mt-4 text-sm text-recon-fog">
+      <span>Page <%= page %> of <%= totalPages %></span>
+      <div class="flex gap-2">
+        <% if (page > 1) { %><a href="/contractors?page=<%= page - 1 %><%= q ? '&q=' + q : '' %>" class="btn btn-ghost text-xs">Previous</a><% } %>
+        <% if (page < totalPages) { %><a href="/contractors?page=<%= page + 1 %><%= q ? '&q=' + q : '' %>" class="btn btn-ghost text-xs">Next</a><% } %>
+      </div></div>
+  <% } %>
+</div>
+<%- include('../layouts/footer') %>
