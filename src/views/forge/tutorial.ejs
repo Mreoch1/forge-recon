@@ -29,6 +29,7 @@
   .tw-progress-counter { white-space: nowrap; }
   .tw-progress-bar { flex: 1; height: 4px; background: rgba(148,163,184,0.2); border-radius: 2px; overflow: hidden; }
   .tw-progress-fill { height: 100%; background: linear-gradient(90deg, #22d3ee 0%, #06b6d4 100%); border-radius: 2px; transition: width 0.4s ease; box-shadow: 0 0 8px rgba(34,211,238,0.5); }
+  .tw-version { font-size: 0.68rem; color: #475569; font-family: 'SF Mono', monospace; }
   .tw-exit { font-size: 0.75rem; color: #64748b; text-decoration: underline; cursor: pointer; }
   .tw-exit:hover { color: #94a3b8; }
 
@@ -101,7 +102,7 @@
 </style>
 
 <div class="max-w-7xl mx-auto px-4 py-4">
-  <div id="tutorial-window">
+  <div id="tutorial-window" data-tutorial-content-version="<%- tutorialContentVersion || '' %>">
     <div class="tw-header">
       <div class="tw-title">FORGE Tour Guide</div>
       <div class="tw-progress">
@@ -110,6 +111,7 @@
           <div class="tw-progress-fill" id="tc-progress-fill" style="width:<%= ((chapterIndex || 0) / Math.max(1,(totalChapters || 11))) * 100 %>%"></div>
         </div>
       </div>
+      <span class="tw-version" id="tc-version"><%= String(tutorialContentVersion || '').slice(0, 10) %></span>
       <span class="tw-exit" id="tc-exit">Exit</span>
     </div>
 
@@ -153,6 +155,7 @@
   var returnTo = <%- JSON.stringify(returnTo || '/forge') %>;
   var sessionId = <%- JSON.stringify(tutorialSessionId || '') %>;
   var initialChapter = <%- JSON.stringify(currentChapter || null) %>;
+  var initialContentVersion = <%- JSON.stringify(tutorialContentVersion || '') %>;
   var initialStepIndex = <%- JSON.stringify(stepIndex || 0) %>;
   var input = document.getElementById('tc-input');
   var sendBtn = document.getElementById('tc-send');
@@ -164,6 +167,7 @@
   var progressFill = document.getElementById('tc-progress-fill');
   var currentSpan = document.getElementById('tc-current');
   var totalSpan = document.getElementById('tc-total');
+  var versionSpan = document.getElementById('tc-version');
   var autoTimer = null;
 
   function sendAction(action, payload) {
@@ -194,6 +198,7 @@
 
   function updateChapter(data) {
     if (currentSpan && data.chapterIndex !== undefined) currentSpan.textContent = (data.chapterIndex || 0) + 1;
+    if (versionSpan && data.tutorialContentVersion) versionSpan.textContent = data.tutorialContentVersion.slice(0, 10);
     var total = parseInt(totalSpan.textContent, 10) || 11;
     if (progressFill) progressFill.style.width = ((data.chapterIndex || 0) / Math.max(1,total) * 100) + '%';
 
@@ -370,7 +375,7 @@
     if (confirm('Exit the tutorial? Your progress will be saved.')) sendAction('exit');
   });
 
-  updateChapter({ chapter: initialChapter, step: initialStepIndex, chapterIndex: <%- JSON.stringify(chapterIndex || 0) %> });
+  updateChapter({ chapter: initialChapter, step: initialStepIndex, chapterIndex: <%- JSON.stringify(chapterIndex || 0) %>, tutorialContentVersion: initialContentVersion });
 })();
 </script>
 

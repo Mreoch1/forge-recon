@@ -416,6 +416,9 @@ async function resolveTutorialSessionId(req, userId) {
 router.get('/forge/tutorial', async (req, res) => {
   const { loadChapters, totalChapters } = require('../services/tutorial-content');
   loadChapters();
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   const sessionId = await resolveTutorialSessionId(req, res.locals.currentUser?.id);
 
   const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase, req.session);
@@ -441,6 +444,7 @@ router.get('/forge/tutorial', async (req, res) => {
     chapterIndex: state.currentChapter,
     totalChapters: totalChapters(),
     stepIndex: state.currentStep,
+    tutorialContentVersion: tc.contentVersion(),
   });
 });
 
@@ -448,6 +452,7 @@ router.get('/forge/tutorial', async (req, res) => {
 router.get('/forge/tutorial/state', async (req, res) => {
   const sessionId = req.session?.tutorialSessionId;
   if (!sessionId) return res.status(404).json({ error: 'No active tutorial' });
+  res.set('Cache-Control', 'no-store');
   const { loadChapters } = require('../services/tutorial-content');
   loadChapters();
   const state = await TutorialState.load(sessionId, res.locals.currentUser?.id, supabase, req.session);
@@ -463,12 +468,14 @@ router.get('/forge/tutorial/state', async (req, res) => {
       narration: ch.narration ? tc.interpolateNarration(ch.narration, res.locals.currentUser) : ch.narration,
     } : null,
     totalChapters: tc.totalChapters(),
+    tutorialContentVersion: tc.contentVersion(),
   });
 });
 
 router.post('/forge/tutorial/advance', async (req, res) => {
   const sessionId = req.session?.tutorialSessionId;
   if (!sessionId) return res.status(404).json({ error: 'No active tutorial' });
+  res.set('Cache-Control', 'no-store');
 
   // Ensure chapters are loaded (serverless instances may not share state)
   const { loadChapters } = require('../services/tutorial-content');
@@ -505,6 +512,7 @@ router.post('/forge/tutorial/advance', async (req, res) => {
   const tc = require('../services/tutorial-content');
   result.chapterIndex = state.currentChapter;
   result.totalChapters = tc.totalChapters();
+  result.tutorialContentVersion = tc.contentVersion();
 
   // Interpolate narration with user info
   const interpolated = require('../services/tutorial-content').interpolateNarration;

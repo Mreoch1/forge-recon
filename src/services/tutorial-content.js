@@ -36,6 +36,11 @@ function getContentSignature() {
   }).join('|');
 }
 
+function contentVersion() {
+  loadChapters();
+  return loadedSignature || getContentSignature();
+}
+
 function loadChapters() {
   const signature = getContentSignature();
   if (loaded && signature === loadedSignature) return;
@@ -72,7 +77,7 @@ function totalChapters() {
   return chapters.length;
 }
 
-module.exports = { loadChapters, getChapter, totalChapters, interpolateNarration, getDiagramPath };
+module.exports = { loadChapters, getChapter, totalChapters, contentVersion, interpolateNarration, getDiagramPath };
 
 /** Replace {{tokens}} in narration with user data. */
 function interpolateNarration(text, user) {
