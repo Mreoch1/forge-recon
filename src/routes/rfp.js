@@ -74,6 +74,20 @@ router.get('/projects/:id/rfp', async (req, res) => {
   });
 });
 
+// ── GET /api/rfp-sources — JSON endpoint with vendors + contractors for autocomplete ──
+router.get('/api/rfp-sources', async (req, res) => {
+  try {
+    const [vr, cr] = await Promise.all([
+      supabase.from('vendors').select('id, name').order('name'),
+      supabase.from('contractors').select('id, name, trade').order('name'),
+    ]);
+    res.json({ vendors: vr.data || [], contractors: cr.data || [] });
+  } catch (e) {
+    console.warn('[rfp-sources] fetch failed:', e.message);
+    res.json({ vendors: [], contractors: [] });
+  }
+});
+
 // ── GET /projects/:id/rfps — list RFPs for a project (JSON endpoint) ──
 router.get('/projects/:id/rfps', async (req, res) => {
   const jobId = req.params.id;

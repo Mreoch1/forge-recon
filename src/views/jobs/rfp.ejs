@@ -198,15 +198,25 @@
 <%- include('../layouts/footer') %>
 
 <script>
-// RFP autocomplete — search vendors + contractors as user types
+// RFP autocomplete — fetch vendors + contractors via JSON API, search as user types
 (function(){
   var sources = [];
-  <% (vendors || []).forEach(function(v){ %>
-    sources.push({ name: <%= JSON.stringify(v.name) %>, label: '(Vendor)', type: 'vendor' });
-  <% }); %>
-  <% (contractors || []).forEach(function(c){ %>
-    sources.push({ name: <%= JSON.stringify(c.name) %>, label: <%= JSON.stringify('(Contractor' + (c.trade ? ', ' + c.trade : '') + ')') %>, type: 'contractor' });
-  <% }); %>
+
+  // Fetch from API endpoint
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', '/api/rfp-sources', true);
+  xhr.onload = function() {
+    if (xhr.status === 200) {
+      var data = JSON.parse(xhr.responseText);
+      (data.vendors || []).forEach(function(v) {
+        sources.push({ name: v.name, label: '(Vendor)', type: 'vendor' });
+      });
+      (data.contractors || []).forEach(function(c) {
+        sources.push({ name: c.name, label: '(Contractor' + (c.trade ? ', ' + c.trade : '') + ')', type: 'contractor' });
+      });
+    }
+  };
+  xhr.send();
 
   function setupAutocomplete(inputId) {
     var input = document.getElementById(inputId);
