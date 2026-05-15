@@ -256,6 +256,7 @@ router.get('/:id', async (req, res) => {
     { data: payments },
     { data: sovItems },
     { data: decisions },
+    { data: rfps },
   ] = await Promise.all([
     supabase
       .from('work_orders')
@@ -307,6 +308,12 @@ router.get('/:id', async (req, res) => {
       .select('*, users!project_decisions_assigned_to_user_id_fkey(name)')
       .eq('job_id', id)
       .order('created_at', { ascending: false }),
+    supabase
+      .from('project_rfps')
+      .select('*')
+      .eq('job_id', id)
+      .order('created_at', { ascending: false })
+      .catch(function() { return { data: [] }; }),
   ]);
 
   const paymentTotal = (payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
@@ -328,6 +335,25 @@ router.get('/:id', async (req, res) => {
       .eq('id', job.project_manager_user_id)
       .maybeSingle();
     projectManager = pm;
+  }
+
+  // Load RFP line items for each RFP
+  let rfpItemsMap = {};
+  if (rfps && rfps.length) {
+    try {
+      const rfpIds = rfps.map(r => r.id);
+      const { data: allItems } = await supabase
+        .from('rfp_line_items')
+        .select('*')
+        .in('rfp_id', rfpIds)
+        .order('sort_order', { ascending: true })
+        .order('id', { ascending: true });
+      (allItems || []).forEach(item => {
+        (rfpItemsMap[item.rfp_id] = rfpItemsMap[item.rfp_id] || []).push(item);
+      });
+    } catch (e) {
+      console.warn('[rfp] could not load line items (table may not exist yet):', e.message);
+    }
   }
 
   // R37n: aggregate vendor_invoices by vendor for the vendor-spend table.
@@ -408,6 +434,9 @@ router.get('/:id', async (req, res) => {
       var usr = d.users || {};
       return { ...d, assigned_to_name: usr.name || null };
     }),
+    // D-093: RFP / bid comparison
+    rfps: rfps || [],
+    rfpItemsMap,
   });
 });
 
