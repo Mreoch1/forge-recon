@@ -165,7 +165,8 @@
             (subItems[s.parent_line_item_id] = subItems[s.parent_line_item_id] || []).push(s);
           });
         }
-        var grandTotal = items.reduce(function(s, i) { return s + Number(i.total_with_markup || 0); }, 0);
+        var grandTotal = items.reduce(function(s, i) { return s + (i.approved ? Number(i.total_with_markup || 0) : 0); }, 0);
+        var grandTotalAll = items.reduce(function(s, i) { return s + Number(i.total_with_markup || 0); }, 0);
         %>
         <div class="overflow-x-auto">
           <table class="data text-xs">
@@ -181,6 +182,7 @@
                 <th class="text-right">Markup</th>
                 <th class="text-right">Total w/ mrkup</th>
                 <th class="text-right">Final Unit</th>
+                <th class="text-center" title="Include in grand total">✓</th>
                 <th></th>
               </tr>
             </thead>
@@ -198,6 +200,7 @@
                     <td class="text-right"><input name="markup_pct" type="number" step="any" value="<%= item.markup_pct != null ? item.markup_pct : '' %>" class="input text-xs py-0.5 w-14 text-right"></td>
                     <td class="text-right font-medium"><%= item.total_with_markup != null ? '$' + Number(item.total_with_markup).toFixed(2) : '—' %></td>
                     <td class="text-right font-medium"><%= item.final_unit_cost != null ? '$' + Number(item.final_unit_cost).toFixed(2) : '—' %></td>
+                    <td class="text-center"><input type="hidden" name="approved" value="0"><input type="checkbox" name="approved" value="1" <%= item.approved ? 'checked' : '' %>></td>
                     <td class="text-right flex gap-1">
                       <button type="submit" class="text-green-600 hover:text-green-800 text-xs font-bold" title="Save">&#10003;</button>
                       <form action="/projects/rfps/items/<%= item.id %>/delete" method="POST"
@@ -234,8 +237,9 @@
             </tbody>
             <tfoot>
               <tr class="font-semibold bg-recon-deeper/50">
-                <td colspan="8" class="text-right">Grand Total</td>
+                <td colspan="8" class="text-right">Grand Total (approved)</td>
                 <td class="text-right text-recon-red">$<%= grandTotal.toFixed(2) %></td>
+                <td></td>
                 <td></td>
                 <td></td>
               </tr>

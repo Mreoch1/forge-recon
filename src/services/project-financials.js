@@ -118,7 +118,8 @@ async function getProjectFinancials(jobId) {
     const { data: lineItemData, error: liError } = await supabase
       .from('rfp_line_items')
       .select('total_with_markup')
-      .in('rfp_id', rfpIds);
+      .in('rfp_id', rfpIds)
+      .eq('approved', true);
     if (liError) throw liError;
 
     rfp_committed = (lineItemData || []).reduce(
