@@ -9,8 +9,18 @@
 
   <div class="mb-6">
     <h1 class="page-h1">RFP / Bid Comparison</h1>
-    <p class="text-sm text-recon-fog mt-1">Project: <a href="/projects/<%= job.id %>" class="text-recon-red hover:underline"><%= job.title || job.name %></a></p>
+    <p class="text-sm text-recon-fog mt-1">Project: <a href="/projects/<%= job.id %>" class="text-recon-red hover:underline"><%= job.title %></a></p>
   </div>
+
+  <!-- Combined vendor + contractor autocomplete options -->
+  <datalist id="vendor-contractor-list">
+    <% (vendors || []).forEach(function(v){ %>
+      <option value="<%= v.name %>" data-type="vendor"><%= v.name %> (Vendor)</option>
+    <% }); %>
+    <% (contractors || []).forEach(function(c){ %>
+      <option value="<%= c.name %>" data-type="contractor"><%= c.name %> (Contractor<%= c.trade ? ', ' + c.trade : '' %>)</option>
+    <% }); %>
+  </datalist>
 
   <!-- New RFP form (hidden by default) -->
   <div id="rfp-new-form" class="hidden card p-4 mb-6 bg-recon-deeper border-recon-mist">
@@ -18,7 +28,7 @@
     <form action="/projects/<%= job.id %>/rfps" method="POST" class="flex gap-3 items-end flex-wrap">
       <div>
         <label class="block text-xs text-recon-fog mb-1">Contractor name</label>
-        <input name="contractor_name" required class="input" placeholder="e.g. Esrepairpros">
+        <input name="contractor_name" required class="input" placeholder="e.g. Esrepairpros" list="vendor-contractor-list" autocomplete="off">
       </div>
       <div>
         <label class="block text-xs text-recon-fog mb-1">Notes (optional)</label>
@@ -90,7 +100,7 @@
         <!-- Add item form -->
         <div id="rfp-item-form-<%= rfp.id %>" class="hidden p-3 bg-recon-deeper/30 border-b border-recon-mist">
           <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/items" method="POST" class="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
-            <input name="vendor" placeholder="Vendor/supplier" class="input">
+            <input name="vendor" placeholder="Vendor/supplier" class="input" list="vendor-contractor-list" autocomplete="off">
             <input name="description" placeholder="Description" class="input" required>
             <input name="quantity" type="number" step="any" placeholder="Qty" class="input">
             <input name="contractor_cost" type="number" step="any" placeholder="Contr. cost" class="input">
