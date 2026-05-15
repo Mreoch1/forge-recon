@@ -296,8 +296,22 @@ router.delete('/projects/rfps/items/:itemId', requireManager, async (req, res) =
 
 // ── POST /projects/rfps/items/:itemId — update a line item (D-101 inline edit) ──
 router.post('/projects/rfps/items/:itemId', requireManager, async (req, res) => {
-  const { vendor, description, quantity, contractor_cost, vendor_cost,
-          unit_cost, total_cost, markup_pct, approved } = req.body;
+  // D-119 fix: when an HTML form has BOTH a hidden input (value="0") AND a
+  // checkbox (value="1") sharing the same name, Express's qs body parser
+  // returns an ARRAY of values. The previous code did `approved === '1'`
+  // strict comparison which always failed on an array → approved never saved.
+  // Normalize all req.body values: if array, take the LAST element (which is
+  // the checkbox's "1" when checked, or just the hidden "0" when unchecked).
+  function lastOf(v) { return Array.isArray(v) ? v[v.length - 1] : v; }
+  const vendor = lastOf(req.body.vendor);
+  const description = lastOf(req.body.description);
+  const quantity = lastOf(req.body.quantity);
+  const contractor_cost = lastOf(req.body.contractor_cost);
+  const vendor_cost = lastOf(req.body.vendor_cost);
+  const unit_cost = lastOf(req.body.unit_cost);
+  const total_cost = lastOf(req.body.total_cost);
+  const markup_pct = lastOf(req.body.markup_pct);
+  const approved = lastOf(req.body.approved);
 
   const markup = parseFloat(markup_pct) || 20;
   const cCost = parseFloat(contractor_cost) || 0;

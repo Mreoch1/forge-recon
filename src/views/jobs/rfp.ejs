@@ -47,10 +47,6 @@
         </datalist>
         <p class="text-xs text-recon-fog mt-1">Type any custom name (e.g. "1st floor", "Activities bldg") — picker is just a suggestion list.</p>
       </div>
-      <div>
-        <label class="block text-xs text-recon-fog mb-1">Notes (optional)</label>
-        <input name="notes" class="input" placeholder="Scope notes" style="min-width:200px">
-      </div>
       <button type="submit" class="btn btn-primary text-sm">Add Tab</button>
     </form>
   </div>
@@ -141,26 +137,18 @@
                   class="text-sm text-recon-red hover:underline">+ Add item</button>
         </div>
 
-        <!-- Add item form (auto-totals: enter vendor/contractor + description + qty + contractor/vendor cost,
-             then unit_cost / total_cost / total_with_markup / final_unit_cost compute automatically) -->
+        <!-- Add item form — line item is just an Item name (e.g. Demo, Install, Supply).
+             Costs / qty / totals auto-compute from sub-line items added under each item. -->
         <div id="rfp-item-form-<%= rfp.id %>" class="hidden p-3 bg-recon-deeper/30 border-b border-recon-mist">
-          <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/items" method="POST" class="rfp-line-form grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
-            <input name="vendor" class="input rfp-vendor-autocomplete" placeholder="Vendor or contractor" autocomplete="off" list="rfp-line-entity-options">
-            <input name="description" placeholder="Description" class="input" required>
-            <input name="quantity" data-compute-input type="number" step="any" placeholder="Qty" class="input">
-            <input name="contractor_cost" data-compute-input type="number" step="any" placeholder="Contr. cost" class="input">
-            <input name="vendor_cost" data-compute-input type="number" step="any" placeholder="Vendor cost" class="input">
-            <input name="unit_cost" data-compute-output="unit_cost" type="number" step="any" placeholder="Unit (auto)" class="input bg-recon-cloud/30 text-recon-charcoal/70">
-            <input name="total_cost" data-compute-output="total_cost" type="number" step="any" placeholder="Total (auto)" class="input bg-recon-cloud/30 text-recon-charcoal/70">
-            <div class="flex gap-1 items-center">
-              <input name="markup_pct" data-compute-input type="number" step="any" placeholder="Markup %" value="20" class="input w-16">
-              <span class="text-recon-fog">%</span>
-              <button type="submit" class="btn btn-primary text-xs ml-1">Add</button>
+          <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/items" method="POST" class="flex gap-2 items-end text-xs">
+            <div class="flex-1">
+              <label class="block text-xs text-recon-fog mb-1">Item</label>
+              <textarea name="description" placeholder="e.g. Demo, Install, Supply, Demo kitchen" class="input w-full" required maxlength="500" rows="1" data-autosize></textarea>
             </div>
-            <input name="total_with_markup" data-compute-output="total_with_markup" type="hidden">
-            <input name="final_unit_cost" data-compute-output="final_unit_cost" type="hidden">
             <input name="parent_id" type="hidden" value="">
+            <button type="submit" class="btn btn-primary text-xs">Add Item</button>
           </form>
+          <p class="text-xs text-recon-fog mt-2">Click into the item below to add sub-line items per contractor/vendor — costs, qty, markup, and totals roll up automatically from the sub-lines.</p>
         </div>
 
         <!-- Line items table -->
@@ -199,20 +187,28 @@
                 <% var itemFormId = 'rfp-li-form-' + item.id; var itemDelFormId = 'rfp-li-del-' + item.id; var children = subItems[item.id] || []; %>
                 <% var liUnit = children.filter(function(s){return s.approved;}).reduce(function(s,c){return s + (Number(c.contractor_cost||0)+Number(c.vendor_cost||0));},0); %>
                 <% var liTotal = children.filter(function(s){return s.approved;}).reduce(function(s,c){return s + (Number(c.total_with_markup||0));},0); %>
-                <!-- D-105: Line item container row -->
+                <!-- D-105: Line item container row — Item name + auto-rolled-up totals from approved sub-lines.
+                     Falls back to direct values on the line item itself when no sub-lines exist (legacy data). -->
+                <% var liSubCount = children.length; var liApprovedSubs = children.filter(function(s){return s.approved;}).length; %>
+                <% var liDisplayTotal = liApprovedSubs > 0 ? liTotal : (Number(item.total_with_markup) || 0); %>
+                <% var liDisplayUnit = liApprovedSubs > 0
+                     ? (item.quantity > 0 ? liTotal / Number(item.quantity) : 0)
+                     : (Number(item.final_unit_cost) || 0); %>
                 <tr class="bg-recon-deeper/20 hover:bg-recon-cloud/20" style="cursor:pointer" onclick="var n=this.nextElementSibling;while(n&&n.classList.contains('rfp-sub-row')){n.style.display=n.style.display==='none'?'':'none';n=n.nextElementSibling;}">
-                  <td><form id="<%= itemFormId %>" action="/projects/rfps/items/<%= item.id %>" method="POST"></form><input form="<%= itemFormId %>" name="description" value="<%= item.description %>" class="input text-xs py-0.5 font-medium"></td>
-                  <td colspan="1" class="text-xs text-recon-fog"><input form="<%= itemFormId %>" name="location" value="<%= item.location || '' %>" class="input text-xs py-0.5" placeholder="Location"></td>
-                  <td class="text-right"><input form="<%= itemFormId %>" name="quantity" type="number" step="any" value="<%= item.quantity != null ? item.quantity : '' %>" class="input text-xs py-0.5 w-16 text-right"></td>
-                  <td class="text-right font-medium">$<%= liUnit.toFixed(2) %></td>
-                  <td class="text-right font-medium">$<%= liTotal.toFixed(2) %></td>
-                  <td></td><td></td>
-                  <td class="text-right font-medium">$<%= liTotal.toFixed(2) %></td>
-                  <td class="text-right"><%= liUnit > 0 && item.quantity > 0 ? '$' + (liTotal / Number(item.quantity)).toFixed(2) : '-' %></td>
+                  <td><form id="<%= itemFormId %>" action="/projects/rfps/items/<%= item.id %>" method="POST" onclick="event.stopPropagation();"></form><textarea form="<%= itemFormId %>" name="description" class="input text-xs py-0.5 font-medium w-full" placeholder="Item" rows="1" data-autosize><%= item.description %></textarea></td>
+                  <td><input form="<%= itemFormId %>" name="location" value="<%= item.location || '' %>" class="input text-xs py-0.5 w-full" placeholder="Location"></td>
+                  <td class="text-right"><input form="<%= itemFormId %>" name="quantity" type="number" step="any" value="<%= item.quantity != null ? item.quantity : '' %>" class="input text-xs py-0.5 w-12 text-right"></td>
+                  <td class="text-right font-medium">$<%= (liApprovedSubs > 0 ? liUnit : Number(item.unit_cost) || 0).toFixed(2) %></td>
+                  <td class="text-right font-medium">$<%= (liApprovedSubs > 0 ? liTotal : Number(item.total_cost) || 0).toFixed(2) %></td>
+                  <td class="text-right text-xs text-recon-fog">—</td>
+                  <td class="text-right text-xs text-recon-fog">—</td>
+                  <td class="text-right font-medium">$<%= liDisplayTotal.toFixed(2) %></td>
+                  <td class="text-right text-xs">$<%= liDisplayUnit.toFixed(2) %></td>
                   <td class="text-center"><input form="<%= itemFormId %>" type="hidden" name="approved" value="0"><input form="<%= itemFormId %>" type="checkbox" name="approved" value="1" <%= item.approved ? 'checked' : '' %>></td>
-                  <td class="text-right flex gap-1">
+                  <td class="text-right flex gap-1 items-center">
+                    <span class="text-xs text-recon-fog mr-1" title="Approved sub-lines"><%= liApprovedSubs %>/<%= liSubCount %></span>
                     <button type="submit" form="<%= itemFormId %>" class="text-green-600 hover:text-green-800 text-xs font-bold" title="Save">&#10003;</button>
-                    <form id="<%= itemDelFormId %>" action="/projects/rfps/items/<%= item.id %>/delete" method="POST" onsubmit="return confirm('Delete?')"></form>
+                    <form id="<%= itemDelFormId %>" action="/projects/rfps/items/<%= item.id %>/delete" method="POST" onclick="event.stopPropagation();" onsubmit="return confirm('Delete?')"></form>
                     <button type="submit" form="<%= itemDelFormId %>" class="text-recon-fog hover:text-recon-red text-xs">&times;</button>
                   </td>
                 </tr>
@@ -241,14 +237,14 @@
                 <% children.forEach(function(sub){ %>
                   <% var subFid = 'rfp-sub-form-' + sub.id; var subDid = 'rfp-sub-del-' + sub.id; %>
                   <tr class="rfp-sub-row">
-                    <td class="pl-4 text-recon-fog text-xs"><form id="<%= subFid %>" action="/projects/rfps/items/<%= sub.id %>" method="POST"></form><input form="<%= subFid %>" name="description" value="<%= sub.description %>" class="input text-xs py-0.5" placeholder="Sub description"></td>
+                    <td class="pl-4 text-recon-fog text-xs"><form id="<%= subFid %>" action="/projects/rfps/items/<%= sub.id %>" method="POST"></form><textarea form="<%= subFid %>" name="description" class="input text-xs py-0.5 w-full" placeholder="Sub description" rows="1" data-autosize><%= sub.description %></textarea></td>
                     <td></td>
-                    <td class="text-right"><input form="<%= subFid %>" name="quantity" type="number" step="any" value="<%= sub.quantity != null ? sub.quantity : '' %>" class="input text-xs py-0.5 w-16 text-right"></td>
-                    <td class="text-right"><input form="<%= subFid %>" name="contractor_cost" type="number" step="any" value="<%= sub.contractor_cost != null ? sub.contractor_cost : '' %>" class="input text-xs py-0.5 w-20 text-right" placeholder="Contr"><br><input form="<%= subFid %>" name="vendor_cost" type="number" step="any" value="<%= sub.vendor_cost != null ? sub.vendor_cost : '' %>" class="input text-xs py-0.5 w-20 text-right" placeholder="Vendor"></td>
+                    <td class="text-right"><input form="<%= subFid %>" name="quantity" type="number" step="any" value="<%= sub.quantity != null ? sub.quantity : '' %>" class="input text-xs py-0.5 w-12 text-right"></td>
+                    <td class="text-right"><input form="<%= subFid %>" name="contractor_cost" type="number" step="any" value="<%= sub.contractor_cost != null ? sub.contractor_cost : '' %>" class="input text-xs py-0.5 w-16 text-right" placeholder="Contr"><br><input form="<%= subFid %>" name="vendor_cost" type="number" step="any" value="<%= sub.vendor_cost != null ? sub.vendor_cost : '' %>" class="input text-xs py-0.5 w-16 text-right" placeholder="Vendor"></td>
                     <td class="text-right"><%= sub.unit_cost != null ? '$' + Number(sub.unit_cost).toFixed(2) : '-' %></td>
                     <td class="text-right"><%= sub.total_cost != null ? '$' + Number(sub.total_cost).toFixed(2) : '-' %></td>
-                    <td class="text-right"><input form="<%= subFid %>" name="markup_pct" type="number" step="any" value="<%= sub.markup_pct != null ? sub.markup_pct : '20' %>" class="input text-xs py-0.5 w-14 text-right"></td>
-                    <td class="text-right"><input form="<%= subFid %>" name="general_requirements_pct" type="number" step="any" value="<%= sub.general_requirements_pct != null ? sub.general_requirements_pct : '6' %>" class="input text-xs py-0.5 w-14 text-right"></td>
+                    <td class="text-right"><input form="<%= subFid %>" name="markup_pct" type="number" step="any" value="<%= sub.markup_pct != null ? sub.markup_pct : '20' %>" class="input text-xs py-0.5 w-12 text-right"></td>
+                    <td class="text-right"><input form="<%= subFid %>" name="general_requirements_pct" type="number" step="any" value="<%= sub.general_requirements_pct != null ? sub.general_requirements_pct : '6' %>" class="input text-xs py-0.5 w-12 text-right"></td>
                     <td class="text-right font-medium"><%= sub.total_with_markup != null ? '$' + Number(sub.total_with_markup).toFixed(2) : '-' %></td>
                     <td class="text-right font-medium"><%= sub.final_unit_cost != null ? '$' + Number(sub.final_unit_cost).toFixed(2) : '-' %></td>
                     <td class="text-center"><input form="<%= subFid %>" type="hidden" name="approved" value="0"><input form="<%= subFid %>" type="checkbox" name="approved" value="1" <%= sub.approved ? 'checked' : '' %>></td>
