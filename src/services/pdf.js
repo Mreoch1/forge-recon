@@ -619,10 +619,12 @@ function generateInvoicePDF(invoice, company, stream) {
   drawPaymentTerms(doc, invoice, company);
 
   // PAID stamp — large diagonal red overlay when invoice is paid (D-067h)
+  // D-110: moved up from 35% → 18% of page height so the stamp lands in the
+  // empty space above BILL TO / JOB SITE / dates row instead of blocking them.
   if (invoice.status === 'PAID' || invoice.status === 'paid' || invoice.paid_at) {
     const pageW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
     const pageH = doc.page.height - doc.page.margins.top - doc.page.margins.bottom;
-    const stampY = doc.page.margins.top + pageH * 0.35;
+    const stampY = doc.page.margins.top + pageH * 0.18;
     doc.save();
     doc.fontSize(72).fillColor(180, 30, 30, 0.2).font('Helvetica-Bold');
     doc.translate(doc.page.margins.left + pageW * 0.55, stampY);
