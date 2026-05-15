@@ -19,7 +19,15 @@
     <form action="/projects/<%= job.id %>/rfps" method="POST" class="flex gap-3 items-end flex-wrap">
       <div>
         <label class="block text-xs text-recon-fog mb-1">Contractor / Vendor name</label>
-        <input name="contractor_name" id="vendor-search-rfp" required class="input" placeholder="e.g. Esrepairpros" autocomplete="off">
+        <input name="contractor_name" id="vendor-search-rfp" required class="input" placeholder="Type to filter contractors + vendors" autocomplete="off" list="rfp-entity-options">
+        <datalist id="rfp-entity-options">
+          <% (contractors || []).forEach(function(c) { %>
+            <option value="<%= c.name %>" data-type="contractor"><%= c.name %> — Contractor<% if (c.trade) { %> (<%= c.trade %>)<% } %></option>
+          <% }); %>
+          <% (vendors || []).forEach(function(v) { %>
+            <option value="<%= v.name %>" data-type="vendor"><%= v.name %> — Vendor</option>
+          <% }); %>
+        </datalist>
       </div>
       <div>
         <label class="block text-xs text-recon-fog mb-1">Notes (optional)</label>
