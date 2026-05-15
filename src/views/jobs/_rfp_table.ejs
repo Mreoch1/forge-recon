@@ -45,7 +45,7 @@ const fmt = typeof rfpFmt !== 'undefined' ? rfpFmt : function(n) {
           <div class="flex gap-2 text-xs">
             <button onclick="document.getElementById('rfp-item-form-<%= rfp.id %>').classList.toggle('hidden')"
                     class="text-recon-red hover:underline">+ Add item</button>
-            <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>?_method=DELETE" method="POST"
+            <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/delete" method="POST"
                   onsubmit="return confirm('Delete this RFP and all its items?')">
               <button class="text-recon-fog hover:text-recon-red">Delete</button>
             </form>
@@ -112,7 +112,7 @@ const fmt = typeof rfpFmt !== 'undefined' ? rfpFmt : function(n) {
                   <td class="text-right font-medium"><%= item.total_with_markup != null ? '$' + fmt(item.total_with_markup) : '—' %></td>
                   <td class="text-right font-medium"><%= item.final_unit_cost != null ? '$' + fmt(item.final_unit_cost) : '—' %></td>
                   <td class="text-right">
-                    <form action="/projects/rfps/items/<%= item.id %>?_method=DELETE" method="POST"
+                    <form action="/projects/rfps/items/<%= item.id %>/delete" method="POST"
                           onsubmit="return confirm('Delete this line item?')" class="inline">
                       <button class="text-recon-fog hover:text-recon-red text-xs">&times;</button>
                     </form>
@@ -132,7 +132,7 @@ const fmt = typeof rfpFmt !== 'undefined' ? rfpFmt : function(n) {
                     <td></td>
                     <td></td>
                     <td>
-                      <form action="/projects/rfps/items/<%= sub.id %>?_method=DELETE" method="POST"
+                      <form action="/projects/rfps/items/<%= sub.id %>/delete" method="POST"
                             onsubmit="return confirm('Delete?')" class="inline">
                         <button class="text-recon-fog hover:text-recon-red text-xs">&times;</button>
                       </form>

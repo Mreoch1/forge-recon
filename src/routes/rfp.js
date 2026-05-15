@@ -251,8 +251,9 @@ router.post('/projects/:id/rfps/:rId/items', requireManager, async (req, res) =>
   res.redirect(`/projects/${req.params.id}/rfp`);
 });
 
-// ── DELETE /projects/:id/rfps/:rId — remove an RFP ──
-router.delete('/projects/:id/rfps/:rId', requireManager, async (req, res) => {
+// ── POST /projects/:id/rfps/:rId/delete — remove an RFP (POST + suffix path because
+//    method-override middleware isn't installed; ?_method=DELETE doesn't work) ──
+router.post('/projects/:id/rfps/:rId/delete', requireManager, async (req, res) => {
   const { error: itemsError } = await supabase.from('rfp_line_items').delete().eq('rfp_id', req.params.rId);
   if (itemsError) throw itemsError;
   const { error: rfpError } = await supabase.from('project_rfps').delete().eq('id', req.params.rId).eq('job_id', req.params.id);
@@ -260,7 +261,32 @@ router.delete('/projects/:id/rfps/:rId', requireManager, async (req, res) => {
   res.redirect(`/projects/${req.params.id}/rfp`);
 });
 
-// ── DELETE /projects/rfps/items/:itemId — remove a line item ──
+// ── POST /projects/rfps/items/:itemId/delete — remove a line item (D-102 fix:
+//    was DELETE via ?_method=DELETE which silently no-op'd because method-override
+//    isn't installed; clicks on × actually hit the POST update route below) ──
+router.post('/projects/rfps/items/:itemId/delete', requireManager, async (req, res) => {
+  // Resolve job_id BEFORE delete so we can redirect back to the right project
+  const { data: lineItem } = await supabase
+    .from('rfp_line_items')
+    .select('rfp_id, project_rfps(job_id)')
+    .eq('id', req.params.itemId)
+    .maybeSingle();
+  const jobId = lineItem?.project_rfps?.job_id;
+  const { error } = await supabase.from('rfp_line_items').delete().eq('id', req.params.itemId);
+  if (error) throw error;
+  if (jobId) return res.redirect(`/projects/${jobId}/rfp`);
+  res.redirect('back');
+});
+
+// Keep DELETE handlers for any code paths that DO have method-override active
+// (defensive — does no harm to define both):
+router.delete('/projects/:id/rfps/:rId', requireManager, async (req, res) => {
+  const { error: itemsError } = await supabase.from('rfp_line_items').delete().eq('rfp_id', req.params.rId);
+  if (itemsError) throw itemsError;
+  const { error: rfpError } = await supabase.from('project_rfps').delete().eq('id', req.params.rId).eq('job_id', req.params.id);
+  if (rfpError) throw rfpError;
+  res.redirect(`/projects/${req.params.id}/rfp`);
+});
 router.delete('/projects/rfps/items/:itemId', requireManager, async (req, res) => {
   const { error } = await supabase.from('rfp_line_items').delete().eq('id', req.params.itemId);
   if (error) throw error;
