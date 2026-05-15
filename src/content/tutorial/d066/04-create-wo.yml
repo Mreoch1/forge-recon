@@ -77,9 +77,12 @@ steps:
       Leave it on OPEN for now.
     spotlight_selector: "select[name='status']"
     spotlight_label: "OPEN (default)"
-    chips: []
-    expected_action: "auto_advance"
-    delay_after_ms: 4000
+    chips:
+      - label: "Next"
+        value: "next"
+    expected_action: "chip_or_text"
+    branches:
+      "*": "assignee-callout"
 
   - id: "assignee-callout"
     coach_text: |
