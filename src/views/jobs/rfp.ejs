@@ -86,7 +86,17 @@
       <% rfps.forEach(function(rfp){ %>
         <div class="card p-4 border-l-4 <%= rfp.status === 'awarded' ? 'border-l-green-500' : rfp.status === 'submitted' ? 'border-l-blue-500' : rfp.status === 'declined' ? 'border-l-red-500' : 'border-l-recon-fog' %>">
           <div class="flex items-center justify-between mb-2">
-            <span class="font-semibold text-base"><%= rfp.contractor_name %></span>
+            <!-- D-101: click-to-edit category name -->
+            <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>" method="POST" class="flex items-center gap-1"
+                  onsubmit="this.querySelector('input').removeAttribute('disabled');">
+              <span class="font-semibold text-base cursor-pointer hover:text-recon-red transition"
+                    onclick="var p=this.parentElement;var i=p.querySelector('input');i.value=this.textContent.trim();this.style.display='none';i.style.display='inline';i.focus();p.querySelector('button').style.display='inline-block';">
+                <%= rfp.contractor_name %>
+              </span>
+              <input name="contractor_name" style="display:none" class="input text-xs py-0.5 px-1"
+                     list="rfp-tab-presets" autocomplete="off">
+              <button type="submit" style="display:none" class="btn btn-primary text-xs py-0.5 px-1.5">Save</button>
+            </form>
             <span class="badge badge-<%= rfp.status %>"><%= rfp.status %></span>
           </div>
           <p class="text-2xl font-bold <%= rfp.status === 'awarded' ? 'text-green-700' : 'text-recon-charcoal' %>">
@@ -124,21 +134,24 @@
                   class="text-sm text-recon-red hover:underline">+ Add item</button>
         </div>
 
-        <!-- Add item form -->
+        <!-- Add item form (auto-totals: enter vendor/contractor + description + qty + contractor/vendor cost,
+             then unit_cost / total_cost / total_with_markup / final_unit_cost compute automatically) -->
         <div id="rfp-item-form-<%= rfp.id %>" class="hidden p-3 bg-recon-deeper/30 border-b border-recon-mist">
-          <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/items" method="POST" class="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+          <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/items" method="POST" class="rfp-line-form grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
             <input name="vendor" class="input rfp-vendor-autocomplete" placeholder="Vendor or contractor" autocomplete="off" list="rfp-line-entity-options">
             <input name="description" placeholder="Description" class="input" required>
-            <input name="quantity" type="number" step="any" placeholder="Qty" class="input">
-            <input name="contractor_cost" type="number" step="any" placeholder="Contr. cost" class="input">
-            <input name="vendor_cost" type="number" step="any" placeholder="Vendor cost" class="input">
-            <input name="unit_cost" type="number" step="any" placeholder="Unit cost" class="input">
-            <input name="total_cost" type="number" step="any" placeholder="Total cost" class="input">
+            <input name="quantity" data-compute-input type="number" step="any" placeholder="Qty" class="input">
+            <input name="contractor_cost" data-compute-input type="number" step="any" placeholder="Contr. cost" class="input">
+            <input name="vendor_cost" data-compute-input type="number" step="any" placeholder="Vendor cost" class="input">
+            <input name="unit_cost" data-compute-output="unit_cost" type="number" step="any" placeholder="Unit (auto)" class="input bg-recon-cloud/30 text-recon-charcoal/70">
+            <input name="total_cost" data-compute-output="total_cost" type="number" step="any" placeholder="Total (auto)" class="input bg-recon-cloud/30 text-recon-charcoal/70">
             <div class="flex gap-1 items-center">
-              <input name="markup_pct" type="number" step="any" placeholder="Markup %" value="20" class="input w-16">
+              <input name="markup_pct" data-compute-input type="number" step="any" placeholder="Markup %" value="20" class="input w-16">
               <span class="text-recon-fog">%</span>
               <button type="submit" class="btn btn-primary text-xs ml-1">Add</button>
             </div>
+            <input name="total_with_markup" data-compute-output="total_with_markup" type="hidden">
+            <input name="final_unit_cost" data-compute-output="final_unit_cost" type="hidden">
             <input name="parent_id" type="hidden" value="">
           </form>
         </div>
@@ -174,22 +187,25 @@
             <tbody>
               <% items.forEach(function(item){ %>
                 <tr>
-                  <td><%= item.vendor || '—' %></td>
-                  <td><%= item.description %></td>
-                  <td class="text-right"><%= item.quantity != null ? Number(item.quantity).toFixed(2) : '—' %></td>
-                  <td class="text-right"><%= item.contractor_cost != null ? '$' + Number(item.contractor_cost).toFixed(2) : '—' %></td>
-                  <td class="text-right"><%= item.vendor_cost != null ? '$' + Number(item.vendor_cost).toFixed(2) : '—' %></td>
-                  <td class="text-right"><%= item.unit_cost != null ? '$' + Number(item.unit_cost).toFixed(2) : '—' %></td>
-                  <td class="text-right"><%= item.total_cost != null ? '$' + Number(item.total_cost).toFixed(2) : '—' %></td>
-                  <td class="text-right"><%= item.markup_pct != null ? Number(item.markup_pct).toFixed(1) + '%' : '—' %></td>
-                  <td class="text-right font-medium"><%= item.total_with_markup != null ? '$' + Number(item.total_with_markup).toFixed(2) : '—' %></td>
-                  <td class="text-right font-medium"><%= item.final_unit_cost != null ? '$' + Number(item.final_unit_cost).toFixed(2) : '—' %></td>
-                  <td class="text-right">
-                    <form action="/projects/rfps/items/<%= item.id %>?_method=DELETE" method="POST"
-                          onsubmit="return confirm('Delete this line item?')" class="inline">
-                      <button class="text-recon-fog hover:text-recon-red text-xs">&times;</button>
-                    </form>
-                  </td>
+                  <form action="/projects/rfps/items/<%= item.id %>" method="POST" style="display:contents">
+                    <td><input name="vendor" value="<%= item.vendor || '' %>" class="input text-xs py-0.5" list="rfp-line-entity-options" autocomplete="off"></td>
+                    <td><input name="description" value="<%= item.description %>" class="input text-xs py-0.5"></td>
+                    <td class="text-right"><input name="quantity" type="number" step="any" value="<%= item.quantity != null ? item.quantity : '' %>" class="input text-xs py-0.5 w-16 text-right"></td>
+                    <td class="text-right"><input name="contractor_cost" type="number" step="any" value="<%= item.contractor_cost != null ? item.contractor_cost : '' %>" class="input text-xs py-0.5 w-20 text-right"></td>
+                    <td class="text-right"><input name="vendor_cost" type="number" step="any" value="<%= item.vendor_cost != null ? item.vendor_cost : '' %>" class="input text-xs py-0.5 w-20 text-right"></td>
+                    <td class="text-right"><%= item.unit_cost != null ? '$' + Number(item.unit_cost).toFixed(2) : '—' %></td>
+                    <td class="text-right"><%= item.total_cost != null ? '$' + Number(item.total_cost).toFixed(2) : '—' %></td>
+                    <td class="text-right"><input name="markup_pct" type="number" step="any" value="<%= item.markup_pct != null ? item.markup_pct : '' %>" class="input text-xs py-0.5 w-14 text-right"></td>
+                    <td class="text-right font-medium"><%= item.total_with_markup != null ? '$' + Number(item.total_with_markup).toFixed(2) : '—' %></td>
+                    <td class="text-right font-medium"><%= item.final_unit_cost != null ? '$' + Number(item.final_unit_cost).toFixed(2) : '—' %></td>
+                    <td class="text-right flex gap-1">
+                      <button type="submit" class="text-green-600 hover:text-green-800 text-xs font-bold" title="Save">&#10003;</button>
+                      <form action="/projects/rfps/items/<%= item.id %>?_method=DELETE" method="POST"
+                            onsubmit="return confirm('Delete this line item?')" class="inline">
+                        <button class="text-recon-fog hover:text-recon-red text-xs">&times;</button>
+                      </form>
+                    </td>
+                  </form>
                 </tr>
                 <% (subItems[item.id] || []).forEach(function(sub){ %>
                   <tr class="text-recon-fog">

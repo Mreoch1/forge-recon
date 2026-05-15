@@ -191,14 +191,21 @@ router.post('/projects/:id/rfps', requireManager, async (req, res) => {
   res.redirect(`/projects/${req.params.id}/rfp`);
 });
 
-// ── POST /projects/:id/rfps/:rId — update RFP status ──
+// ── POST /projects/:id/rfps/:rId — update RFP status or rename category (D-101) ──
 router.post('/projects/:id/rfps/:rId', requireManager, async (req, res) => {
-  const { status } = req.body;
+  const { status, contractor_name } = req.body;
+  const updateFields = { updated_at: new Date().toISOString() };
   const validStatuses = ['pending', 'submitted', 'awarded', 'declined'];
   if (status && validStatuses.includes(status)) {
+    updateFields.status = status;
+  }
+  if (contractor_name && contractor_name.trim()) {
+    updateFields.contractor_name = contractor_name.trim();
+  }
+  if (Object.keys(updateFields).length > 1) { // more than just updated_at
     const { error } = await supabase
       .from('project_rfps')
-      .update({ status, updated_at: new Date().toISOString() })
+      .update(updateFields)
       .eq('id', req.params.rId)
       .eq('job_id', req.params.id);
     if (error) throw error;
@@ -258,6 +265,53 @@ router.delete('/projects/rfps/items/:itemId', requireManager, async (req, res) =
   const { error } = await supabase.from('rfp_line_items').delete().eq('id', req.params.itemId);
   if (error) throw error;
   res.json({ ok: true });
+});
+
+// ── POST /projects/rfps/items/:itemId — update a line item (D-101 inline edit) ──
+router.post('/projects/rfps/items/:itemId', requireManager, async (req, res) => {
+  const { vendor, description, quantity, contractor_cost, vendor_cost,
+          unit_cost, total_cost, markup_pct } = req.body;
+
+  const markup = parseFloat(markup_pct) || 20;
+  const cCost = parseFloat(contractor_cost) || 0;
+  const vCost = parseFloat(vendor_cost) || 0;
+  const uCost = parseFloat(unit_cost) || 0;
+  const tCost = parseFloat(total_cost) || 0;
+  const qty = parseFloat(quantity) || 0;
+
+  const baseCost = tCost || (uCost * qty) || (cCost + vCost);
+  const withMarkup = baseCost * (1 + markup / 100) * 1.06;
+
+  // First get the rfp_id so we can redirect back
+  const { data: item, error: fetchError } = await supabase
+    .from('rfp_line_items')
+    .select('rfp_id')
+    .eq('id', req.params.itemId)
+    .single();
+  if (fetchError) throw fetchError;
+
+  const { error } = await supabase
+    .from('rfp_line_items')
+    .update({
+      vendor: vendor || null,
+      description: description || '',
+      quantity: qty || null,
+      contractor_cost: cCost || null,
+      vendor_cost: vCost || null,
+      unit_cost: uCost || null,
+      total_cost: baseCost || null,
+      markup_pct: markup,
+      total_with_markup: withMarkup,
+      final_unit_cost: baseCost > 0 ? withMarkup / (qty || 1) : 0,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', req.params.itemId);
+  if (error) throw error;
+
+  // Get the RFP's job_id for redirect
+  const { data: rfp } = await supabase.from('project_rfps').select('job_id').eq('id', item.rfp_id).single();
+  const jobId = rfp?.job_id || req.body.job_id;
+  res.redirect(`/projects/${jobId}/rfp`);
 });
 
 module.exports = router;
