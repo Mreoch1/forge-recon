@@ -98,6 +98,8 @@
       .btn { min-height: 44px; padding: .65rem 1rem; }
       .input, select.input, textarea.input { min-height: 44px; font-size: 1rem; } /* font-size 1rem prevents iOS auto-zoom */
     }
+    /* D-067b: auto-expanding textareas — applies at all screen sizes */
+    textarea.input { min-height: 8rem; field-sizing: content; resize: vertical; }
     .btn-primary { background: #c0202b; color: #ffffff; }
     .btn-primary:hover { background: #8a0e16; }
     .btn-secondary { background: #2d2d2d; color: #ffffff; }
@@ -169,6 +171,7 @@
     #mobile-panel .navlink { display: block; padding: .75rem .85rem; font-size: .95rem; min-height: 44px; }
   </style>
   <script defer src="/js/toast.js"></script>
+  <script defer src="/js/textarea-autogrow.js"></script>
 </head>
 <body class="min-h-screen flex flex-col">
 
