@@ -185,6 +185,10 @@
             <span class="hidden xl:inline text-[.45rem] uppercase tracking-[.18em] text-recon-fog mt-0 leading-tight">by Recon Enterprises</span>
           </span>
         </a>
+        <!-- D-081: minimal header on /forge — no nav links, no mobile panel -->
+        <% if (typeof isForgeRoute !== 'undefined' && isForgeRoute) { %>
+          <!-- FORGE mode: just brand, no nav -->
+        <% } else { %>
         <!-- Desktop nav (lg+) -->
         <div class="hidden lg:flex items-center gap-0" id="desktop-nav">
           <a href="/" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'dashboard' ? ' active' : '' %>">Dashboard</a>
@@ -213,14 +217,15 @@
             </div>
           </div>
         </div>
+        <% } // end classic-mode nav block %>
       </div>
       <div class="flex items-center gap-1 md:gap-2 shrink-0">
-        <!-- D-063 Item 4: Nav arrows between FORGE and classic -->
-        <% if (typeof activeNav !== 'undefined' && activeNav === 'forge') { %>
+        <!-- D-081: Mode toggle — minimal toggle on /forge, full toggle elsewhere -->
+        <% if (typeof isForgeRoute !== 'undefined' && isForgeRoute) { %>
           <a href="/dashboard-classic" class="hidden lg:inline-flex items-center gap-1 text-[.7rem] text-recon-fog hover:text-white transition whitespace-nowrap" aria-label="Switch to classic dashboard">
             <span>&larr;</span> Classic
           </a>
-        <% } else if (typeof activeNav !== 'undefined' && activeNav === 'dashboard') { %>
+        <% } else if (typeof activeNav !== 'undefined' && ['dashboard','home',''].includes(activeNav)) { %>
           <a href="/forge" class="hidden lg:inline-flex items-center gap-1 text-[.7rem] text-recon-fog hover:text-white transition whitespace-nowrap" aria-label="Switch to FORGE">
             FORGE <span>&rarr;</span>
           </a>
@@ -239,7 +244,8 @@
         </label>
       </div>
     </div>
-    <!-- R33: mobile slide-down nav panel (hidden on lg+) -->
+    <!-- D-081: Mobile panel hidden on /forge (no nav to show) -->
+    <% if (!(typeof isForgeRoute !== 'undefined' && isForgeRoute)) { %>
     <div id="mobile-panel" class="lg:hidden bg-recon-steel border-t border-recon-ash">
       <div class="px-3 py-2 flex flex-col gap-1">
         <a href="/" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'dashboard' ? ' active' : '' %>">Dashboard</a>
@@ -264,6 +270,7 @@
         </div>
       </div>
     </div>
+    <% } // end mobile-panel block %>
   </nav>
 
 <!-- D-073: universal back button — shown on detail/edit pages only (not index pages) -->
