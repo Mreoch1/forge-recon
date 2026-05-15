@@ -369,10 +369,11 @@ router.get('/:id', async (req, res) => {
     try {
       const rfpIds = rfps.filter(r => r.status === 'awarded').map(r => r.id);
       if (rfpIds.length) {
-        const { data: rfpItemTotals } = await supabase
+        const { data: rfpItemTotals, error: rfpItemTotalsError } = await supabase
           .from('rfp_line_items')
           .select('total_with_markup')
           .in('rfp_id', rfpIds);
+        if (rfpItemTotalsError) throw rfpItemTotalsError;
         const rfpCommitted = (rfpItemTotals || []).reduce((s, i) => s + Number(i.total_with_markup || 0), 0);
         financials.cost_committed = (financials.cost_committed || 0) + rfpCommitted;
         // Recalculate projected profit

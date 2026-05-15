@@ -11,11 +11,21 @@ const { requireManager } = require('../middleware/auth');
 
 const router = express.Router();
 
+function isMissingOptionalRfpTable(error) {
+  const message = String(error?.message || error || '').toLowerCase();
+  return (
+    message.includes('project_rfps') ||
+    message.includes('rfp_line_items') ||
+    message.includes('does not exist') ||
+    message.includes('schema cache')
+  );
+}
+
 // ── GET /projects/:id/rfp — dedicated RFP management page for a project ──
 router.get('/projects/:id/rfp', async (req, res) => {
   const jobId = req.params.id;
 
-  const [{ data: job }, { data: rfps }] = await Promise.all([
+  const [{ data: job, error: jobError }, { data: rfps, error: rfpsError }] = await Promise.all([
     supabase.from('jobs').select('*, customers!inner(name)').eq('id', jobId).maybeSingle(),
     supabase
       .from('project_rfps')
@@ -24,6 +34,8 @@ router.get('/projects/:id/rfp', async (req, res) => {
       .order('created_at', { ascending: false }),
   ]);
 
+  if (jobError) throw jobError;
+  if (rfpsError && !isMissingOptionalRfpTable(rfpsError)) throw rfpsError;
   if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Project not found.' });
 
   // Load RFP line items for each RFP
@@ -31,17 +43,18 @@ router.get('/projects/:id/rfp', async (req, res) => {
   if (rfps && rfps.length) {
     try {
       const rfpIds = rfps.map(r => r.id);
-      const { data: allItems } = await supabase
+      const { data: allItems, error: itemsError } = await supabase
         .from('rfp_line_items')
         .select('*')
         .in('rfp_id', rfpIds)
         .order('sort_order', { ascending: true })
         .order('id', { ascending: true });
+      if (itemsError) throw itemsError;
       (allItems || []).forEach(item => {
         (rfpItemsMap[item.rfp_id] = rfpItemsMap[item.rfp_id] || []).push(item);
       });
     } catch (e) {
-      if (!e.message || !e.message.includes('does not exist')) throw e;
+      if (!isMissingOptionalRfpTable(e)) throw e;
     }
   }
 
@@ -49,7 +62,7 @@ router.get('/projects/:id/rfp', async (req, res) => {
     title: 'RFP — ' + (job.title || job.name),
     activeNav: 'projects',
     job,
-    rfps: rfps || [],
+    rfps: rfpsError ? [] : (rfps || []),
     rfpItemsMap,
     customers: job.customers || {},
   });
@@ -101,10 +114,12 @@ router.post('/projects/:id/rfps/:rId', requireManager, async (req, res) => {
   const { status } = req.body;
   const validStatuses = ['pending', 'submitted', 'awarded', 'declined'];
   if (status && validStatuses.includes(status)) {
-    await supabase
+    const { error } = await supabase
       .from('project_rfps')
       .update({ status, updated_at: new Date().toISOString() })
-      .eq('id', req.params.rId);
+      .eq('id', req.params.rId)
+      .eq('job_id', req.params.id);
+    if (error) throw error;
   }
   res.redirect(`/projects/${req.params.id}/rfp`);
 });
@@ -149,14 +164,17 @@ router.post('/projects/:id/rfps/:rId/items', requireManager, async (req, res) =>
 
 // ── DELETE /projects/:id/rfps/:rId — remove an RFP ──
 router.delete('/projects/:id/rfps/:rId', requireManager, async (req, res) => {
-  await supabase.from('rfp_line_items').delete().eq('rfp_id', req.params.rId);
-  await supabase.from('project_rfps').delete().eq('id', req.params.rId);
+  const { error: itemsError } = await supabase.from('rfp_line_items').delete().eq('rfp_id', req.params.rId);
+  if (itemsError) throw itemsError;
+  const { error: rfpError } = await supabase.from('project_rfps').delete().eq('id', req.params.rId).eq('job_id', req.params.id);
+  if (rfpError) throw rfpError;
   res.redirect(`/projects/${req.params.id}/rfp`);
 });
 
 // ── DELETE /projects/rfps/items/:itemId — remove a line item ──
 router.delete('/projects/rfps/items/:itemId', requireManager, async (req, res) => {
-  await supabase.from('rfp_line_items').delete().eq('id', req.params.itemId);
+  const { error } = await supabase.from('rfp_line_items').delete().eq('id', req.params.itemId);
+  if (error) throw error;
   res.json({ ok: true });
 });
 

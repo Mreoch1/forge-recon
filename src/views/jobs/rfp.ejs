@@ -1,15 +1,15 @@
-<%- include('../layouts/header', { title: 'RFP — ' + job.title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<%- include('../layouts/header', { title: 'RFP — ' + (job.title || job.name), currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
 
 <div class="max-w-7xl mx-auto px-4 py-6">
   <div class="mb-4 flex items-center justify-between">
-    <a href="/projects/<%= job.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; Back to <%= job.title %></a>
+    <a href="/projects/<%= job.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; Back to <%= job.title || job.name %></a>
     <button onclick="document.getElementById('rfp-new-form').classList.toggle('hidden')"
             class="btn btn-primary text-sm">+ New RFP</button>
   </div>
 
   <div class="mb-6">
     <h1 class="page-h1">RFP / Bid Comparison</h1>
-    <p class="text-sm text-recon-fog mt-1">Project: <a href="/projects/<%= job.id %>" class="text-recon-red hover:underline"><%= job.title %></a></p>
+    <p class="text-sm text-recon-fog mt-1">Project: <a href="/projects/<%= job.id %>" class="text-recon-red hover:underline"><%= job.title || job.name %></a></p>
   </div>
 
   <!-- New RFP form (hidden by default) -->
