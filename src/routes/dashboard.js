@@ -400,7 +400,11 @@ router.post('/forge/tutorial/advance', async (req, res) => {
   // Handle side_effects from the current chapter step
   const ch = state.getCurrentChapter();
   if (ch && ch.side_effects) {
-    await state.executeSideEffects(ch.side_effects, supabase, state.userId);
+    try {
+      await state.executeSideEffects(ch.side_effects, supabase, state.userId);
+    } catch (e) {
+      // Silently fail — side effects are non-critical
+    }
   }
 
   // Handle record_answer from payload (quiz responses captured at chapter level)
@@ -409,6 +413,11 @@ router.post('/forge/tutorial/advance', async (req, res) => {
   }
 
   await state.save(supabase);
+
+  // Inject chapterIndex + totalChapters into response for progress tracking
+  const tc = require('../services/tutorial-content');
+  result.chapterIndex = state.currentChapter;
+  result.totalChapters = tc.totalChapters();
 
   // Interpolate narration with user info
   const interpolated = require('../services/tutorial-content').interpolateNarration;

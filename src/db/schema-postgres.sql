@@ -21,6 +21,15 @@
 --   * Cast NUMERIC to Number() in JS-land for arithmetic
 --   * Use proper Date objects instead of string parsing for scheduled_date / due_date
 
+-- ========== TUTORIAL SESSIONS ==========
+CREATE TABLE IF NOT EXISTS tutorial_sessions (
+  id UUID PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id),
+  state_json JSONB NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- ========== USERS ==========
 CREATE TABLE IF NOT EXISTS users (
   id BIGSERIAL PRIMARY KEY,
@@ -47,6 +56,7 @@ CREATE TABLE IF NOT EXISTS customers (
   state TEXT,
   zip TEXT,
   notes TEXT,
+  tutorial_session_id UUID REFERENCES tutorial_sessions(id),
   mock BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()

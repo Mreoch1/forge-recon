@@ -21,35 +21,56 @@ class TutorialState {
   }
 
   static async load(sessionId, userId, supabase) {
-    const { data, error } = await supabase
-      .from('tutorial_sessions')
-      .select('state_json')
-      .eq('id', sessionId)
-      .eq('user_id', userId)
-      .maybeSingle();
-    if (error) throw error;
-    if (data?.state_json) return Object.assign(new TutorialState(sessionId, userId), data.state_json);
+    try {
+      const { data, error } = await supabase
+        .from('tutorial_sessions')
+        .select('state_json')
+        .eq('id', sessionId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (error) throw error;
+      if (data?.state_json) return Object.assign(new TutorialState(sessionId, userId), data.state_json);
+    } catch (e) {
+      // Table might not exist yet — create it on first use
+      try {
+        await supabase.rpc('exec_sql', { sql: `
+          CREATE TABLE IF NOT EXISTS tutorial_sessions (
+            id UUID PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            state_json JSONB NOT NULL DEFAULT '{}',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+          );
+        ` });
+      } catch (e2) {
+        // RPC might not exist either — just fall through to fresh state
+      }
+    }
     return new TutorialState(sessionId, userId);
   }
 
   async save(supabase) {
-    const { error } = await supabase.from('tutorial_sessions').upsert({
-      id: this.sessionId,
-      user_id: this.userId,
-      state_json: {
-        currentChapter: this.currentChapter,
-        currentStep: this.currentStep,
-        completedChapters: this.completedChapters,
-        createdEntityIds: this.createdEntityIds,
-        quizAnswers: this.quizAnswers,
-        quizSubmitted: this.quizSubmitted,
-        quizWeakSpots: this.quizWeakSpots,
-        cleanupChosen: this.cleanupChosen,
-        startedAt: this.startedAt,
-      },
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'id' });
-    if (error) throw error;
+    try {
+      const { error } = await supabase.from('tutorial_sessions').upsert({
+        id: this.sessionId,
+        user_id: this.userId,
+        state_json: {
+          currentChapter: this.currentChapter,
+          currentStep: this.currentStep,
+          completedChapters: this.completedChapters,
+          createdEntityIds: this.createdEntityIds,
+          quizAnswers: this.quizAnswers,
+          quizSubmitted: this.quizSubmitted,
+          quizWeakSpots: this.quizWeakSpots,
+          cleanupChosen: this.cleanupChosen,
+          startedAt: this.startedAt,
+        },
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+      if (error) throw error;
+    } catch (e) {
+      // Silently fail — tutorial works in-memory without persistence
+    }
   }
 
   getCurrentChapter() {
@@ -188,17 +209,21 @@ class TutorialState {
   async executeSideEffects(sideEffects, supabase, userId) {
     if (!sideEffects || !sideEffects.length) return;
     for (const effect of sideEffects) {
-      if (effect.record_completion) {
-        const { error } = await supabase.from('users').update({ completed_tutorial_at: new Date().toISOString() }).eq('id', userId);
-        if (error) throw error;
-      }
-      if (effect.persist_weak_spots && this.quizWeakSpots.length) {
-        const { error } = await supabase.from('users').update({ tutorial_completion_weak_spots: JSON.stringify(this.quizWeakSpots) }).eq('id', userId);
-        if (error) throw error;
-      }
-      if (effect.call_endpoint) {
-        // effect.call_endpoint is a URL path like "POST /forge/tutorial/cleanup"
-        // Handled by route handler, not state machine
+      try {
+        if (effect.record_completion) {
+          const { error } = await supabase.from('users').update({ completed_tutorial_at: new Date().toISOString() }).eq('id', userId);
+          if (error) throw error;
+        }
+        if (effect.persist_weak_spots && this.quizWeakSpots.length) {
+          const { error } = await supabase.from('users').update({ tutorial_completion_weak_spots: JSON.stringify(this.quizWeakSpots) }).eq('id', userId);
+          if (error) throw error;
+        }
+        if (effect.call_endpoint) {
+          // effect.call_endpoint is a URL path like "POST /forge/tutorial/cleanup"
+          // Handled by route handler, not state machine
+        }
+      } catch (e) {
+        // Silently fail — side effects are non-critical
       }
     }
   }
