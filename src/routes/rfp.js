@@ -69,8 +69,8 @@ router.get('/projects/:id/rfp', async (req, res) => {
     rfps: rfpsError ? [] : (rfps || []),
     rfpItemsMap,
     customers: job.customers || {},
-    vendors: vendorsResult || [],
-    contractors: contractorsResult || [],
+    vendors: (vendorsResult && vendorsResult.data) || [],
+    contractors: (contractorsResult && contractorsResult.data) || [],
   });
 });
 
