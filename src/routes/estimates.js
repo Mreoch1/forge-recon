@@ -237,7 +237,7 @@ async function loadEstimate(id) {
 
 router.get('/new', async (req, res) => {
   const presetCustomerId = parseInt(req.query.customer_id, 10) || null;
-  const presetWoId = parseInt(req.query.work_order_id, 10) || null;
+  const presetWoId = parseInt(req.query.wo_id || req.query.work_order_id, 10) || null;
   const presetJobId = parseInt(req.query.job_id, 10) || null;
 
   const [customersResult, workOrdersResult, jobsResult] = await Promise.all([
@@ -263,6 +263,8 @@ router.get('/new', async (req, res) => {
     customers, workOrders, jobs, errors: {},
     customerName: presetCustomerName,
     woDisplayNumber: presetWoNumber,
+    units: VALID_UNITS,
+    paymentTermsPresets: PAYMENT_TERMS_PRESETS,
   });
 });
 
