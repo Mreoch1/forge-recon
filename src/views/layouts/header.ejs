@@ -89,7 +89,7 @@
     .group:hover .forge-wordmark {
       filter: drop-shadow(0 0 6px rgba(230,57,70,.55)) drop-shadow(0 1px 0 rgba(0,0,0,.25));
     }
-    .navlink { color: #d0d0d0; padding: .5rem .75rem; border-radius: .25rem; transition: all .15s; font-size: .9rem; }
+    .navlink { color: #d0d0d0; padding: .4rem .55rem; border-radius: .25rem; transition: all .15s; font-size: .82rem; }
     .navlink:hover { background: #3d3d3d; color: #ffffff; }
     .navlink.active { background: #c0202b; color: #ffffff; }
     .btn { display: inline-flex; align-items: center; justify-content: center; padding: .5rem 1rem; border-radius: .375rem; font-weight: 500; transition: all .15s; cursor: pointer; border: none; font-size: .9rem; }
@@ -160,8 +160,8 @@
     #r33-nav-toggle:checked ~ #mobile-panel { display: block; }
     /* Hover-style hint to indicate active state on the label when panel is open */
     #r33-nav-toggle:checked ~ .max-w-7xl .r33-hamburger { background: #3d3d3d; color: #fff; }
-    /* On md+ screens always hide the toggle UI even if state was checked */
-    @media (min-width: 768px) {
+    /* On lg+ screens always hide the toggle UI even if state was checked */
+    @media (min-width: 1024px) {
       #r33-nav-toggle:checked ~ #mobile-panel { display: none; }
       .r33-hamburger { display: none; }
     }
@@ -175,17 +175,17 @@
   <nav class="bg-recon-charcoal text-white shadow-md">
     <!-- R33: hidden checkbox drives the mobile menu open/closed state -->
     <input type="checkbox" id="r33-nav-toggle" aria-hidden="true">
-    <div class="max-w-7xl mx-auto px-3 md:px-4 flex items-center justify-between h-16 md:h-20 gap-2">
-      <div class="flex items-center gap-2 min-w-0">
-        <a href="/" class="flex items-center gap-2 md:gap-3 md:mr-4 group shrink-0">
-          <img src="/logos/recon-logo.jpg" alt="Recon Enterprises Inc." class="h-10 md:h-14 w-auto">
+    <div class="max-w-7xl mx-auto px-3 md:px-4 flex items-center justify-between h-16 md:h-20 gap-1 md:gap-2">
+      <div class="flex items-center gap-1 md:gap-2 min-w-0 overflow-hidden">
+        <a href="/" class="flex items-center gap-2 md:gap-2 md:mr-2 group shrink-0">
+          <img src="/logos/recon-logo.jpg" alt="Recon Enterprises Inc." class="h-9 md:h-12 w-auto">
           <span class="flex flex-col leading-none">
-            <span class="forge-wordmark font-extrabold text-base md:text-lg tracking-[.16em]">FORGE</span>
-            <span class="hidden sm:inline text-[.55rem] uppercase tracking-[.18em] text-recon-fog mt-0.5">by Recon Enterprises</span>
+            <span class="forge-wordmark font-extrabold text-sm md:text-lg tracking-[.16em]">FORGE</span>
+            <span class="hidden md:inline text-[.5rem] uppercase tracking-[.18em] text-recon-fog mt-0.5 leading-tight">by Recon Enterprises</span>
           </span>
         </a>
         <!-- Desktop nav (md+) -->
-        <div class="hidden md:flex items-center gap-1" id="desktop-nav">
+        <div class="hidden lg:flex items-center gap-0.5" id="desktop-nav">
           <a href="/" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'dashboard' ? ' active' : '' %>">Dashboard</a>
           <a href="/forge" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'forge' ? ' active' : '' %>">Ask FORGE</a>
           <a href="/work-orders" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'work-orders' ? ' active' : '' %>">Work Orders</a>
@@ -213,31 +213,33 @@
           </div>
         </div>
       </div>
-      <div class="flex items-center gap-2 md:gap-3 shrink-0">
+      <div class="flex items-center gap-1 md:gap-2 shrink-0">
         <!-- D-063 Item 4: Nav arrows between FORGE and classic -->
         <% if (typeof activeNav !== 'undefined' && activeNav === 'forge') { %>
-          <a href="/dashboard-classic" class="hidden md:inline-flex items-center gap-1 text-xs text-recon-fog hover:text-white transition" aria-label="Switch to classic dashboard">
-            <span>&larr;</span> <span class="hidden md:inline">Classic</span>
+          <a href="/dashboard-classic" class="hidden lg:inline-flex items-center gap-1 text-[.7rem] text-recon-fog hover:text-white transition whitespace-nowrap" aria-label="Switch to classic dashboard">
+            <span>&larr;</span> Classic
           </a>
         <% } else if (typeof activeNav !== 'undefined' && activeNav === 'dashboard') { %>
-          <a href="/forge" class="hidden md:inline-flex items-center gap-1 text-xs text-recon-fog hover:text-white transition" aria-label="Switch to FORGE">
-            <span class="hidden md:inline">FORGE Chat</span> <span>&rarr;</span>
+          <a href="/forge" class="hidden lg:inline-flex items-center gap-1 text-[.7rem] text-recon-fog hover:text-white transition whitespace-nowrap" aria-label="Switch to FORGE">
+            FORGE <span>&rarr;</span>
           </a>
         <% } %>
-        <span class="text-sm text-recon-fog hidden md:inline"><%= currentUser.name %></span>
-        <a href="<%= currentUser.role === 'admin' ? '/admin/users' : '/settings' %>" class="text-xs text-recon-fog hidden md:inline hover:text-white transition">(<%= currentUser.role %>)</a>
-        <form action="/logout" method="post" class="m-0 p-0 hidden sm:block">
-          <button type="submit" class="text-sm text-recon-fog hover:text-white transition">Logout</button>
+        <div class="hidden lg:flex items-center gap-1.5 text-recon-fog whitespace-nowrap">
+          <span class="text-xs"><%= currentUser.name %></span>
+          <a href="<%= currentUser.role === 'admin' ? '/admin/users' : '/settings' %>" class="text-[.65rem] hover:text-white transition">(<%= currentUser.role %>)</a>
+        </div>
+        <form action="/logout" method="post" class="m-0 p-0 hidden lg:block">
+          <button type="submit" class="text-xs text-recon-fog hover:text-white transition">Logout</button>
         </form>
-        <button id="theme-toggle" class="text-base text-recon-fog hover:text-white transition w-11 h-11 flex items-center justify-center rounded" title="Toggle dark mode" aria-label="Toggle dark mode">☀</button>
-        <!-- R33: hamburger label (mobile only) — the actual toggle is the hidden checkbox above the toolbar -->
-        <label for="r33-nav-toggle" class="r33-hamburger md:hidden" aria-label="Toggle menu">
+        <button id="theme-toggle" class="text-base text-recon-fog hover:text-white transition w-9 h-9 md:w-10 md:h-10 flex items-center justify-center rounded shrink-0" title="Toggle dark mode" aria-label="Toggle dark mode">☀</button>
+        <!-- R33: hamburger label (mobile/tablet only) — shown below lg breakpoint -->
+        <label for="r33-nav-toggle" class="r33-hamburger lg:hidden" aria-label="Toggle menu">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
         </label>
       </div>
     </div>
-    <!-- R33: mobile slide-down nav panel (md:hidden) -->
-    <div id="mobile-panel" class="md:hidden bg-recon-steel border-t border-recon-ash">
+    <!-- R33: mobile slide-down nav panel (hidden on lg+) -->
+    <div id="mobile-panel" class="lg:hidden bg-recon-steel border-t border-recon-ash">
       <div class="px-3 py-2 flex flex-col gap-1">
         <a href="/" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'dashboard' ? ' active' : '' %>">Dashboard</a>
         <a href="/forge" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'forge' ? ' active' : '' %>">Ask FORGE</a>

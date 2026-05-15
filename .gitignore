@@ -13,3 +13,4 @@ sessions/
 .m365-poll-state.json
 
 .vercel
+.env*.local
