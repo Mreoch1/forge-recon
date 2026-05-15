@@ -235,6 +235,38 @@ async function loadEstimate(id) {
   return est;
 }
 
+router.get('/new', async (req, res) => {
+  const presetCustomerId = parseInt(req.query.customer_id, 10) || null;
+  const presetWoId = parseInt(req.query.work_order_id, 10) || null;
+  const presetJobId = parseInt(req.query.job_id, 10) || null;
+
+  const [customersResult, workOrdersResult, jobsResult] = await Promise.all([
+    supabase.from('customers').select('id, name').order('name'),
+    supabase.from('work_orders').select('id, display_number').order('id', { ascending: false }).limit(50),
+    supabase.from('jobs').select('id, title').order('title'),
+  ]);
+
+  const customers = customersResult.data || [];
+  const workOrders = workOrdersResult.data || [];
+  const jobs = jobsResult.data || [];
+
+  const presetCustomerName = presetCustomerId ? (customers.find(c => c.id === presetCustomerId)?.name || '') : '';
+  const presetWoNumber = presetWoId ? (workOrders.find(w => w.id === presetWoId)?.display_number || '') : '';
+
+  res.render('estimates/new', {
+    title: 'New estimate', activeNav: 'estimates',
+    estimate: {
+      id: null, customer_id: presetCustomerId, work_order_id: presetWoId,
+      job_id: presetJobId, status: 'draft', subtotal: 0, tax_rate: 0,
+      tax_amount: 0, total: 0, line_items: [],
+    },
+    customers, workOrders, jobs, errors: {},
+    customerName: presetCustomerName,
+    woDisplayNumber: presetWoNumber,
+  });
+});
+
+// ── GET / — list estimates ──
 router.get('/', async (req, res) => {
   // F4: sanitize before interpolating into PostgREST .or() filter.
   const q = sanitizePostgrestSearch((req.query.q || '').trim());

@@ -64,14 +64,6 @@
   .fb-result.success { display: block; background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
   .fb-result.error { display: block; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
   .fb-result .retry-btn { margin-top: 8px; }
-  /* D-097: on mobile the Ask FORGE pill stretches full-width at the bottom
-     (left:12px; right:12px) so a bottom-left fb-btn at (20,20) sits inside the
-     pill's box and visually overlaps even with higher z-index. Push the fb-btn
-     ABOVE the AI chat pill on narrow viewports so they stack vertically. */
-  @media (max-width: 640px) {
-    .fb-btn { bottom: 64px; padding: 8px 14px; font-size: 12px; }
-    .fb-modal { bottom: 120px; }
-  }
 </style>
 <div class="fb-overlay" id="fb-overlay" onclick="closeFeedback()"></div>
 <div class="fb-modal" id="fb-modal">
