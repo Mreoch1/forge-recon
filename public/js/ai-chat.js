@@ -247,8 +247,8 @@
         #ai-chat-root[data-mode="floating"] .recon-aic-pill, #ai-chat-root[data-mode="floating"] .recon-aic-panel { pointer-events: auto; }
         .recon-aic-panel, .recon-aic-panel * { box-sizing: border-box; }
         .recon-aic-pill {
-          left: 12px; right: 12px; bottom: 12px;
-          justify-content: center;
+          left: auto; right: 12px; bottom: 12px;
+          width: auto; justify-content: center;
         }
         .recon-aic-panel {
           left: 8px; right: auto; top: auto; bottom: 8px;
