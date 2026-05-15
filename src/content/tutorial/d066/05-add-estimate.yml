@@ -17,9 +17,12 @@ steps:
       Now we add an Estimate to the WO we just made. The estimate is what
       you'll send the customer to get approval before doing the work.
     typewriter_pacing_ms: 35
-    chips: []
-    expected_action: "auto_advance"
-    delay_after_ms: 2400
+    chips:
+      - label: "Next"
+        value: "next"
+    expected_action: "chip_or_text"
+    branches:
+      "*": "spotlight-estimates-tab"
 
   - id: "spotlight-estimates-tab"
     coach_text: |

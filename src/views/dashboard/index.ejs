@@ -34,56 +34,28 @@ function typeLabel(t) {
           ← back to FORGE mode
         </button>
       </form>
-      <a href="/customers/new" class="btn btn-secondary min-h-[44px]">+ Customer</a>
-      <a href="/work-orders/new" class="btn btn-primary min-h-[44px]">+ Work order</a>
+      <a href="/customers/new" class="btn btn-secondary">+ Customer</a>
+      <a href="/work-orders/new" class="btn btn-primary">+ Work order</a>
     </div>
   </div>
 
-  <!-- Top KPIs: pipeline counts -->
-  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-    <a href="/estimates?status=sent" class="card p-4 hover:shadow-md transition"
-       title="Estimates in draft or sent status — quotes the office is still working on or waiting to hear back on.">
-      <div class="text-xs uppercase tracking-wide text-recon-fog">Open Estimates</div>
-      <div class="text-3xl font-bold text-recon-charcoal mt-1"><%= openEstimates %></div>
-      <div class="text-xs text-recon-fog mt-1">draft + sent</div>
-    </a>
-    <a href="/work-orders?status=scheduled" class="card p-4 hover:shadow-md transition"
-       title="Work orders the crew is actively working on or has on the calendar.">
-      <div class="text-xs uppercase tracking-wide text-recon-fog">Active Work Orders</div>
-      <div class="text-3xl font-bold text-recon-charcoal mt-1"><%= scheduledWOs %></div>
-      <div class="text-xs text-recon-fog mt-1">scheduled + in progress</div>
-    </a>
-    <a href="/invoices?status=sent" class="card p-4 hover:shadow-md transition"
-       title="Invoices that have been sent to customers but are not paid yet.">
-      <div class="text-xs uppercase tracking-wide text-recon-fog">Unpaid Invoices</div>
-      <div class="text-3xl font-bold text-recon-charcoal mt-1"><%= unpaidInvoices %></div>
-      <div class="text-xs text-recon-fog mt-1">sent + overdue</div>
-    </a>
-    <a href="/invoices?status=sent" class="card p-4 hover:shadow-md transition bg-recon-charcoal text-white"
-       title="Total dollars owed by customers on unpaid invoices (Accounts Receivable).">
-      <div class="text-xs uppercase tracking-wide text-recon-fog">A/R Balance</div>
-      <div class="text-3xl font-bold mt-1 text-recon-red-light">$<%= fmt(arBalance) %></div>
-      <% if (overdueCount > 0) { %>
-        <div class="text-xs text-yellow-300 mt-1"><%= overdueCount %> overdue ($<%= fmt(overdueBalance) %>)</div>
-      <% } else { %>
-        <div class="text-xs text-recon-fog mt-1">none overdue</div>
-      <% } %>
-    </a>
-  </div>
-
-  <!-- Revenue KPIs -->
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-    <div class="card p-4" title="Total of paid invoices issued in the current calendar month.">
-      <div class="text-xs uppercase tracking-wide text-recon-fog">Revenue this month</div>
-      <div class="text-2xl font-semibold mt-1">$<%= fmt(revenueThisMonth) %></div>
+  <!-- D-095: KPI summary table — single card, 2-col layout, no floating cards -->
+  <div class="card overflow-hidden mb-6">
+    <div class="px-5 py-3 border-b border-recon-mist">
+      <h3 class="font-semibold text-sm">Pipeline Summary</h3>
     </div>
-    <div class="card p-4" title="Total of paid invoices from Jan 1 of this year through today.">
-      <div class="text-xs uppercase tracking-wide text-recon-fog">Revenue year-to-date</div>
-      <div class="text-2xl font-semibold mt-1">$<%= fmt(revenueYTD) %></div>
-    </div>
-    <div class="card p-4" title="Total customers in the system and total work orders ever created.">
-      <div class="text-xs uppercase tracking-wide text-recon-fog">Customers / Work orders</div>
-      <div class="text-2xl font-semibold mt-1"><%= customerCount %> <span class="text-recon-fog text-base font-normal">customers</span> / <%= workOrderCount %> <span class="text-recon-fog text-base font-normal">work orders</span></div>
+    <div class="divide-y divide-recon-mist">
+      <table class="data">
+        <tbody>
+          <tr><td class="text-sm text-recon-charcoal">Open Estimates</td><td class="text-right font-semibold"><a href="/estimates?status=sent" class="text-recon-red hover:underline"><%= openEstimates %></a> <span class="text-xs text-recon-fog font-normal">draft + sent</span></td></tr>
+          <tr><td class="text-sm text-recon-charcoal">Active Work Orders</td><td class="text-right font-semibold"><a href="/work-orders?status=scheduled" class="text-recon-red hover:underline"><%= scheduledWOs %></a> <span class="text-xs text-recon-fog font-normal">scheduled + in progress</span></td></tr>
+          <tr><td class="text-sm text-recon-charcoal">Unpaid Invoices</td><td class="text-right font-semibold"><a href="/invoices?status=sent" class="text-recon-red hover:underline"><%= unpaidInvoices %></a> <span class="text-xs text-recon-fog font-normal">sent + overdue</span></td></tr>
+          <tr><td class="text-sm text-recon-charcoal">A/R Balance</td><td class="text-right font-semibold<% if (overdueCount > 0) { %> text-recon-red<% } %>">$<%= fmt(arBalance) %><% if (overdueCount > 0) { %> <span class="text-xs text-red-600 font-normal">(<%= overdueCount %> overdue $<%= fmt(overdueBalance) %>)</span><% } else { %> <span class="text-xs text-recon-fog font-normal">none overdue</span><% } %></td></tr>
+          <tr><td class="text-sm text-recon-charcoal">Revenue this month</td><td class="text-right font-semibold">$<%= fmt(revenueThisMonth) %></td></tr>
+          <tr><td class="text-sm text-recon-charcoal">Revenue year-to-date</td><td class="text-right font-semibold">$<%= fmt(revenueYTD) %></td></tr>
+          <tr><td class="text-sm text-recon-charcoal">Customers / Work orders</td><td class="text-right"><span class="font-semibold"><%= customerCount %></span> <span class="text-xs text-recon-fog">customers</span> / <span class="font-semibold"><%= workOrderCount %></span> <span class="text-xs text-recon-fog">work orders</span></td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
 

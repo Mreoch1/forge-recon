@@ -197,26 +197,22 @@
 
 <%- include('../layouts/footer') %>
 
+<!-- RFP autocomplete data (rendered server-side) -->
 <script>
-// RFP autocomplete — fetch vendors + contractors via JSON API, search as user types
-(function(){
-  var sources = [];
+window.RFP_SOURCES = [
+<% (vendors || []).forEach(function(v, i){ %>
+  <%= i > 0 ? ',' : '' %>{name:<%= JSON.stringify(v.name) %>,label:'(Vendor)',type:'vendor'}
+<% }); %>
+<% (contractors || []).forEach(function(c, i){ %>
+  <%= i > 0 || ((vendors || []).length > 0) ? ',' : '' %>{name:<%= JSON.stringify(c.name) %>,label:'(Contractor<%= c.trade ? ", " + JSON.stringify(c.trade) : "" %>)',type:'contractor'}
+<% }); %>
+];
+</script>
 
-  // Fetch from API endpoint
-  var xhr = new XMLHttpRequest();
-  xhr.open('GET', '/api/rfp-sources', true);
-  xhr.onload = function() {
-    if (xhr.status === 200) {
-      var data = JSON.parse(xhr.responseText);
-      (data.vendors || []).forEach(function(v) {
-        sources.push({ name: v.name, label: '(Vendor)', type: 'vendor' });
-      });
-      (data.contractors || []).forEach(function(c) {
-        sources.push({ name: c.name, label: '(Contractor' + (c.trade ? ', ' + c.trade : '') + ')', type: 'contractor' });
-      });
-    }
-  };
-  xhr.send();
+<script>
+// RFP autocomplete — search using server-rendered data, fallback to API
+(function(){
+  var sources = window.RFP_SOURCES || [];
 
   function setupAutocomplete(inputId) {
     var input = document.getElementById(inputId);
