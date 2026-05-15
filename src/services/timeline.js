@@ -31,7 +31,7 @@ async function buildDayTimeline({ date, userId = null, workerOnly = false }) {
       users:assigned_to_user_id ( name )
     `)
     .eq('scheduled_date', date)
-    .in('status', ['scheduled', 'in_progress', 'complete']);
+    .in('status', ['open', 'scheduled', 'in_progress', 'closed', 'complete']);
 
   if (workerOnly && userId) {
     let userName = '';
