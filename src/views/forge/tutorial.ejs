@@ -617,12 +617,12 @@
     var wordCount = coachText ? coachText.split(/\s+/).length : 0;
     var paragraphCount = coachText ? coachText.split(/\n\s*\n/).filter(Boolean).length : 0;
 
-    // Auto-advance is only for tiny transition beats. If there is real
+    // Auto-advance is only for very tiny transition beats. If there is real
     // instructional copy, keep the visible Next button and let the user pace it.
-    if (wordCount > 18 || paragraphCount > 1) return;
+    if (wordCount > 10 || paragraphCount > 1) return;
 
     var requestedDelay = parseInt(step.delay_after_ms, 10) || 1200;
-    var readingDelay = Math.max(1800, wordCount * 420);
+    var readingDelay = Math.max(4500, wordCount * 650);
     var delay = Math.max(requestedDelay, readingDelay);
     autoTimer = setTimeout(function() { sendAction('next'); }, delay);
   }
