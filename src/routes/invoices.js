@@ -322,7 +322,17 @@ router.get('/', async (req, res) => {
   });
 });
 
-router.get('/:id', async (req, res) => {
+// D-100: stop-gap for /invoices/new — was returning HTTP 500 because Express
+// matched "new" against /:id and the bigint cast failed. Invoices are normally
+// created via POST /estimates/:id/create-invoice; /invoices/new isn't linked
+// from anywhere but defensive redirect keeps it from crashing.
+router.get('/new', (req, res) => {
+  return res.redirect('/estimates');
+});
+
+// Defensive: constrain :id to digits so "new", "create", etc. never reach the
+// bigint cast. Anything non-numeric falls through to a 404 below.
+router.get('/:id(\\d+)', async (req, res) => {
   const invoice = await loadInvoice(req.params.id);
   if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
   let displayStatus = invoice.status;

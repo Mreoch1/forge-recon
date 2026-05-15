@@ -342,7 +342,22 @@ router.get('/', async (req, res) => {
   });
 });
 
-router.get('/:id', async (req, res) => {
+// D-100: stop-gap for /estimates/new — was returning HTTP 500 because Express
+// matched "new" against /:id and the bigint cast failed. Redirect to a sensible
+// landing page based on the query params the tutorial + UI use.
+// TODO(d100-full): implement a real estimate creation form here that pre-populates
+// from wo_id or customer_id, and stops requiring users to round-trip through WO show.
+router.get('/new', (req, res) => {
+  const woId = String(req.query.wo_id || '').match(/^\d+$/) ? req.query.wo_id : null;
+  const customerId = String(req.query.customer_id || '').match(/^\d+$/) ? req.query.customer_id : null;
+  if (woId) return res.redirect(`/work-orders/${woId}`);
+  if (customerId) return res.redirect(`/customers/${customerId}`);
+  return res.redirect('/work-orders');
+});
+
+// Defensive: constrain :id to digits so "new", "create", etc. never reach the
+// bigint cast. Anything non-numeric falls through to a 404 below.
+router.get('/:id(\\d+)', async (req, res) => {
   const estimate = await loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
   const { data: invoice } = await checkedEstimateRead(
