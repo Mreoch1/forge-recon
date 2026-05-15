@@ -1,8 +1,9 @@
 <%
-// Estimate form (v0.7 — no selected column, captured at invoice time).
+// Estimate form (v0.8 — D-112: labor + materials + markup columns).
 // Expects: estimate, errors, units, formAction, submitLabel.
 const linesToRender = (estimate.lines && estimate.lines.length) ? estimate.lines : [{
-  description: '', quantity: 1, unit: 'ea', unit_price: 0, cost: 0, line_total: 0
+  description: '', quantity: 1, unit: 'ea', unit_price: 0, cost: 0, line_total: 0,
+  labor_cost: 0, material_cost: 0, markup_pct: 25
 }];
 const termPresets = (typeof paymentTermsPresets !== 'undefined') ? paymentTermsPresets : ['Due on receipt', 'Net 15', 'Net 30', 'Net 45', 'Net 60'];
 const currentTerms = estimate.payment_terms || 'Net 30';
@@ -71,13 +72,26 @@ function numberInputValue(n) {
       <table class="data" data-line-items>
         <thead>
           <tr>
-            <th class="text-center" title="Check to include this line when converting to an invoice. Uncheck to keep it on the estimate but skip it on the invoice.">Approved</th>
-            <th title="Customer-visible description of this line item. Appears on the estimate and invoice PDF.">Description</th>
-            <th class="text-right" title="How many units of this item.">Qty</th>
-            <th title="Unit of measure, e.g. ea (each), hr (hour), sf (square foot).">Unit</th>
-            <th class="text-right text-recon-fog" title="Internal cost per unit &mdash; not shown on customer PDFs. Used for margin reporting.">Cost</th>
+            <th class="text-center" title="Check to include this line when converting to an invoice.">Approved</th>
+            <th title="Customer-visible description. Appears on the estimate and invoice PDF.">Description</th>
+            <th class="text-right" title="How many units.">Qty</th>
+            <th title="Unit of measure.">Unit</th>
+            <th colspan="4" class="text-center text-2xs text-recon-fog uppercase tracking-wider border-l border-recon-mist" title="These columns are INTERNAL — not shown on customer PDFs.">INTERNAL</th>
             <th class="text-right" title="Price per unit charged to the customer.">Rate</th>
             <th class="text-right" title="Qty x Rate for this line.">Line $</th>
+            <th></th>
+          </tr>
+          <tr>
+            <th></th>
+            <th></th>
+            <th></th>
+            <th></th>
+            <th class="text-right text-recon-fog font-normal" title="Internal labor cost per unit.">Labor</th>
+            <th class="text-right text-recon-fog font-normal" title="Internal materials cost per unit.">Materials</th>
+            <th class="text-right text-recon-fog font-normal" title="Computed cost (labor + materials).">Cost</th>
+            <th class="text-right text-recon-fog font-normal" title="Markup percentage applied to cost.">Markup %</th>
+            <th></th>
+            <th></th>
             <th></th>
           </tr>
         </thead>
@@ -108,16 +122,35 @@ function numberInputValue(n) {
                 </select>
               </td>
               <td class="text-right">
+                <input type="number" step="0.01" min="0" name="lines[<%= idx %>][labor_cost]" data-field="labor_cost"
+                       value="<%= numberInputValue(li.labor_cost) %>" placeholder="0" class="input text-right" style="width: 6rem; min-width: 5rem;"
+                       title="Internal labor cost per unit" onfocus="this.select()" inputmode="decimal">
+              </td>
+              <td class="text-right">
+                <input type="number" step="0.01" min="0" name="lines[<%= idx %>][material_cost]" data-field="material_cost"
+                       value="<%= numberInputValue(li.material_cost) %>" placeholder="0" class="input text-right" style="width: 6rem; min-width: 5rem;"
+                       title="Internal materials cost per unit" onfocus="this.select()" inputmode="decimal">
+              </td>
+              <td class="text-right">
                 <input type="number" step="0.01" min="0" name="lines[<%= idx %>][cost]" data-field="cost"
-                       value="<%= numberInputValue(li.cost) %>" placeholder="0" class="input text-right text-recon-fog" style="width: 7rem; min-width: 5.5rem;"
-                       title="Internal cost" onfocus="this.select()" inputmode="decimal">
+                       value="<%= moneyFmt(li.cost) %>" class="input text-right bg-recon-cloud text-recon-fog" style="width: 6rem; min-width: 5rem;"
+                       readonly title="Computed cost (labor + materials)">
+              </td>
+              <td class="text-right">
+                <input type="number" step="0.1" min="0" name="lines[<%= idx %>][markup_pct]" data-field="markup_pct"
+                       value="<%= li.markup_pct !== undefined && li.markup_pct !== null ? li.markup_pct : 25 %>" class="input text-right" style="width: 5rem; min-width: 4.5rem;"
+                       title="Markup percentage applied to cost" onfocus="this.select()" inputmode="decimal">
               </td>
               <td class="text-right">
                 <input type="number" step="0.01" min="0" name="lines[<%= idx %>][unit_price]" data-field="unit_price"
-                       value="<%= numberInputValue(li.unit_price) %>" placeholder="0" class="input text-right" style="width: 7rem; min-width: 5.5rem;"
-                       onfocus="this.select()" inputmode="decimal">
+                       value="<%= moneyFmt(li.unit_price) %>" class="input text-right bg-recon-cloud text-recon-fog" style="width: 7rem; min-width: 5.5rem;"
+                       readonly title="Computed rate (cost x markup)">
               </td>
-              <td class="text-right font-medium" data-field="line_total"><%= moneyFmt(li.line_total) %></td>
+              <td class="text-right font-medium">
+                <input type="number" step="0.01" min="0" name="lines[<%= idx %>][line_total]" data-field="line_total"
+                       value="<%= moneyFmt(li.line_total) %>" class="input text-right bg-recon-cloud text-recon-fog font-medium" style="width: 7rem; min-width: 5.5rem;"
+                       readonly title="Computed line total (rate x qty)">
+              </td>
               <td>
                 <button type="button" data-remove-line class="text-recon-fog hover:text-recon-red text-sm">remove</button>
               </td>
@@ -138,20 +171,23 @@ function numberInputValue(n) {
                 <% }); %>
               </select>
             </td>
-            <td class="text-right"><input type="number" step="0.01" min="0" name="lines[__IDX__][cost]" data-field="cost" value="" placeholder="0" class="input text-right text-recon-fog" style="width: 7rem; min-width: 5.5rem;" onfocus="this.select()" inputmode="decimal"></td>
-            <td class="text-right"><input type="number" step="0.01" min="0" name="lines[__IDX__][unit_price]" data-field="unit_price" value="" placeholder="0" class="input text-right" style="width: 7rem; min-width: 5.5rem;" onfocus="this.select()" inputmode="decimal"></td>
-            <td class="text-right font-medium" data-field="line_total">0.00</td>
+            <td class="text-right"><input type="number" step="0.01" min="0" name="lines[__IDX__][labor_cost]" data-field="labor_cost" value="" placeholder="0" class="input text-right" style="width: 6rem; min-width: 5rem;" onfocus="this.select()" inputmode="decimal"></td>
+            <td class="text-right"><input type="number" step="0.01" min="0" name="lines[__IDX__][material_cost]" data-field="material_cost" value="" placeholder="0" class="input text-right" style="width: 6rem; min-width: 5rem;" onfocus="this.select()" inputmode="decimal"></td>
+            <td class="text-right"><input type="number" step="0.01" min="0" name="lines[__IDX__][cost]" data-field="cost" value="0.00" class="input text-right bg-recon-cloud text-recon-fog" style="width: 6rem; min-width: 5rem;" readonly></td>
+            <td class="text-right"><input type="number" step="0.1" min="0" name="lines[__IDX__][markup_pct]" data-field="markup_pct" value="25" class="input text-right" style="width: 5rem; min-width: 4.5rem;" onfocus="this.select()" inputmode="decimal"></td>
+            <td class="text-right"><input type="number" step="0.01" min="0" name="lines[__IDX__][unit_price]" data-field="unit_price" value="0.00" class="input text-right bg-recon-cloud text-recon-fog" style="width: 7rem; min-width: 5.5rem;" readonly></td>
+            <td class="text-right"><input type="number" step="0.01" min="0" name="lines[__IDX__][line_total]" data-field="line_total" value="0.00" class="input text-right bg-recon-cloud text-recon-fog font-medium" style="width: 7rem; min-width: 5.5rem;" readonly></td>
             <td><button type="button" data-remove-line class="text-recon-fog hover:text-recon-red text-sm">remove</button></td>
           </tr>
         </tbody>
         <tfoot class="bg-recon-cloud">
           <tr>
-            <td colspan="6" class="text-right text-sm font-medium">Subtotal</td>
+            <td colspan="9" class="text-right text-sm font-medium">Subtotal</td>
             <td class="text-right font-semibold">$<span data-totals="subtotal">0.00</span></td>
             <td></td>
           </tr>
           <tr>
-            <td colspan="6" class="text-right text-sm font-medium">Profit / ROI %</td>
+            <td colspan="9" class="text-right text-sm font-medium">Profit / ROI %</td>
             <td class="text-right font-semibold">
               $<span data-totals="profit">0.00</span>
               <span class="text-recon-fog">/</span>
@@ -160,12 +196,12 @@ function numberInputValue(n) {
             <td></td>
           </tr>
           <tr>
-            <td colspan="6" class="text-right text-sm font-medium">Tax</td>
+            <td colspan="9" class="text-right text-sm font-medium">Tax</td>
             <td class="text-right font-semibold">$<span data-totals="tax_amount">0.00</span></td>
             <td></td>
           </tr>
           <tr>
-            <td colspan="6" class="text-right text-sm font-medium uppercase">Total</td>
+            <td colspan="9" class="text-right text-sm font-medium uppercase">Total</td>
             <td class="text-right text-lg font-bold text-recon-red">$<span data-totals="total">0.00</span></td>
             <td></td>
           </tr>
@@ -198,8 +234,7 @@ function numberInputValue(n) {
     sync();
   });
 
-  // R37d — textarea autosize: any <textarea data-autosize> grows to fit its content.
-  // Also handles textareas added dynamically (e.g. new line-item rows cloned from template).
+  // R37d — textarea autosize
   function fitTextarea(el){
     if (!el || el.tagName !== 'TEXTAREA') return;
     el.style.height = 'auto';
@@ -211,9 +246,7 @@ function numberInputValue(n) {
     fitTextarea(el);
     el.addEventListener('input', function(){ fitTextarea(el); });
   }
-  // Initial pass
   document.querySelectorAll('textarea[data-autosize]').forEach(bindAutosize);
-  // Observe DOM for newly-added rows from line-items.js cloning the __IDX__ template
   var mo = new MutationObserver(function(mutations){
     mutations.forEach(function(m){
       m.addedNodes && m.addedNodes.forEach(function(node){
@@ -223,5 +256,51 @@ function numberInputValue(n) {
     });
   });
   mo.observe(document.body, { childList: true, subtree: true });
+
+  // D-112: Auto-compute cost, unit_price, and line_total from labor + material + markup
+  function recalcLine(idx) {
+    var labor = parseFloat(document.querySelector('[name="lines[' + idx + '][labor_cost]"]')?.value) || 0;
+    var material = parseFloat(document.querySelector('[name="lines[' + idx + '][material_cost]"]')?.value) || 0;
+    var qty = parseFloat(document.querySelector('[name="lines[' + idx + '][quantity]"]')?.value) || 0;
+    var markup = parseFloat(document.querySelector('[name="lines[' + idx + '][markup_pct]"]')?.value) || 25;
+    var cost = labor + material;
+    var unit_price = cost * (1 + markup / 100);
+    var line_total = unit_price * qty;
+    var costEl = document.querySelector('[name="lines[' + idx + '][cost]"]');
+    if (costEl) costEl.value = cost.toFixed(2);
+    var priceEl = document.querySelector('[name="lines[' + idx + '][unit_price]"]');
+    if (priceEl) priceEl.value = unit_price.toFixed(2);
+    var totalEl = document.querySelector('[name="lines[' + idx + '][line_total]"]');
+    if (totalEl) totalEl.value = line_total.toFixed(2);
+  }
+
+  function wireRecalc(row) {
+    var idxMatch = row.querySelector('[name^="lines["]')?.name?.match(/^lines\[(\d+)\]/);
+    if (!idxMatch) return;
+    var idx = idxMatch[1];
+    row.querySelectorAll('[data-field="labor_cost"], [data-field="material_cost"], [data-field="quantity"], [data-field="markup_pct"]').forEach(function(el){
+      el.addEventListener('input', function(){ recalcLine(idx); });
+    });
+    recalcLine(idx);
+  }
+
+  // Wire all existing rows and observe for new rows from line-items.js
+  var table = document.querySelector('table[data-line-items]');
+  if (table) {
+    table.querySelectorAll('.line-row:not([data-template])').forEach(wireRecalc);
+    var obs = new MutationObserver(function(mutations){
+      mutations.forEach(function(m){
+        m.addedNodes.forEach(function(node){
+          if (node.nodeType === 1 && node.matches && node.matches('.line-row:not([data-template])')) {
+            wireRecalc(node);
+          }
+          if (node.querySelectorAll) {
+            node.querySelectorAll('.line-row:not([data-template])').forEach(wireRecalc);
+          }
+        });
+      });
+    });
+    obs.observe(table.querySelector('tbody') || table, { childList: true, subtree: true });
+  }
 })();
 </script>

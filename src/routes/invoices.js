@@ -398,10 +398,22 @@ router.post('/:id', async (req, res) => {
       payment_terms: data.payment_terms,
       due_date: data.due_date,
       notes: data.notes,
+      conditions: data.conditions,
     },
     lines: lineRows,
   });
   if (rpcErr) throw rpcErr;
+
+  // D-113 fallback: if the RPC silently dropped `conditions` (e.g. older RPC
+  // signature without the field), persist it via a direct UPDATE so the field
+  // doesn't get lost on save. Tolerate column-missing gracefully.
+  const { error: condError } = await supabase
+    .from('invoices')
+    .update({ conditions: data.conditions })
+    .eq('id', existing.id);
+  if (condError && condError.code !== '42703' && !String(condError.message || '').includes('conditions')) {
+    console.warn('[invoices] conditions column update failed:', condError.message);
+  }
 
   // RPC does not audit updates — write a separate audit row.
   try {

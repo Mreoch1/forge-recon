@@ -139,8 +139,12 @@ function validateLineItem(li) {
   const description = emptyToNull(li.description);
   const unit = emptyToNull(li.unit) || 'ea';
   const quantity = parseFloat(li.quantity);
-  const unitPrice = parseFloat(li.unit_price);
-  const cost = parseFloat(li.cost);
+  // D-112: compute cost, unit_price, and line_total from labor + material + markup
+  const labor = parseFloat(li.labor_cost) || 0;
+  const material = parseFloat(li.material_cost) || 0;
+  const cost = labor + material;
+  const markup = li.markup_pct !== undefined ? (parseFloat(li.markup_pct) || 25) : 25;
+  const unit_price = cost * (1 + markup / 100);
   const selectedInput = Array.isArray(li.selected) ? li.selected[li.selected.length - 1] : li.selected;
   const selected = selectedInput === '1' || selectedInput === 1 || selectedInput === true || selectedInput === 'on' ? 1 : 0;
   return {
@@ -148,8 +152,11 @@ function validateLineItem(li) {
       description,
       quantity: isFinite(quantity) && quantity >= 0 ? quantity : 0,
       unit: VALID_UNITS.includes(unit) ? unit : 'ea',
-      unit_price: isFinite(unitPrice) && unitPrice >= 0 ? unitPrice : 0,
+      unit_price: isFinite(unit_price) && unit_price >= 0 ? unit_price : 0,
       cost: isFinite(cost) && cost >= 0 ? cost : 0,
+      labor_cost: labor,
+      material_cost: material,
+      markup_pct: markup,
       selected,
     }
   };
@@ -418,6 +425,16 @@ router.post('/:id', async (req, res) => {
     .eq('id', existing.id);
   if (termsError && termsError.code !== '42703' && !String(termsError.message || '').includes('payment_terms')) throw termsError;
   if (termsError) console.warn('[estimates] payment_terms column missing; estimate terms were not persisted:', termsError.message);
+
+  // D-113 fix: notes were validated from req.body but the RPC payload above
+  // did not include them, so saved notes never reached the DB → never reached
+  // the PDF render at pdf.js line 399. Persist notes here with a separate UPDATE.
+  const { error: notesError } = await supabase
+    .from('estimates')
+    .update({ notes: data.notes })
+    .eq('id', existing.id);
+  if (notesError && notesError.code !== '42703' && !String(notesError.message || '').includes('notes')) throw notesError;
+  if (notesError) console.warn('[estimates] notes column update failed:', notesError.message);
   setFlash(req, 'success', `${existing.display_number} updated.`);
   res.redirect(`/estimates/${existing.id}`);
 });

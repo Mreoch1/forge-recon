@@ -8,8 +8,8 @@
  * On any input change in a line row, recalculates that row's line total
  * and the totals block at the bottom (subtotal / tax / total).
  *
- * The submitted form reuses the existing input names; this script only
- * provides the live-calc UX. The server recalculates everything
+ * D-112: Row computation uses labor + material + markup to derive
+ * cost, unit_price, and line_total. The server recalculates everything
  * authoritatively.
  */
 (function () {
@@ -31,27 +31,36 @@
     rows.forEach((row, idx) => {
       $$('input, select, textarea', row).forEach(input => {
         if (input.name && input.name.startsWith('lines[')) {
-          // Match digits or __IDX__ (template-leftover) — see makeRow note above.
           input.name = input.name.replace(/^lines\[[^\]]+\]/, `lines[${idx}]`);
         }
       });
     });
   }
 
+  // D-112: compute row totals from labor + material + markup directly
   function calcRow(row) {
     const q = parseFloat($('[data-field=quantity]', row).value) || 0;
-    const p = parseFloat($('[data-field=unit_price]', row).value) || 0;
+    const labor = parseFloat($('[data-field=labor_cost]', row).value) || 0;
+    const material = parseFloat($('[data-field=material_cost]', row).value) || 0;
+    const markup = parseFloat($('[data-field=markup_pct]', row).value) || 25;
+    const cost = labor + material;
+    const p = cost * (1 + markup / 100);
     const total = q * p;
-    const cell = $('[data-field=line_total]', row);
-    if (cell) cell.textContent = fmtMoney(total);
+    // Update readonly computed fields for form submission
+    const costInput = $('[data-field=cost]', row);
+    if (costInput) costInput.value = fmtMoney(cost);
+    const priceInput = $('[data-field=unit_price]', row);
+    if (priceInput) priceInput.value = fmtMoney(p);
+    const totalInput = $('[data-field=line_total]', row);
+    if (totalInput) totalInput.value = fmtMoney(total);
     return total;
   }
 
   function calcCost(row) {
     const q = parseFloat($('[data-field=quantity]', row).value) || 0;
-    const cInput = $('[data-field=cost]', row);
-    const c = parseFloat(cInput ? cInput.value : 0) || 0;
-    return q * c;
+    const labor = parseFloat($('[data-field=labor_cost]', row).value) || 0;
+    const material = parseFloat($('[data-field=material_cost]', row).value) || 0;
+    return q * (labor + material);
   }
 
   function calcAll() {
@@ -95,18 +104,14 @@
     row.removeAttribute('data-template');
     $$('input, select, textarea', row).forEach(input => {
       if (input.name) {
-        // Match either `lines[__IDX__]` (template) or `lines[<digits>]` (live row).
-        // Earlier regex only caught digits, so the template's __IDX__ placeholder
-        // never got rewritten — new rows submitted as `lines[__IDX__]` and got
-        // dropped by Express's body parser. That was the "line items disappear" bug.
         input.name = input.name.replace(/^lines\[[^\]]+\]/, `lines[${idx}]`);
       }
       if (input.dataset.field === 'quantity') input.value = '1';
-      else if (input.dataset.field === 'unit_price' || input.dataset.field === 'cost') input.value = '';
+      else if (input.dataset.field === 'labor_cost' || input.dataset.field === 'material_cost') input.value = '';
+      else if (input.dataset.field === 'markup_pct') input.value = '25';
       else if (input.dataset.field === 'description') input.value = '';
+      // cost, unit_price, line_total are readonly computed — leave template defaults
     });
-    const totalCell = $('[data-field=line_total]', row);
-    if (totalCell) totalCell.textContent = '0.00';
     return row;
   }
 
@@ -122,11 +127,11 @@
         if (!table) return;
         const rowsLeft = $$('.line-row', table).length;
         if (rowsLeft <= 1) {
-          // Don't remove the last row — clear it instead.
           $$('input, select', row).forEach(input => {
             if (input.dataset.field === 'description') input.value = '';
             else if (input.dataset.field === 'quantity') input.value = '1';
-            else if (input.dataset.field === 'unit_price' || input.dataset.field === 'cost') input.value = '';
+            else if (input.dataset.field === 'labor_cost' || input.dataset.field === 'material_cost') input.value = '';
+            else if (input.dataset.field === 'markup_pct') input.value = '25';
           });
         } else {
           row.remove();
@@ -154,7 +159,6 @@
         tbody.insertBefore(row, template);
         bindRow(row);
         calcAll();
-        // Focus the new row's description for fast entry.
         const desc = $('[data-field=description]', row);
         if (desc) desc.focus();
       });

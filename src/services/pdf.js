@@ -185,7 +185,7 @@ function drawLineItemsTable(doc, lines) {
       let val = li[c.key];
       if (c.key === 'unit_price' || c.key === 'line_total') val = fmtMoney(val);
       else if (c.key === 'quantity') val = String(val);
-      else val = String(val == null ? '' : val);
+      else val = String(val == null ? '' : val).replace(/\r\n?/g, '\n'); // D-114: strip CR → no Đ glyph
       const cellH = doc.heightOfString(val, { width: c.width - 12, align: c.align });
       if (cellH > maxCellHeight) maxCellHeight = cellH;
     });
@@ -201,7 +201,7 @@ function drawLineItemsTable(doc, lines) {
       let val = li[c.key];
       if (c.key === 'unit_price' || c.key === 'line_total') val = fmtMoney(val);
       else if (c.key === 'quantity') val = String(val);
-      else val = String(val == null ? '' : val);
+      else val = String(val == null ? '' : val).replace(/\r\n?/g, '\n'); // D-114: strip CR
       doc.text(val, cx + 6, y + 5, { width: c.width - 12, align: c.align });
       cx += c.width;
     });
@@ -249,8 +249,10 @@ function drawNotes(doc, notes) {
   if (!notes) return;
   const left = doc.page.margins.left;
   const right = doc.page.width - doc.page.margins.right;
+  // D-114: strip CR so Windows CRLF input doesn't render as Đ glyphs
+  const cleanNotes = String(notes).replace(/\r\n?/g, '\n');
   doc.fillColor(COLOR.fog).fontSize(8).font('Helvetica-Bold').text('NOTES', left, doc.y);
-  doc.fillColor(COLOR.charcoal).fontSize(10).font('Helvetica').text(notes, left, doc.y + 4, {
+  doc.fillColor(COLOR.charcoal).fontSize(10).font('Helvetica').text(cleanNotes, left, doc.y + 4, {
     width: right - left
   });
   doc.moveDown(1);
@@ -261,8 +263,10 @@ function drawTextBlock(doc, title, text) {
   const left = doc.page.margins.left;
   const right = doc.page.width - doc.page.margins.right;
   if (doc.y > doc.page.height - doc.page.margins.bottom - 90) doc.addPage();
+  // D-114: strip CR so Windows CRLF input doesn't render as Đ glyphs
+  const cleanText = String(text).replace(/\r\n?/g, '\n');
   doc.fillColor(COLOR.fog).fontSize(8).font('Helvetica-Bold').text(String(title || '').toUpperCase(), left, doc.y);
-  doc.fillColor(COLOR.charcoal).fontSize(10).font('Helvetica').text(String(text), left, doc.y + 4, {
+  doc.fillColor(COLOR.charcoal).fontSize(10).font('Helvetica').text(cleanText, left, doc.y + 4, {
     width: right - left,
     lineGap: 2
   });
@@ -446,7 +450,7 @@ function drawWOLineItems(doc, lines) {
       let val;
       if (c.key === 'unit_price' || c.key === 'line_total') val = fmtMoney(li[c.key]);
       else if (c.key === 'quantity')  val = String(li.quantity);
-      else                            val = String(li[c.key] == null ? '' : li[c.key]);
+      else                            val = String(li[c.key] == null ? '' : li[c.key]).replace(/\r\n?/g, '\n'); // D-114: strip CR
       const cellH = doc.heightOfString(val, { width: c.width - 12, align: c.align });
       if (cellH > maxCellHeight) maxCellHeight = cellH;
     });
@@ -461,7 +465,7 @@ function drawWOLineItems(doc, lines) {
       let val;
       if (c.key === 'unit_price' || c.key === 'line_total') val = fmtMoney(li[c.key]);
       else if (c.key === 'quantity')  val = String(li.quantity);
-      else                            val = String(li[c.key] == null ? '' : li[c.key]);
+      else                            val = String(li[c.key] == null ? '' : li[c.key]).replace(/\r\n?/g, '\n'); // D-114: strip CR
       doc.text(val, cx + 6, y + 5, { width: c.width - 12, align: c.align });
       cx += c.width;
     });
