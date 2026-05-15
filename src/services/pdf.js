@@ -177,8 +177,22 @@ function drawLineItemsTable(doc, lines) {
   // Rows
   doc.fontSize(9).font('Helvetica').fillColor(COLOR.charcoal);
   lines.forEach((li, i) => {
-    // Page break if needed
-    if (y > doc.page.height - doc.page.margins.bottom - 100) {
+    // D-108: measure actual row height — descriptions with newlines or long
+    // text need to wrap onto multiple lines. Previously rowHeight was fixed at
+    // 18px and overflow lines would render ON TOP OF the next row.
+    let maxCellHeight = rowHeight - 10; // baseline minus padding
+    cols.forEach(c => {
+      let val = li[c.key];
+      if (c.key === 'unit_price' || c.key === 'line_total') val = fmtMoney(val);
+      else if (c.key === 'quantity') val = String(val);
+      else val = String(val == null ? '' : val);
+      const cellH = doc.heightOfString(val, { width: c.width - 12, align: c.align });
+      if (cellH > maxCellHeight) maxCellHeight = cellH;
+    });
+    const actualRowHeight = Math.max(rowHeight, maxCellHeight + 10); // +10 = top+bottom padding
+
+    // Page break if this row won't fit
+    if (y + actualRowHeight > doc.page.height - doc.page.margins.bottom - 100) {
       doc.addPage();
       y = doc.page.margins.top;
     }
@@ -191,10 +205,10 @@ function drawLineItemsTable(doc, lines) {
       doc.text(val, cx + 6, y + 5, { width: c.width - 12, align: c.align });
       cx += c.width;
     });
-    // Bottom border
+    // Bottom border at the bottom of the actual (variable) row height
     doc.strokeColor(COLOR.mist).lineWidth(0.5)
-      .moveTo(left, y + rowHeight).lineTo(left + tableWidth, y + rowHeight).stroke();
-    y += rowHeight;
+      .moveTo(left, y + actualRowHeight).lineTo(left + tableWidth, y + actualRowHeight).stroke();
+    y += actualRowHeight;
   });
 
   doc.y = y + 10;
@@ -426,7 +440,19 @@ function drawWOLineItems(doc, lines) {
 
   doc.fontSize(9).font('Helvetica').fillColor(COLOR.charcoal);
   lines.forEach((li) => {
-    if (y > doc.page.height - doc.page.margins.bottom - 100) {
+    // D-108: measure actual row height to handle multi-line descriptions cleanly.
+    let maxCellHeight = rowHeight - 10;
+    cols.forEach(c => {
+      let val;
+      if (c.key === 'unit_price' || c.key === 'line_total') val = fmtMoney(li[c.key]);
+      else if (c.key === 'quantity')  val = String(li.quantity);
+      else                            val = String(li[c.key] == null ? '' : li[c.key]);
+      const cellH = doc.heightOfString(val, { width: c.width - 12, align: c.align });
+      if (cellH > maxCellHeight) maxCellHeight = cellH;
+    });
+    const actualRowHeight = Math.max(rowHeight, maxCellHeight + 10);
+
+    if (y + actualRowHeight > doc.page.height - doc.page.margins.bottom - 100) {
       doc.addPage();
       y = doc.page.margins.top;
     }
@@ -440,8 +466,8 @@ function drawWOLineItems(doc, lines) {
       cx += c.width;
     });
     doc.strokeColor(COLOR.mist).lineWidth(0.5)
-      .moveTo(left, y + rowHeight).lineTo(left + tableWidth, y + rowHeight).stroke();
-    y += rowHeight;
+      .moveTo(left, y + actualRowHeight).lineTo(left + tableWidth, y + actualRowHeight).stroke();
+    y += actualRowHeight;
   });
 
   doc.y = y + 10;
