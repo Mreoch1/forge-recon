@@ -20,6 +20,7 @@ router.get('/dashboard', (req, res) => res.redirect(302, '/dashboard-classic'));
 const WO_DASHBOARD_SELECT = 'id, display_number, status, created_at, customer_id, customers!left(id, name), jobs!left(id, title, customers!left(id, name))';
 const EST_DASHBOARD_SELECT = 'id, status, created_at, total, work_orders!left(display_number, customer_id, customers!left(id, name), jobs!left(id, title, customers!left(id, name)))';
 const INV_DASHBOARD_SELECT = 'id, status, created_at, total, work_orders!left(display_number, customer_id, customers!left(id, name), jobs!left(id, title, customers!left(id, name)))';
+const ACTIVE_WORK_ORDER_STATUSES = ['open', 'scheduled', 'in_progress'];
 
 function displayForWorkOrder(wo) {
   const customer = wo?.customers || wo?.jobs?.customers || {};
@@ -62,7 +63,7 @@ router.get('/dashboard-classic', async (req, res) => {
          { count: overdueCount }, { data: overdueBalData },
          { count: customerCount }, { count: workOrderCount }] = await Promise.all([
     supabase.from('estimates').select('*', { count: 'exact', head: true }).in('status', ['draft', 'sent']),
-    supabase.from('work_orders').select('*', { count: 'exact', head: true }).in('status', ['scheduled', 'in_progress']),
+    supabase.from('work_orders').select('*', { count: 'exact', head: true }).in('status', ACTIVE_WORK_ORDER_STATUSES),
     supabase.from('invoices').select('*', { count: 'exact', head: true }).in('status', ['sent', 'overdue']),
     supabase.from('invoices').select('total, amount_paid').in('status', ['sent', 'overdue']),
     supabase.from('invoices').select('amount_paid').eq('status', 'paid').not('paid_at', 'is', null).gte('paid_at', currentMonth + '-01'),
@@ -148,7 +149,7 @@ router.get('/', async (req, res) => {
     .from('work_orders')
     .select('id, display_number, scheduled_time, customer_id, customers!left(name), jobs!left(title, customers!left(name)), assigned_to_user_id, users!left(name), work_order_assignees(users!work_order_assignees_user_id_fkey(id, name)))')
     .eq('scheduled_date', tomorrow)
-    .in('status', ['scheduled', 'in_progress'])
+    .in('status', ACTIVE_WORK_ORDER_STATUSES)
     .order('scheduled_time', { ascending: true, nullsFirst: false }), 'dashboard tomorrow work orders read failed');
 
   const tomorrowMapped = (tomorrowWOs || []).map(r => ({
@@ -166,7 +167,7 @@ router.get('/', async (req, res) => {
     .select('*', { count: 'exact', head: true })
     .gte('scheduled_date', tomorrow)
     .lte('scheduled_date', weekEnd)
-    .in('status', ['scheduled', 'in_progress']), 'dashboard upcoming work orders count failed');
+    .in('status', ACTIVE_WORK_ORDER_STATUSES), 'dashboard upcoming work orders count failed');
 
   // ---------- Action queues ----------
   // 1. Estimates ready to send
@@ -279,7 +280,7 @@ router.get('/', async (req, res) => {
     supabase.from('invoices').select('amount_paid').eq('status', 'paid').not('paid_at', 'is', null).gte('paid_at', currentMonth + '-01'),
     supabase.from('invoices').select('amount_paid').eq('status', 'paid').not('paid_at', 'is', null).gte('paid_at', currentYear + '-01-01'),
     supabase.from('customers').select('*', { count: 'exact', head: true }),
-    supabase.from('work_orders').select('id').in('status', ['scheduled', 'in_progress']),
+    supabase.from('work_orders').select('id').in('status', ACTIVE_WORK_ORDER_STATUSES),
   ]);
   const { data: arData } = assertDashboardRead(arResult, 'dashboard AR balance read failed');
   const { data: revMonthData } = assertDashboardRead(revMonthResult, 'dashboard monthly revenue read failed');
