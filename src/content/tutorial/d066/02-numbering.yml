@@ -93,7 +93,7 @@ steps:
       Exactly. The estimate mirrors its parent WO's number — same `0027`.
       Same goes for the invoice when you convert: it'll be `INV-0001-0027`.
 
-      Type **next** to move on.
+      Click **Next** to move on.
     chips:
       - label: "Next"
         value: "next"
@@ -108,7 +108,7 @@ steps:
       doesn't reset and doesn't increment to a new number — it's the same
       number across all three doc types.
 
-      Type **next** to move on.
+      Click **Next** to move on.
     chips:
       - label: "Next"
         value: "next"

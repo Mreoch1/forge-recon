@@ -130,7 +130,7 @@ steps:
       the tour, nothing leaves your account.
 
       Next, we'll pretend the customer said yes and convert this estimate
-      to an invoice. Type **next**.
+      to an invoice. Click **Next**.
     chips:
       - label: "Next"
         value: "next"

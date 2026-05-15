@@ -96,7 +96,7 @@ steps:
       3. **Record Payment** — when the customer pays.
 
       Tutorial mode skips real email sends, so let's go straight to
-      recording a payment. Type **next**.
+      recording a payment. Click **Next**.
     chips:
       - label: "Next"
         value: "next"

@@ -86,7 +86,7 @@ steps:
       tied to this customer. Right now it's empty — we just made the
       customer, no jobs yet. We'll fix that next.
 
-      Type **next** when you're ready.
+      Click **Next** when you're ready.
     chips:
       - label: "Next"
         value: "next"
@@ -109,7 +109,7 @@ steps:
       The buttons in the top-right let you start a new WO, send a quick
       estimate, or upload a file. We'll use the **New WO** button next.
 
-      Type **next** to keep going.
+      Click **Next** to keep going.
     chips:
       - label: "Next"
         value: "next"

@@ -78,7 +78,7 @@ steps:
 
   - id: "ready-prompt"
     coach_text: |
-      Type **start** to begin, or **not now** to come back later.
+      Click **Start** to begin, or **Not now** to come back later.
     chips:
       - label: "Start"
         value: "start"

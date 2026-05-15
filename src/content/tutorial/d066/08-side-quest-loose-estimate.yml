@@ -116,7 +116,7 @@ steps:
   - id: "ready-to-finish"
     coach_text: |
       That's the loose estimate pattern. One more chapter — a quick quiz
-      to lock in what you've learned, then cleanup. Type **next**.
+      to lock in what you've learned, then cleanup. Click **Next**.
     chips:
       - label: "Next"
         value: "next"

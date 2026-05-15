@@ -83,7 +83,7 @@ steps:
     coach_text: |
       Done. All tutorial data removed — you're starting fresh.
 
-      Welcome to FORGE. You know the model now. Type **finish** to head
+      Welcome to FORGE. You know the model now. Click **Finish** to head
       back to the dashboard.
     chips:
       - label: "Finish"
@@ -109,7 +109,7 @@ steps:
       removed. Find them in your Customers list under whatever name you
       gave the tutorial customer.
 
-      Welcome to FORGE. Type **finish** to head back to the dashboard.
+      Welcome to FORGE. Click **Finish** to head back to the dashboard.
     chips:
       - label: "Finish"
         value: "finish"

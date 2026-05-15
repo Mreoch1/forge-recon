@@ -125,7 +125,7 @@ steps:
       you can have a loose estimate sitting there waiting to be approved,
       or a WO running with no pricing attached yet.
 
-      Type **next** to move on.
+      Click **Next** to move on.
     chips:
       - label: "Next"
         value: "next"

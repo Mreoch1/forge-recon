@@ -112,7 +112,7 @@ steps:
       Right now everything's empty — we just created the WO, no estimate
       or invoice yet. We'll add an estimate next.
 
-      Type **next**.
+      Click **Next**.
     chips:
       - label: "Next"
         value: "next"
