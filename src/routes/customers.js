@@ -247,3 +247,24 @@ router.post('/:id/delete', async (req, res) => {
 });
 
 module.exports = router;
+
+// POST /customers/:id/init-files — initialize root folder for customer file workspace
+router.post('/:id/init-files', async (req, res) => {
+  const id = req.params.id;
+  const { data: customer } = await supabase.from('customers').select('id, name').eq('id', id).maybeSingle();
+  if (!customer) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Customer not found.' });
+  try {
+    const filesSvc = require('../services/files');
+    const rootFolderId = await filesSvc.ensureRootFolder('customer', id, req.session.userId);
+    if (rootFolderId) {
+      setFlash(req, 'success', 'File workspace initialized for ' + customer.name + '.');
+      res.redirect('/files/folders/' + rootFolderId);
+    } else {
+      setFlash(req, 'error', 'Could not initialize file workspace.');
+      res.redirect('/customers/' + id);
+    }
+  } catch (e) {
+    setFlash(req, 'error', 'Error initializing file workspace: ' + e.message);
+    res.redirect('/customers/' + id);
+  }
+});

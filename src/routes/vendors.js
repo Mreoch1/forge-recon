@@ -192,3 +192,24 @@ router.post('/:id/delete', async (req, res) => {
 });
 
 module.exports = router;
+
+// POST /vendors/:id/init-files — initialize root folder for vendor file workspace
+router.post('/:id/init-files', async (req, res) => {
+  const id = req.params.id;
+  const { data: vendor } = await supabase.from('vendors').select('id, name').eq('id', id).maybeSingle();
+  if (!vendor) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Vendor not found.' });
+  try {
+    const filesSvc = require('../services/files');
+    const rootFolderId = await filesSvc.ensureRootFolder('vendor', id, req.session.userId);
+    if (rootFolderId) {
+      setFlash(req, 'success', 'File workspace initialized for ' + vendor.name + '.');
+      res.redirect('/files/folders/' + rootFolderId);
+    } else {
+      setFlash(req, 'error', 'Could not initialize file workspace.');
+      res.redirect('/vendors/' + id);
+    }
+  } catch (e) {
+    setFlash(req, 'error', 'Error initializing file workspace: ' + e.message);
+    res.redirect('/vendors/' + id);
+  }
+});

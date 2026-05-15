@@ -90,14 +90,27 @@ router.post('/projects/:id/rfps/:rId/items', requireManager, async (req, res) =>
 
 // ── DELETE /projects/:id/rfps/:rId — remove an RFP ──
 router.delete('/projects/:id/rfps/:rId', requireManager, async (req, res) => {
-  await supabase.from('rfp_line_items').delete().eq('rfp_id', req.params.rId);
-  await supabase.from('project_rfps').delete().eq('id', req.params.rId);
+  const { error: itemsError } = await supabase
+    .from('rfp_line_items')
+    .delete()
+    .eq('rfp_id', req.params.rId);
+  if (itemsError) throw itemsError;
+
+  const { error: rfpError } = await supabase
+    .from('project_rfps')
+    .delete()
+    .eq('id', req.params.rId);
+  if (rfpError) throw rfpError;
   res.redirect(`/projects/${req.params.id}?tab=rfp`);
 });
 
 // ── DELETE /projects/rfps/items/:itemId — remove a line item ──
 router.delete('/projects/rfps/items/:itemId', requireManager, async (req, res) => {
-  await supabase.from('rfp_line_items').delete().eq('id', req.params.itemId);
+  const { error } = await supabase
+    .from('rfp_line_items')
+    .delete()
+    .eq('id', req.params.itemId);
+  if (error) throw error;
   // Return JSON for HTMX-style deletion
   res.json({ ok: true });
 });

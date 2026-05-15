@@ -146,7 +146,9 @@
       <% if (typeof rootFolder !== 'undefined' && rootFolder) { %>
         <a href="/files/folders/<%= rootFolder.id %>" class="btn btn-secondary text-sm">Open full file workspace &rarr;</a>
       <% } else { %>
-        <a href="/files/customer/<%= customer.id %>" class="btn btn-secondary text-sm">Open full file workspace &rarr;</a>
+        <form method="post" action="/customers/<%= customer.id %>/init-files" class="inline">
+          <button type="submit" class="btn btn-secondary text-sm">Initialize file workspace &rarr;</button>
+        </form>
       <% } %>
     </div>
 
