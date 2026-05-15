@@ -22,12 +22,23 @@ const CHAPTER_ORDER = [
 ];
 
 let loaded = false;
+let loadedSignature = '';
 let yamlAvailable = false;
 
 try { require('js-yaml'); yamlAvailable = true; } catch (e) { /* js-yaml not installed, use JSON fallback */ }
 
+function getContentSignature() {
+  return CHAPTER_ORDER.map((fileBase) => {
+    const filePath = path.join(CHAPTERS_DIR, `${fileBase}.yml`);
+    if (!fs.existsSync(filePath)) return `${fileBase}:missing`;
+    const stats = fs.statSync(filePath);
+    return `${fileBase}:${stats.mtimeMs}:${stats.size}`;
+  }).join('|');
+}
+
 function loadChapters() {
-  if (loaded) return;
+  const signature = getContentSignature();
+  if (loaded && signature === loadedSignature) return;
   const YAML = yamlAvailable ? require('js-yaml') : null;
   const { chapters } = require('./tutorial-state');
   chapters.length = 0;
@@ -46,6 +57,7 @@ function loadChapters() {
   }
 
   loaded = true;
+  loadedSignature = signature;
 }
 
 function getChapter(index) {
