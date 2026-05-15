@@ -111,7 +111,7 @@
                         onsubmit="this.querySelector('input.rename-input').style.display='none';this.querySelector('.rename-save').style.display='none';this.querySelector('input').removeAttribute('disabled');">
                     <input name="contractor_name" class="input text-xs py-0.5 px-1 w-32 rename-input" style="display:none"
                            list="rfp-tab-presets" autocomplete="off"
-                           onblur="var s=this.previousElementSibling;if(s){s.style.display='';}this.style.display='none';this.nextElementSibling.style.display='none';">
+                           onblur="var f=this.parentElement;var s=f&&f.previousElementSibling;if(s){s.style.display='';}this.style.display='none';this.nextElementSibling.style.display='none';">
                     <button type="submit" style="display:none" class="btn btn-primary text-xs py-0.5 px-1.5 rename-save">Save</button>
                   </form>
                 </div>
@@ -378,6 +378,7 @@
     inputs.forEach(function(el){ el.addEventListener('input', recalc); });
     recalc();
   });
+})();
 })();
 </script>
 
