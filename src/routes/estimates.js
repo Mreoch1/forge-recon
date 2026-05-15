@@ -435,6 +435,44 @@ router.post('/:id', async (req, res) => {
     .eq('id', existing.id);
   if (notesError && notesError.code !== '42703' && !String(notesError.message || '').includes('notes')) throw notesError;
   if (notesError) console.warn('[estimates] notes column update failed:', notesError.message);
+
+  // D-112 fix: the update_estimate_with_lines RPC was created BEFORE the
+  // labor_cost / material_cost / markup_pct columns existed on
+  // estimate_line_items. The RPC silently drops those fields → on reload the
+  // user sees 0s. Re-fetch the newly-saved line rows (matched by sort_order)
+  // and apply the missing internal cost fields per-row.
+  try {
+    const { data: savedLines, error: fetchErr } = await supabase
+      .from('estimate_line_items')
+      .select('id, sort_order')
+      .eq('estimate_id', existing.id)
+      .order('sort_order', { ascending: true });
+    if (fetchErr) throw fetchErr;
+    for (let i = 0; i < (savedLines || []).length; i++) {
+      const matchData = data.lines[i];
+      if (!matchData) continue;
+      const payload = {
+        labor_cost: Number(matchData.labor_cost) || 0,
+        material_cost: Number(matchData.material_cost) || 0,
+        markup_pct: Number(matchData.markup_pct) || 25,
+      };
+      const { error: liErr } = await supabase
+        .from('estimate_line_items')
+        .update(payload)
+        .eq('id', savedLines[i].id);
+      if (liErr) {
+        // Tolerate missing column (older schemas) — don't fail the whole save
+        if (liErr.code === '42703' || /column/i.test(String(liErr.message || ''))) {
+          console.warn('[estimates] line-item cost columns missing; D-112 fields not persisted:', liErr.message);
+          break;
+        }
+        throw liErr;
+      }
+    }
+  } catch (e) {
+    console.warn('[estimates] D-112 line-item cost backfill failed:', e.message);
+  }
+
   setFlash(req, 'success', `${existing.display_number} updated.`);
   res.redirect(`/estimates/${existing.id}`);
 });

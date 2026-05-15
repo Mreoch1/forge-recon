@@ -217,6 +217,27 @@
                   </td>
                 </tr>
                 <!-- D-105: Sub-line items under this line item (initially hidden, toggled by clicking parent) -->
+                <!-- D-105b: Add sub-line row + inline form (parent_id pre-filled) -->
+                <tr class="rfp-sub-row bg-recon-deeper/5">
+                  <td colspan="12" class="pl-4 py-1.5">
+                    <button type="button" onclick="document.getElementById('add-sub-<%= item.id %>').classList.toggle('hidden'); event.stopPropagation();" class="text-xs text-recon-red hover:underline">+ Add sub-line under "<%= item.description || 'item' %>"</button>
+                    <div id="add-sub-<%= item.id %>" class="hidden mt-2 p-2 bg-recon-cloud/10 border border-recon-mist rounded">
+                      <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/items" method="POST" class="rfp-line-form grid grid-cols-2 md:grid-cols-6 gap-2 text-xs" onclick="event.stopPropagation();">
+                        <input name="vendor" class="input" placeholder="Vendor or contractor" autocomplete="off" list="rfp-line-entity-options">
+                        <input name="description" placeholder="Sub-line description" class="input" required>
+                        <input name="quantity" data-compute-input type="number" step="any" placeholder="Qty" class="input">
+                        <input name="contractor_cost" data-compute-input type="number" step="any" placeholder="Contr. cost" class="input">
+                        <input name="vendor_cost" data-compute-input type="number" step="any" placeholder="Vendor cost" class="input">
+                        <div class="flex gap-1 items-center">
+                          <input name="markup_pct" data-compute-input type="number" step="any" placeholder="MU%" value="20" class="input w-14">
+                          <input name="general_requirements_pct" data-compute-input type="number" step="any" placeholder="GR%" value="6" class="input w-14">
+                          <button type="submit" class="btn btn-primary text-xs ml-1">Add sub</button>
+                        </div>
+                        <input name="parent_id" type="hidden" value="<%= item.id %>">
+                      </form>
+                    </div>
+                  </td>
+                </tr>
                 <% children.forEach(function(sub){ %>
                   <% var subFid = 'rfp-sub-form-' + sub.id; var subDid = 'rfp-sub-del-' + sub.id; %>
                   <tr class="rfp-sub-row">
