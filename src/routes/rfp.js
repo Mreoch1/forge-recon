@@ -327,16 +327,20 @@ router.post('/projects/rfps/items/:itemId', requireManager, async (req, res) => 
   const total_cost = lastOf(req.body.total_cost);
   const markup_pct = lastOf(req.body.markup_pct);
   const approved = lastOf(req.body.approved);
+  let gr = req.body.general_requirements_pct;
+  if (Array.isArray(gr)) gr = gr[gr.length - 1];
 
   const markup = parseFloat(markup_pct) || 20;
   const cCost = parseFloat(contractor_cost) || 0;
-  const vCost = parseFloat(vendor_cost) || 0;
+  // D-135: preserve existing vendor_cost when form no longer sends it (D-122b)
+  const vCost = req.body.vendor_cost !== undefined ? (parseFloat(vendor_cost) || 0) : undefined;
   const uCost = parseFloat(unit_cost) || 0;
   const tCost = parseFloat(total_cost) || 0;
   const qty = parseFloat(quantity) || 0;
 
   // D-105: use computeSubLineTotals helper with general_requirements_pct
-  var comp = computeSubLineTotals({ quantity, contractor_cost, vendor_cost, markup_pct, general_requirements_pct: req.body.general_requirements_pct });
+  let grParam = gr;
+  var comp = computeSubLineTotals({ quantity, contractor_cost, vendor_cost, markup_pct, general_requirements_pct: grParam });
   var computedUnit = comp.unit_cost;
   var baseCost = comp.total_cost;
   var withMarkup = comp.total_with_markup;
@@ -356,14 +360,14 @@ router.post('/projects/rfps/items/:itemId', requireManager, async (req, res) => 
       description: description || '',
       quantity: qty || null,
       contractor_cost: cCost || null,
-      vendor_cost: vCost || null,
       unit_cost: computedUnit || null,
       total_cost: baseCost || null,
       markup_pct: markup,
       total_with_markup: withMarkup,
       final_unit_cost: baseCost > 0 ? withMarkup / (qty || 1) : 0,
       approved: approved === '1' || approved === 'true' || approved === 'on',
-      general_requirements_pct: req.body.general_requirements_pct !== undefined ? (parseFloat(req.body.general_requirements_pct) || 6) : undefined,
+      general_requirements_pct: gr !== undefined ? (parseFloat(gr) || 6) : undefined,
+      ...(req.body.vendor_cost !== undefined ? { vendor_cost: parseFloat(vendor_cost) || 0 } : {}),
       location: req.body.location || undefined,
       sort_order: req.body.sort_order !== undefined ? parseInt(req.body.sort_order) : undefined,
       updated_at: new Date().toISOString(),
