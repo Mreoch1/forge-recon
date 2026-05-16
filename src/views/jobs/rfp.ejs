@@ -226,14 +226,15 @@
                 <% var apprChildren = children.filter(function(s){return s.approved;}); %>
                 <% var liQty = apprChildren.reduce(function(s,c){return s + Number(c.quantity||0);}, 0) || (children.length > 0 ? children.reduce(function(s,c){return s + Number(c.quantity||0);}, 0) : (Number(item.quantity)||0)); %>
                 <% var liUnit = apprChildren.reduce(function(s,c){return s + (Number(c.contractor_cost||0)+Number(c.vendor_cost||0));},0); %>
-                <% var liTotal = apprChildren.reduce(function(s,c){return s + (Number(c.total_with_markup||0));},0); %>
+                <% var liTotalCost = (apprChildren.length > 0 ? apprChildren.reduce(function(s,c){return s + (Number(c.total_cost||0));},0) : children.reduce(function(s,c){return s + (Number(c.total_cost||0));},0)); %>
+                <% var liTotal = apprChildren.length > 0 ? apprChildren.reduce(function(s,c){return s + (Number(c.total_with_markup||0));},0) : children.reduce(function(s,c){return s + (Number(c.total_with_markup||0));},0); %>
                 <!-- D-105: Line item container row — Item name + auto-rolled-up totals from approved sub-lines.
                      Falls back to direct values on the line item itself when no sub-lines exist (legacy data). -->
                 <% var liSubCount = children.length; var liApprovedSubs = apprChildren.length; %>
                 <% var liHasSubs = children.length > 0; %>
-                <% var liDisplayTotal = liHasSubs ? liTotal : (Number(item.total_with_markup) || 0); %>
+                <% var liDisplayTotal = liTotal || (Number(item.total_with_markup) || 0); %>
                 <% var liDisplayUnit = liHasSubs
-                     ? (liQty > 0 ? liTotal / liQty : 0)
+                     ? (liQty > 0 ? (liTotal || Number(item.total_with_markup) || 0) / liQty : 0)
                      : (Number(item.final_unit_cost) || 0); %>
                 <% var liMarkup = liHasSubs ? (children.some(function(s){return Number(s.markup_pct||20) !== Number(children[0].markup_pct||20);}) ? 'mixed' : (Number(children[0].markup_pct||20))) : (Number(item.markup_pct) || '—'); %>
                 <% var liGr = liHasSubs ? (children.some(function(s){return Number(s.general_requirements_pct||6) !== Number(children[0].general_requirements_pct||6);}) ? 'mixed' : (Number(children[0].general_requirements_pct||6))) : (Number(item.general_requirements_pct) || '—'); %>
@@ -242,7 +243,7 @@
                   <td><form id="<%= itemFormId %>" action="/projects/rfps/items/<%= item.id %>" method="POST" onclick="event.stopPropagation();"></form><textarea form="<%= itemFormId %>" name="description" class="input text-xs py-0.5 font-medium w-full" placeholder="Item description" rows="1" data-autosize><%= item.description %></textarea></td>
                   <td class="text-right"><% if (liHasSubs) { %><span class="font-medium text-xs"><%= liQty %></span><% } else { %><input form="<%= itemFormId %>" name="quantity" type="number" step="any" value="<%= item.quantity != null ? item.quantity : '' %>" class="input text-xs py-0.5 w-16 text-right"><% } %></td>
                   <td class="text-right font-medium">$<%= (liHasSubs ? liUnit : Number(item.unit_cost) || 0).toFixed(2) %></td>
-                  <td class="text-right font-medium">$<%= (liHasSubs ? liTotal : Number(item.total_cost) || 0).toFixed(2) %></td>
+                  <td class="text-right font-medium">$<%= (liHasSubs ? liTotalCost : Number(item.total_cost) || 0).toFixed(2) %></td>
                   <td class="text-right text-xs"><%= liMarkup %></td>
                   <td class="text-right text-xs"><%= liGr %></td>
                   <td class="text-right font-medium">$<%= liDisplayTotal.toFixed(2) %></td>
@@ -265,8 +266,7 @@
                         <input name="vendor" class="input w-full" placeholder="Vendor or contractor" autocomplete="off" list="rfp-line-entity-options">
                         <textarea name="description" placeholder="Sub-line description" class="input w-full" rows="1" data-autosize required></textarea>
                         <input name="quantity" data-compute-input type="number" step="any" placeholder="Qty" class="input w-16">
-                        <input name="contractor_cost" data-compute-input type="number" step="any" placeholder="Contr. cost" class="input w-20">
-                        <input name="vendor_cost" data-compute-input type="number" step="any" placeholder="Vendor cost" class="input w-20">
+                        <input name="contractor_cost" data-compute-input type="number" step="any" placeholder="$ Unit cost" class="input w-20">
                         <div class="flex gap-1 items-center">
                           <input name="markup_pct" data-compute-input type="number" step="any" placeholder="MU%" value="20" class="input w-14">
                           <input name="general_requirements_pct" data-compute-input type="number" step="any" placeholder="GR%" value="6" class="input w-14">
@@ -289,8 +289,7 @@
                     </td>
                     <td class="text-right"><input form="<%= subFid %>" name="quantity" type="number" step="any" value="<%= sub.quantity != null ? sub.quantity : '' %>" class="input text-xs py-0.5 w-16 text-right"></td>
                     <td class="text-right">
-                      <input form="<%= subFid %>" name="contractor_cost" type="number" step="any" value="<%= sub.contractor_cost != null ? sub.contractor_cost : '' %>" class="input text-xs py-0.5 w-20 text-right" placeholder="Contr">
-                      <input form="<%= subFid %>" name="vendor_cost" type="number" step="any" value="<%= sub.vendor_cost != null ? sub.vendor_cost : '' %>" class="input text-xs py-0.5 w-20 text-right mt-0.5" placeholder="Vendor">
+                      <input form="<%= subFid %>" name="contractor_cost" type="number" step="any" value="<%= sub.contractor_cost != null ? sub.contractor_cost : '' %>" class="input text-xs py-0.5 w-20 text-right" placeholder="$ Unit cost">
                     </td>
                     <td class="text-right"><%= sub.total_cost != null ? '$' + Number(sub.total_cost).toFixed(2) : '-' %></td>
                     <td class="text-right"><input form="<%= subFid %>" name="markup_pct" type="number" step="any" value="<%= sub.markup_pct != null ? sub.markup_pct : '20' %>" class="input text-xs py-0.5 w-14 text-right"></td>
