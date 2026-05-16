@@ -411,6 +411,10 @@ function generateEstimatePDF(estimate, company, stream) {
   if (estimate.created_at) footerLines.push(`Created: ${String(estimate.created_at).slice(0,10)}`);
   if (estimate.valid_until) footerLines.push(`Valid until: ${String(estimate.valid_until).slice(0,10)}`);
   if (estimate.sent_at) footerLines.push(`Sent: ${String(estimate.sent_at).slice(0,10)}`);
+  // D-124: badge on PDF if edited after acceptance
+  if (estimate.accepted_at && estimate.updated_at && String(estimate.updated_at).slice(0,10) > String(estimate.accepted_at).slice(0,10)) {
+    footerLines.push(`✎ Edited after acceptance · ${String(estimate.updated_at).slice(0,10)}`);
+  }
   drawFooterMeta(doc, footerLines);
 
   doc.end();

@@ -208,6 +208,10 @@ const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
         <% } %>
         <% if (estimate.accepted_at) { %>
           <div><dt class="text-recon-fog text-xs inline">Accepted:</dt> <dd class="inline"><%= estimate.accepted_at %></dd></div>
+          <%# D-124: badge if edited after acceptance %>
+          <% if (estimate.updated_at && String(estimate.updated_at) > String(estimate.accepted_at)) { %>
+            <div class="mt-1"><span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800"><%= editedAfterBadge || '✎ Edited after acceptance' %> · <%= String(estimate.updated_at).slice(0,10) %></span></div>
+          <% } %>
         <% } %>
         <% if (estimate.archived_at) { %>
           <div><dt class="text-recon-fog text-xs inline">Archived:</dt> <dd class="inline"><%= estimate.archived_at %></dd></div>

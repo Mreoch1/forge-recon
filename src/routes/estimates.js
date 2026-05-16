@@ -380,8 +380,10 @@ router.get('/:id(\\d+)', async (req, res) => {
 router.get('/:id/edit', async (req, res) => {
   const estimate = await loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
-  if (estimate.status !== 'draft') {
-    setFlash(req, 'error', `Estimate ${estimate.display_number} is "${estimate.status}" — cannot edit.`);
+  // D-124: allow editing regardless of status (draft, sent, accepted, rejected, expired)
+  // Only block if soft-deleted
+  if (estimate.archived_at) {
+    setFlash(req, 'error', `Estimate ${estimate.display_number} is archived — cannot edit.`);
     return res.redirect(`/estimates/${estimate.id}`);
   }
   res.render('estimates/edit', {
@@ -393,8 +395,9 @@ router.get('/:id/edit', async (req, res) => {
 router.post('/:id', async (req, res) => {
   const existing = await loadEstimate(req.params.id);
   if (!existing) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
-  if (existing.status !== 'draft') {
-    setFlash(req, 'error', `Estimate ${existing.display_number} is "${existing.status}" — cannot edit.`);
+  // D-124: allow editing regardless of status (draft, sent, accepted, etc.)
+  if (existing.archived_at) {
+    setFlash(req, 'error', `Estimate ${existing.display_number} is archived — cannot edit.`);
     return res.redirect(`/estimates/${existing.id}`);
   }
   const { errors, data } = validateEstimate(req.body);

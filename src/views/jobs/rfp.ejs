@@ -68,13 +68,31 @@
     </div>
   <% } else { %>
     <% 
-    // Calculate RFP-level totals for summary cards
+    // Calculate RFP-level totals for summary cards.
+    // For parent/sub-line groups, count approved sub-lines once and never also
+    // count the parent row. Standalone legacy rows still count when approved.
+    function approvedRfpTotal(items) {
+      var childrenByParent = {};
+      (items || []).forEach(function(i) {
+        if (i.parent_line_item_id) {
+          (childrenByParent[i.parent_line_item_id] = childrenByParent[i.parent_line_item_id] || []).push(i);
+        }
+      });
+      return (items || []).reduce(function(sum, i) {
+        if (i.parent_line_item_id) return sum;
+        var children = childrenByParent[i.id] || [];
+        if (children.length > 0) {
+          return sum + children.reduce(function(childSum, c) {
+            return childSum + (c.approved ? Number(c.total_with_markup || 0) : 0);
+          }, 0);
+        }
+        return sum + (i.approved ? Number(i.total_with_markup || 0) : 0);
+      }, 0);
+    }
     var rfpTotals = {};
     rfps.forEach(function(r) { 
       var items = (rfpItemsMap && rfpItemsMap[r.id]) || [];
-      // D-122 Bug 6: Only count approved items in category total
-      var total = items.reduce(function(s, i) { return s + (i.approved ? Number(i.total_with_markup || 0) : 0); }, 0);
-      rfpTotals[r.id] = total;
+      rfpTotals[r.id] = approvedRfpTotal(items);
     });
     %>
 
@@ -171,7 +189,7 @@
           });
         }
         var allItems = (rfpItemsMap && rfpItemsMap[rfp.id]) || [];
-        var grandTotal = allItems.reduce(function(s, i) { return s + (i.approved ? Number(i.total_with_markup || 0) : 0); }, 0);
+        var grandTotal = approvedRfpTotal(allItems);
         var grandTotalAll = allItems.reduce(function(s, i) { return s + Number(i.total_with_markup || 0); }, 0);
         %>
         <div class="overflow-x-auto">
@@ -213,8 +231,8 @@
                      Falls back to direct values on the line item itself when no sub-lines exist (legacy data). -->
                 <% var liSubCount = children.length; var liApprovedSubs = apprChildren.length; %>
                 <% var liHasSubs = children.length > 0; %>
-                <% var liDisplayTotal = liApprovedSubs > 0 ? liTotal : (Number(item.total_with_markup) || 0); %>
-                <% var liDisplayUnit = liApprovedSubs > 0
+                <% var liDisplayTotal = liHasSubs ? liTotal : (Number(item.total_with_markup) || 0); %>
+                <% var liDisplayUnit = liHasSubs
                      ? (liQty > 0 ? liTotal / liQty : 0)
                      : (Number(item.final_unit_cost) || 0); %>
                 <% var liMarkup = liHasSubs ? (children.some(function(s){return Number(s.markup_pct||20) !== Number(children[0].markup_pct||20);}) ? 'mixed' : (Number(children[0].markup_pct||20))) : (Number(item.markup_pct) || '—'); %>
@@ -223,8 +241,8 @@
                 <tr class="bg-recon-deeper/20 hover:bg-recon-cloud/20" style="cursor:pointer" onclick="var n=this.nextElementSibling;while(n&&n.classList.contains('rfp-sub-row')){n.style.display=n.style.display==='none'?'':'none';n=n.nextElementSibling;}">
                   <td><form id="<%= itemFormId %>" action="/projects/rfps/items/<%= item.id %>" method="POST" onclick="event.stopPropagation();"></form><textarea form="<%= itemFormId %>" name="description" class="input text-xs py-0.5 font-medium w-full" placeholder="Item description" rows="1" data-autosize><%= item.description %></textarea></td>
                   <td class="text-right"><% if (liHasSubs) { %><span class="font-medium text-xs"><%= liQty %></span><% } else { %><input form="<%= itemFormId %>" name="quantity" type="number" step="any" value="<%= item.quantity != null ? item.quantity : '' %>" class="input text-xs py-0.5 w-16 text-right"><% } %></td>
-                  <td class="text-right font-medium">$<%= (liApprovedSubs > 0 ? liUnit : Number(item.unit_cost) || 0).toFixed(2) %></td>
-                  <td class="text-right font-medium">$<%= (liApprovedSubs > 0 ? liTotal : Number(item.total_cost) || 0).toFixed(2) %></td>
+                  <td class="text-right font-medium">$<%= (liHasSubs ? liUnit : Number(item.unit_cost) || 0).toFixed(2) %></td>
+                  <td class="text-right font-medium">$<%= (liHasSubs ? liTotal : Number(item.total_cost) || 0).toFixed(2) %></td>
                   <td class="text-right text-xs"><%= liMarkup %></td>
                   <td class="text-right text-xs"><%= liGr %></td>
                   <td class="text-right font-medium">$<%= liDisplayTotal.toFixed(2) %></td>
