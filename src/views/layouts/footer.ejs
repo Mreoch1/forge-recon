@@ -34,7 +34,9 @@
 
 <% if (typeof currentUser !== 'undefined' && currentUser) { %>
 <% if (typeof inlineAiChat === 'undefined' || !inlineAiChat) { %>
+<% if (currentUser.landing_mode === 'chat') { %>
 <div id="ai-chat-root" data-mode="floating" data-user-id="<%= currentUser.id %>" data-user-name="<%= currentUser.name %>" data-user-role="<%= currentUser.role %>"></div>
+<% } %>
 <% } %>
 <script src="/js/ai-chat.js?v=forge-ai-feedback-20260515" defer></script>
 <script src="/js/forge-form-assist.js?v=forge-first-20260513" defer></script>
