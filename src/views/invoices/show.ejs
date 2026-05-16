@@ -57,7 +57,7 @@ const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '&mdas
     </div>
   <% } %>
 
-  <!-- D-126: single 2-col summary table replacing AI cards + cost strip -->
+  <!-- D-126: Single 2-col summary table (replaces AI cards + cost strip + dates card) -->
   <div class="card overflow-hidden mb-6">
     <table class="data">
       <tbody>
@@ -70,11 +70,27 @@ const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '&mdas
         <tr><td class="text-xs uppercase tracking-wide text-recon-fog">Balance Due</td>
             <td class="text-right font-bold <%= balance > 0 ? 'text-recon-red' : 'text-green-700' %>">$<%= fmt(balance) %></td></tr>
 
-        <tr class="border-t border-recon-mist"><td colspan="2" class="text-xs text-recon-fog pt-3">Dates &amp; terms</td></tr>
+        <% if (showCosts && costTotal > 0) { %>
+          <tr class="border-t border-dashed border-recon-mist"><td colspan="2" class="text-xs text-recon-fog pt-2">Internal &mdash; not shown on customer PDFs</td></tr>
+          <tr><td class="text-xs uppercase tracking-wide text-recon-fog">Cost</td>
+              <td class="text-right font-semibold text-recon-fog">$<%= fmt(costTotal) %></td></tr>
+          <tr><td class="text-xs uppercase tracking-wide text-recon-fog">Profit</td>
+              <td class="text-right font-semibold <%= margin >= 0 ? 'text-green-700' : 'text-recon-red' %>">$<%= fmt(margin) %></td></tr>
+          <tr><td class="text-xs uppercase tracking-wide text-recon-fog">Margin</td>
+              <td class="text-right font-semibold <%= marginPct !== '&mdash;' && parseFloat(marginPct) >= 0 ? 'text-green-700' : 'text-recon-red' %>"><%= marginPct %>%</td></tr>
+        <% } %>
+
+        <tr><td class="text-xs uppercase tracking-wide text-recon-fog">Terms</td>
+            <td class="text-right font-semibold"><%= invoice.payment_terms %></td></tr>
+        <tr><td class="text-xs uppercase tracking-wide text-recon-fog">Recipient</td>
+            <td class="text-right font-semibold"><%= invoice.customer_billing_email || invoice.customer_email || '&mdash;' %></td></tr>
+        <% if (invoice.customer_email && invoice.customer_billing_email && invoice.customer_billing_email !== invoice.customer_email) { %>
+          <tr><td></td><td class="text-right text-xs text-recon-fog">(estimates to: <%= invoice.customer_email %>)</td></tr>
+        <% } %>
+
+        <tr class="border-t border-dashed border-recon-mist"><td colspan="2" class="text-xs text-recon-fog pt-2">Dates &amp; terms</td></tr>
         <tr><td class="text-xs uppercase tracking-wide text-recon-fog">Issued</td>
             <td class="text-right font-semibold"><%= (invoice.created_at || '&mdash;').slice(0,10) %></td></tr>
-        <tr><td class="text-xs uppercase tracking-wide text-recon-fog">Terms</td>
-            <td class="text-right font-semibold"><%= invoice.payment_terms || '&mdash;' %></td></tr>
         <tr><td class="text-xs uppercase tracking-wide text-recon-fog">Due</td>
             <td class="text-right font-semibold"><%= invoice.due_date ? String(invoice.due_date).slice(0,10) : '&mdash;' %></td></tr>
         <% if (invoice.sent_at) { %>
@@ -85,75 +101,68 @@ const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '&mdas
           <tr><td class="text-xs uppercase tracking-wide text-recon-fog">Paid</td>
               <td class="text-right font-semibold"><%= invoice.paid_at %></td></tr>
         <% } %>
-        <% if (invoice.customer_email && invoice.customer_billing_email && invoice.customer_billing_email !== invoice.customer_email) { %>
-          <tr><td class="text-xs uppercase tracking-wide text-recon-fog">Estimates to</td>
-              <td class="text-right text-xs text-recon-fog"><%= invoice.customer_email %></td></tr>
-        <% } %>
-
-        <% if (showCosts && costTotal > 0) { %>
-          <tr class="border-t border-dashed border-recon-mist"><td colspan="2" class="text-xs text-recon-fog pt-3">Internal &mdash; not shown on customer PDFs</td></tr>
-          <tr><td class="text-xs uppercase tracking-wide text-recon-fog">Cost</td>
-              <td class="text-right font-semibold text-recon-fog">$<%= fmt(costTotal) %></td></tr>
-          <tr><td class="text-xs uppercase tracking-wide text-recon-fog">Profit</td>
-              <td class="text-right font-semibold <%= margin >= 0 ? 'text-green-700' : 'text-recon-red' %>">$<%= fmt(margin) %></td></tr>
-          <tr><td class="text-xs uppercase tracking-wide text-recon-fog">Margin</td>
-              <td class="text-right font-semibold"><%= marginPct %>%</td></tr>
-        <% } %>
       </tbody>
     </table>
   </div>
 
   <div class="card overflow-hidden mb-6">
-    <table class="data">
-      <thead>
-        <tr>
-          <th>Description</th>
-          <th class="text-right">Qty</th>
-          <th>Unit</th>
-          <% if (showCosts) { %><th class="text-right text-recon-fog">Cost</th><% } %>
-          <th class="text-right">Rate</th>
-          <th class="text-right">Line $</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% invoice.lines.forEach(function(li){ %>
+    <div class="px-5 py-3 border-b border-recon-mist">
+      <h3 class="font-semibold">Items</h3>
+    </div>
+    <% if (invoice.lines.length === 0) { %>
+      <div class="p-6 text-center text-recon-fog text-sm">No items.</div>
+    <% } else { %>
+      <table class="data">
+        <thead>
           <tr>
-            <td><%= li.description %></td>
-            <td class="text-right"><%= li.quantity %></td>
-            <td><%= li.unit %></td>
-            <% if (showCosts) { %><td class="text-right text-recon-fog">$<%= fmt(li.cost) %></td><% } %>
-            <td class="text-right">$<%= fmt(li.unit_price) %></td>
-            <td class="text-right font-medium">$<%= fmt(li.line_total) %></td>
+            <th>Description</th>
+            <th class="text-right">Qty</th>
+            <th>Unit</th>
+            <% if (showCosts) { %><th class="text-right text-recon-fog">Cost</th><% } %>
+            <th class="text-right">Rate</th>
+            <th class="text-right">Line $</th>
           </tr>
-        <% }); %>
-      </tbody>
-      <tfoot class="bg-recon-cloud">
-        <tr>
-          <td colspan="<%= showCosts ? 5 : 4 %>" class="text-right text-sm font-medium">Subtotal</td>
-          <td class="text-right font-semibold">$<%= fmt(subtotal) %></td>
-        </tr>
-        <% if (showCosts) { %>
+        </thead>
+        <tbody>
+          <% invoice.lines.forEach(function(li){ %>
+            <tr>
+              <td><%= li.description %></td>
+              <td class="text-right"><%= li.quantity %></td>
+              <td><%= li.unit %></td>
+              <% if (showCosts) { %><td class="text-right text-recon-fog">$<%= fmt(li.cost) %></td><% } %>
+              <td class="text-right">$<%= fmt(li.unit_price) %></td>
+              <td class="text-right font-medium">$<%= fmt(li.line_total) %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+        <tfoot class="bg-recon-cloud">
           <tr>
-            <td colspan="5" class="text-right text-sm font-medium text-recon-fog">Cost <span class="text-xs">(internal)</span></td>
-            <td class="text-right font-semibold text-recon-fog">$<%= fmt(costTotal) %></td>
+            <td colspan="<%= showCosts ? 5 : 4 %>" class="text-right text-sm font-medium">Subtotal</td>
+            <td class="text-right font-semibold">$<%= fmt(subtotal) %></td>
           </tr>
-        <% } %>
-        <tr>
-          <td colspan="<%= showCosts ? 5 : 4 %>" class="text-right text-sm font-medium">Tax (<%= fmt(invoice.tax_rate) %>%)</td>
-          <td class="text-right font-semibold">$<%= fmt(invoice.tax_amount) %></td>
-        </tr>
-        <tr>
-          <td colspan="<%= showCosts ? 5 : 4 %>" class="text-right text-sm font-semibold uppercase">Total</td>
-          <td class="text-right text-lg font-bold text-recon-red">$<%= fmt(invoice.total) %></td>
-        </tr>
-        <% if (showCosts) { %>
+          <% if (showCosts) { %>
+            <tr>
+              <td colspan="5" class="text-right text-sm font-medium text-recon-fog">Cost <span class="text-xs">(internal)</span></td>
+              <td class="text-right font-semibold text-recon-fog">$<%= fmt(costTotal) %></td>
+            </tr>
+          <% } %>
           <tr>
-            <td colspan="5" class="text-right text-sm font-medium text-recon-fog">Margin <span class="text-xs">(internal, <%= marginPct %>%)</span></td>
-            <td class="text-right font-semibold <%= margin >= 0 ? 'text-green-700' : 'text-recon-red' %>">$<%= fmt(margin) %></td>
+            <td colspan="<%= showCosts ? 5 : 4 %>" class="text-right text-sm font-medium">Tax (<%= fmt(invoice.tax_rate) %>%)</td>
+            <td class="text-right font-semibold">$<%= fmt(invoice.tax_amount) %></td>
           </tr>
-        <% } %>
-      </tfoot>
-    </table>
+          <tr>
+            <td colspan="<%= showCosts ? 5 : 4 %>" class="text-right text-sm font-semibold uppercase">Total</td>
+            <td class="text-right text-lg font-bold text-recon-red">$<%= fmt(invoice.total) %></td>
+          </tr>
+          <% if (showCosts) { %>
+            <tr>
+              <td colspan="5" class="text-right text-sm font-medium text-recon-fog">Margin <span class="text-xs">(internal, <%= marginPct %>%)</span></td>
+              <td class="text-right font-semibold <%= margin >= 0 ? 'text-green-700' : 'text-recon-red' %>">$<%= fmt(margin) %></td>
+            </tr>
+          <% } %>
+        </tfoot>
+      </table>
+    <% } %>
   </div>
 
   <% if (invoice.notes) { %>
@@ -190,4 +199,3 @@ const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '&mdas
 </div>
 
 <%- include('../layouts/footer') %>
-
