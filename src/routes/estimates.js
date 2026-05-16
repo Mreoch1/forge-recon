@@ -458,7 +458,7 @@ router.post('/:id', async (req, res) => {
       const payload = {
         labor_cost: Number(matchData.labor_cost) || 0,
         material_cost: Number(matchData.material_cost) || 0,
-        markup_pct: Number(matchData.markup_pct) || 25,
+        markup_pct: matchData.markup_pct != null ? Number(matchData.markup_pct) : 25,
       };
       const { error: liErr } = await supabase
         .from('estimate_line_items')
