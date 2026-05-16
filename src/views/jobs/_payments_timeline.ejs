@@ -41,7 +41,7 @@ function pFmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) 
       </div>
       <div class="min-w-[160px] flex-1">
         <label class="text-xs text-recon-fog block mb-1">Notes</label>
-        <input type="text" name="notes" class="input text-sm" placeholder="Optional note">
+        <textarea name="notes" rows="1" class="input text-sm" placeholder="Optional note">
       </div>
       <button type="submit" class="btn btn-primary text-sm" style="margin-bottom:1px">Record payment</button>
     </form>
