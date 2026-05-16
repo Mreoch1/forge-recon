@@ -56,8 +56,6 @@ const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
       <!-- Document group: ghost outline, grouped together on the left -->
       <a href="/estimates/<%= estimate.id %>/pdf" class="btn btn-ghost" target="_blank" rel="noopener"
          title="Open the estimate PDF in a new tab.">View PDF</a>
-      <a href="/estimates/<%= estimate.id %>/pdf?download=1" class="btn btn-ghost"
-         title="Download the estimate PDF.">Download</a>
 
       <% if (['draft','sent','accepted'].includes(estimate.status)) { %>
         <!-- Visual separator between document group and workflow group -->

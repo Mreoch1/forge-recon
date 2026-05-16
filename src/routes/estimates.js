@@ -143,7 +143,7 @@ function validateLineItem(li) {
   const labor = parseFloat(li.labor_cost) || 0;
   const material = parseFloat(li.material_cost) || 0;
   const cost = labor + material;
-  const markup = li.markup_pct !== undefined ? (parseFloat(li.markup_pct) || 25) : 25;
+  const markup = li.markup_pct !== undefined ? (parseFloat(li.markup_pct) ?? 25) : 25;
   const unit_price = cost * (1 + markup / 100);
   const selectedInput = Array.isArray(li.selected) ? li.selected[li.selected.length - 1] : li.selected;
   const selected = selectedInput === '1' || selectedInput === 1 || selectedInput === true || selectedInput === 'on' ? 1 : 0;
