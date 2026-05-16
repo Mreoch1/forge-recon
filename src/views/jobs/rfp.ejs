@@ -165,20 +165,15 @@
                   class="text-sm text-recon-red hover:underline">+ Add item</button>
         </div>
 
-        <!-- Add item form — line item now gets full editable shape (vendor, desc, qty, cost, MU%, GR%)
-             matching sub-line pattern per D-133b. Costs auto-compute from sub-lines when children exist. -->
+        <!-- D-134: Add item form — description only per Michael's direction. Pricing lives on sub-lines. -->
         <div id="rfp-item-form-<%= rfp.id %>" class="hidden p-3 bg-recon-deeper/30 border-b border-recon-mist">
-          <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/items" method="POST" class="rfp-line-form grid grid-cols-2 md:grid-cols-6 gap-2 text-xs">
-            <input name="vendor" class="input w-full" placeholder="Vendor or contractor" autocomplete="off" list="rfp-line-entity-options">
-            <textarea name="description" placeholder="e.g. Demo, Install, Supply, Demo kitchen" class="input w-full" required maxlength="500" rows="1" data-autosize></textarea>
-            <input name="quantity" data-compute-input type="number" step="any" placeholder="Qty" class="input w-16">
-            <input name="contractor_cost" data-compute-input type="number" step="any" placeholder="$ Unit cost" class="input w-20">
-            <div class="flex gap-1 items-center">
-              <input name="markup_pct" data-compute-input type="number" step="any" placeholder="MU%" value="20" class="input w-14">
-              <input name="general_requirements_pct" data-compute-input type="number" step="any" placeholder="GR%" value="6" class="input w-14">
-              <button type="submit" class="btn btn-primary text-xs ml-1">Add Item</button>
+          <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/items" method="POST" class="flex gap-2 items-end text-xs">
+            <div class="flex-1">
+              <label class="block text-xs text-recon-fog mb-1">Item</label>
+              <textarea name="description" placeholder="e.g. Demo, Install, Supply, Demo kitchen" class="input w-full" required maxlength="500" rows="1" data-autosize></textarea>
             </div>
             <input name="parent_id" type="hidden" value="">
+            <button type="submit" class="btn btn-primary text-xs">Add Item</button>
           </form>
           <p class="text-xs text-recon-fog mt-2">Click into the item below to add sub-line items per contractor/vendor — costs, qty, markup, and totals roll up automatically from the sub-lines.</p>
         </div>
@@ -244,17 +239,12 @@
                 <% var liGr = liHasSubs ? (children.some(function(s){return Number(s.general_requirements_pct||6) !== Number(children[0].general_requirements_pct||6);}) ? 'mixed' : (Number(children[0].general_requirements_pct||6))) : (Number(item.general_requirements_pct) || '—'); %>
                 <% var liApproved = liHasSubs ? (apprChildren.length === children.length ? true : false) : !!item.approved; %>
                 <tr class="bg-recon-deeper/20 hover:bg-recon-cloud/20" style="cursor:pointer" onclick="var n=this.nextElementSibling;while(n&&n.classList.contains('rfp-sub-row')){n.style.display=n.style.display==='none'?'':'none';n=n.nextElementSibling;}">
-                  <td><form id="<%= itemFormId %>" action="/projects/rfps/items/<%= item.id %>" method="POST" onclick="event.stopPropagation();"></form>
-                    <div class="flex flex-col gap-1">
-                      <input form="<%= itemFormId %>" name="vendor" value="<%= item.vendor || '' %>" class="input text-xs py-0.5 w-full" placeholder="Vendor or contractor" list="rfp-line-entity-options" autocomplete="off">
-                      <textarea form="<%= itemFormId %>" name="description" class="input text-xs py-0.5 font-medium w-full" placeholder="Item description" rows="1" data-autosize><%= item.description %></textarea>
-                    </div>
-                  </td>
-                  <td class="text-right"><input form="<%= itemFormId %>" name="quantity" type="number" step="any" value="<%= item.quantity != null ? item.quantity : '' %>" class="input text-xs py-0.5 w-16 text-right" placeholder="<%= liHasSubs ? liQty : '' %>"></td>
-                  <td class="text-right font-medium"><input form="<%= itemFormId %>" name="contractor_cost" type="number" step="any" value="<%= item.contractor_cost != null ? item.contractor_cost : '' %>" class="input text-xs py-0.5 w-20 text-right" placeholder="<%= liHasSubs && liUnit ? liUnit.toFixed(2) : '' %>" title="Unit cost — leave empty to auto-use sub-line rollup"></td>
+                  <td><form id="<%= itemFormId %>" action="/projects/rfps/items/<%= item.id %>" method="POST" onclick="event.stopPropagation();"></form><textarea form="<%= itemFormId %>" name="description" class="input text-xs py-0.5 font-medium w-full" placeholder="Item description" rows="1" data-autosize><%= item.description %></textarea></td>
+                  <td class="text-right"><% if (liHasSubs) { %><span class="font-medium text-xs"><%= liQty %></span><% } else { %><input form="<%= itemFormId %>" name="quantity" type="number" step="any" value="<%= item.quantity != null ? item.quantity : '' %>" class="input text-xs py-0.5 w-16 text-right"><% } %></td>
+                  <td class="text-right font-medium">$<%= (liHasSubs ? liUnit : Number(item.unit_cost) || 0).toFixed(2) %></td>
                   <td class="text-right font-medium">$<%= (liHasSubs ? liTotalCost : Number(item.total_cost) || 0).toFixed(2) %></td>
-                  <td class="text-right"><input form="<%= itemFormId %>" name="markup_pct" type="number" step="any" value="<%= item.markup_pct != null ? item.markup_pct : '' %>" class="input text-xs py-0.5 w-14 text-right" placeholder="<%= liMarkup !== '—' && liMarkup !== 'mixed' ? liMarkup : '20' %>"></td>
-                  <td class="text-right"><input form="<%= itemFormId %>" name="general_requirements_pct" type="number" step="any" value="<%= item.general_requirements_pct != null ? item.general_requirements_pct : '' %>" class="input text-xs py-0.5 w-14 text-right" placeholder="<%= liGr !== '—' && liGr !== 'mixed' ? liGr : '6' %>"></td>
+                  <td class="text-right text-xs"><%= liMarkup %></td>
+                  <td class="text-right text-xs"><%= liGr %></td>
                   <td class="text-right font-medium">$<%= liDisplayTotal.toFixed(2) %></td>
                   <td class="text-right text-xs">$<%= liDisplayUnit.toFixed(2) %></td>
                   <td class="text-center"><% if (liHasSubs) { %><span class="text-xs <%= liApproved ? 'text-green-600' : 'text-recon-fog' %>"><%= liApproved ? '✓' : '○' %></span><% } else { %><input form="<%= itemFormId %>" type="hidden" name="approved" value="0"><input form="<%= itemFormId %>" type="checkbox" name="approved" value="1" <%= item.approved ? 'checked' : '' %>><% } %></td>
