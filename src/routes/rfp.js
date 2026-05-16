@@ -218,6 +218,21 @@ router.post('/projects/:id/rfps/:rId/items', requireManager, async (req, res) =>
   const { vendor, description, quantity, contractor_cost, vendor_cost,
           unit_cost, total_cost, markup_pct, parent_id } = req.body;
 
+  // D-132: reject creating a child of a child (sub-sub-line)
+  if (parent_id) {
+    const { data: parentItem } = await supabase
+      .from('rfp_line_items')
+      .select('parent_line_item_id')
+      .eq('id', parent_id)
+      .maybeSingle();
+    if (parentItem && parentItem.parent_line_item_id) {
+      return res.status(400).render('error', {
+        title: 'Bad request', code: 400,
+        message: 'Cannot create a sub-line under another sub-line. Only two levels are supported: Line item → Sub-line.'
+      });
+    }
+  }
+
   const markup = parseFloat(markup_pct) || 20;
   const cCost = parseFloat(contractor_cost) || 0;
   const vCost = parseFloat(vendor_cost) || 0;
