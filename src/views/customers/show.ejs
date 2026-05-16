@@ -97,10 +97,10 @@
               <% workOrders.forEach(function(wo){ %>
                 <tr>
                   <td class="font-medium"><a href="/work-orders/<%= wo.id %>" class="text-recon-red hover:underline">WO-<%= wo.display_number %></a></td>
-                  <td><%= wo.description || '&mdash;' %></td>
-                  <td><%= wo.unit_number || '&mdash;' %></td>
+                  <td><%= wo.description || '—' %></td>
+                  <td><%= wo.unit_number || '—' %></td>
                   <td><span class="badge badge-<%= wo.status %>"><%= (wo.status || '').replace('_',' ') %></span></td>
-                  <td><%= wo.scheduled_date ? String(wo.scheduled_date).slice(0,10) : '&mdash;' %><% if (wo.scheduled_time) { %> <span class="text-recon-fog"><%= String(wo.scheduled_time).slice(0,5) %></span><% } %></td>
+                  <td><%= wo.scheduled_date ? String(wo.scheduled_date).slice(0,10) : '—' %><% if (wo.scheduled_time) { %> <span class="text-recon-fog"><%= String(wo.scheduled_time).slice(0,5) %></span><% } %></td>
                   <td><%= (wo.created_at || '').slice(0,10) %></td>
                 </tr>
               <% }); %>

@@ -193,7 +193,7 @@
         var grandTotalAll = allItems.reduce(function(s, i) { return s + Number(i.total_with_markup || 0); }, 0);
         %>
         <div class="overflow-x-auto">
-          <table class="data text-xs rfp-items-table" data-rfp-id="<%= rfp.id %>">
+          <table class="data text-xs rfp-items-table table-fixed" data-rfp-id="<%= rfp.id %>">
             <colgroup>
               <col class="w-[28%]">
               <col class="w-[8%]">
@@ -283,7 +283,11 @@
                     <td class="pl-6 text-recon-fog text-xs">
                       <form id="<%= subFid %>" action="/projects/rfps/items/<%= sub.id %>" method="POST"></form>
                       <div class="flex flex-col gap-1">
-                        <input form="<%= subFid %>" name="vendor" value="<%= sub.vendor || '' %>" class="input text-xs py-0.5 w-full" placeholder="Vendor or contractor" list="rfp-line-entity-options" autocomplete="off">
+                        <% if (sub.vendor) { %>
+                          <div class="inline-flex items-center gap-2">
+                            <span class="text-[11px] px-2 py-0.5 rounded bg-recon-cloud/10 border border-recon-mist text-recon-fog"><%= sub.vendor %></span>
+                          </div>
+                        <% } %>
                         <textarea form="<%= subFid %>" name="description" class="input text-xs py-0.5 w-full" placeholder="Sub-line description" rows="1" data-autosize><%= sub.description %></textarea>
                       </div>
                     </td>

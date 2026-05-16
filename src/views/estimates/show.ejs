@@ -6,7 +6,7 @@ const showCosts = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
 const costTotal = Number(estimate.cost_total) || 0;
 const subtotal = Number(estimate.subtotal) || 0;
 const margin = subtotal - costTotal;
-const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '&mdash;';
+const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '—';
 const EST_STATUS_HINTS = {
   draft: 'Draft — not sent yet. Edit freely; only office can see it.',
   sent: 'Sent — emailed to the customer, awaiting their decision.',
@@ -97,7 +97,7 @@ const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
       <div class="flex flex-wrap items-center gap-6 text-sm">
         <span><span class="text-recon-fog">Cost:</span> <strong>$<%= fmt(costTotal) %></strong></span>
         <span><span class="text-recon-fog">Profit:</span> <strong class="<%= margin >= 0 ? 'text-green-700' : 'text-recon-red' %>">$<%= fmt(margin) %></strong></span>
-        <span><span class="text-recon-fog">Margin:</span> <strong class="<%= marginPct !== '&mdash;' && parseFloat(marginPct) >= 0 ? 'text-green-700' : 'text-recon-red' %>"><%= marginPct %>%</strong></span>
+        <span><span class="text-recon-fog">Margin:</span> <strong class="<%= marginPct !== '—' && parseFloat(marginPct) >= 0 ? 'text-green-700' : 'text-recon-red' %>"><%= marginPct %>%</strong></span>
       </div>
       <p class="text-xs text-recon-fog mt-1">Internal &mdash; not shown on customer PDFs.</p>
     </div>
@@ -198,7 +198,7 @@ const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
     <div class="card p-5">
       <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-2">Dates</h3>
       <dl class="space-y-1 text-sm">
-        <div><dt class="text-recon-fog text-xs inline">Created:</dt> <dd class="inline"><%= (estimate.created_at || '&mdash;').slice(0,10) %></dd></div>
+        <div><dt class="text-recon-fog text-xs inline">Created:</dt> <dd class="inline"><%= (estimate.created_at || '—').slice(0,10) %></dd></div>
         <div><dt class="text-recon-fog text-xs inline">Terms:</dt> <dd class="inline"><%= estimate.payment_terms || 'Net 30' %></dd></div>
         <% if (estimate.valid_until) { %>
           <div><dt class="text-recon-fog text-xs inline">Valid until:</dt> <dd class="inline"><%= String(estimate.valid_until).slice(0,10) %></dd></div>

@@ -5,7 +5,7 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
 function calcMargin(e) {
   const cost = Number(e.cost_total) || 0;
   const total = Number(e.total) || 0;
-  if (cost <= 0 || total <= 0) return '&mdash;';
+  if (cost <= 0 || total <= 0) return '—';
   const subtotal = Number(e.subtotal) || total;
   const profit = subtotal - cost;
   return ((profit / cost) * 100).toFixed(1) + '%';
@@ -84,7 +84,7 @@ const showPrices = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
               <td><span class="badge badge-<%= e.status %>" title="<%= estStatusHint %>"><%= e.status %></span></td>
               <td class="text-right">$<%= fmt(e.total) %></td>
               <% if (showPrices) { %><td class="text-right" style="color:<%= (Number(e.cost_total)||0) > 0 && (Number(e.subtotal)||0) > (Number(e.cost_total)||0) ? '#065f46' : '#991b1b' %>"><%= calcMargin(e) %></td><% } %>
-              <td><%= (e.valid_until || '&mdash;').slice(0,10) %></td>
+              <td><%= (e.valid_until || '—').slice(0,10) %></td>
               <td><%= (e.created_at || '').slice(0,10) %></td>
               <% if (archiveFilter !== '0') { %>
                 <td><% if (e.archived_at) { %><span class="badge badge-archived">archived</span><% } %></td>

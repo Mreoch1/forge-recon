@@ -74,8 +74,8 @@
               <% files.forEach(function(f){ %>
                 <tr>
                   <td class="font-medium"><a href="/files/<%= f.id %>/view" target="_blank" class="hover:text-recon-red"><%= f.original_filename %></a></td>
-                  <td class="text-sm text-recon-fog"><%= f.mime_type || '&mdash;' %></td>
-                  <td class="text-sm text-recon-fog"><%= f.size_bytes ? (f.size_bytes / 1024).toFixed(1) + ' KB' : '&mdash;' %></td>
+                  <td class="text-sm text-recon-fog"><%= f.mime_type || '—' %></td>
+                  <td class="text-sm text-recon-fog"><%= f.size_bytes ? (f.size_bytes / 1024).toFixed(1) + ' KB' : '—' %></td>
                   <td class="text-sm text-recon-fog"><%= (f.created_at || '').slice(0,10) %></td>
                   <td class="text-right">
                     <% if (currentUser.role === 'admin' || f.uploaded_by_user_id === currentUser.id) { %>
