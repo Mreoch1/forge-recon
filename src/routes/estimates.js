@@ -206,6 +206,7 @@ async function loadEstimate(id) {
   est.wo_display_number = w?.display_number;
   est.wo_number_main = w?.wo_number_main;
   est.wo_number_sub = w?.wo_number_sub;
+  est.wo_unit_number = w?.unit_number;
   est.job_id = j?.id;
   est.job_title = j?.title || (c?.name ? `${c.name} work order` : 'Customer work order');
   est.job_address = j?.address;

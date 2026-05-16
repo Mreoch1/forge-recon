@@ -1499,6 +1499,12 @@ router.post('/:id/create-estimate', async (req, res) => {
   const { error: validUntilErr } = await supabase.from('estimates').update({ valid_until: thirtyDays }).eq('id', newId);
   if (validUntilErr) throw validUntilErr;
 
+  // D-125: copy unit_number from WO to the new estimate
+  if (wo.unit_number) {
+    const { error: unitErr } = await supabase.from('estimates').update({ unit_number: wo.unit_number }).eq('id', newId);
+    if (unitErr) throw unitErr;
+  }
+
   setFlash(req, 'success', `Estimate EST-${wo.display_number} created from WO-${wo.display_number}.`);
   res.redirect(`/estimates/${newId}/edit`);
 });

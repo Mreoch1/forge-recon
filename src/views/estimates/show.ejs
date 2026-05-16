@@ -38,6 +38,9 @@ const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
       <p class="page-sub">
         <a href="/work-orders/<%= estimate.wo_id %>" class="hover:text-recon-red font-medium">&larr; WO-<%= estimate.wo_display_number %></a>
         &middot; Customer: <a href="/customers/<%= estimate.customer_id %>" class="hover:text-recon-red"><%= estimate.customer_name %></a>
+        <% var unitNum = estimate.unit_number || estimate.wo_unit_number; if (unitNum) { %>
+          &middot; Unit: <%= unitNum %>
+        <% } %>
         <% if (estimate.customer_email) { %>
           &middot; Send estimate to: <a href="mailto:<%= estimate.customer_email %>" class="hover:text-recon-red"><%= estimate.customer_email %></a>
         <% } %>

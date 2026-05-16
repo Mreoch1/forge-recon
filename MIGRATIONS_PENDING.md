@@ -85,3 +85,21 @@ CREATE INDEX IF NOT EXISTS idx_tutorial_events_type ON tutorial_events(event_typ
 -- D-066: Weak spots column on users for targeted remediation hints
 ALTER TABLE users ADD COLUMN IF NOT EXISTS tutorial_completion_weak_spots jsonb;
 ```
+
+## d125_unit_number — unit/apt number on estimates (2026-05-15)
+
+```sql
+-- D-125: Add unit_number column to estimates for unit/apt number display on
+-- estimate PDFs and show pages. Backfill from the linked work order.
+-- After applying this migration, run the backfill below to populate existing records.
+
+ALTER TABLE estimates ADD COLUMN unit_number text;
+
+-- Backfill: Copy unit_number from the linked work_order where estimate.unit_number IS NULL
+UPDATE estimates e
+SET unit_number = wo.unit_number
+FROM work_orders wo
+WHERE e.wo_id = wo.id
+  AND e.unit_number IS NULL
+  AND wo.unit_number IS NOT NULL;
+```

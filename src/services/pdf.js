@@ -386,10 +386,19 @@ function generateEstimatePDF(estimate, company, stream) {
     estimate.customer_phone,
   ], [
     estimate.job_title,
-    estimate.unit_number ? `Unit ${String(estimate.unit_number).replace(/^(Unit|Apt)\s*/i, '')}` : '',  // R37j: surface unit on estimate PDF, strip duplicate prefix
     estimate.job_address || '',
     [estimate.job_city, estimate.job_state, estimate.job_zip].filter(Boolean).join(', '),
   ].filter(Boolean));
+
+  // D-125: render unit/apt number at 14pt bold on its own line
+  const unitVal = estimate.unit_number || estimate.wo_unit_number;
+  if (unitVal) {
+    const formatted = `Unit ${String(unitVal).replace(/^(Unit|Apt)\s*/i, '')}`;
+    doc.fillColor(COLOR.charcoal).fontSize(14).font('Helvetica-Bold')
+      .text(formatted, doc.page.margins.left + (doc.page.width - doc.page.margins.left - doc.page.margins.right - 20) / 2 + 20, doc.y + 2, {
+        width: (doc.page.width - doc.page.margins.left - doc.page.margins.right - 20) / 2,
+      });
+  }
 
   drawLineItemsTable(doc, estimate.lines || []);
 
