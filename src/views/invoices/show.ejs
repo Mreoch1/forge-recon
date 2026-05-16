@@ -57,40 +57,37 @@ const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '&mdas
     </div>
   <% } %>
 
-  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-    <div class="card p-4">
-      <div class="text-xs uppercase tracking-wide text-recon-fog">Subtotal</div>
-      <div class="text-xl font-semibold mt-1">$<%= fmt(invoice.subtotal) %></div>
-    </div>
-    <div class="card p-4">
-      <div class="text-xs uppercase tracking-wide text-recon-fog">Tax (<%= fmt(invoice.tax_rate) %>%)</div>
-      <div class="text-xl font-semibold mt-1">$<%= fmt(invoice.tax_amount) %></div>
-    </div>
-    <div class="card p-4 bg-recon-charcoal text-white">
-      <div class="text-xs uppercase tracking-wide text-recon-fog">Total</div>
-      <div class="text-2xl font-bold mt-1">$<%= fmt(invoice.total) %></div>
-    </div>
-    <div class="card p-4 <%= balance > 0 ? 'border-red-200' : 'bg-green-50 border-green-200' %>">
-      <div class="text-xs uppercase tracking-wide text-recon-fog">Balance due</div>
-      <div class="text-2xl font-bold mt-1 <%= balance > 0 ? 'text-recon-red' : 'text-green-700' %>">$<%= fmt(balance) %></div>
-    </div>
-  </div>
-
-  <% if (showCosts && costTotal > 0) { %>
-    <div class="card p-4 mb-6 bg-recon-cloud">
-      <div class="flex flex-wrap items-center gap-6 text-sm">
-        <span><span class="text-recon-fog">Cost:</span> <strong>$<%= fmt(costTotal) %></strong></span>
-        <span><span class="text-recon-fog">Profit:</span> <strong class="<%= margin >= 0 ? 'text-green-700' : 'text-recon-red' %>">$<%= fmt(margin) %></strong></span>
-        <span><span class="text-recon-fog">Margin:</span> <strong class="<%= marginPct !== '&mdash;' && parseFloat(marginPct) >= 0 ? 'text-green-700' : 'text-recon-red' %>"><%= marginPct %>%</strong></span>
-        <span><span class="text-recon-fog">Terms:</span> <strong><%= invoice.payment_terms %></strong></span>
-        <span><span class="text-recon-fog">Recipient:</span> <strong><%= invoice.customer_billing_email || invoice.customer_email || '—' %></strong></span>
-        <% if (invoice.customer_email && invoice.customer_billing_email && invoice.customer_billing_email !== invoice.customer_email) { %>
-          <span class="text-xs text-recon-fog ml-1">(estimates go to: <%= invoice.customer_email %>)</span>
+  <!-- D-126: single 2-col summary table replacing AI cards + cost strip -->
+  <div class="card overflow-hidden mb-6">
+    <table class="data">
+      <tbody>
+        <tr><td class="text-xs uppercase tracking-wide text-recon-fog">Subtotal</td>
+            <td class="text-right font-semibold">$<%= fmt(invoice.subtotal) %></td></tr>
+        <tr><td class="text-xs uppercase tracking-wide text-recon-fog">Tax (<%= fmt(invoice.tax_rate) %>%)</td>
+            <td class="text-right font-semibold">$<%= fmt(invoice.tax_amount) %></td></tr>
+        <tr><td class="text-xs uppercase tracking-wide text-recon-fog">Total</td>
+            <td class="text-right font-bold text-base">$<%= fmt(invoice.total) %></td></tr>
+        <tr><td class="text-xs uppercase tracking-wide text-recon-fog">Balance Due</td>
+            <td class="text-right font-bold <%= balance > 0 ? 'text-recon-red' : 'text-green-700' %>">$<%= fmt(balance) %></td></tr>
+        <% if (showCosts && costTotal > 0) { %>
+          <tr class="border-t border-dashed border-recon-mist"><td colspan="2" class="text-xs text-recon-fog pt-2">Internal — not shown on customer PDFs</td></tr>
+          <tr><td class="text-xs uppercase tracking-wide text-recon-fog">Cost</td>
+              <td class="text-right font-semibold text-recon-fog">$<%= fmt(costTotal) %></td></tr>
+          <tr><td class="text-xs uppercase tracking-wide text-recon-fog">Profit</td>
+              <td class="text-right font-semibold <%= margin >= 0 ? 'text-green-700' : 'text-recon-red' %>">$<%= fmt(margin) %></td></tr>
+          <tr><td class="text-xs uppercase tracking-wide text-recon-fog">Margin</td>
+              <td class="text-right font-semibold <%= marginPct !== '&mdash;' && parseFloat(marginPct) >= 0 ? 'text-green-700' : 'text-recon-red' %>"><%= marginPct %>%</td></tr>
         <% } %>
-      </div>
-      <p class="text-xs text-recon-fog mt-1">Internal &mdash; not shown on customer PDFs.</p>
-    </div>
-  <% } %>
+        <tr><td class="text-xs uppercase tracking-wide text-recon-fog">Terms</td>
+            <td class="text-right font-semibold"><%= invoice.payment_terms %></td></tr>
+        <tr><td class="text-xs uppercase tracking-wide text-recon-fog">Recipient</td>
+            <td class="text-right font-semibold"><%= invoice.customer_billing_email || invoice.customer_email || '—' %></td></tr>
+        <% if (invoice.customer_email && invoice.customer_billing_email && invoice.customer_billing_email !== invoice.customer_email) { %>
+          <tr><td></td><td class="text-right text-xs text-recon-fog">(estimates to: <%= invoice.customer_email %>)</td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
 
   <div class="card overflow-hidden mb-6">
     <div class="px-5 py-3 border-b border-recon-mist">
