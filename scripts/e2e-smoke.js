@@ -2,6 +2,7 @@
 /**
  * e2e-smoke.js — Cross-platform E2E smoke test runner.
  * Reads scripts/smoke-manifest.json and checks each route.
+ * D-131: dynamically resolves entity IDs from list pages instead of hardcoding.
  * Usage: node scripts/e2e-smoke.js [base_url]
  * Default base: https://forge-recon.vercel.app
  */
@@ -48,7 +49,6 @@ function fetch(method, path, data) {
 async function login() {
   console.log(`  Logging in as ${smokeEmail}...`);
   let res = await fetch('POST', '/login', formData({ email: smokeEmail, password: smokePassword }));
-  // Rate-limit backoff
   if (res.status === 429) {
     console.log('  ⏳ Rate limited. Waiting 15s...');
     await new Promise(r => setTimeout(r, 15000));
@@ -66,6 +66,49 @@ function formData(params) {
   return Object.entries(params).map(([k,v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
 }
 
+// D-131: dynamically resolve entity IDs from list pages
+const ANCHOR_ENTITIES = [
+  { listPath: '/projects',        pattern: /\/projects\/(\d+)/,         token: 'projectId',  label: 'project' },
+  { listPath: '/work-orders',     pattern: /\/work-orders\/(\d+)/,      token: 'woId',       label: 'work order' },
+  { listPath: '/customers',       pattern: /\/customers\/(\d+)/,        token: 'customerId', label: 'customer' },
+  { listPath: '/vendors',         pattern: /\/vendors\/(\d+)/,          token: 'vendorId',   label: 'vendor' },
+];
+
+async function resolveAnchors() {
+  const anchors = {};
+
+  for (const entity of ANCHOR_ENTITIES) {
+    try {
+      const res = await fetch('GET', entity.listPath);
+      if (res.status !== 200) {
+        console.log(`  ANCHOR_SKIPPED:${entity.label} — list returned ${res.status}`);
+        continue;
+      }
+      const match = res.body.match(entity.pattern);
+      if (match) {
+        anchors[entity.token] = match[1];
+        console.log(`  ANCHOR:${entity.label}=${match[1]}`);
+      } else {
+        console.log(`  ANCHOR_NONE:${entity.label} — no entities found on list page`);
+      }
+    } catch (e) {
+      console.log(`  ANCHOR_SKIPPED:${entity.label} — ${e.message}`);
+    }
+  }
+
+  // Substitute tokens in manifest paths
+  if (Object.keys(anchors).length > 0) {
+    for (const check of manifest) {
+      if (!check.auth) continue;
+      for (const [token, value] of Object.entries(anchors)) {
+        check.path = check.path.replace(`{{${token}}}`, value);
+      }
+    }
+  }
+
+  return anchors;
+}
+
 async function main() {
   console.log(`=== E2E SMOKE (${base}) ===`);
 
@@ -81,7 +124,15 @@ async function main() {
 
   await login();
 
+  // D-131: resolve dynamic anchors before running authed checks
+  const anchors = await resolveAnchors();
+
   for (const check of manifest.filter(c => c.auth)) {
+    // Check if the path still has unresolved placeholders
+    if (/\{\{/.test(check.path)) {
+      console.log(`  SKIP ${check.label} — missing anchor for ${check.path.match(/\{\{(\w+)\}\}/)?.[1] || 'unknown'}`);
+      continue;
+    }
     await runCheck(check);
   }
 
