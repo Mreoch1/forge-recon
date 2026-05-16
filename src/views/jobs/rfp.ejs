@@ -72,7 +72,8 @@
     var rfpTotals = {};
     rfps.forEach(function(r) { 
       var items = (rfpItemsMap && rfpItemsMap[r.id]) || [];
-      var total = items.reduce(function(s, i) { return s + Number(i.total_with_markup || 0); }, 0);
+      // D-122 Bug 6: Only count approved items in category total
+      var total = items.reduce(function(s, i) { return s + (i.approved ? Number(i.total_with_markup || 0) : 0); }, 0);
       rfpTotals[r.id] = total;
     });
     %>
@@ -204,25 +205,31 @@
             <tbody>
               <% items.forEach(function(item){ %>
                 <% var itemFormId = 'rfp-li-form-' + item.id; var itemDelFormId = 'rfp-li-del-' + item.id; var children = subItems[item.id] || []; %>
-                <% var liUnit = children.filter(function(s){return s.approved;}).reduce(function(s,c){return s + (Number(c.contractor_cost||0)+Number(c.vendor_cost||0));},0); %>
-                <% var liTotal = children.filter(function(s){return s.approved;}).reduce(function(s,c){return s + (Number(c.total_with_markup||0));},0); %>
+                <% var apprChildren = children.filter(function(s){return s.approved;}); %>
+                <% var liQty = apprChildren.reduce(function(s,c){return s + Number(c.quantity||0);}, 0) || (children.length > 0 ? children.reduce(function(s,c){return s + Number(c.quantity||0);}, 0) : (Number(item.quantity)||0)); %>
+                <% var liUnit = apprChildren.reduce(function(s,c){return s + (Number(c.contractor_cost||0)+Number(c.vendor_cost||0));},0); %>
+                <% var liTotal = apprChildren.reduce(function(s,c){return s + (Number(c.total_with_markup||0));},0); %>
                 <!-- D-105: Line item container row — Item name + auto-rolled-up totals from approved sub-lines.
                      Falls back to direct values on the line item itself when no sub-lines exist (legacy data). -->
-                <% var liSubCount = children.length; var liApprovedSubs = children.filter(function(s){return s.approved;}).length; %>
+                <% var liSubCount = children.length; var liApprovedSubs = apprChildren.length; %>
+                <% var liHasSubs = children.length > 0; %>
                 <% var liDisplayTotal = liApprovedSubs > 0 ? liTotal : (Number(item.total_with_markup) || 0); %>
                 <% var liDisplayUnit = liApprovedSubs > 0
-                     ? (item.quantity > 0 ? liTotal / Number(item.quantity) : 0)
+                     ? (liQty > 0 ? liTotal / liQty : 0)
                      : (Number(item.final_unit_cost) || 0); %>
+                <% var liMarkup = liHasSubs ? (children.some(function(s){return Number(s.markup_pct||20) !== Number(children[0].markup_pct||20);}) ? 'mixed' : (Number(children[0].markup_pct||20))) : (Number(item.markup_pct) || '—'); %>
+                <% var liGr = liHasSubs ? (children.some(function(s){return Number(s.general_requirements_pct||6) !== Number(children[0].general_requirements_pct||6);}) ? 'mixed' : (Number(children[0].general_requirements_pct||6))) : (Number(item.general_requirements_pct) || '—'); %>
+                <% var liApproved = liHasSubs ? (apprChildren.length === children.length ? true : false) : !!item.approved; %>
                 <tr class="bg-recon-deeper/20 hover:bg-recon-cloud/20" style="cursor:pointer" onclick="var n=this.nextElementSibling;while(n&&n.classList.contains('rfp-sub-row')){n.style.display=n.style.display==='none'?'':'none';n=n.nextElementSibling;}">
                   <td><form id="<%= itemFormId %>" action="/projects/rfps/items/<%= item.id %>" method="POST" onclick="event.stopPropagation();"></form><textarea form="<%= itemFormId %>" name="description" class="input text-xs py-0.5 font-medium w-full" placeholder="Item description" rows="1" data-autosize><%= item.description %></textarea></td>
-                  <td class="text-right"><input form="<%= itemFormId %>" name="quantity" type="number" step="any" value="<%= item.quantity != null ? item.quantity : '' %>" class="input text-xs py-0.5 w-16 text-right"></td>
+                  <td class="text-right"><% if (liHasSubs) { %><span class="font-medium text-xs"><%= liQty %></span><% } else { %><input form="<%= itemFormId %>" name="quantity" type="number" step="any" value="<%= item.quantity != null ? item.quantity : '' %>" class="input text-xs py-0.5 w-16 text-right"><% } %></td>
                   <td class="text-right font-medium">$<%= (liApprovedSubs > 0 ? liUnit : Number(item.unit_cost) || 0).toFixed(2) %></td>
                   <td class="text-right font-medium">$<%= (liApprovedSubs > 0 ? liTotal : Number(item.total_cost) || 0).toFixed(2) %></td>
-                  <td class="text-right text-xs text-recon-fog">—</td>
-                  <td class="text-right text-xs text-recon-fog">—</td>
+                  <td class="text-right text-xs"><%= liMarkup %></td>
+                  <td class="text-right text-xs"><%= liGr %></td>
                   <td class="text-right font-medium">$<%= liDisplayTotal.toFixed(2) %></td>
                   <td class="text-right text-xs">$<%= liDisplayUnit.toFixed(2) %></td>
-                  <td class="text-center"><input form="<%= itemFormId %>" type="hidden" name="approved" value="0"><input form="<%= itemFormId %>" type="checkbox" name="approved" value="1" <%= item.approved ? 'checked' : '' %>></td>
+                  <td class="text-center"><% if (liHasSubs) { %><span class="text-xs <%= liApproved ? 'text-green-600' : 'text-recon-fog' %>"><%= liApproved ? '✓' : '○' %></span><% } else { %><input form="<%= itemFormId %>" type="hidden" name="approved" value="0"><input form="<%= itemFormId %>" type="checkbox" name="approved" value="1" <%= item.approved ? 'checked' : '' %>><% } %></td>
                   <td class="text-right flex gap-1 items-center">
                     <span class="text-xs text-recon-fog mr-1" title="Approved sub-lines"><%= liApprovedSubs %>/<%= liSubCount %></span>
                     <button type="submit" form="<%= itemFormId %>" class="text-green-600 hover:text-green-800 text-xs font-bold" title="Save">&#10003;</button>
