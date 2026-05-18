@@ -409,14 +409,20 @@ app.use((err, req, res, next) => {
 });
 
 // ── PG boot migrations (production) ──────────────────────────────────────────
-// Runs on every cold start. All statements use IF NOT EXISTS / IF EXISTS so
-// they're idempotent. Uses pg driver directly against DATABASE_URL_DIRECT.
+// Runs on every cold start. All statements use IF NOT EXISTS so they're
+// idempotent. Constructs the pg connection from the individual POSTGRES_* env
+// vars that Vercel injects (no DATABASE_URL is set for this project).
 (async function runPgMigrations() {
-  const dbUrl = process.env.DATABASE_URL_DIRECT || process.env.DATABASE_URL;
-  if (!dbUrl || !dbUrl.startsWith('postgres')) return; // not PG mode, skip
+  const pgHost = process.env.POSTGRES_HOST;
+  const pgUser = process.env.POSTGRES_USER;
+  const pgPass = process.env.POSTGRES_PASSWORD;
+  const pgDb   = process.env.POSTGRES_DATABASE;
+  const pgSsl  = process.env.PGSSLMODE || 'require';
+  if (!pgHost || !pgUser || !pgPass || !pgDb) return; // not PG mode, skip
   try {
     const { Pool } = require('pg');
-    const pool = new Pool({ connectionString: dbUrl, max: 1, connectionTimeoutMillis: 5000 });
+    const connStr = `postgres://${encodeURIComponent(pgUser)}:${encodeURIComponent(pgPass)}@${pgHost}:5432/${encodeURIComponent(pgDb)}?sslmode=${pgSsl}`;
+    const pool = new Pool({ connectionString: connStr, max: 1, connectionTimeoutMillis: 5000 });
     const migrations = [
       "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE",
       "ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token TEXT UNIQUE",
@@ -424,9 +430,6 @@ app.use((err, req, res, next) => {
       "ALTER TABLE users ADD COLUMN IF NOT EXISTS acknowledged_live_email_warning_at TIMESTAMPTZ",
       "ALTER TABLE users ADD COLUMN IF NOT EXISTS completed_onboarding_at TIMESTAMPTZ",
       "ALTER TABLE users ADD COLUMN IF NOT EXISTS default_landing TEXT DEFAULT 'chat'",
-      "ALTER TABLE users ADD COLUMN IF NOT EXISTS sent_by_user_id INTEGER",
-      "ALTER TABLE users ADD COLUMN IF NOT EXISTS sent_to_email TEXT",
-      "ALTER TABLE users ADD COLUMN IF NOT EXISTS sent_to_name TEXT",
     ];
     for (const sql of migrations) {
       try { await pool.query(sql); } catch(e) { /* column may already exist with different options */ }
