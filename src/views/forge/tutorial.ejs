@@ -684,23 +684,23 @@
   }
 
   function field(name, label, placeholder, value) {
-    return '<label class="tw-app-label">' + label + '<input class="tw-app-input" name="' + name + '" placeholder="' + placeholder + '" value="' + escapeHtml(value || '') + '"></label>';
+    return '<label class="tw-app-label" style="color:#334155 !important;-webkit-text-fill-color:#334155 !important;">' + label + '<input class="tw-app-input" name="' + name + '" placeholder="' + placeholder + '" value="' + escapeHtml(value || '') + '" style="background:#ffffff !important;color:#0f172a !important;-webkit-text-fill-color:#0f172a !important;border-color:#cbd5e1 !important;"></label>';
   }
 
   function textarea(name, label, placeholder, value) {
-    return '<label class="tw-app-label">' + label + '<textarea class="tw-app-textarea" name="' + name + '" placeholder="' + placeholder + '">' + escapeHtml(value || '') + '</textarea></label>';
+    return '<label class="tw-app-label" style="color:#334155 !important;-webkit-text-fill-color:#334155 !important;">' + label + '<textarea class="tw-app-textarea" name="' + name + '" placeholder="' + placeholder + '" style="background:#ffffff !important;color:#0f172a !important;-webkit-text-fill-color:#0f172a !important;border-color:#cbd5e1 !important;">' + escapeHtml(value || '') + '</textarea></label>';
   }
 
   function formInput(name, placeholder, value) {
-    return '<input class="tw-app-input" name="' + name + '" placeholder="' + placeholder + '" value="' + escapeHtml(value || '') + '">';
+    return '<input class="tw-app-input" name="' + name + '" placeholder="' + placeholder + '" value="' + escapeHtml(value || '') + '" style="background:#ffffff !important;color:#0f172a !important;-webkit-text-fill-color:#0f172a !important;border-color:#cbd5e1 !important;">';
   }
 
   function formTextarea(name, placeholder, value) {
-    return '<textarea class="tw-app-input" name="' + name + '" placeholder="' + placeholder + '" rows="1">' + escapeHtml(value || '') + '</textarea>';
+    return '<textarea class="tw-app-input" name="' + name + '" placeholder="' + placeholder + '" rows="1" style="background:#ffffff !important;color:#0f172a !important;-webkit-text-fill-color:#0f172a !important;border-color:#cbd5e1 !important;">' + escapeHtml(value || '') + '</textarea>';
   }
 
   function selectField(name, label, options) {
-    return '<label class="tw-app-label">' + label + '<select class="tw-app-select" name="' + name + '">' + options.map(function(option) { return '<option>' + option + '</option>'; }).join('') + '</select></label>';
+    return '<label class="tw-app-label" style="color:#334155 !important;-webkit-text-fill-color:#334155 !important;">' + label + '<select class="tw-app-select" name="' + name + '" style="background:#ffffff !important;color:#0f172a !important;-webkit-text-fill-color:#0f172a !important;border-color:#cbd5e1 !important;">' + options.map(function(option) { return '<option>' + option + '</option>'; }).join('') + '</select></label>';
   }
 
   function selectorName(name) {
