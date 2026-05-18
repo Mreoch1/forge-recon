@@ -454,16 +454,11 @@ const actionSections = [
            ============================================================ -->
       <div>
 
-        <section class="dv2-forge-panel" aria-label="FORGE assistant">
-          <div class="dv2-forge-top">
-            <div>
-              <div class="dv2-forge-name">FORGE</div>
-              <div class="dv2-forge-desc">Field Operations & Resource Guidance Engine</div>
-            </div>
-            <div class="dv2-forge-live">online</div>
-          </div>
-          <div id="ai-chat-root" class="dv2-forge-root" data-mode="dashboard" data-user-id="<%= currentUser.id %>" data-user-name="<%= currentUser.name %>" data-user-role="<%= currentUser.role %>"></div>
-        </section>
+        <%# D-XXX: FORGE AI chat panel removed from classic dashboard per Michael
+            2026-05-18. Classic users enter everything manually — no AI chat.
+            Chat-mode users are redirected to /forge upstream (router '/' line 148).
+            The .dv2-forge-* CSS and the floating-bubble mobile override below
+            are now dead but kept to minimize layout risk; safe to prune later. %>
 
         <h2 class="dv2-h-secondary flex items-baseline justify-between">
           <span>Needs you
