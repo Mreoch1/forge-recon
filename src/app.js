@@ -284,12 +284,14 @@ app.post('/account/complete-onboarding', async (req, res) => {
       .from('users')
       .update({ completed_onboarding_at: completedAt })
       .eq('id', req.session.userId);
-    if (error) throw error;
+    if (error) console.warn('[account] complete-onboarding db failed:', error.message);
     if (res.locals.currentUser) res.locals.currentUser.completed_onboarding_at = completedAt;
     if (req.currentUser) req.currentUser.completed_onboarding_at = completedAt;
     req.session.completed_onboarding_at = completedAt;
   } catch (e) {
     console.warn('[account] complete-onboarding failed:', e.message);
+    // Fallback: store in session so the onboarding gate clears even if DB column is missing
+    req.session.completed_onboarding_at = new Date().toISOString();
   }
   res.redirect('/');
 });
