@@ -113,6 +113,8 @@ async function ensureDbInit(req, res, next) {
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token TEXT UNIQUE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_expires_at TIMESTAMPTZ",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS acknowledged_live_email_warning_at TIMESTAMPTZ",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS completed_onboarding_at TIMESTAMPTZ",
       ];
       for (const sql of pgMigrations) {
         try { await db.run(sql); } catch(e) { console.warn('[boot] pg migration:', e.message); }
