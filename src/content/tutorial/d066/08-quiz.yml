@@ -7,8 +7,8 @@
 # Weak spots saved to users.tutorial_completion_weak_spots JSONB.
 
 id: "09-quiz"
-title: "Quick check — three questions"
-chapter_index: 9
+title: "Quick quiz"
+chapter_index: 8
 estimated_duration_seconds: 90
 
 steps:
@@ -58,8 +58,7 @@ steps:
     coach_text: |
       Not quite — the answer is **false**. Invoices must come from an
       estimate, and the cleanest chain is Customer → WO → Estimate →
-      Invoice. (Loose estimates without a WO can exist, but you'd attach
-      them to a WO before converting to invoice.)
+      Invoice. You need a WO before you can invoice.
 
       Want to replay Chapter 4 (Work Orders) or Chapter 6 (Convert to
       Invoice), or just keep going?

@@ -5,9 +5,9 @@
 # the tutorial isn't polluting prod records. This is the LAST chapter —
 # after this, the tour exits.
 
-id: "09-5-cleanup-explanation"
+id: "09-cleanup-explanation"
 title: "Clean up tutorial data"
-chapter_index: 9.5
+chapter_index: 9
 estimated_duration_seconds: 60
 
 steps:
@@ -30,7 +30,6 @@ steps:
       • **1 estimate** ($387 or thereabouts)
       • **1 invoice** (converted from the estimate)
       • **1 payment** (recorded against the invoice)
-      • **1 loose estimate** ($1500 quote, no WO attached)
 
       All tagged TUTORIAL right now. They show up in your real lists with
       a yellow badge so you can tell them apart from real data.
@@ -43,8 +42,7 @@ steps:
       Two options:
 
       **Option A — Clean up everything.** I'll delete the customer and
-      everything attached (WO, estimate, invoice, payment, loose
-      estimate). Takes 2 seconds. You won't see any of it in your lists
+      everything attached (WO, estimate, invoice, payment). Takes 2 seconds. You won't see any of it in your lists
       anymore. Use this if you don't need a reference.
 
       **Option B — Keep them.** I'll strip the TUTORIAL tag and they
