@@ -173,6 +173,12 @@
   .tw-estimate-table { min-width: 860px; }
   .tw-estimate-table textarea.tw-app-input { min-height: 3rem; resize: vertical; }
   .tw-estimate-table td:first-child { min-width: 220px; }
+  .tw-operational-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 2px solid #0f172a; border-bottom: 1px solid #cbd5e1; background: #f8fafc; }
+  .tw-operational-cell { padding: 0.65rem 0.8rem; border-right: 1px solid #e2e8f0; }
+  .tw-operational-cell:last-child { border-right: 0; }
+  .tw-operational-label { color: #64748b; font-size: 0.66rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+  .tw-operational-value { color: #0f172a; font-size: 0.88rem; font-weight: 800; margin-top: 0.12rem; }
+  .tw-section-title { color: #0f172a; font-size: 0.9rem; font-weight: 900; border-bottom: 2px solid #0f172a; padding-bottom: 0.28rem; margin-bottom: 0.5rem; }
   .tw-app-form { display: grid; gap: 0.7rem; }
   .tw-app-form.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tw-app-label { display: grid; gap: 0.25rem; color: #334155 !important; font-size: 0.76rem; font-weight: 800; }
@@ -237,6 +243,9 @@
     .tw-app-actions { justify-content: flex-start; }
     .tw-app-card { overflow-x: auto; }
     .tw-app-table { min-width: 420px; }
+    .tw-operational-strip { grid-template-columns: 1fr; }
+    .tw-operational-cell { border-right: 0; border-bottom: 1px solid #e2e8f0; }
+    .tw-operational-cell:last-child { border-bottom: 0; }
     .tw-scroll-controls { right: 0.55rem; top: 5.6rem; }
     .tw-scroll-hint { right: 2.95rem; top: 6.02rem; }
   }
@@ -598,17 +607,15 @@
       var save = stepId === 'assignee-callout' ? '<button type="button" class="tw-app-btn primary tw-app-highlight" data-tutorial-submit data-tutorial-action>Save Work Order</button>' : '';
       var descValue = stepId === 'description-prompt' ? '' : 'Demo job: kitchen drywall repair, unit 1B';
       return appFrame('work-orders', 'New Work Order',
-        '<div class="tw-app-card"><h4>Work order details</h4><div class="tw-app-form"><div class="tw-app-form two">' + field('customer', 'Customer', 'Tutorial Customer', 'Tutorial Customer') + field('display_number', 'WO number', 'WO-0001-0014', 'WO-0001-0014') + '</div>' + textarea('description', 'Description', 'Demo job: kitchen drywall repair, unit 1B', descValue) + '<div class="tw-app-form two">' + selectField('status', 'Status', ['OPEN','SCHEDULED','IN PROGRESS','CLOSED']) + field('assigned_to', 'Assignees (optional)', 'Crew member') + '</div>' + save + '</div></div>');
+        '<div class="tw-app-form"><div class="tw-app-card"><h4>Customer</h4>' + field('customer_search', 'Search or select customer', 'Tutorial Customer', 'Tutorial Customer') + '<div class="tw-app-callout">Tutorial Customer is linked for this work order.</div></div><div class="tw-app-card"><h4>Schedule</h4><div class="tw-app-form two">' + field('display_number', 'WO Number', '0001-0014', '0001-0014') + field('unit_number', 'Unit / Apt', 'Apt 101, Suite 200', 'Unit 1B') + field('scheduled_date', 'Date', 'Today') + selectField('scheduled_time', 'Time', ['9:00 AM','9:30 AM','10:00 AM']) + '</div></div><div class="tw-app-card"><h4>Status</h4>' + selectField('status', 'Status', ['open','scheduled','in progress','complete','cancelled']) + '</div><div class="tw-app-card"><h4>Assignees</h4>' + selectField('assignee_ids', 'Add assignee', ['-- Add assignee --','Crew member']) + '<p class="tw-app-muted">No assignees yet. Add crew members to send email notifications and PDFs.</p></div><div class="tw-app-card"><h4>Description</h4>' + textarea('description', 'Description', 'Full description with all the details about the work', descValue) + '</div>' + save + '</div>');
     }
     return workOrderDetail(stepId);
   }
 
   function workOrderDetail(stepId) {
-    var activeTab = stepId === 'spotlight-estimates-tab' ? 'Overview' : 'Estimates';
-    var highlightTab = stepId === 'spotlight-estimates-tab' ? 'Estimates' : '';
     return appFrame('work-orders', 'WO-0001-0014 <span class="tw-badge">TUTORIAL</span> <span class="tw-status">OPEN</span>',
-      '<div class="tw-app-tabs">' + tabs(['Overview','Estimates','Invoices','Files','Schedule','Notes','Activity'], activeTab, highlightTab) + '</div><div class="tw-app-grid"><div class="tw-app-card"><h4>Job description</h4><p>Demo job: kitchen drywall repair, unit 1B</p><h4>Estimates</h4><table class="tw-app-table"><tbody><tr><td class="tw-app-muted">No estimates yet.</td><td></td></tr></tbody></table></div><div class="tw-app-card"><h4>Quick stats</h4><p>Customer: <strong>Tutorial Customer</strong></p><p>Estimate total: <strong>$0.00</strong></p><p>Invoice balance: <strong>$0.00</strong></p></div></div>',
-      '<button class="tw-app-btn primary">+ New Estimate</button>');
+      '<div class="tw-operational-strip"><div class="tw-operational-cell"><div class="tw-operational-label">Scheduled</div><div class="tw-operational-value">Today</div><div class="tw-app-muted">9:00 AM</div></div><div class="tw-operational-cell"><div class="tw-operational-label">Assignee</div><div class="tw-operational-value">-</div></div><div class="tw-operational-cell"><div class="tw-operational-label">Documents</div><div class="tw-operational-value">No estimate yet</div></div></div><div class="tw-app-grid"><div><div class="tw-section-title">Description</div><p>Demo job: kitchen drywall repair, unit 1B</p><div class="tw-section-title" style="margin-top:1.3rem;">Notes</div><div class="tw-app-callout">Add field notes here: what got done, blockers, photos uploaded.</div><div class="tw-section-title" style="margin-top:1.3rem;">Photos</div><p class="tw-app-muted">No photos yet.</p></div><div><div class="tw-section-title">Customer</div><p><strong>Tutorial Customer</strong></p><p class="tw-app-muted">(555) 010-1000</p><p class="tw-app-muted">manager@example.com <span>(estimates)</span></p><p class="tw-app-muted">manager@example.com <span>(invoices)</span></p><div class="tw-section-title" style="margin-top:1.3rem;">Documents</div><p class="tw-app-muted">Estimate and invoice links appear here after you create them.</p></div></div>',
+      '<button class="tw-app-btn">PDF</button><button class="tw-app-btn primary">+ New Estimate</button>');
   }
 
   function estimateMock(stepId, loose) {
@@ -645,14 +652,14 @@
   function estimateDetail(loose) {
     return appFrame('estimates', (loose ? 'EST-????-????' : 'EST-0001-0014') + ' <span class="tw-badge">TUTORIAL</span> <span class="tw-status draft">DRAFT</span>',
       '<div class="tw-app-grid"><div class="tw-app-card"><h4>Line items</h4><table class="tw-app-table"><tbody><tr><td>' + (loose ? 'Rough quote: bathroom tile' : 'Labor - drywall repair, kitchen wall') + '</td><td>' + (loose ? '$1,500.00' : '$320.00') + '</td></tr>' + (!loose ? '<tr><td>Materials - drywall sheet + compound</td><td>$45.00</td></tr>' : '') + '</tbody></table><div class="tw-app-total"><span>Total ' + (loose ? '$1,500.00' : '$386.90') + '</span></div></div><div class="tw-app-card"><h4>Source</h4><p>' + (loose ? 'No work order yet. Attach to a WO before invoicing.' : 'Linked to WO-0001-0014.') + '</p></div></div>',
-      loose ? '<button class="tw-app-btn">Send PDF</button><button class="tw-app-btn primary">Attach to WO</button>' : '<button class="tw-app-btn">Send PDF</button><button class="tw-app-btn accent">Convert to Invoice</button>');
+      loose ? '<button class="tw-app-btn">Send PDF</button><button class="tw-app-btn primary">Attach to WO</button>' : '<button class="tw-app-btn">Send PDF</button><button class="tw-app-btn accent" data-action="convert-to-invoice">Convert to Invoice</button>');
   }
 
   function invoiceMock(stepId) {
     if (stepId === 'spotlight-convert-button') return estimateDetail(false).replace('tw-app-btn accent', 'tw-app-btn accent tw-app-highlight" data-tutorial-action="1');
     return appFrame('invoices', 'INV-0001-0014 <span class="tw-badge">TUTORIAL</span> <span class="tw-status">OPEN</span>',
-      '<div class="tw-app-grid"><div class="tw-app-card"><h4>Invoice line items</h4><table class="tw-app-table"><tbody><tr><td>Labor - drywall repair, kitchen wall</td><td>$320.00</td></tr><tr><td>Materials - drywall sheet + compound</td><td>$45.00</td></tr></tbody></table><div class="tw-app-callout">Line items are read-only here. Edit the estimate, then re-convert if the bill changes.</div><div class="tw-app-total"><span>Total $386.90</span></div></div><div class="tw-app-card"><h4>Linked records</h4><p>Customer: <strong>Tutorial Customer</strong></p><p>Work Order: <strong>WO-0001-0014</strong></p><p>Linked Estimate: <strong>EST-0001-0014</strong></p></div></div>',
-      '<button class="tw-app-btn">Send to customer</button><button class="tw-app-btn primary">Record Payment</button>');
+      '<p class="tw-app-muted">WO: <strong>WO-0001-0014</strong> &middot; Estimate: <strong data-link="source-estimate">EST-0001-0014</strong> &middot; Customer: <strong data-link="customer-from-invoice">Tutorial Customer</strong></p><div class="tw-app-card"><h4>Items</h4><div class="overflow-x-auto"><table class="tw-app-table tw-estimate-table"><thead><tr><th>Description</th><th class="tw-num">Qty</th><th>Unit</th><th class="tw-num">Cost</th><th class="tw-num">Rate</th><th class="tw-num">Line $</th></tr></thead><tbody><tr><td>Labor - drywall repair, kitchen wall</td><td class="tw-num">4</td><td>hr</td><td class="tw-num">$80.00</td><td class="tw-num">$80.00</td><td class="tw-num">$320.00</td></tr><tr><td>Materials - drywall sheet + compound</td><td class="tw-num">1</td><td>ea</td><td class="tw-num">$45.00</td><td class="tw-num">$45.00</td><td class="tw-num">$45.00</td></tr></tbody><tfoot><tr><td colspan="5" class="tw-num">Subtotal</td><td class="tw-num"><strong>$365.00</strong></td></tr><tr><td colspan="5" class="tw-num">Tax (6.00%)</td><td class="tw-num"><strong>$21.90</strong></td></tr><tr><td colspan="5" class="tw-num">Total</td><td class="tw-num"><strong>$386.90</strong></td></tr><tr><td colspan="5" class="tw-num">Balance Due</td><td class="tw-num"><strong>$386.90</strong></td></tr></tfoot></table></div><div class="tw-app-callout">Invoice items mirror the accepted estimate. Use invoice-only fields like terms, due date, notes, and payment status from here.</div></div><div class="tw-app-card"><h4>Invoice details</h4><p>Terms: <strong>Net 30</strong></p><p>Recipient: <strong>manager@example.com</strong></p><p>Due: <strong>30 days from today</strong></p></div>',
+      '<button class="tw-app-btn">View PDF</button><button class="tw-app-btn">Send invoice email</button><button class="tw-app-btn primary">Record Payment</button>');
   }
 
   function paymentMock(stepId) {

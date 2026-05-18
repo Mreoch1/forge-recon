@@ -90,7 +90,8 @@ steps:
       can leave it empty for the tutorial. In real use, picking someone
       here triggers an email alert to them.
 
-      Skip the rest of the fields (schedule, scope, notes) — all optional.
+      Schedule, assignees, and description are the main WO form sections.
+      The money fields come later on estimates and invoices.
       Use the **Save Work Order** button on the embedded form.
     spotlight_selector: "button[type='submit']"
     spotlight_label: "Save"
@@ -107,13 +108,13 @@ steps:
 
   - id: "wo-tabs-tour"
     coach_text: |
-      On the WO detail page you'll see tabs (or sections): **Estimates**,
-      **Invoices**, **Files**, **Schedule**, **Notes**, **Activity**. This
-      is the single pane where everything about this job lives. Crew comes
-      here on their phone in the field to see what they're doing.
+      On the WO detail page you'll see the job workspace: schedule,
+      assignee, description, notes, photos, customer info, and document
+      links. This is the single pane where everything about this job lives.
+      Crew comes here on their phone in the field to see what they're doing.
 
-      Right now everything's empty — we just created the WO, no estimate
-      or invoice yet. We'll add an estimate next.
+      Right now the document links are empty — we just created the WO, no
+      estimate or invoice yet. We'll add an estimate next.
 
       Click **Next**.
     chips:

@@ -2,8 +2,8 @@
 # Draft 2026-05-14T16:35Z by Cowork
 #
 # Critical teaching moment — the "convert" flow that mirrors EST -> INV.
-# Reinforces the numbering rule (per GPT Q5) and the immutability of
-# invoice line items.
+# Reinforces the numbering rule (per GPT Q5) and the estimate-to-invoice
+# source relationship.
 
 id: "06-convert-to-invoice"
 title: "Convert the estimate to an invoice"
@@ -30,9 +30,9 @@ steps:
       the estimate's number — which means it also mirrors the parent WO's
       number. So `EST-NNNN-NNNN` becomes `INV-NNNN-NNNN`.
 
-      Also: once converted, **you can't edit the invoice's line items
-      directly.** The estimate is the source of truth. If you need to
-      change the bill, you go back to the estimate, fix it, and re-convert.
+      Also: the invoice starts from the approved estimate. FORGE copies the
+      customer-facing items, tax rate, and totals, then lets you manage
+      invoice-only details like terms, due date, notes, sending, and payment.
     chips: []
     expected_action: "auto_advance"
     delay_after_ms: 6000
@@ -60,9 +60,9 @@ steps:
 
   - id: "linked-estimate-callout"
     coach_text: |
-      The invoice detail page has a **Linked Estimate** badge or link at the top. Clicking it
-      takes you back to the estimate. The two docs are permanently
-      attached.
+      The invoice detail page shows the source chain at the top: WO,
+      Estimate, and Customer. Those links take you back to the job, quote,
+      or customer record.
     spotlight_selector: "[data-link='source-estimate']"
     spotlight_label: "Linked Estimate"
     chips: []
@@ -71,9 +71,10 @@ steps:
 
   - id: "locked-lines-callout"
     coach_text: |
-      Now look at the line items. They're showing as **read-only** —
-      grayed out or with no edit handles. That's deliberate. To change
-      the bill, you go back to the estimate.
+      Now look at the Items table. It uses the same pricing columns you
+      saw on the estimate: description, quantity, unit, cost, rate, and
+      line total. The invoice page also shows terms, recipient, due date,
+      total, and balance due.
     chips: []
     expected_action: "auto_advance"
     delay_after_ms: 3500
@@ -81,9 +82,8 @@ steps:
   - id: "summary-totals"
     coach_text: |
       The total on the invoice matches the estimate exactly: $387 (or
-      whatever your math came out to). FORGE doesn't recalculate — it
-      mirrors. That guarantees the customer sees the same number they
-      approved.
+      whatever your math came out to). That keeps the quote-to-bill handoff
+      consistent for the customer.
     chips: []
     expected_action: "auto_advance"
     delay_after_ms: 3500
@@ -108,7 +108,7 @@ steps:
 
 faqs:
   - patterns: ["can i edit the invoice", "edit invoice lines"]
-    answer: "Not the line items — those are mirrored from the estimate. You CAN edit invoice-only fields like due date, payment terms, and internal notes. To change the bill itself, edit the estimate and re-convert."
+    answer: "You can edit invoice-only fields like due date, payment terms, notes, and conditions. The invoice starts from the accepted estimate so the quote-to-bill chain stays clear."
   - patterns: ["what happens to the estimate", "is the estimate deleted"]
     answer: "It stays. The estimate is the source. You can have one estimate and many invoices (e.g. progress billing) — though for most jobs it's 1:1."
   - patterns: ["re-convert", "convert twice", "second invoice from same estimate"]
