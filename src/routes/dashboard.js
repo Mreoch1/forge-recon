@@ -433,6 +433,11 @@ async function resolveTutorialSessionId(req, userId) {
 }
 
 router.get('/forge/tutorial', async (req, res) => {
+  // Only admin/manager can access the tutorial
+  const userRole = res.locals.currentUser?.role;
+  if (!userRole || (userRole !== 'admin' && userRole !== 'manager')) {
+    return res.redirect('/forge');
+  }
   const { loadChapters, totalChapters } = require('../services/tutorial-content');
   loadChapters();
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');

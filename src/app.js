@@ -270,6 +270,13 @@ app.post('/account/ack-email-warning', async (req, res) => {
   res.redirect(req.headers.referer || '/');
 });
 
+// D-066a: permanently dismiss the tutorial (stores in session)
+app.post('/account/dismiss-tutorial', async (req, res) => {
+  if (!req.session.userId) return res.status(401).redirect('/login');
+  req.session.tutorial_dismissed = true;
+  res.redirect(req.headers.referer || '/');
+});
+
 // D-030: onboarding — must be before dashboard catch-all too.
 app.get('/onboarding', async (req, res) => {
   if (!req.session.userId) return res.redirect('/login');

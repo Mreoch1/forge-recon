@@ -296,14 +296,23 @@
     <!-- Phase 5: CTA -->
     <div id="forge-cta-wrap">
       <div class="forge-cta-row">
+        <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager')) { %>
         <button id="forge-get-started" type="button">Get Started</button>
+        <% } %>
         <form method="post" action="/account/landing-mode" style="margin:0;">
           <input type="hidden" name="mode" value="classic">
           <input type="hidden" name="redirect_to" value="/dashboard-classic">
           <button id="forge-go-classic" type="submit" class="forge-cta-secondary">Switch to classic view</button>
         </form>
+        <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager')) { %>
+        <form method="post" action="/account/dismiss-tutorial" style="margin:0;">
+          <button type="submit" class="forge-cta-secondary" style="color:#64748b;border-color:rgba(100,116,139,0.25);" onclick="return confirm('Skip the tutorial permanently? You can restart anytime from the Help menu.');">No thanks, skip tutorial</button>
+        </form>
+        <% } %>
       </div>
+      <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager')) { %>
       <span class="forge-press-enter">press <kbd>Enter</kbd> to begin</span>
+      <% } %>
     </div>
 
     <!-- Phase 6: chat input -->
@@ -522,7 +531,14 @@
   }
 
   // "Get Started" button
-  document.getElementById('forge-get-started')?.addEventListener('click', revealChat);
+  var gsBtn = document.getElementById('forge-get-started');
+  if (gsBtn) gsBtn.addEventListener('click', revealChat);
+
+  // Skip cinematic intro for already-dismissed users
+  <% if (locals.sessionAckTutorial) { %>
+  if (introEl) introEl.classList.add('hidden');
+  if (chatPanel) chatPanel.style.display = 'block';
+  <% } %>
 
   // Keyboard: pressing Enter on the intro page triggers Get Started
   document.addEventListener('keydown', function(e) {
