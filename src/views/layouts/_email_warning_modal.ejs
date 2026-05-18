@@ -1,5 +1,8 @@
 <%# D-029: One-shot email warning modal — shows on first page load if user hasn't acknowledged. %>
-<% if (typeof currentUser !== 'undefined' && currentUser && !currentUser.acknowledged_live_email_warning_at) { %>
+<%# Checks both the DB column (acknowledged_live_email_warning_at) and the session  %>
+<%# fallback (req.session.acknowledged_email_warning) for environments where the DB  %>
+<%# column hasn't been migrated yet. %>
+<% if (typeof currentUser !== 'undefined' && currentUser && !currentUser.acknowledged_live_email_warning_at && !(typeof sessionAck !== 'undefined' && sessionAck)) { %>
 <div id="email-warning-overlay" style="position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:12px;max-width:480px;width:100%;padding:28px;box-shadow:0 8px 40px rgba(0,0,0,0.3);border:3px solid #c0202b">
     <div style="text-align:center;margin-bottom:16px">

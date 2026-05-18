@@ -256,11 +256,16 @@ app.post('/account/ack-email-warning', async (req, res) => {
       .from('users')
       .update({ acknowledged_live_email_warning_at: acknowledgedAt })
       .eq('id', req.session.userId);
-    if (error) throw error;
+    if (error) console.warn('[account] ack db update failed:', error.message);
     if (res.locals.currentUser) res.locals.currentUser.acknowledged_live_email_warning_at = acknowledgedAt;
     if (req.currentUser) req.currentUser.acknowledged_live_email_warning_at = acknowledgedAt;
+    // D-029a: also store in session as fallback — the DB column may not exist yet
+    // on older Supabase projects that never ran the column migration.
+    req.session.acknowledged_email_warning = true;
   } catch (e) {
     console.warn('[account] ack-email-warning failed:', e.message);
+    // Even if DB update fails, store in session so the modal dismisses
+    req.session.acknowledged_email_warning = true;
   }
   res.redirect(req.headers.referer || '/');
 });

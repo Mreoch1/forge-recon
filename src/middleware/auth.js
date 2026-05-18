@@ -82,6 +82,7 @@ const loadCurrentUser = asyncHandler(async (req, res, next) => {
   res.locals.currentUser = null;
   res.locals.flash = (req.session && req.session.flash) || {};
   res.locals.announcement = null;
+  res.locals.sessionAck = !!(req.session && req.session.acknowledged_email_warning);
   if (req.session) delete req.session.flash;
 
   // D-090: Load the active banner inside the request so views can reliably render it.
