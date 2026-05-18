@@ -165,14 +165,19 @@
   .tw-app-tab.tw-app-highlight {
     color: #020617; background: #cffafe; border-bottom-color: #0891b2; border-radius: 6px 6px 0 0;
   }
-  .tw-app-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+  .tw-app-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; color: #0f172a; }
   .tw-app-table th, .tw-app-table td { padding: 0.48rem; border-bottom: 1px solid #e2e8f0; text-align: left; }
   .tw-app-table th { color: #64748b; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  .tw-app-table .tw-num { text-align: right; }
+  .tw-app-table .tw-readonly { background: #f1f5f9; color: #64748b; }
+  .tw-estimate-table { min-width: 860px; }
+  .tw-estimate-table textarea.tw-app-input { min-height: 3rem; resize: vertical; }
+  .tw-estimate-table td:first-child { min-width: 220px; }
   .tw-app-form { display: grid; gap: 0.7rem; }
   .tw-app-form.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .tw-app-label { display: grid; gap: 0.25rem; color: #334155; font-size: 0.76rem; font-weight: 800; }
+  .tw-app-label { display: grid; gap: 0.25rem; color: #334155 !important; font-size: 0.76rem; font-weight: 800; }
   .tw-app-input, .tw-app-select, .tw-app-textarea {
-    width: 100%; border: 1px solid #cbd5e1; background: #ffffff; color: #0f172a;
+    width: 100%; border: 1px solid #cbd5e1; background: #ffffff; color: #0f172a !important;
     border-radius: 6px; padding: 0.55rem 0.65rem; font-size: 0.84rem;
   }
   .tw-app-textarea { min-height: 5.5rem; resize: vertical; }
@@ -626,8 +631,15 @@
     var line2 = stepId === 'line-2-add' || stepId === 'line-2-fill' || stepId === 'tax-input' || stepId === 'save';
     var save = stepId === 'save' ? '<button type="button" class="tw-app-btn primary tw-app-highlight" data-tutorial-submit data-tutorial-action>Save Estimate</button>' : '';
     var add = stepId === 'line-2-add' ? '<button type="button" class="tw-app-btn primary tw-app-highlight" data-tutorial-action>+ Add line</button>' : '';
+    var line1Desc = stepId === 'line-1-description' ? '' : (loose ? 'Rough quote: bathroom tile' : 'Labor - drywall repair, kitchen wall');
+    var line1Qty = stepId === 'line-1-qty-rate' ? '' : (loose ? '1' : '4');
+    var line1Labor = stepId === 'line-1-qty-rate' ? '' : (loose ? '1200' : '80');
+    var line1Material = loose ? '300' : '0';
+    var line2Desc = stepId === 'line-2-fill' ? '' : 'Materials - drywall sheet + compound';
+    var estimateHeader = '<thead><tr><th>Description</th><th class="tw-num">Qty</th><th>Unit</th><th class="tw-num">Labor</th><th class="tw-num">Materials</th><th class="tw-num">Cost</th><th class="tw-num">Markup %</th><th class="tw-num">Rate</th><th class="tw-num">Line $</th></tr></thead>';
+    var estimateRows = '<tbody><tr><td>' + formTextarea('line_items[0].description', 'Labor - drywall repair, kitchen wall', line1Desc) + '</td><td>' + formInput('line_items[0].quantity', '4', line1Qty) + '</td><td>' + formInput('line_items[0].unit', 'hr', loose ? 'ea' : 'hr') + '</td><td>' + formInput('line_items[0].labor_cost', '80', line1Labor) + '</td><td>' + formInput('line_items[0].material_cost', '0', line1Material) + '</td><td><input class="tw-app-input tw-readonly" value="' + (loose ? '1500.00' : '80.00') + '" readonly></td><td>' + formInput('line_items[0].markup_pct', '0', '0') + '</td><td><input class="tw-app-input tw-readonly" value="' + (loose ? '1500.00' : '80.00') + '" readonly></td><td><input class="tw-app-input tw-readonly" value="' + (loose ? '1500.00' : '320.00') + '" readonly></td></tr>' + (line2 && !loose ? '<tr><td>' + formTextarea('line_items[1].description', 'Materials - drywall sheet + compound', line2Desc) + '</td><td>' + formInput('line_items[1].quantity', '1', '1') + '</td><td>' + formInput('line_items[1].unit', 'ea', 'ea') + '</td><td>' + formInput('line_items[1].labor_cost', '0', '0') + '</td><td>' + formInput('line_items[1].material_cost', '45', '45') + '</td><td><input class="tw-app-input tw-readonly" value="45.00" readonly></td><td>' + formInput('line_items[1].markup_pct', '0', '0') + '</td><td><input class="tw-app-input tw-readonly" value="45.00" readonly></td><td><input class="tw-app-input tw-readonly" value="45.00" readonly></td></tr>' : '') + '</tbody>';
     return appFrame('estimates', loose ? 'New Loose Estimate' : 'New Estimate',
-      '<div class="tw-app-card"><h4>Estimate form</h4><div class="tw-app-form"><div class="tw-app-form two">' + field('display_number', 'Estimate number', number, number) + field('work_order', 'Work Order', loose ? 'No WO attached' : 'WO-0001-0014', loose ? '' : 'WO-0001-0014') + '</div><table class="tw-app-table"><thead><tr><th>Description</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead><tbody><tr><td>' + formInput('line_items[0].description', 'Labor - drywall repair, kitchen wall', stepId === 'line-1-description' ? '' : (loose ? 'Rough quote: bathroom tile' : 'Labor - drywall repair, kitchen wall')) + '</td><td>' + formInput('line_items[0].qty', '4', loose ? '1' : '4') + '</td><td>' + formInput('line_items[0].unit_price', '80', loose ? '1500' : '80') + '</td><td>' + (loose ? '$1,500.00' : '$320.00') + '</td></tr>' + (line2 && !loose ? '<tr><td>' + formInput('line_items[1].description', 'Materials - drywall sheet + compound', stepId === 'line-2-fill' ? '' : 'Materials - drywall sheet + compound') + '</td><td>' + formInput('line_items[1].qty', '1', '1') + '</td><td>' + formInput('line_items[1].unit_price', '45', '45') + '</td><td>$45.00</td></tr>' : '') + '</tbody></table>' + add + '<div class="tw-app-form two">' + field('tax_rate', 'Tax rate %', '6', loose ? '0' : (stepId === 'tax-input' ? '' : '6')) + field('status', 'Status', 'DRAFT', 'DRAFT') + '</div><div class="tw-app-total"><span>Subtotal ' + (loose ? '$1,500.00' : '$365.00') + '</span><span>Total ' + (loose ? '$1,500.00' : '$386.90') + '</span></div>' + save + '</div></div>');
+      '<div class="tw-app-card"><h4>Estimate form</h4><div class="tw-app-form"><div class="tw-app-form two">' + field('display_number', 'Estimate number', number, number) + field('work_order', 'Work Order', loose ? 'No WO attached' : 'WO-0001-0014', loose ? '' : 'WO-0001-0014') + '</div><div class="overflow-x-auto"><table class="tw-app-table tw-estimate-table">' + estimateHeader + estimateRows + '</table></div>' + add + '<div class="tw-app-form two">' + field('tax_rate', 'Tax rate %', '6', loose ? '0' : (stepId === 'tax-input' ? '' : '6')) + field('status', 'Status', 'DRAFT', 'DRAFT') + '</div><div class="tw-app-total"><span>Subtotal ' + (loose ? '$1,500.00' : '$365.00') + '</span><span>Total ' + (loose ? '$1,500.00' : '$386.90') + '</span></div>' + save + '</div></div>');
   }
 
   function estimateDetail(loose) {
@@ -688,6 +700,10 @@
     return '<input class="tw-app-input" name="' + name + '" placeholder="' + placeholder + '" value="' + escapeHtml(value || '') + '">';
   }
 
+  function formTextarea(name, placeholder, value) {
+    return '<textarea class="tw-app-input" name="' + name + '" placeholder="' + placeholder + '" rows="1">' + escapeHtml(value || '') + '</textarea>';
+  }
+
   function selectField(name, label, options) {
     return '<label class="tw-app-label">' + label + '<select class="tw-app-select" name="' + name + '">' + options.map(function(option) { return '<option>' + option + '</option>'; }).join('') + '</select></label>';
   }
@@ -709,11 +725,15 @@
       tax_rate: 'Tax rate',
       method: 'Payment method',
       'line_items[0].description': 'Line 1 description',
-      'line_items[0].qty': 'Line 1 quantity',
-      'line_items[0].unit_price': 'Line 1 unit price',
+      'line_items[0].quantity': 'Line 1 quantity',
+      'line_items[0].labor_cost': 'Line 1 labor cost',
+      'line_items[0].material_cost': 'Line 1 materials cost',
+      'line_items[0].markup_pct': 'Line 1 markup',
       'line_items[1].description': 'Line 2 description',
-      'line_items[1].qty': 'Line 2 quantity',
-      'line_items[1].unit_price': 'Line 2 unit price',
+      'line_items[1].quantity': 'Line 2 quantity',
+      'line_items[1].labor_cost': 'Line 2 labor cost',
+      'line_items[1].material_cost': 'Line 2 materials cost',
+      'line_items[1].markup_pct': 'Line 2 markup',
     };
     return labels[field] || field;
   }
@@ -724,11 +744,15 @@
       description: 'Demo job: kitchen drywall repair, unit 1B',
       tax_rate: '6',
       'line_items[0].description': 'Labor - drywall repair, kitchen wall',
-      'line_items[0].qty': '4',
-      'line_items[0].unit_price': '80',
+      'line_items[0].quantity': '4',
+      'line_items[0].labor_cost': '80',
+      'line_items[0].material_cost': '0',
+      'line_items[0].markup_pct': '0',
       'line_items[1].description': 'Materials - drywall sheet + compound',
-      'line_items[1].qty': '1',
-      'line_items[1].unit_price': '45',
+      'line_items[1].quantity': '1',
+      'line_items[1].labor_cost': '0',
+      'line_items[1].material_cost': '45',
+      'line_items[1].markup_pct': '0',
     };
     return samples[field] || '';
   }

@@ -63,16 +63,18 @@ steps:
   - id: "quick-fill"
     coach_text: |
       Add one quick line item to make it feel real.
-      Description: *"Rough quote: bathroom tile"*. Qty 1. Unit price 1500.
+      Description: *"Rough quote: bathroom tile"*. Qty 1. Labor 1200.
+      Materials 300.
 
       Skip tax for this one, then continue.
-    spotlight_selector: "input[name='line_items[0].description']"
-    spotlight_label: "Type, then qty 1, $1500"
+    spotlight_selector: "textarea[name='line_items[0].description']"
+    spotlight_label: "Type, then qty 1, labor 1200"
     expected_action: "form_field_filled_multiple"
     expected_fields:
       - "line_items[0].description"
-      - "line_items[0].qty"
-      - "line_items[0].unit_price"
+      - "line_items[0].quantity"
+      - "line_items[0].labor_cost"
+      - "line_items[0].material_cost"
 
   - id: "save"
     coach_text: |

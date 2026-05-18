@@ -70,19 +70,19 @@ steps:
     coach_text: |
       In the **first line item description**, type:
       *"Labor — drywall repair, kitchen wall"*
-    spotlight_selector: "input[name='line_items[0].description']"
+    spotlight_selector: "textarea[name='line_items[0].description']"
     spotlight_label: "Type"
     expected_action: "form_field_filled"
     expected_field: "line_items[0].description"
 
   - id: "line-1-qty-rate"
     coach_text: |
-      Now the numbers. **Quantity** = 4 (hours). **Unit price** = 80
-      (dollars per hour). FORGE auto-calculates the line total ($320).
-    spotlight_selector: "input[name='line_items[0].qty']"
-    spotlight_label: "qty 4, unit $80"
+      Now the numbers. **Quantity** = 4 (hours). **Labor** = 80
+      (dollars per hour). FORGE auto-calculates cost, rate, and line total.
+    spotlight_selector: "input[name='line_items[0].quantity']"
+    spotlight_label: "qty 4, labor $80"
     expected_action: "form_field_filled_multiple"
-    expected_fields: ["line_items[0].qty", "line_items[0].unit_price"]
+    expected_fields: ["line_items[0].quantity", "line_items[0].labor_cost"]
 
   - id: "line-2-add"
     coach_text: |
@@ -95,11 +95,11 @@ steps:
   - id: "line-2-fill"
     coach_text: |
       In the second line description: *"Materials — drywall sheet + compound"*.
-      Quantity 1, unit price 45.
-    spotlight_selector: "input[name='line_items[1].description']"
-    spotlight_label: "Type description, qty 1, unit $45"
+      Quantity 1, materials 45.
+    spotlight_selector: "textarea[name='line_items[1].description']"
+    spotlight_label: "Type description, qty 1, materials $45"
     expected_action: "form_field_filled_multiple"
-    expected_fields: ["line_items[1].description", "line_items[1].qty", "line_items[1].unit_price"]
+    expected_fields: ["line_items[1].description", "line_items[1].quantity", "line_items[1].material_cost"]
 
   - id: "tax-input"
     coach_text: |
