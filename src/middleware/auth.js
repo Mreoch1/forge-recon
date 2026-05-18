@@ -50,9 +50,12 @@ function clearSession(req, done = () => {}) {
 function requireAuth(req, res, next) {
   if (!req.session || !req.session.userId) return res.redirect('/login');
   // D-030: redirect users who haven't completed onboarding
-  if (req.path !== '/onboarding' && !req.session.completed_onboarding_at && res.locals.currentUser && !res.locals.currentUser.completed_onboarding_at) {
-    return res.redirect('/onboarding');
-  }
+  // DISABLED — the completed_onboarding_at column doesn't exist in the production
+  // Supabase DB, so the DB update always fails and users get stuck in a redirect loop.
+  // TODO: re-enable once the column is migrated in Supabase.
+  // if (req.path !== '/onboarding' && !req.session.completed_onboarding_at && res.locals.currentUser && !res.locals.currentUser.completed_onboarding_at) {
+  //   return res.redirect('/onboarding');
+  // }
   next();
 }
 
