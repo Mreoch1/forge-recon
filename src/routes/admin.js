@@ -65,7 +65,7 @@ router.post('/users', async (req, res) => {
   const hash = await bcrypt.hash(password, 10);
   const { error: insertErr } = await supabase
     .from('users')
-    .insert({ email, password_hash: hash, name, role, phone: req.body.phone || null, active: 1 });
+    .insert({ email, password_hash: hash, name, role, phone: req.body.phone || null, active: 1, email_verified: true });
   if (insertErr) throw insertErr;
   // D-031: auto-send invite email
   try {

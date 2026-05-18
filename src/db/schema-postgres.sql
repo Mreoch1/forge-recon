@@ -40,6 +40,11 @@ CREATE TABLE IF NOT EXISTS users (
   active BOOLEAN NOT NULL DEFAULT TRUE,
   phone TEXT,
   mock BOOLEAN NOT NULL DEFAULT FALSE,
+  email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  verification_token TEXT UNIQUE,
+  verification_expires_at TIMESTAMPTZ,
+  completed_onboarding_at TIMESTAMPTZ,
+  acknowledged_live_email_warning_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

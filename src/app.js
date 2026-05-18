@@ -107,6 +107,16 @@ async function ensureDbInit(req, res, next) {
           if (!existing.find(c => c.name === m.col)) { await db.run('ALTER TABLE ' + m.table + ' ADD COLUMN ' + m.col + ' ' + m.type); }
         }
       } catch(e) { console.error('Boot migration failed:', e.message); }
+    } else {
+      // PG mode boot migrations (Supabase)
+      const pgMigrations = [
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token TEXT UNIQUE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_expires_at TIMESTAMPTZ",
+      ];
+      for (const sql of pgMigrations) {
+        try { await db.run(sql); } catch(e) { console.warn('[boot] pg migration:', e.message); }
+      }
     }
     dbReady = true;
     console.log('[app] db initialized');
