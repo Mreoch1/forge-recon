@@ -408,4 +408,34 @@ app.use((err, req, res, next) => {
   res.status(safeStatus).render('error', { title, code: safeStatus, message: safeMsg, currentUrl: req.originalUrl, errorDetail, errorCtx });
 });
 
+// ── PG boot migrations (production) ──────────────────────────────────────────
+// Runs on every cold start. All statements use IF NOT EXISTS / IF EXISTS so
+// they're idempotent. Uses pg driver directly against DATABASE_URL_DIRECT.
+(async function runPgMigrations() {
+  const dbUrl = process.env.DATABASE_URL_DIRECT || process.env.DATABASE_URL;
+  if (!dbUrl || !dbUrl.startsWith('postgres')) return; // not PG mode, skip
+  try {
+    const { Pool } = require('pg');
+    const pool = new Pool({ connectionString: dbUrl, max: 1, connectionTimeoutMillis: 5000 });
+    const migrations = [
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token TEXT UNIQUE",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_expires_at TIMESTAMPTZ",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS acknowledged_live_email_warning_at TIMESTAMPTZ",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS completed_onboarding_at TIMESTAMPTZ",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS default_landing TEXT DEFAULT 'chat'",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS sent_by_user_id INTEGER",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS sent_to_email TEXT",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS sent_to_name TEXT",
+    ];
+    for (const sql of migrations) {
+      try { await pool.query(sql); } catch(e) { /* column may already exist with different options */ }
+    }
+    await pool.end();
+    console.log('[migrate] PG boot migrations complete');
+  } catch (e) {
+    console.warn('[migrate] PG boot migration error (non-fatal):', e.message);
+  }
+})();
+
 module.exports = app;
