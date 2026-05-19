@@ -328,8 +328,8 @@ app.post('/account/landing-mode', async (req, res) => {
     // Don't block navigation on a preference update failure — log + continue.
   }
   // Default redirects: classic → /dashboard-classic, chat → /forge. Allow override.
-  const fallback = requested === 'classic' ? '/dashboard-classic' : '/forge';
-  const target = req.body?.redirect_to && /^\/[\w\-\/?=&%]*$/.test(req.body.redirect_to)
+  const fallback = '/dashboard-classic';
+  const target = req.body?.redirect_to && req.body.redirect_to !== '/forge' && /^\/[\w\-\/?=&%]*$/.test(req.body.redirect_to)
     ? req.body.redirect_to
     : fallback;
   res.redirect(target);

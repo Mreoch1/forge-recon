@@ -198,7 +198,7 @@
           <a href="/" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'dashboard' ? ' active' : '' %>">Dashboard</a>
           <a href="/work-orders" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'work-orders' ? ' active' : '' %>">Work Orders</a>
           <a href="/schedule" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'schedule' ? ' active' : '' %>">Schedule</a>
-          <a href="/forge" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'forge' ? ' active' : '' %>">Ask FORGE</a>
+          <%# Ask FORGE is paused while the AI assistant is rebuilt. %>
           <!-- More dropdown -->
           <div class="relative" id="more-dropdown">
             <%
@@ -230,8 +230,8 @@
           <a href="/dashboard-classic" class="inline-flex items-center gap-1 text-[.7rem] text-recon-fog hover:text-white transition whitespace-nowrap" aria-label="Switch to classic dashboard">
             <span>&larr;</span> Classic
           </a>
-        <% } else if (typeof activeNav !== 'undefined' && ['dashboard','home',''].includes(activeNav)) { %>
-          <a href="/forge" class="hidden lg:inline-flex items-center gap-1 text-[.7rem] text-recon-fog hover:text-white transition whitespace-nowrap" aria-label="Switch to FORGE">
+        <% } else if (false && typeof activeNav !== 'undefined' && ['dashboard','home',''].includes(activeNav)) { %>
+          <a href="/dashboard-classic" class="hidden lg:inline-flex items-center gap-1 text-[.7rem] text-recon-fog hover:text-white transition whitespace-nowrap" aria-label="Switch to classic dashboard">
             FORGE <span>&rarr;</span>
           </a>
         <% } %>
@@ -256,7 +256,7 @@
     <div id="mobile-panel" class="lg:hidden bg-recon-steel border-t border-recon-ash">
       <div class="px-3 py-2 flex flex-col gap-1">
         <a href="/" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'dashboard' ? ' active' : '' %>">Dashboard</a>
-        <a href="/forge" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'forge' ? ' active' : '' %>">Ask FORGE</a>
+        <%# Ask FORGE is paused while the AI assistant is rebuilt. %>
         <a href="/work-orders" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'work-orders' ? ' active' : '' %>">Work Orders</a>
         <a href="/estimates" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'estimates' ? ' active' : '' %>">Estimates</a>
         <a href="/invoices" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'invoices' ? ' active' : '' %>">Invoices</a>

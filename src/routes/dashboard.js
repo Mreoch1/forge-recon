@@ -145,9 +145,8 @@ router.get('/', async (req, res) => {
   if (req.session?.role === 'worker') return res.redirect('/work-orders');
 
   // D-059 A4: default_landing redirect — if user prefers chat, send to /forge
-  if (res.locals.currentUser && res.locals.currentUser.default_landing === 'chat') {
-    return res.redirect('/forge');
-  }
+  // AI/tutorial landing is paused while the assistant is rebuilt.
+  // Keep the saved FORGE routes, but default everyone to classic for now.
 
   const today = new Date().toISOString().slice(0, 10);
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -332,12 +331,7 @@ router.get('/', async (req, res) => {
 
 // D-059 A1: Chat-first landing page ("Ask FORGE")
 router.get('/forge', async (req, res) => {
-  res.render('forge/chat', {
-    title: 'FORGE AI',
-    activeNav: 'forge',
-    inlineAiChat: true,
-    currentUser: res.locals.currentUser || null,
-  });
+  res.redirect(302, '/dashboard-classic');
 });
 
 // D-066 Comprehensive tutorial — server-side state machine, split-pane shell
@@ -433,11 +427,7 @@ async function resolveTutorialSessionId(req, userId) {
 }
 
 router.get('/forge/tutorial', async (req, res) => {
-  // Only admin/manager can access the tutorial
-  const userRole = res.locals.currentUser?.role;
-  if (!userRole || (userRole !== 'admin' && userRole !== 'manager')) {
-    return res.redirect('/forge');
-  }
+  return res.redirect(302, '/dashboard-classic');
   const { loadChapters, totalChapters } = require('../services/tutorial-content');
   loadChapters();
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
