@@ -13,6 +13,7 @@ const supabase = createClient(
 );
 
 const CHECKS = [
+  { table: 'users',           columns: ['id', 'email', 'default_landing', 'completed_onboarding_at', 'acknowledged_live_email_warning_at'] },
   { table: 'work_orders',     columns: ['id', 'customer_id', 'unit_number', 'display_number'] },
   { table: 'customers',        columns: ['id', 'name', 'email'] },
   { table: 'folders',          columns: ['id', 'entity_type', 'entity_id', 'is_root'] },
