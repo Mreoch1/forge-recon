@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS users (
   active INTEGER NOT NULL DEFAULT 1,
   phone TEXT,
   mock INTEGER NOT NULL DEFAULT 0,
+  default_landing TEXT DEFAULT 'chat',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

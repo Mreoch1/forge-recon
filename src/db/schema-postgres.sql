@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS users (
   verification_expires_at TIMESTAMPTZ,
   completed_onboarding_at TIMESTAMPTZ,
   acknowledged_live_email_warning_at TIMESTAMPTZ,
+  default_landing TEXT DEFAULT 'chat',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
