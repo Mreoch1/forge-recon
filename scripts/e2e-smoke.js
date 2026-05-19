@@ -8,8 +8,10 @@
  */
 const base = process.argv[2] || process.env.SMOKE_BASE || 'https://forge-recon.vercel.app';
 const manifest = require('./smoke-manifest.json');
+const fs = require('fs');
 const http = require('http');
 const https = require('https');
+const path = require('path');
 const smokeEmail = process.env.SMOKE_ADMIN_EMAIL || process.env.SMOKE_EMAIL || 'admin@recon.local';
 const smokePassword = process.env.SMOKE_ADMIN_PASSWORD || process.env.SMOKE_PASSWORD || 'changeme123';
 const usingDefaultSmokeCreds = smokeEmail === 'admin@recon.local' && smokePassword === 'changeme123';
@@ -17,6 +19,60 @@ const isProductionSmoke = /^https:\/\/forge-recon\.vercel\.app\/?$/i.test(base);
 
 const COOKIE_JAR = {};
 let passed = 0, failed = 0;
+
+async function writeSmokeStatus(authStatus) {
+  if (!isProductionSmoke) return;
+  const statusPath = path.resolve(__dirname, '..', '..', 'bridges', 'SMOKE_STATUS.md');
+  if (!fs.existsSync(path.dirname(statusPath))) return;
+
+  let prodSha = 'unknown';
+  let deploymentId = 'unknown';
+  try {
+    const versionRes = await fetch('GET', '/health/version');
+    if (versionRes.status === 200) {
+      const version = JSON.parse(versionRes.body);
+      prodSha = String(version.version || 'unknown').slice(0, 7);
+      deploymentId = version.deployment_id || 'unknown';
+    }
+  } catch (e) {
+    // Keep smoke status best-effort; never fail the smoke run over the bridge file.
+  }
+
+  const hasAdminCreds = !!(process.env.SMOKE_ADMIN_EMAIL && process.env.SMOKE_ADMIN_PASSWORD);
+  const hasSmokeCreds = !!(process.env.SMOKE_EMAIL && process.env.SMOKE_PASSWORD);
+  const credentialState = hasAdminCreds
+    ? 'Present via `SMOKE_ADMIN_EMAIL`/`SMOKE_ADMIN_PASSWORD`'
+    : hasSmokeCreds
+      ? 'Present via `SMOKE_EMAIL`/`SMOKE_PASSWORD`'
+      : 'Missing `SMOKE_ADMIN_EMAIL`/`SMOKE_ADMIN_PASSWORD` and `SMOKE_EMAIL`/`SMOKE_PASSWORD`';
+
+  const publicStatus = failed === 0 ? `PASS ${passed}/7` : `FAIL ${failed} failure(s), ${passed} pass(es)`;
+  const updatedAt = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const body = `# SMOKE STATUS
+
+Tracks production smoke coverage so auth-smoke state is explicit instead of rediscovered every review cycle.
+
+## Current Status - ${updatedAt}
+
+| Field | Value |
+|---|---|
+| **Prod URL** | \`${base}\` |
+| **Prod SHA** | \`${prodSha}\` |
+| **Deployment** | \`${deploymentId}\` |
+| **Public smoke** | ${publicStatus} |
+| **Auth smoke** | \`${authStatus}\` |
+| **Credential env in this shell** | ${credentialState} |
+| **Owner/action** | Michael/Cowork: provide or rotate smoke credentials via local/Vercel env if authenticated smoke should run from this shell. Do not commit secrets. |
+
+## Notes
+
+- \`scripts/e2e-smoke.js\` supports \`SMOKE_ADMIN_EMAIL\` + \`SMOKE_ADMIN_PASSWORD\`, or \`SMOKE_EMAIL\` + \`SMOKE_PASSWORD\`.
+- Keep cleartext credentials out of this file.
+- Vercel error/500 log scans are tracked separately in \`DEPLOY_BACKLOG.md\`.
+`;
+
+  fs.writeFileSync(statusPath, body);
+}
 
 function fetch(method, path, data) {
   return new Promise((resolve, reject) => {
@@ -118,6 +174,7 @@ async function main() {
 
   if (isProductionSmoke && usingDefaultSmokeCreds) {
     console.log('\nAUTH_SKIPPED_NO_CREDS: set SMOKE_ADMIN_EMAIL/SMOKE_ADMIN_PASSWORD or SMOKE_EMAIL/SMOKE_PASSWORD to run authenticated production checks.');
+    await writeSmokeStatus('AUTH_SKIPPED_NO_CREDS');
     console.log(`\n=== RESULTS: ${passed} public passed, ${failed} failed; auth skipped ===`);
     process.exit(failed > 0 ? 1 : 0);
   }
@@ -137,6 +194,7 @@ async function main() {
   }
 
   console.log(`\n=== RESULTS: ${passed} passed, ${failed} failed ===`);
+  await writeSmokeStatus(failed > 0 ? 'AUTH_FAILED' : 'AUTH_PASS');
   process.exit(failed > 0 ? 1 : 0);
 }
 
