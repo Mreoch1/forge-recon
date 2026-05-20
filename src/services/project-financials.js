@@ -112,17 +112,27 @@ async function getProjectFinancials(jobId) {
     .eq('status', 'awarded');
   if (rfpsError) throw rfpsError;
 
+  // D-141: separate the two RFP-derived numbers:
+  //   - rfp_committed       = bare vendor/contractor COST (what we pay out)
+  //   - rfp_contract_value  = marked-up PRICE (what we charge customer; revenue)
+  // Previously both lines used total_with_markup (the marked-up price),
+  // which inflated "committed cost" with the markup and made every project
+  // look unprofitable. They are now distinguished.
   let rfp_committed = 0;
+  let rfp_contract_value = 0;
   const rfpIds = (awardedRfps || []).map((r) => r.id);
   if (rfpIds.length > 0) {
     const { data: lineItemData, error: liError } = await supabase
       .from('rfp_line_items')
-      .select('total_with_markup')
+      .select('total_cost, total_with_markup')
       .in('rfp_id', rfpIds)
       .eq('approved', true);
     if (liError) throw liError;
 
     rfp_committed = (lineItemData || []).reduce(
+      (s, r) => s + toNum(r.total_cost), 0
+    );
+    rfp_contract_value = (lineItemData || []).reduce(
       (s, r) => s + toNum(r.total_with_markup), 0
     );
   }
@@ -134,7 +144,10 @@ async function getProjectFinancials(jobId) {
   const total_spent = await sumByJobId('bills', 'amount_paid', jobId);
 
   // ── Derived values ─────────────────────────────────────────────────
-  const revised_contract_value = contract_value + approved_change_orders;
+  // D-141: if no manual contract_value is set on the job, auto-derive it from
+  // the approved RFP total_with_markup. Manual entry still wins as override.
+  const effective_contract_value = contract_value > 0 ? contract_value : rfp_contract_value;
+  const revised_contract_value = effective_contract_value + approved_change_orders;
   const customer_outstanding = customer_invoiced - customer_paid;
   const customer_unbilled = revised_contract_value - customer_invoiced;
 
@@ -243,7 +256,9 @@ async function getProjectFinancials(jobId) {
   }
 
   return {
-    contract_value: Number(contract_value.toFixed(2)),
+    contract_value: Number(effective_contract_value.toFixed(2)),
+    manual_contract_value: Number(contract_value.toFixed(2)),
+    rfp_contract_value: Number(rfp_contract_value.toFixed(2)),
     approved_change_orders: Number(approved_change_orders.toFixed(2)),
     pending_change_orders: Number(pending_change_orders.toFixed(2)),
     revised_contract_value: Number(revised_contract_value.toFixed(2)),
