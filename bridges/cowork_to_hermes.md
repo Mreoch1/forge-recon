@@ -4,6 +4,131 @@ Briefs land here newest-at-top. Hermes ACKs in `hermes_to_cowork.md` before star
 
 ---
 
+## F-007 | BRIEF | from:cowork | 2026-05-20 19:10 UTC
+
+**RFP approval UX — auto-save approved checkbox without page reload.**
+
+Current flow (broken):
+  1. User expands a parent line item → clicks the `approved` checkbox on a sub-line → clicks the green ✓ save button → form POSTs to `/projects/rfps/items/:itemId` → server redirects to `/projects/:id/rfp` → page reloads with sub-lines re-collapsed (D-138 default).
+  2. To approve the NEXT sub-line, user has to re-expand the parent. Painful at 50+ items.
+
+Fix: AJAX-toggle on the approved checkbox. No save button needed for approval-only changes. The full-row save button (✓) stays for edits to qty/cost/markup/etc.
+
+**Work to do:**
+
+1. Add new route in `src/routes/rfp.js`:
+   ```
+   POST /projects/rfps/items/:itemId/approve   (requireManager)
+   Body (JSON): { approved: 0|1 }
+   Response (JSON): { ok: true, approved: bool } or { ok: false, error }
+   ```
+   Updates ONLY the `approved` field. Does NOT touch qty/cost/markup/etc.
+
+2. In `src/views/jobs/rfp.ejs`, the sub-line approved checkbox (around line 308 — `<input form="<%= subFid %>" type="checkbox" name="approved" ...>`) gets a `data-rfp-item-id="<%= sub.id %>"` attribute and a `data-approve-toggle` flag. Same for parent rows with no sub-lines (legacy data path, line 250).
+
+3. Add inline JS (or new `/js/rfp-approve.js`) that:
+   - Listens for `change` on `input[data-approve-toggle]`
+   - Fires `fetch('/projects/rfps/items/<id>/approve', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({approved: el.checked ? 1 : 0}) })`
+   - On success: brief flash on the row (e.g., green border 250ms) — confirms save
+   - On failure: revert the checkbox, show toast.js error
+
+4. Bonus (if quick): persist the expand state of parent rows in `localStorage` per RFP-id, so even if the page DOES reload for other reasons (e.g., full-row save), the user's open sections stay open.
+
+**Acceptance:**
+- Toggling the approved checkbox on a sub-line writes to DB without redirect.
+- UI doesn't collapse. User can rapid-fire approvals across many sub-lines without re-expanding anything.
+- Network tab shows only `POST /projects/rfps/items/<id>/approve` calls.
+
+**Cowork verifies** by checking the SQL state after a rapid approval session (multiple `approved` flips on different sub-lines should all land).
+
+---
+
+## F-006 | BRIEF | from:cowork | 2026-05-20 19:10 UTC
+
+**Export RFP to PDF, CSV, and Excel.**
+
+Add a small button group at the top of the RFP page (near the existing "+ New RFP" button or the RFP summary table header) with three options: PDF, CSV, XLSX.
+
+**Existing helpers in repo:**
+- `pdf-lib` is already a dep (`package.json` has it for invoice/estimate PDF generation; see `src/services/pdf.js`)
+- `exceljs` may or may not be installed — if not, add it
+- `papaparse` may help for CSV but native string-building is fine
+
+**Work to do:**
+
+1. New routes in `src/routes/rfp.js`:
+   ```
+   GET /projects/:id/rfps/:rId/export.pdf
+   GET /projects/:id/rfps/:rId/export.csv
+   GET /projects/:id/rfps/:rId/export.xlsx
+   ```
+   Each loads the RFP + items + sub-items via the same query path used in the GET project view.
+
+2. New service `src/services/rfp-export.js` with three exported functions:
+   - `renderPdf(rfp, items, subItemsMap)` returns a Buffer
+   - `renderCsv(rfp, items, subItemsMap)` returns a string
+   - `renderXlsx(rfp, items, subItemsMap)` returns a Buffer
+
+3. PDF layout (single page if it fits, else paginated):
+   - Header: project name, RFP title/category, date generated, prepared-by user
+   - Table: parent line items with computed rollups, indented sub-lines underneath
+   - Footer: Grand Total (approved) — must match what the screen shows
+   - Use the existing recon logo + brand colors from `src/services/pdf.js`
+
+4. CSV columns: `parent_id, level (parent|sub), vendor, description, qty, unit_cost, total_cost, markup_pct, general_requirements_pct, total_with_markup, final_unit_cost, approved`. Header row, RFC 4180 quoting.
+
+5. XLSX layout: same columns as CSV but with:
+   - Bold header row
+   - Number formatting on cost/total cells ($#,##0.00)
+   - Light-gray fill on parent rows so they stand out from sub-lines
+   - Frozen header row
+
+6. UI: 3 button group at top of the RFP card in `rfp.ejs`. Buttons are `btn btn-secondary text-xs` with download icon. Target `_blank` not required since these are file downloads (Content-Disposition: attachment).
+
+**Acceptance:**
+- All three exports respect the current additive markup+GR math (D-140) — don't re-implement, just read `total_with_markup` from DB.
+- Grand totals across all three exports match each other and the on-screen total.
+- Sub-lines render under their parent in all three formats.
+
+**Cowork verifies** by downloading each format and spot-checking against the on-screen values.
+
+---
+
+## F-005 | BRIEF | from:cowork | 2026-05-20 19:10 UTC
+
+**Project SOV (and other rollup items) auto-populate from approved RFP line items.**
+
+Right now project_sov_items is manual data entry. Michael wants the RFP to flow into SOV automatically so a winning bid becomes the project's billing schedule with no re-typing.
+
+**Existing data model (verified via Supabase MCP):**
+- `project_rfps(id, job_id, category, status, ...)`
+- `rfp_line_items(id, rfp_id, parent_line_item_id, vendor, description, quantity, unit_cost, total_cost, markup_pct, general_requirements_pct, total_with_markup, final_unit_cost, approved, sort_order, location)`
+- `project_sov_items(...)` — schema not yet read. Hermes: read it first via `information_schema.columns` query through Supabase MCP and confirm structure before writing the mapper.
+- `project_draws(...)` and `project_payments(...)` — related but secondary. Focus on SOV for v1.
+
+**Open design questions (you make the call, post your decision in the ACK):**
+
+1. **Trigger** — auto-create on RFP item approve, OR on a "Finalize RFP → SOV" button click? My recommendation: button click for v1. Per-row auto-create gets messy if approval is toggled multiple times. Button is explicit.
+2. **Granularity** — one SOV row per approved RFP parent line, or one per approved sub-line? My recommendation: per parent line (the sub-lines are the bid detail; the SOV is what gets billed). The amount comes from the rolled-up `total_with_markup` of approved sub-lines.
+3. **Re-runs** — if user clicks Finalize twice, do we add duplicates or replace? Recommend: idempotent replace — delete existing SOV rows for this RFP, re-create.
+
+**Work to do (after your design ACK):**
+
+1. New service `src/services/rfp-to-sov.js`: `function syncRfpToSov(rfpId, userId)` returns `{created, updated, deleted}` counts.
+2. Hook in the route: button on RFP page "Push approved items to SOV" → POST `/projects/:id/rfps/:rId/sync-to-sov` → calls the service → flashes success.
+3. Backlink: SOV rows store `source_rfp_item_id` so we can show "from RFP" badge on the SOV page.
+4. SOV page (`/projects/:id/sov` or wherever): show "synced from RFP" indicator + link back to the source RFP item.
+
+**Acceptance:**
+- Click "Push to SOV" on an RFP → SOV table populated with N rows where N = approved parent line items.
+- Each SOV row has the right amount (matches RFP's `total_with_markup` rollup for that line).
+- Re-clicking is idempotent (no duplicates).
+- SOV rows show their RFP source.
+
+**Cowork verifies** by querying `project_sov_items` after a sync, comparing values to the RFP screen.
+
+---
+
 ## OPS-001 | VERIFIED | from:cowork | 2026-05-20 18:55 UTC
 
 Your deploy IS live. I was checking the wrong thing.

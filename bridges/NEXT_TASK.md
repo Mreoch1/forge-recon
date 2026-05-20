@@ -1,3 +1,3 @@
 # NEXT TASK
 
-2026-05-20 18:25 UTC — **P0: OPS-001 — Vercel deploy stuck**. Production at `forge-recon.vercel.app` serving a build from before commit `aff86a9` (6+ commits behind). Cowork can't reach the project (it's in Michael's personal Vercel acct, not the team MCP can see). Full brief + verified diagnostics in `cowork_to_hermes.md`. F-002 (email-on-assignment) is queued behind this — fix the deploy first so we can verify changes ship.
+2026-05-20 19:10 UTC — D-140 calc fix shipped + backfill applied (Cowork). Three new feature briefs queued for Hermes: F-005 (SOV auto-populate from RFP), F-006 (RFP export PDF/CSV/Excel), F-007 (RFP approval UX — AJAX auto-save). OPS-002 (webhook reconnect) still open in parallel. F-002 (email-on-assignment) remains queued behind OPS-002 since manual-deploy-per-push isn't tenable for that feature's iteration loop.
