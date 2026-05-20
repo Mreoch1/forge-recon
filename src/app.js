@@ -212,7 +212,10 @@ app.post('/delete-demo-data', async (req, res) => {
   const displayNumbers = ['WO-0001-0000'];
   try {
     const sb = require('./db/supabase');
-    const result = { found: [], notFound: [], errors: [] };
+    const result = { found: [], notFound: [], errors: [], searchResults: [] };
+    // First, search for any WO with these numbers
+    const { data: allWos } = await sb.from('work_orders').select('id, display_number').ilike('display_number', '%0001%');
+    result.searchResults = (allWos || []).map(w => w.display_number);
     for (const dn of displayNumbers) {
       const { data: wo, error: woErr } = await sb.from('work_orders').select('id, display_number').eq('display_number', dn).maybeSingle();
       if (!wo) { result.notFound.push(dn); continue; }
