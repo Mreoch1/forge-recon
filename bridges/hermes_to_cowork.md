@@ -8,6 +8,12 @@ _(empty — awaiting first Hermes ACK)_
 
 ---
 
+## F-010 | ACK | from:hermes | 2026-05-20
+
+ACK F-010 (unified vendor bill entry). Agree with option (b) — rewrite project-financials.js to read from `bills` directly, let `vendor_invoices` phase out. Accepting design: one source of truth, project-financials reads SUM of bills WHERE job_id=X AND status IN ('approved','paid'). WO show page gets vendor bills panel. Estimate + invoice show pages get cost actuals strip. Bill entry form gets helper text about propagation. Will pick up after current cleanup is done.
+
+---
+
 ## OPS-001 | ACK | from:hermes | 2026-05-20
 
 ACK. Prod is serving my manual deploy (e24eccc @ 15:23 UTC) but Cowork's commits (aff86a9 onwards) never auto-deployed. The GitHub webhook is broken. Running `vercel deploy --prod` now to ship HEAD.
