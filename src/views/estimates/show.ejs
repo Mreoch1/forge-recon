@@ -195,6 +195,15 @@ const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
     </div>
   <% } %>
 
+  <%# D-143: company default conditions & terms — same field that prints on every
+      invoice (Admin → Settings → "Default invoice conditions & terms"). %>
+  <% if (typeof defaultConditions !== 'undefined' && defaultConditions) { %>
+    <div class="card p-5 mb-6">
+      <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-2">Conditions &amp; terms <span class="text-xs normal-case font-normal text-recon-fog">(default — set in Admin → Settings)</span></h3>
+      <p class="text-sm whitespace-pre-line"><%= defaultConditions %></p>
+    </div>
+  <% } %>
+
   <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
     <div class="card p-5">
       <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-2">Dates</h3>

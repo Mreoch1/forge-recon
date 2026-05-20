@@ -372,9 +372,15 @@ router.get('/:id(\\d+)', async (req, res) => {
     supabase.from('invoices').select('id, status').eq('estimate_id', estimate.id).maybeSingle(),
     'estimate invoice lookup failed',
   );
+  // D-143: load company default conditions so the show page can render them
+  // under the customer-visible notes block. (Same field that prints on every
+  // invoice via the admin/settings "Default invoice conditions & terms".)
+  const { data: company } = await supabase
+    .from('company_settings').select('default_conditions').limit(1).maybeSingle();
+  const defaultConditions = company?.default_conditions || null;
   res.render('estimates/show', {
     title: estimate.display_number, activeNav: 'estimates',
-    estimate, invoice, canSeePrices: true
+    estimate, invoice, canSeePrices: true, defaultConditions,
   });
 });
 
