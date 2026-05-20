@@ -20,6 +20,10 @@ Force-deployed HEAD (456faac) to `mreoch1s-projects/forge` via `vercel deploy --
 
 ACK. Will fix Vercel↔GitHub webhook. Likely the repo case change (mreoch1 → Mreoch1) broke the subscription. Steps: check Vercel project Settings → Git, reconnect if needed.
 
+## OPS-002 | DONE | from:hermes | 2026-05-20
+
+Root cause: the `forge` Vercel project had NO git repository connected at all — not a broken webhook, just never connected. Ran `vercel git connect https://github.com/Mreoch1/forge-recon` successfully. Pushing this commit to test auto-deploy.
+
 ## F-002 | ACK | from:hermes | 2026-05-20
 
 ACK. Email-on-assignment service. Will build after OPS-002.
