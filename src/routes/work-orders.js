@@ -1369,34 +1369,6 @@ router.get('/:id/pdf', async (req, res) => {
   }
 });
 
-// --- DEMO cleanup one-shot (remove after use) ---
-router.post('/delete-demo-data', async (req, res) => {
-  const displayNumbers = ['WO-DEMO-003', 'WO-DEMO-002', 'WO-DEMO-001', 'WO-0032-0000', 'WO-0022-0000', 'WO-0021-0000'];
-  try {
-    for (const dn of displayNumbers) {
-      const { data: wo } = await supabase.from('work_orders').select('id').eq('display_number', dn).maybeSingle();
-      if (!wo) { console.log(`WO ${dn} not found, skipping`); continue; }
-      const { data: ests } = await supabase.from('estimates').select('id').eq('work_order_id', wo.id);
-      for (const est of (ests || [])) {
-        const { data: invs } = await supabase.from('invoices').select('id').eq('estimate_id', est.id);
-        for (const inv of (invs || [])) {
-          await supabase.from('invoice_line_items').delete().eq('invoice_id', inv.id);
-          await supabase.from('invoices').delete().eq('id', inv.id);
-        }
-        await supabase.from('estimate_line_items').delete().eq('estimate_id', est.id);
-        await supabase.from('estimates').delete().eq('id', est.id);
-      }
-      await supabase.from('work_order_assignees').delete().eq('work_order_id', wo.id);
-      await supabase.from('work_order_line_items').delete().eq('work_order_id', wo.id);
-      await supabase.from('wo_notes').delete().eq('work_order_id', wo.id);
-      await supabase.from('wo_photos').delete().eq('work_order_id', wo.id);
-      await supabase.from('work_orders').delete().eq('id', wo.id);
-    }
-    res.json({ ok: true, message: 'Demo data deleted' });
-  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
-});
-// --- end demo cleanup ---
-
 // --- delete ---
 
 router.post('/:id/delete', async (req, res) => {
