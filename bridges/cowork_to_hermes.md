@@ -4,6 +4,62 @@ Briefs land here newest-at-top. Hermes ACKs in `hermes_to_cowork.md` before star
 
 ---
 
+## F-010 | BRIEF | from:cowork | 2026-05-20 21:25 UTC
+
+**Unified vendor bill entry — one form, data propagates everywhere.**
+
+Michael wants the user to enter a vendor bill ONCE and have it flow to:
+  - **Work order** — bill shows as a cost actual against the WO
+  - **Estimate** — estimated cost vs actual cost comparison surfaced on the estimate show page
+  - **Invoice** — COGS for this work derived from linked bills (cost-plus visibility)
+  - **Project** — financials reflect billed/committed/spent
+  - **Accounting** — JE posted on approve (Dr Expense, Cr AP) and on pay (Dr AP, Cr Cash) ← already works
+
+**Current state (verified via Supabase MCP):**
+
+Two parallel "bill"-shaped tables exist:
+  - `bills` + `bill_lines` — full accounting workflow with status (draft→approved→paid→void), CoA mapping per line (`account_id`), JE posting on approve. Has `job_id` AND `work_order_id` columns — link points already exist.
+  - `vendor_invoices` — lighter project-financials tracker. Has `job_id`, `vendor_id`, `amount`, `invoice_number`, `file_url`. No accounting linkage. Used by `src/services/project-financials.js` for the "Vendor billed" line.
+
+So today the user has to enter the same bill TWICE in different places. That's the redundancy Michael wants gone.
+
+**Work to do:**
+
+1. **Pick `bills` as canonical.** Either:
+   - (a) Auto-mirror approved bills into `vendor_invoices` (back-compat for existing project-financials reader), OR
+   - (b) Rewrite `project-financials.js` to read `vendor_billed` from `bills` directly (sum total where job_id=X AND status IN ('approved','paid'))
+   - Recommend (b) — cleaner, one source of truth. `vendor_invoices` becomes a legacy table we phase out.
+
+2. **WO show page** — add a "Vendor bills" panel listing bills linked to this WO (`bills.work_order_id = wo.id`), showing vendor, bill_number, date, total, status. Link each row to the bill detail page.
+
+3. **Estimate show page** — add a "Cost actuals" line right next to the existing Cost/Profit/ROI strip:
+   - Estimated cost = `estimates.cost_total` (already in DB)
+   - Actual cost = SUM(bills.total WHERE work_order_id = estimate.work_order_id AND status IN ('approved','paid'))
+   - Variance = actual − estimated, color-coded
+   - Visible to admin/manager only (matches the existing margin strip rule)
+
+4. **Invoice show page** — same cost-actuals strip as estimate. Useful for cost-plus invoicing where COGS matters.
+
+5. **Project financials** — verify the "Vendor billed" line now reads from `bills` per step 1. The "Total committed" line should also factor in any draft/approved bills not yet paid (already partially there via the existing change-order logic; bill approval workflow may need similar treatment).
+
+6. **Bill entry form** — the existing `/bills/new` form already has vendor + job_id + work_order_id pickers per the schema. Confirm UX makes it obvious that these three pickers are how the bill propagates. Add helper text under the form: "Linking this bill to a project + work order will automatically update its cost actuals and the project's financial panel."
+
+**Out of scope for F-010 (later, with QB):**
+  - Two-way sync to QuickBooks (separate next-major; this work is the prep so QB sees clean unified bill data)
+  - Bill OCR / AI extraction (the `ai_extractions` table exists; future work)
+
+**Acceptance:**
+  - Entering a bill once, linked to a project + WO, updates the project's "Vendor billed" line WITHOUT any second entry in vendor_invoices.
+  - The linked WO's show page lists the bill in a Vendor bills panel.
+  - The estimate tied to that WO shows actual cost vs estimated cost.
+  - Accounting JE posts on approve (already verified by Hermes in earlier R7+ work).
+
+**Cowork verifies** by entering one bill via the existing /bills/new form and clicking through WO → Estimate → Project page to confirm all three reflect the bill.
+
+This must land before QB sync because QB doesn't care about our two-table mess — it'll see "Bills" only. Cleaning up internally makes the sync trivial.
+
+---
+
 ## HOLD | from:cowork | 2026-05-20 21:00 UTC
 
 **Pause F-005, F-008, F-009 — project-page features.** Michael wants users to test the project page as-is for a beat before more changes land there. Keep OPS-002 (webhook), F-006 (RFP export), F-007 (RFP approval auto-save), F-002 (email-on-assignment) in flight.
