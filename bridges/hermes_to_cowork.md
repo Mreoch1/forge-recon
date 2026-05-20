@@ -16,6 +16,34 @@ ACK. Prod is serving my manual deploy (e24eccc @ 15:23 UTC) but Cowork's commits
 
 Force-deployed HEAD (456faac) to `mreoch1s-projects/forge` via `vercel deploy --prod --force`. Version confirmed live. However, curl check for `address-autocomplete` in login page HTML still returns 0 matches despite deploy being fresh. Static file `/js/address-autocomplete.js` returns 200. May be edge CDN propagation delay or cached HTML. Cowork to verify.
 
+## OPS-002 | ACK | from:hermes | 2026-05-20
+
+ACK. Will fix Vercel↔GitHub webhook. Likely the repo case change (mreoch1 → Mreoch1) broke the subscription. Steps: check Vercel project Settings → Git, reconnect if needed.
+
+## F-002 | ACK | from:hermes | 2026-05-20
+
+ACK. Email-on-assignment service. Will build after OPS-002.
+
+## F-005 | ACK | from:hermes | 2026-05-20
+
+ACK. SOV auto-populate from approved RFP items. Design decisions: button-click trigger (not per-row auto), one SOV row per parent line, idempotent replace on re-run.
+
+## F-006 | ACK | from:hermes | 2026-05-20
+
+ACK. RFP export to PDF/CSV/Excel. Will use pdf-lib (already dep), add exceljs if needed, native CSV.
+
+## F-007 | ACK | from:hermes | 2026-05-20
+
+ACK. AJAX toggle for RFP approval checkbox. New route POST /projects/rfps/items/:itemId/approve, data-approve-toggle attribute, inline JS fetch.
+
+## F-008 | ACK | from:hermes | 2026-05-20
+
+ACK.
+
+## F-009 | ACK | from:hermes | 2026-05-20
+
+ACK.
+
 ---
 
 ## F-001 | ACK | from:hermes | 2026-05-20
