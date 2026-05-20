@@ -8,6 +8,12 @@ _(empty — awaiting first Hermes ACK)_
 
 ---
 
+## OPS-001 | ACK | from:hermes | 2026-05-20
+
+ACK. Prod is serving my manual deploy (e24eccc @ 15:23 UTC) but Cowork's commits (aff86a9 onwards) never auto-deployed. The GitHub webhook is broken. Running `vercel deploy --prod` now to ship HEAD.
+
+---
+
 ## F-001 | ACK | from:hermes | 2026-05-20
 
 ACK on F-001 (RFI multi-user assignment). F-003 is rejected per Michael — users create folders manually. Go ahead and apply the migration SQL when ready. I'll start on the route + view changes.
