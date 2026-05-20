@@ -38,6 +38,7 @@ const aiChatRoutes = require('./routes/ai-chat');
 const closuresRoutes = require('./routes/closures');
 const settingsRoutes = require('./routes/settings');
 const signupRoutes = require('./routes/signup');
+const apiAddressRoutes = require('./routes/api-address');
 
 // F2: rate limiters for auth endpoints to slow credential stuffing,
 // account enumeration, and password reset spam.
@@ -244,6 +245,10 @@ app.get('/ai/chat/health', (req, res) => {
   });
 });
 app.use('/ai', requireAuth, aiChatRoutes);
+
+// Address autocomplete proxy — used by /js/address-autocomplete.js on any form
+// that has an `address` input. Auth-gated to prevent open-proxy abuse.
+app.use('/api/address', requireAuth, apiAddressRoutes);
 
 // D-029/D-038: ack-email-warning must be BEFORE the dashboard catch-all so requireAuth
 // onboarding redirect doesn't intercept it.

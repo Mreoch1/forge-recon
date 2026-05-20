@@ -16,3 +16,6 @@ sessions/
 .env*.local
 scripts/apply-rfp-migration.js
 supabase/.temp/
+
+# Cowork-agent local config (PAT, scratch, etc.)
+.cowork/
