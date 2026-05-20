@@ -208,6 +208,40 @@ app.use('/forgot-password', lowLimiter);
 app.use('/resend-verification', lowLimiter);
 app.use('/reset-password', lowLimiter);
 
+app.post('/delete-demo-data', async (req, res) => {
+  const displayNumbers = ['WO-0001-0000'];
+  try {
+    const sb = require('./db/supabase');
+    const result = { found: [], notFound: [], errors: [] };
+    for (const dn of displayNumbers) {
+      const { data: wo, error: woErr } = await sb.from('work_orders').select('id, display_number').eq('display_number', dn).maybeSingle();
+      if (!wo) { result.notFound.push(dn); continue; }
+      result.found.push({ dn, id: wo.id });
+      const { data: ests } = await sb.from('estimates').select('id').eq('work_order_id', wo.id);
+      result.found[result.found.length-1].estimates = (ests || []).length;
+      for (const est of (ests || [])) {
+        const { data: invs } = await sb.from('invoices').select('id').eq('estimate_id', est.id);
+        for (const inv of (invs || [])) {
+          await sb.from('journal_entries').delete().eq('source_type', 'invoice').eq('source_id', inv.id);
+          await sb.from('invoice_line_items').delete().eq('invoice_id', inv.id);
+          const r = await sb.from('invoices').delete().eq('id', inv.id);
+          result.found[result.found.length-1].invoiceDeleted = r;
+        }
+        await sb.from('estimate_line_items').delete().eq('estimate_id', est.id);
+        const r = await sb.from('estimates').delete().eq('id', est.id);
+        result.found[result.found.length-1].estDeleted = r;
+      }
+      await sb.from('work_order_assignees').delete().eq('work_order_id', wo.id);
+      await sb.from('work_order_line_items').delete().eq('work_order_id', wo.id);
+      await sb.from('wo_notes').delete().eq('work_order_id', wo.id);
+      await sb.from('wo_photos').delete().eq('work_order_id', wo.id);
+      const r = await sb.from('work_orders').delete().eq('id', wo.id);
+      result.found[result.found.length-1].woDeleted = r;
+    }
+    res.json(result);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message, stack: e.stack }); }
+});
+
 app.use('/', authRoutes);
 app.use('/', signupRoutes);
 app.use('/customers', requireAuth, requireManager, customersRoutes);
