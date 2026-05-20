@@ -375,6 +375,24 @@ router.get('/:id', async (req, res) => {
   const decisions = decisionsResult.data;
   const rfps = rfpsResult.error ? [] : rfpsResult.data;
 
+  // F-001: load decision assignees (multi-user)
+  var decisionAssignees = {};
+  try {
+    if (decisions && decisions.length) {
+      var decIds = decisions.map(function(d){ return d.id; });
+      var { data: daData, error: daError } = await supabase
+        .from('decision_assignees')
+        .select('decision_id, user_id, users!inner(name)')
+        .in('decision_id', decIds);
+      if (!daError && daData) {
+        daData.forEach(function(a){
+          if (!decisionAssignees[a.decision_id]) decisionAssignees[a.decision_id] = [];
+          decisionAssignees[a.decision_id].push({ id: a.user_id, name: a.users?.name || 'Unknown' });
+        });
+      }
+    }
+  } catch(e) { /* table may not exist yet */ }
+
   // D-078: pull awarded RFP amounts into cost_committed
   if (rfps && rfps.length) {
     try {
@@ -516,10 +534,12 @@ router.get('/:id', async (req, res) => {
     sovTotalCurrent: (sovItems || []).reduce((s, i) => s + Number(i.current_billed || 0), 0),
     sovFmt: function(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; },
     // D-024c: RFI / decision log
-    decisions: (decisions || []).map(function(d) {
-      var usr = d.users || {};
-      return { ...d, assigned_to_name: usr.name || null };
-    }),
+    decisions: (function() {
+      return (decisions || []).map(function(d) {
+        var usr = d.users || {};
+        return { ...d, assigned_to_name: usr.name || null, assignees: decisionAssignees[d.id] || [] };
+      });
+    })(),
     // D-093: RFP / bid comparison
     rfps: rfps || [],
     rfpItemsMap,
@@ -968,15 +988,28 @@ router.post('/:id/decisions', async (req, res) => {
     setFlash(req, 'error', 'Question / description is required.');
     return res.redirect('/projects/' + id);
   }
-  const { error } = await supabase.from('project_decisions').insert({
+  // Normalize assigned_to to array (form submits checkboxes as assigned_to[])
+  var assignedTo = [].concat(req.body.assigned_to || []).filter(Boolean).map(Number);
+  var firstAssignee = assignedTo.length > 0 ? assignedTo[0] : null;
+
+  const { data: newDecision, error } = await supabase.from('project_decisions').insert({
     job_id: parseInt(id, 10),
     decision_type: decisionType,
     question,
     due_date: req.body.due_date || null,
-    assigned_to_user_id: req.body.assigned_to_user_id ? parseInt(req.body.assigned_to_user_id, 10) : null,
+    assigned_to_user_id: firstAssignee,
     created_by_user_id: req.session.userId || null,
-  });
+  }).select('id').maybeSingle();
   if (error) throw error;
+
+  // F-001: bulk-insert into decision_assignees for all selected users
+  if (newDecision && assignedTo.length > 0) {
+    var daRows = assignedTo.map(function(uid){
+      return { decision_id: newDecision.id, user_id: uid, assigned_by_user_id: req.session.userId || null };
+    });
+    var { error: daError } = await supabase.from('decision_assignees').upsert(daRows, { onConflict: 'decision_id,user_id', ignoreDuplicates: true });
+    if (daError) console.warn('[decisions] assignee insert failed:', daError.message);
+  }
   setFlash(req, 'success', 'Decision item added.');
   res.redirect('/projects/' + id);
 });

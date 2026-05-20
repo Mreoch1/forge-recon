@@ -41,12 +41,14 @@
         </div>
         <div class="min-w-[140px]">
           <label class="text-xs text-recon-fog block mb-1">Assigned to</label>
-          <select name="assigned_to_user_id" class="input text-sm">
-            <option value="">—</option>
+          <div class="border border-recon-mist rounded max-h-[120px] overflow-y-auto p-1 text-xs space-y-0.5 bg-white">
             <% (users || []).forEach(function(u){ %>
-              <option value="<%= u.id %>"><%= u.name %></option>
+              <label class="flex items-center gap-1.5 cursor-pointer hover:bg-recon-cloud px-1 py-0.5 rounded">
+                <input type="checkbox" name="assigned_to[]" value="<%= u.id %>" class="accent-recon-red">
+                <span><%= u.name %></span>
+              </label>
             <% }); %>
-          </select>
+          </div>
         </div>
         <button type="submit" class="btn btn-primary text-sm" style="margin-bottom:1px">Add</button>
       </form>
@@ -80,7 +82,7 @@
           </div>
           <p class="text-sm text-recon-charcoal m-0"><%= d.question %></p>
           <% if (d.answer) { %><p class="text-sm text-green-700 mt-1 m-0"><strong>Answer:</strong> <%= d.answer %></p><% } %>
-          <% if (d.assigned_to_name) { %><p class="text-xs text-recon-fog mt-1 m-0">Assigned to: <%= d.assigned_to_name %></p><% } %>
+          <% if (d.assignees && d.assignees.length) { %><p class="text-xs text-recon-fog mt-1 m-0">Assigned: <% d.assignees.forEach(function(a, i){ %><span class="inline-block bg-recon-cloud text-recon-charcoal rounded px-1.5 py-0.5 text-xs mr-1"><%= a.name %></span><% }); %></p><% } %>
           <% if (d.due_date) { %><p class="text-xs text-recon-fog mt-1 m-0">Due: <%= String(d.due_date).slice(0,10) %></p><% } %>
         </div>
       <% }); %>
