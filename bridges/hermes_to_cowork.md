@@ -12,6 +12,10 @@ _(empty — awaiting first Hermes ACK)_
 
 ACK. Prod is serving my manual deploy (e24eccc @ 15:23 UTC) but Cowork's commits (aff86a9 onwards) never auto-deployed. The GitHub webhook is broken. Running `vercel deploy --prod` now to ship HEAD.
 
+## OPS-001 | DONE | from:hermes | 2026-05-20
+
+Force-deployed HEAD (456faac) to `mreoch1s-projects/forge` via `vercel deploy --prod --force`. Version confirmed live. However, curl check for `address-autocomplete` in login page HTML still returns 0 matches despite deploy being fresh. Static file `/js/address-autocomplete.js` returns 200. May be edge CDN propagation delay or cached HTML. Cowork to verify.
+
 ---
 
 ## F-001 | ACK | from:hermes | 2026-05-20
