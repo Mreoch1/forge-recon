@@ -239,10 +239,14 @@ router.post('/projects/:id/rfps/:rId/items', requireManager, async (req, res) =>
   const uCost = parseFloat(unit_cost) || 0;
   const tCost = parseFloat(total_cost) || 0;
   const qty = parseFloat(quantity) || 0;
+  // D-140: GR was hardcoded at 6% on insert; now read from request, default 6.
+  const gr = parseFloat(req.body.general_requirements_pct);
+  const grPct = isFinite(gr) ? gr : 6;
 
-  // Auto-calculate total_with_markup: (total_cost + contractor_cost) * (1 + markup/100) * 1.06
+  // D-140: Markup and GR are ADDITIVE percentages applied once — not compounding.
+  //   total_with_markup = total_cost × (1 + (markup% + gr%) / 100)
   const baseCost = tCost || (uCost * qty) || (cCost + vCost);
-  const withMarkup = baseCost * (1 + markup / 100) * 1.06;
+  const withMarkup = baseCost * (1 + (markup + grPct) / 100);
 
   const { data, error } = await supabase
     .from('rfp_line_items')
@@ -257,6 +261,7 @@ router.post('/projects/:id/rfps/:rId/items', requireManager, async (req, res) =>
       unit_cost: uCost || null,
       total_cost: baseCost || null,
       markup_pct: markup,
+      general_requirements_pct: grPct,
       total_with_markup: withMarkup,
       final_unit_cost: baseCost > 0 ? withMarkup / (qty || 1) : 0,
     })
@@ -392,7 +397,8 @@ function computeSubLineTotals(params) {
   
   const computedUnit = cCost + vCost;
   const baseCost = computedUnit * qty;
-  const withMarkup = baseCost * (1 + markup / 100) * (1 + gr / 100);
+  // D-140: Markup + GR are ADDITIVE percentages applied once, not compounding.
+  const withMarkup = baseCost * (1 + (markup + gr) / 100);
   
   return {
     unit_cost: computedUnit,

@@ -407,9 +407,12 @@
       var cCost = parseFloat(form.querySelector('[name="contractor_cost"]')?.value) || 0;
       var vCost = parseFloat(form.querySelector('[name="vendor_cost"]')?.value) || 0;
       var markup = parseFloat(form.querySelector('[name="markup_pct"]')?.value) || 20;
+      var grRaw = parseFloat(form.querySelector('[name="general_requirements_pct"]')?.value);
+      var gr = isFinite(grRaw) ? grRaw : 6;
       var unit = cCost + vCost;
       var total = unit * qty;
-      var withMarkup = total * (1 + markup / 100) * 1.06;
+      // D-140: markup + GR are ADDITIVE percentages applied once, not compounding
+      var withMarkup = total * (1 + (markup + gr) / 100);
       var finalUnit = qty > 0 ? withMarkup / qty : 0;
       if (outputs.unit_cost) outputs.unit_cost.value = unit.toFixed(2);
       if (outputs.total_cost) outputs.total_cost.value = total.toFixed(2);
