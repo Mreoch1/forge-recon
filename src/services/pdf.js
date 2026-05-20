@@ -411,6 +411,12 @@ function generateEstimatePDF(estimate, company, stream) {
 
   if (estimate.notes) drawNotes(doc, estimate.notes);
 
+  // D-143: render company-default Conditions & terms on the estimate PDF
+  // (same field the invoice PDF prints). Prefers a per-estimate override if
+  // ever added; falls back to company_settings.default_conditions.
+  const estConditions = estimate.conditions || (company && company.default_conditions) || null;
+  if (estConditions) drawNotes(doc, 'Conditions: ' + estConditions);
+
   drawPaymentTerms(doc, estimate, company);
 
   // Customer signature / acceptance block + return-to instruction
