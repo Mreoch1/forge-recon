@@ -162,7 +162,7 @@
         <div class="px-5 py-2 border-b border-recon-mist bg-recon-deeper/10 flex items-center justify-between">
           <span class="text-xs font-medium text-recon-fog">Line items</span>
           <button onclick="document.getElementById('rfp-item-form-<%= rfp.id %>').classList.toggle('hidden')"
-                  class="text-sm text-recon-red hover:underline">+ Add item</button>
+                  class="btn btn-primary text-xs" style="padding:.3rem .7rem;">+ Add line item</button>
         </div>
 
         <!-- D-134: Add item form — description only per Michael's direction. Pricing lives on sub-lines. -->
@@ -238,7 +238,7 @@
                 <% var liMarkup = liHasSubs ? (children.some(function(s){return Number(s.markup_pct||20) !== Number(children[0].markup_pct||20);}) ? 'mixed' : (Number(children[0].markup_pct||20))) : (Number(item.markup_pct) || '—'); %>
                 <% var liGr = liHasSubs ? (children.some(function(s){return Number(s.general_requirements_pct||6) !== Number(children[0].general_requirements_pct||6);}) ? 'mixed' : (Number(children[0].general_requirements_pct||6))) : (Number(item.general_requirements_pct) || '—'); %>
                 <% var liApproved = liHasSubs ? (apprChildren.length === children.length ? true : false) : !!item.approved; %>
-                <tr class="bg-recon-deeper/20 hover:bg-recon-cloud/20" style="cursor:pointer" onclick="var n=this.nextElementSibling;while(n&&n.classList.contains('rfp-sub-row')){n.style.display=n.style.display==='none'?'':'none';n=n.nextElementSibling;}var ch=this.querySelector('.rfp-li-chevron');if(ch)ch.style.transform=(this.nextElementSibling&&this.nextElementSibling.style.display==='none')?'rotate(0deg)':'rotate(90deg)';">
+                <tr class="rfp-li-row bg-recon-deeper/20 hover:bg-recon-cloud/20 border-t-2 border-recon-mist/40" style="cursor:pointer" onclick="var n=this.nextElementSibling;while(n&&n.classList.contains('rfp-sub-row')){n.style.display=n.style.display==='none'?'':'none';n=n.nextElementSibling;}var ch=this.querySelector('.rfp-li-chevron');if(ch)ch.style.transform=(this.nextElementSibling&&this.nextElementSibling.style.display==='none')?'rotate(0deg)':'rotate(90deg)';">
                   <td>
                     <div class="flex items-start gap-1">
                       <% if (liHasSubs) { %><span class="rfp-li-chevron text-recon-fog text-xs mt-1 select-none inline-block" style="transition:transform 0.15s; transform:rotate(0deg);">▸</span><% } else { %><span class="inline-block w-3"></span><% } %>
@@ -264,9 +264,10 @@
                 <!-- D-105: Sub-line items under this line item (initially hidden, toggled by clicking parent) -->
                 <!-- D-105b: Add sub-line row + inline form (parent_id pre-filled) -->
                 <!-- D-138: collapse sub-rows by default so long RFPs stay scannable. Click parent to expand. -->
-                <tr class="rfp-sub-row bg-recon-deeper/5" style="display:none">
-                  <td colspan="10" class="pl-4 py-1.5">
-                    <button type="button" onclick="document.getElementById('add-sub-<%= item.id %>').classList.toggle('hidden'); event.stopPropagation();" class="text-xs text-recon-red hover:underline">+ Add sub-line under "<%= item.description || 'item' %>"</button>
+                <tr class="rfp-sub-row bg-recon-deeper/5 border-l-4 border-recon-red/30" style="display:none">
+                  <td colspan="10" class="pl-4 py-2">
+                    <button type="button" onclick="document.getElementById('add-sub-<%= item.id %>').classList.toggle('hidden'); event.stopPropagation();" class="btn btn-secondary text-xs" style="padding:.3rem .7rem;">+ Add sub-line</button>
+                    <span class="text-[10px] text-recon-fog ml-2">under "<%= (item.description||'item').slice(0,60) %><%= (item.description||'').length>60?'…':'' %>"</span>
                     <div id="add-sub-<%= item.id %>" class="hidden mt-2 p-2 bg-recon-cloud/10 border border-recon-mist rounded">
                       <!-- D-137: column headers for the sub-line input row so users know what each field is -->
                       <div class="rfp-sub-headers grid grid-cols-2 md:grid-cols-6 gap-2 mb-1 px-0.5 text-[10px] font-semibold uppercase tracking-wider text-recon-fog">
@@ -294,7 +295,7 @@
                 </tr>
                 <% children.forEach(function(sub){ %>
                   <% var subFid = 'rfp-sub-form-' + sub.id; var subDid = 'rfp-sub-del-' + sub.id; %>
-                  <tr class="rfp-sub-row" style="display:none">
+                  <tr class="rfp-sub-row border-l-4 border-recon-red/30" style="display:none">
                     <td class="pl-6 text-recon-fog text-xs">
                       <form id="<%= subFid %>" action="/projects/rfps/items/<%= sub.id %>" method="POST" style="display:contents">
                       <div class="flex flex-col gap-1">
