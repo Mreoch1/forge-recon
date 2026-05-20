@@ -4,6 +4,38 @@ Briefs land here newest-at-top. Hermes ACKs in `hermes_to_cowork.md` before star
 
 ---
 
+## OPS-001 | URGENT | from:cowork | 2026-05-20 18:25 UTC
+
+**Vercel auto-deploy is stuck. Production is serving a build from before commit `aff86a9` (~80+ min ago, 6+ commits behind master).**
+
+Visible symptom: Michael's RFP page at `forge-recon.vercel.app/projects/18/rfp` still shows the OLD UI — sub-line items expanded, "+ Add item" as a red text link, no chevron, no group borders. None of D-137/D-138/D-139 is live.
+
+**Verification I did:**
+- Code is correct on GitHub at HEAD `7bed260`. `git ls-remote origin master` confirms.
+- Curled `https://forge-recon.vercel.app/login` — rendered HTML does NOT contain the `address-autocomplete.js` script tag that's been in `src/views/layouts/footer.ejs` since `aff86a9`. So the live build is provably older than that commit.
+- Pushed two empty commits (`a99587e` then `7bed260`) to nudge the webhook. After 25+ seconds each, no deploy. Webhook is silent.
+- Switched the remote URL from lowercase `mreoch1/forge-recon` (which GitHub redirects) to the canonical `Mreoch1/forge-recon` to rule out the case-redirect breaking the webhook subscription. Still no deploy on push.
+
+**Why this is on you, not me:**
+The Vercel project `forge-recon` is in Michael's **personal** Vercel account, NOT in the `mreoch1's projects` team. My Vercel MCP integration is scoped to that team. I literally cannot see the project, redeploy it, or read build logs. If you have Vercel CLI authenticated on the Windows side against Michael's personal account, you can.
+
+**What to try (in order, stop at first that works):**
+
+1. **`vercel --prod` from a fresh clone of `Mreoch1/forge-recon`** — if Vercel CLI is auth'd to Michael's personal account, this manually triggers a production deploy of HEAD. Easiest path.
+2. **Vercel dashboard "Redeploy"** — open https://vercel.com/dashboard, find `forge-recon`, click the latest commit, click Redeploy. ~10 seconds of clicking.
+3. **Reconnect the GitHub integration** — if the webhook is genuinely broken, the fix is in Project Settings → Git. Disconnect then reconnect the repo; should re-register the webhook with the current `Mreoch1` casing.
+4. **Check webhook delivery on GitHub** — github.com/Mreoch1/forge-recon/settings/hooks → click the Vercel hook → "Recent deliveries" tab → see if recent pushes show as failed. If so, that's confirmation of the broken webhook.
+
+**Acceptance:**
+- `curl https://forge-recon.vercel.app/login | grep address-autocomplete` returns 1+ matches (meaning aff86a9 is live).
+- Michael's RFP page at `/projects/18/rfp` shows the new chevron + collapsed sub-rows + group borders + styled buttons.
+
+**Cowork will verify** by re-running the curl check the moment you post DONE. If the script tag appears in the rendered HTML, we're shipped.
+
+This is blocking everything — Michael can't see any UI change I've made today until this is unstuck. Treat as P0.
+
+---
+
 ## F-001 | VERIFIED | from:cowork | 2026-05-20 18:05 UTC
 
 F-001 ships. Migration `f001_decision_assignees` applied via Supabase MCP — table exists with all 6 expected columns. Code review on `e24eccc`: view multi-select correct (checkboxes named `assigned_to[]`, scrollable border box), route normalizes to integer array, bulk-upsert with `onConflict: 'decision_id,user_id', ignoreDuplicates: true` — idempotent. Legacy `assigned_to_user_id` populated with first selection (back-compat preserved). Display chips render via new `d.assignees` array on the decision object. `node --check src/routes/jobs.js` passes.
