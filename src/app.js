@@ -209,15 +209,14 @@ app.use('/resend-verification', lowLimiter);
 app.use('/reset-password', lowLimiter);
 
 app.post('/delete-demo-data', async (req, res) => {
-  const displayNumbers = ['WO-0001-0000'];
+  const displayNumbers = ['WO-DEMO-003', 'WO-DEMO-002', 'WO-DEMO-001', 'WO-0032-0000', 'WO-0022-0000', 'WO-0021-0000', 'WO-0001-0000'];
   try {
     const sb = require('./db/supabase');
-    const result = { found: [], notFound: [], errors: [], searchResults: [] };
-    // First, search for any WO with these numbers
-    const { data: allWos } = await sb.from('work_orders').select('id, display_number').ilike('display_number', '%0001%');
-    result.searchResults = (allWos || []).map(w => w.display_number);
+    const result = { found: [], notFound: [], errors: [] };
     for (const dn of displayNumbers) {
-      const { data: wo, error: woErr } = await sb.from('work_orders').select('id, display_number').eq('display_number', dn).maybeSingle();
+      // DB stores display_number without "WO-" prefix — strip it for the query
+      const cleanDn = dn.replace(/^WO-/, '');
+      const { data: wo, error: woErr } = await sb.from('work_orders').select('id, display_number').eq('display_number', cleanDn).maybeSingle();
       if (!wo) { result.notFound.push(dn); continue; }
       result.found.push({ dn, id: wo.id });
       const { data: ests } = await sb.from('estimates').select('id').eq('work_order_id', wo.id);
