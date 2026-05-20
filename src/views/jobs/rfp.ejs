@@ -238,8 +238,14 @@
                 <% var liMarkup = liHasSubs ? (children.some(function(s){return Number(s.markup_pct||20) !== Number(children[0].markup_pct||20);}) ? 'mixed' : (Number(children[0].markup_pct||20))) : (Number(item.markup_pct) || '—'); %>
                 <% var liGr = liHasSubs ? (children.some(function(s){return Number(s.general_requirements_pct||6) !== Number(children[0].general_requirements_pct||6);}) ? 'mixed' : (Number(children[0].general_requirements_pct||6))) : (Number(item.general_requirements_pct) || '—'); %>
                 <% var liApproved = liHasSubs ? (apprChildren.length === children.length ? true : false) : !!item.approved; %>
-                <tr class="bg-recon-deeper/20 hover:bg-recon-cloud/20" style="cursor:pointer" onclick="var n=this.nextElementSibling;while(n&&n.classList.contains('rfp-sub-row')){n.style.display=n.style.display==='none'?'':'none';n=n.nextElementSibling;}">
-                  <td><form id="<%= itemFormId %>" action="/projects/rfps/items/<%= item.id %>" method="POST" onclick="event.stopPropagation();"></form><textarea form="<%= itemFormId %>" name="description" class="input text-xs py-0.5 font-medium w-full" placeholder="Item description" rows="1" data-autosize><%= item.description %></textarea></td>
+                <tr class="bg-recon-deeper/20 hover:bg-recon-cloud/20" style="cursor:pointer" onclick="var n=this.nextElementSibling;while(n&&n.classList.contains('rfp-sub-row')){n.style.display=n.style.display==='none'?'':'none';n=n.nextElementSibling;}var ch=this.querySelector('.rfp-li-chevron');if(ch)ch.style.transform=(this.nextElementSibling&&this.nextElementSibling.style.display==='none')?'rotate(0deg)':'rotate(90deg)';">
+                  <td>
+                    <div class="flex items-start gap-1">
+                      <% if (liHasSubs) { %><span class="rfp-li-chevron text-recon-fog text-xs mt-1 select-none inline-block" style="transition:transform 0.15s; transform:rotate(0deg);">▸</span><% } else { %><span class="inline-block w-3"></span><% } %>
+                      <form id="<%= itemFormId %>" action="/projects/rfps/items/<%= item.id %>" method="POST" onclick="event.stopPropagation();"></form>
+                      <textarea form="<%= itemFormId %>" name="description" class="input text-xs py-0.5 font-medium w-full" placeholder="Item description" rows="1" data-autosize><%= item.description %></textarea>
+                    </div>
+                  </td>
                   <td class="text-right"><% if (liHasSubs) { %><span class="font-medium text-xs"><%= liQty %></span><% } else { %><input form="<%= itemFormId %>" name="quantity" type="number" step="any" value="<%= item.quantity != null ? item.quantity : '' %>" class="input text-xs py-0.5 w-16 text-right"><% } %></td>
                   <td class="text-right font-medium">$<%= (liHasSubs ? liUnit : Number(item.unit_cost) || 0).toFixed(2) %></td>
                   <td class="text-right font-medium">$<%= (liHasSubs ? liTotalCost : Number(item.total_cost) || 0).toFixed(2) %></td>
@@ -257,7 +263,8 @@
                 </tr>
                 <!-- D-105: Sub-line items under this line item (initially hidden, toggled by clicking parent) -->
                 <!-- D-105b: Add sub-line row + inline form (parent_id pre-filled) -->
-                <tr class="rfp-sub-row bg-recon-deeper/5">
+                <!-- D-138: collapse sub-rows by default so long RFPs stay scannable. Click parent to expand. -->
+                <tr class="rfp-sub-row bg-recon-deeper/5" style="display:none">
                   <td colspan="10" class="pl-4 py-1.5">
                     <button type="button" onclick="document.getElementById('add-sub-<%= item.id %>').classList.toggle('hidden'); event.stopPropagation();" class="text-xs text-recon-red hover:underline">+ Add sub-line under "<%= item.description || 'item' %>"</button>
                     <div id="add-sub-<%= item.id %>" class="hidden mt-2 p-2 bg-recon-cloud/10 border border-recon-mist rounded">
@@ -287,7 +294,7 @@
                 </tr>
                 <% children.forEach(function(sub){ %>
                   <% var subFid = 'rfp-sub-form-' + sub.id; var subDid = 'rfp-sub-del-' + sub.id; %>
-                  <tr class="rfp-sub-row">
+                  <tr class="rfp-sub-row" style="display:none">
                     <td class="pl-6 text-recon-fog text-xs">
                       <form id="<%= subFid %>" action="/projects/rfps/items/<%= sub.id %>" method="POST" style="display:contents">
                       <div class="flex flex-col gap-1">
