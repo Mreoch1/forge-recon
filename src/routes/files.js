@@ -81,10 +81,16 @@ async function checkedFileRouteRead(query, label) {
 router.get('/', requireAuth, async (req, res) => {
   if (isWorker(req)) return res.redirect('/files/workers/' + req.session.userId);
 
+  // D-142: Project bucket removed from the /files/ index — users access project
+  // files through the project page (the Files tile on /projects/:id, D-141).
+  // ENTITY_TYPES stays intact because the entity_type='project' mapping is still
+  // used internally for the per-project file area at /files/projects/:id.
+  const visibleBuckets = ENTITY_TYPES.filter(b => b.key !== 'project');
+
   res.render('files/index', {
     title: 'Files',
     activeNav: 'files',
-    buckets: ENTITY_TYPES,
+    buckets: visibleBuckets,
   });
 });
 
@@ -92,6 +98,9 @@ router.get('/', requireAuth, async (req, res) => {
 // Normalizes plural paths (e.g. /files/customers → entityType='customer')
 router.get('/:entityType', requireAuth, async (req, res) => {
   const entityType = normalizeEntityType(req.params.entityType);
+  // D-142: /files/projects (no id) redirects to /projects — users navigate from
+  // the project page's Files tile. The deep route /files/projects/:id still works.
+  if (entityType === 'project') return res.redirect(302, '/projects');
   const bucket = ENTITY_TYPES.find(b => b.key === entityType);
   if (!bucket) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Unknown entity type.' });
 
