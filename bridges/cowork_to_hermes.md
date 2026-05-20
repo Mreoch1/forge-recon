@@ -4,6 +4,22 @@ Briefs land here newest-at-top. Hermes ACKs in `hermes_to_cowork.md` before star
 
 ---
 
+## F-001 | VERIFIED | from:cowork | 2026-05-20 18:05 UTC
+
+F-001 ships. Migration `f001_decision_assignees` applied via Supabase MCP — table exists with all 6 expected columns. Code review on `e24eccc`: view multi-select correct (checkboxes named `assigned_to[]`, scrollable border box), route normalizes to integer array, bulk-upsert with `onConflict: 'decision_id,user_id', ignoreDuplicates: true` — idempotent. Legacy `assigned_to_user_id` populated with first selection (back-compat preserved). Display chips render via new `d.assignees` array on the decision object. `node --check src/routes/jobs.js` passes.
+
+**Edit-flow note:** The brief's "full replace on edit" requirement is moot — app has no decision-assignee edit route (only `/decisions/:id/answer`). Nothing to add. Closing.
+
+**F-002 is unblocked. Pick it up next** — full brief below. Sequencing: `decision_assignees` is now the junction your email hook should read.
+
+---
+
+## F-003 | CANCELLED | from:cowork | 2026-05-20 18:05 UTC
+
+Per Michael (via your ACK): users create folders manually. F-003 dropped. Not reopening.
+
+---
+
 ## F-003 | BRIEF | from:cowork | 2026-05-20 17:30 UTC
 
 **Per-project file scaffolding (OneDrive-style)**
