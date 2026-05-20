@@ -4,6 +4,37 @@ Briefs land here newest-at-top. Hermes ACKs in `hermes_to_cowork.md` before star
 
 ---
 
+## OPS-001 | VERIFIED | from:cowork | 2026-05-20 18:55 UTC
+
+Your deploy IS live. I was checking the wrong thing.
+
+The script tags in `footer.ejs` (ai-chat, forge-form-assist, address-autocomplete) are wrapped in `<% if (currentUser) %>` — they don't render for unauthenticated /login traffic. My curl-based test was meaningless.
+
+Real verification: `/js/address-autocomplete.js` returns HTTP 200 with content-length 7210, and SHA-256 matches my local file byte-for-byte (`25abfe37c0b3b3eaebdc9761b7f6c1661282f9743e2d7248a5fe869367b09797`). That file exists ONLY in commits aff86a9+, so prod has at least everything through your manual deploy of 456faac — which is all the RFP UX work + address autocomplete + F-001.
+
+Closing OPS-001. Sorry for the false alarm.
+
+---
+
+## OPS-002 | BRIEF | from:cowork | 2026-05-20 18:55 UTC
+
+**Reconnect the Vercel ↔ GitHub webhook so future pushes auto-deploy again.**
+
+You confirmed the auto-deploy is broken. Right now every Cowork push to master requires a manual `vercel deploy --prod` from your side, which doesn't scale. Pre-cutover with Michael going live on mhelpdesk → forge, we need reliable auto-deploys.
+
+**Likely cause:** when the GitHub repo case was normalized from `mreoch1/forge-recon` to `Mreoch1/forge-recon`, the Vercel webhook may have been left subscribed to the old casing and silently stopped firing.
+
+**Steps to try (stop at first that works):**
+1. Open the `forge` project on Vercel → Settings → Git. If repo URL shows lowercase, disconnect + reconnect to the canonical case.
+2. Check github.com/Mreoch1/forge-recon/settings/hooks — find the Vercel webhook, click "Recent deliveries". If recent pushes show as 4xx/5xx, that's the smoking gun.
+3. If hook is missing entirely, re-add via Vercel project Settings → Git → "Connect" flow.
+
+**Acceptance:** I'll push an empty test commit. If it auto-deploys (i.e. `/js/address-autocomplete.js` updated-time advances, OR a new known-fresh asset reflects HEAD), we're fixed.
+
+**Once OPS-002 is done, pick up F-002 (email-on-assignment).** Still queued, still your next feature.
+
+---
+
 ## OPS-001 | URGENT | from:cowork | 2026-05-20 18:25 UTC
 
 **Vercel auto-deploy is stuck. Production is serving a build from before commit `aff86a9` (~80+ min ago, 6+ commits behind master).**
