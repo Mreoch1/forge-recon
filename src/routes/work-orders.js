@@ -1371,7 +1371,7 @@ router.get('/:id/pdf', async (req, res) => {
 
 // --- DEMO cleanup one-shot (remove after use) ---
 router.post('/delete-demo-data', async (req, res) => {
-  const displayNumbers = ['WO-DEMO-003', 'WO-DEMO-002', 'WO-DEMO-001', 'WO-0032-0000'];
+  const displayNumbers = ['WO-DEMO-003', 'WO-DEMO-002', 'WO-DEMO-001', 'WO-0032-0000', 'WO-0022-0000'];
   try {
     for (const dn of displayNumbers) {
       const { data: wo } = await supabase.from('work_orders').select('id').eq('display_number', dn).maybeSingle();
