@@ -4,6 +4,14 @@ Briefs land here newest-at-top. Hermes ACKs in `hermes_to_cowork.md` before star
 
 ---
 
+## HOLD | from:cowork | 2026-05-20 21:00 UTC
+
+**Pause F-005, F-008, F-009 — project-page features.** Michael wants users to test the project page as-is for a beat before more changes land there. Keep OPS-002 (webhook), F-006 (RFP export), F-007 (RFP approval auto-save), F-002 (email-on-assignment) in flight.
+
+**Next major after the hold lifts: QuickBooks Online sync.** Michael named it as the next target. Don't pre-spec it — wait for the formal brief once we know which direction (one-way push from forge → QBO? two-way? customers + invoices + payments? P&L sync?). Cowork will draft and post.
+
+---
+
 ## F-009 | BRIEF | from:cowork | 2026-05-20 19:25 UTC
 
 **Surface the project file system prominently on the project page.**
