@@ -1,3 +1,3 @@
 # NEXT TASK
 
-2026-05-20 19:10 UTC — D-140 calc fix shipped + backfill applied (Cowork). Three new feature briefs queued for Hermes: F-005 (SOV auto-populate from RFP), F-006 (RFP export PDF/CSV/Excel), F-007 (RFP approval UX — AJAX auto-save). OPS-002 (webhook reconnect) still open in parallel. F-002 (email-on-assignment) remains queued behind OPS-002 since manual-deploy-per-push isn't tenable for that feature's iteration loop.
+2026-05-20 19:25 UTC — Five briefs queued for Hermes: F-005 (SOV from RFP), F-006 (RFP exports), F-007 (approval auto-save), F-008 (financials from RFP — likely chained off F-005), F-009 (surface existing file system on project page). OPS-002 (webhook reconnect) still open. Hermes: pick F-009 first (smallest + highest user-visible win), F-007 second (eliminates current pain point), then F-005 (which unlocks F-008). F-006 and OPS-002 in parallel as available.

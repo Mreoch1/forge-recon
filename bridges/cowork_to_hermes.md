@@ -4,6 +4,55 @@ Briefs land here newest-at-top. Hermes ACKs in `hermes_to_cowork.md` before star
 
 ---
 
+## F-009 | BRIEF | from:cowork | 2026-05-20 19:25 UTC
+
+**Surface the project file system prominently on the project page.**
+
+The file system is fully built and Michael didn't realize it. `/files/projects/:id` works, `folders` + `files` tables exist with full CRUD (38 folders + 2 files already in prod). Routes in `src/routes/files.js`: create-subfolder (`POST /folders/:id/subfolder`), upload (`POST /folders/:id/upload`), rename (`POST /folders/:id/rename`), delete (`POST /folders/:id/delete`), view-file (`GET /:id/view`), delete-file (`POST /:id/delete`).
+
+What's missing: **discoverability**. The project show page (`src/views/jobs/show.ejs` and/or `_project_header.ejs`) doesn't surface a link to the project's file area. Users have to know `/files/projects/<id>` exists.
+
+**Work to do:**
+
+1. On the project show page, add a prominent **Files** tile/card/tab with:
+   - Folder icon
+   - "N folders · M files" counts (query the folders/files tables filtered by entity_type='project' + entity_id=jobId)
+   - "Open files →" link to `/files/projects/<id>`
+2. If the project has zero root folder, render a "Create root folder" CTA that POSTs to a new endpoint OR auto-creates a root folder on first access. Your call.
+3. Make sure create-subfolder + upload work from the `/files/projects/<id>` page — verify the existing UX is decent and patch any rough edges (e.g., if the "new folder" button is hard to find, surface it more prominently).
+
+**Acceptance:**
+- Project show page shows a Files tile with live counts.
+- Clicking it lands on `/files/projects/<id>` with visible "Create folder" and "Upload file" actions.
+- Michael can create a folder + upload a file without any guesswork.
+
+**Cowork verifies** by clicking through one project end-to-end.
+
+---
+
+## F-008 | BRIEF | from:cowork | 2026-05-20 19:25 UTC
+
+**Project financials auto-populate from approved RFP items.**
+
+Sibling to F-005 (SOV sync). Michael wants approved RFP costs to flow into the project's financial command panel (`src/services/project-financials.js`, surfaced on the project page) automatically — currently those numbers are manual or partially derived.
+
+**Existing state to read first:**
+- `src/services/project-financials.js` — the existing rollup logic. Figure out which inputs it consumes (budget, committed costs, actuals, etc.) and decide which input becomes the auto-populated one from RFP.
+- The financial command panel lives on the project show page (d-007a per CHANGELOG). Read that view to see what columns/fields are displayed.
+
+**Recommended approach (your call to confirm in ACK):**
+1. After F-005 (SOV sync) lands, project_financials' "committed cost" column reads from `project_sov_items.contracted_amount` (or whatever the SOV stores). This is the cleanest chain: RFP → SOV → financials. One source of truth.
+2. If financials already reads from SOV, F-008 might be a no-op once F-005 lands. Verify before coding.
+3. If financials reads from a separate place that needs explicit population, build a parallel `syncRfpToFinancials` function or hook into the same `/sync-to-sov` route.
+
+**Acceptance:**
+- The financial command panel shows the committed cost from the approved RFP without manual entry.
+- Numbers match the RFP grand total (approved-only) for that project.
+
+**Cowork verifies** by approving an RFP item, syncing, and confirming the financials reflect the new commitment.
+
+---
+
 ## F-007 | BRIEF | from:cowork | 2026-05-20 19:10 UTC
 
 **RFP approval UX — auto-save approved checkbox without page reload.**
