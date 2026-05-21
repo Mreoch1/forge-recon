@@ -203,7 +203,7 @@ tools.search_customers = {
 
 tools.search_estimates = {
   description: 'Search estimates by number, job title, customer name, or filter by status.',
-  args: { query: 'string (optional) — partial number, job, or customer name', status: 'string (optional) — draft|sent|accepted|rejected|expired' },
+  args: { query: 'string (optional) — partial number, job, or customer name', status: 'string (optional) — new|draft|sent|pending|approved|rejected|expired' },
   needs_user: 'read',
   handler: async ({ query, status }, ctx) => {
     let q = supabase.from('estimates').select(`

@@ -33,7 +33,7 @@ const { sanitizePostgrestSearch } = require('../services/sanitize');
 const router = express.Router();
 
 const PAGE_SIZE = 25;
-const VALID_STATUSES = ['draft', 'sent', 'accepted', 'rejected', 'expired'];
+const VALID_STATUSES = ['new', 'draft', 'sent', 'pending', 'approved', 'rejected', 'expired'];
 const VALID_UNITS = ['ea', 'hr', 'sqft', 'lf', 'ton', 'lot'];
 const PAYMENT_TERMS_PRESETS = ['Due on receipt', 'Net 15', 'Net 30', 'Net 45', 'Net 60'];
 
@@ -535,7 +535,7 @@ async function statusTransition(req, res, fromStatus, toStatus, timestampField) 
 router.post('/:id/send', async (req, res, next) => {
   const estimate = await loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
-  if (estimate.status !== 'draft') {
+  if (estimate.status !== 'draft' && estimate.status !== 'new') {
     setFlash(req, 'error', `${estimate.display_number} is "${estimate.status}" — already sent.`);
     return res.redirect(`/estimates/${estimate.id}`);
   }
@@ -566,7 +566,7 @@ router.post('/:id/send', async (req, res, next) => {
 router.post('/:id/mark-sent', async (req, res) => {
   const estimate = await loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
-  if (estimate.status !== 'draft') {
+  if (estimate.status !== 'draft' && estimate.status !== 'new') {
     setFlash(req, 'error', `${estimate.display_number} is "${estimate.status}" — already marked sent.`);
     return res.redirect(`/estimates/${estimate.id}`);
   }
@@ -595,13 +595,15 @@ router.post('/:id/mark-sent', async (req, res) => {
   res.redirect(`/estimates/${estimate.id}`);
 });
 
-router.post('/:id/accept', (req, res) => statusTransition(req, res, 'sent', 'accepted', 'accepted_at'));
-router.post('/:id/reject', (req, res) => statusTransition(req, res, 'sent', 'rejected', null));
+router.post('/:id/accept', (req, res) => statusTransition(req, res, ['sent', 'pending'], 'approved', 'accepted_at'));
+router.post('/:id/reject', (req, res) => statusTransition(req, res, ['sent', 'pending'], 'rejected', null));
+router.post('/:id/mark-pending', (req, res) => statusTransition(req, res, 'sent', 'pending', null));
+router.post('/:id/approve', (req, res) => statusTransition(req, res, 'pending', 'approved', 'accepted_at'));
 
 router.post('/:id/line-approvals', async (req, res) => {
   const estimate = await loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
-  if (!['draft', 'sent', 'accepted'].includes(estimate.status)) {
+  if (!['new', 'draft', 'sent', 'pending'].includes(estimate.status)) {
     setFlash(req, 'error', `Cannot change approved items while estimate is "${estimate.status}".`);
     return res.redirect(`/estimates/${estimate.id}`);
   }
@@ -628,8 +630,8 @@ router.post('/:id/line-approvals', async (req, res) => {
 router.post('/:id/create-invoice', async (req, res) => {
   const estimate = await loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
-  if (!['draft', 'sent', 'accepted'].includes(estimate.status)) {
-    setFlash(req, 'error', `Estimate must be draft, sent, or accepted before invoicing. Current: ${estimate.status}.`);
+  if (!['sent', 'pending', 'approved', 'accepted'].includes(estimate.status)) {
+    setFlash(req, 'error', `Estimate must be sent, pending, or approved before invoicing. Current: ${estimate.status}.`);
     return res.redirect(`/estimates/${estimate.id}`);
   }
   if (req.body.approval_form === '1') {
@@ -641,8 +643,8 @@ router.post('/:id/create-invoice', async (req, res) => {
 router.get('/:id/create-invoice', async (req, res) => {
   const estimate = await loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
-  if (!['draft', 'sent', 'accepted'].includes(estimate.status)) {
-    setFlash(req, 'error', `Estimate must be draft, sent, or accepted before invoicing. Current: ${estimate.status}.`);
+  if (!['sent', 'pending', 'approved', 'accepted'].includes(estimate.status)) {
+    setFlash(req, 'error', `Estimate must be sent, pending, or approved before invoicing. Current: ${estimate.status}.`);
     return res.redirect(`/estimates/${estimate.id}`);
   }
   const { data: existingInv } = await checkedEstimateRead(
@@ -676,7 +678,7 @@ router.post('/:id/archive', async (req, res) => {
     return res.redirect(`/estimates/${est.id}`);
   }
   let newStatus = est.status;
-  if (est.status === 'draft' || est.status === 'sent') { newStatus = 'expired'; }
+  if (est.status === 'new' || est.status === 'draft' || est.status === 'sent') { newStatus = 'expired'; }
   const { error: archiveErr } = await supabase.from('estimates').update({
     archived_at: new Date().toISOString(), status: newStatus, updated_at: new Date().toISOString(),
   }).eq('id', est.id);
@@ -717,8 +719,8 @@ router.post('/:id/unarchive', async (req, res) => {
 router.post('/:id/generate-invoice', async (req, res) => {
   const estimate = await loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
-  if (!['draft', 'sent', 'accepted'].includes(estimate.status)) {
-    setFlash(req, 'error', `Estimate must be draft, sent, or accepted before invoicing. Current: ${estimate.status}.`);
+  if (!['sent', 'pending', 'approved', 'accepted'].includes(estimate.status)) {
+    setFlash(req, 'error', `Estimate must be sent, pending, or approved before invoicing. Current: ${estimate.status}.`);
     return res.redirect(`/estimates/${estimate.id}`);
   }
   const { data: existingInv } = await checkedEstimateRead(

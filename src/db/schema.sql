@@ -114,7 +114,7 @@ CREATE TABLE IF NOT EXISTS estimates (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   work_order_id INTEGER NOT NULL UNIQUE REFERENCES work_orders(id),  -- 1:1 with WO
   status TEXT NOT NULL DEFAULT 'draft'
-    CHECK(status IN ('draft','sent','accepted','rejected','expired')),
+    CHECK(status IN ('new','draft','sent','pending','approved','accepted','rejected','expired')),
   subtotal REAL NOT NULL DEFAULT 0,
   tax_rate REAL NOT NULL DEFAULT 0,
   tax_amount REAL NOT NULL DEFAULT 0,

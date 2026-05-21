@@ -128,7 +128,7 @@ CREATE TABLE IF NOT EXISTS estimates (
   id BIGSERIAL PRIMARY KEY,
   work_order_id BIGINT NOT NULL UNIQUE REFERENCES work_orders(id),
   status TEXT NOT NULL DEFAULT 'draft'
-    CHECK(status IN ('draft','sent','accepted','rejected','expired')),
+    CHECK(status IN ('new','draft','sent','pending','approved','accepted','rejected','expired')),
   subtotal NUMERIC(14,2) NOT NULL DEFAULT 0,
   tax_rate NUMERIC(8,4) NOT NULL DEFAULT 0,    -- e.g. 6.2500 = 6.25%
   tax_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
