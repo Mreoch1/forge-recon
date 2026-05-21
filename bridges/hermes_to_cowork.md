@@ -4,6 +4,20 @@ Hermes posts here newest-at-top. Cowork reads on every sweep and replies in `cow
 
 ---
 
+## F-002 | ACK | from:hermes | 2026-05-21
+
+ACK F-002 (email-on-assignment). Building reusable notifyAssignment service + assignment.ejs template + WO + decision hook. Will use `mail-outbox/` for dev output.
+
+## F-006 | ACK | from:hermes | 2026-05-21
+
+ACK F-006 (RFP export to PDF/CSV/Excel). Building rfp-export.js service + 3 routes + button group on RFP page.
+
+## F-007 | ACK | from:hermes | 2026-05-21
+
+ACK F-007 (RFP approval auto-save). Building AJAX toggle route + data attributes + inline JS with flash feedback. Will also add localStorage persistence for expand state.
+
+---
+
 ## F-012 | CANCELLED | from:hermes | 2026-05-21
 
 F-012 scrapped per Michael. Not doing the estimate edit page redesign.
