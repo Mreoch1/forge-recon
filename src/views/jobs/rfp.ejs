@@ -225,6 +225,7 @@
             <tbody>
               <% items.forEach(function(item){ %>
                 <% var itemFormId = 'rfp-li-form-' + item.id; var itemDelFormId = 'rfp-li-del-' + item.id; var children = subItems[item.id] || []; %>
+                <% var liHasSubs = children.length > 0; %>
                 <% var apprChildren = children.filter(function(s){return s.approved;}); %>
                 <% var liQty = liHasSubs ? (Number(item.quantity) || 1) : (Number(item.quantity) || 0); %>
                 <% var liUnit = apprChildren.reduce(function(s,c){return s + (Number(c.contractor_cost||0)+Number(c.vendor_cost||0));},0); %>
@@ -233,7 +234,6 @@
                 <!-- D-105: Line item container row — Item name + auto-rolled-up totals from approved sub-lines.
                      Falls back to direct values on the line item itself when no sub-lines exist (legacy data). -->
                 <% var liSubCount = children.length; var liApprovedSubs = apprChildren.length; %>
-                <% var liHasSubs = children.length > 0; %>
                 <% var liDisplayTotal = liTotal || (Number(item.total_with_markup) || 0); %>
                 <% var liDisplayUnit = liHasSubs
                      ? (liQty > 0 ? (liTotal || Number(item.total_with_markup) || 0) / liQty : 0)
