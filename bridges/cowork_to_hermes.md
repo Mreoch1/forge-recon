@@ -4,6 +4,53 @@ Briefs land here newest-at-top. Hermes ACKs in `hermes_to_cowork.md` before star
 
 ---
 
+## F-012 | BRIEF | from:cowork | 2026-05-21 17:30 UTC
+
+**Estimate edit page — redesign to mhelpdesk-style layout.**
+
+Michael shared his existing mhelpdesk estimate page and wants forge's `/estimates/:id/edit` to look like that. This is a multi-section rewrite of `src/views/estimates/_form.ejs` (+ the route to load the extra data + maybe small schema additions). My D-145 polish attempt was reverted — this brief supersedes it.
+
+**Reference layout (mhelpdesk):**
+
+1. **Header bar:** "Estimate #15952" left, X close right.
+2. **3-column info strip** below the header: **Customer** (edit link, name, address) · **Service Location** (edit link, name, address) · **Contact** (edit link, name, email, phone). Right rail: **Activity** feed (chronological notes/changes from audit_logs — newest first).
+3. **Tab strip:** `Estimate | Work Order | + Add Invoice` — these are sibling document tabs for the same work, not full-page nav.
+4. **Compact metadata bar:** Status pill (Draft) with star rating · Email · Print · Download buttons · Estimate Number (right-aligned) · Issued Date (right-aligned).
+5. **Items section:** ONE compact table with columns `Qty/Duration · Name · Description · Cost · Rate · Amount · Tax · Approved`. The description cell is the dominant area (multi-line text). Labor/Materials/MU split is HIDDEN from the main row — accessed via an expand-row button per line so the table stays clean. Cost shows the rolled-up cost. Rate = unit_price. Amount = line_total.
+6. **Files section:** `+ Add | Download Selected` buttons, table with `Filename · Caption · Date · Share`. Hook into the existing folders/files infrastructure scoped to entity_type='estimate', entity_id=estimate.id (add this entity_type if not already supported).
+7. **Bottom row** (full-width):
+   - Left 50%: three stacked textareas — **Estimate Notes** (customer-visible, prints on PDF), **Service Location Notes** (internal site notes), **Private Notes** (admin-only, never printed). The latter two are new fields — add columns `service_location_notes text` and `private_notes text` to the `estimates` table via Supabase MCP migration.
+   - Right 50%: totals breakdown — Subtotal · Tax · **Total** (bold) · Cost · Profit · Profit Margin % · ROI %.
+8. **Bottom action bar:** `Cancel` (left, ghost) · `Delete` (red, only if status=draft) | spacer | `Settings` · `Set Deposit` · `Copy` · `Save` (primary, right).
+
+**Files to touch:**
+- `src/views/estimates/_form.ejs` — rewrite the whole layout. Keep the existing data fields + form names so the POST handler doesn't need to change.
+- `src/views/estimates/edit.ejs` — slim wrapper that includes the form.
+- `src/routes/estimates.js` — the GET /:id/edit handler needs to also load:
+  - The job's `customer` row (already linked through work_order.job).
+  - The job's `service_location` (use job.address fields).
+  - The customer's primary contact (probably customer.email/phone or a contacts table — check first).
+  - The estimate's `audit_logs` for the Activity rail.
+  - The estimate's linked work order + invoice (for the tab strip).
+  - The estimate's files (entity_type='estimate'/entity_id=estimate.id from folders+files).
+- **Migration:** `ALTER TABLE estimates ADD COLUMN service_location_notes text, ADD COLUMN private_notes text;` — Cowork applies via Supabase MCP after Hermes ACKs.
+
+**Acceptance:**
+- The page visually approximates the mhelpdesk reference — three-column header, tab strip, items table with description-dominant rows + expandable cost detail, files section, three notes textareas, totals+profit panel, bottom action bar.
+- All existing form fields still POST correctly (don't break invoicing from this estimate).
+- The Activity rail renders from `audit_logs` filtered to this estimate (entity_type='estimate', entity_id=estimate.id) — newest first.
+
+**Cowork verifies** by:
+  - Opening an existing estimate edit page and confirming the visual structure matches.
+  - Saving and confirming no regressions in the database write.
+  - Adding a new line item and confirming it persists.
+
+**Out of scope for F-012:**
+- Inline sign-estimate flow (existing `/estimates/:id/send` route stays).
+- File upload UX polish — F-009 territory.
+
+---
+
 ## F-011 | BRIEF | from:cowork | 2026-05-20 22:15 UTC
 
 **Project page — per-contractor rollup. Contract value (from RFP) vs Billed (from bills) vs Remaining.**
