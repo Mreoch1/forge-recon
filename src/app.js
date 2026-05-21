@@ -208,6 +208,23 @@ app.use('/forgot-password', lowLimiter);
 app.use('/resend-verification', lowLimiter);
 app.use('/reset-password', lowLimiter);
 
+app.get('/check-feedback', async (req, res) => {
+  const sb = require('./db/supabase');
+  const [fbCount, errCount] = await Promise.all([
+    sb.from('user_feedback').select('*', { count: 'exact', head: true }),
+    sb.from('ai_chat_errors').select('*', { count: 'exact', head: true }),
+  ]);
+  // Grab latest 5 from each
+  const [fbLatest, errLatest] = await Promise.all([
+    sb.from('user_feedback').select('*').order('created_at', { ascending: false }).limit(5),
+    sb.from('ai_chat_errors').select('*').order('created_at', { ascending: false }).limit(5),
+  ]);
+  res.json({
+    user_feedback: { count: fbCount.count || 0, latest: fbLatest.data || [] },
+    ai_chat_errors: { count: errCount.count || 0, latest: errLatest.data || [] },
+  });
+});
+
 app.use('/', authRoutes);
 app.use('/', signupRoutes);
 app.use('/customers', requireAuth, requireManager, customersRoutes);
