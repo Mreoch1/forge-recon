@@ -189,7 +189,7 @@ async function getProjectFinancials(jobId) {
   );
 
   const total_committed =
-    rfp_committed + vendor_billed + vendorCommitFromCOs;
+    Math.max(rfp_committed, vendor_billed) + vendorCommitFromCOs;
 
   // Profit estimates
   const estimated_profit = revised_contract_value - total_committed;
