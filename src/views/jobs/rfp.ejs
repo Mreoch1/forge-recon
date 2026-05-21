@@ -226,7 +226,7 @@
               <% items.forEach(function(item){ %>
                 <% var itemFormId = 'rfp-li-form-' + item.id; var itemDelFormId = 'rfp-li-del-' + item.id; var children = subItems[item.id] || []; %>
                 <% var apprChildren = children.filter(function(s){return s.approved;}); %>
-                <% var liQty = liHasSubs ? (function(){for(var i=0;i<children.length;i++){var q=Number(children[i].quantity);if(q)return q;}return Number(item.quantity)||0;})() : (Number(item.quantity) || 0); %>
+                <% var liQty = liHasSubs ? 1 : (Number(item.quantity) || 0); %>
                 <% var liUnit = apprChildren.reduce(function(s,c){return s + (Number(c.contractor_cost||0)+Number(c.vendor_cost||0));},0); %>
                 <% var liTotalCost = (apprChildren.length > 0 ? apprChildren.reduce(function(s,c){return s + (Number(c.total_cost||0));},0) : children.reduce(function(s,c){return s + (Number(c.total_cost||0));},0)); %>
                 <% var liTotal = apprChildren.length > 0 ? apprChildren.reduce(function(s,c){return s + (Number(c.total_with_markup||0));},0) : children.reduce(function(s,c){return s + (Number(c.total_with_markup||0));},0); %>
