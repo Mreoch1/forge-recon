@@ -63,7 +63,7 @@ const actionSections = [
     emptyText: 'No drafts waiting.',
   },
   {
-    label: 'Bills awaiting approval',
+    label: 'Billing awaiting approval',
     count: billsToApproveCount,
     total: billsToApproveTotal,
     items: billsToApprove.map(b => ({
@@ -471,7 +471,7 @@ const actionSections = [
           <% actionSections.forEach(function(sec){
                var secHint = sec.label === 'Overdue invoices' ? 'Invoices past their due date and not paid. Send a reminder or call the customer.'
                           : sec.label === 'Estimates to send' ? 'Estimates still in draft &mdash; not yet emailed to the customer.'
-                          : sec.label === 'Bills awaiting approval' ? 'Vendor bills sitting in draft, waiting for an admin to approve before payment.'
+                          : sec.label === 'Billing awaiting approval' ? 'Vendor bills sitting in draft, waiting for an admin to approve before payment.'
                           : sec.label === 'Stale quotes' ? 'Estimates sent 7+ days ago with no response. Time to follow up.'
                           : '';
           %>
