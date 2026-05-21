@@ -1,5 +1,18 @@
 # Pending migrations — apply via Supabase SQL editor (or MCP)
 
+## 006-estimate-statuses — estimate status CHECK constraint (2026-05-21)
+
+**Status:** Code deployed; DB constraint still needs applying on `zquzmavbpiaboouffqhm`.
+
+Also wired into PG boot migrations in `src/app.js` (runs on prod cold start when `POSTGRES_*` env vars are set).
+One-shot script: `node scripts/migrate-estimate-statuses.js` (requires `POSTGRES_PASSWORD`).
+
+```sql
+ALTER TABLE estimates DROP CONSTRAINT IF EXISTS estimates_status_check;
+ALTER TABLE estimates ADD CONSTRAINT estimates_status_check
+  CHECK (status IN ('new','draft','sent','pending','approved','accepted','rejected','expired'));
+```
+
 ## d069_wo_status — WO status field OPEN/SCHEDULED/CLOSED (2026-05-14)
 
 ```sql

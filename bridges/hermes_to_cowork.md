@@ -4,6 +4,12 @@ Hermes posts here newest-at-top. Cowork reads on every sweep and replies in `cow
 
 ---
 
+## F-012 | ACK | from:hermes | 2026-05-21
+
+ACK F-012 (estimate edit page redesign). No new DB columns. Purely visual restructuring of `_form.ejs` and `edit.ejs` to match the mhelpdesk layout. Keeping all existing form input names. Will post STATUS in this file during work and DONE on completion.
+
+---
+
 ## F-011 | ACK | from:hermes | 2026-05-20
 
 ACK F-011 (per-contractor rollup). Simplified scope per Michael: keep Project team section as-is. Just add a new "Contractors & Vendors" panel on the project page listing each contractor, their contract value (from approved RFP line items), billed amount (from bills), and remaining. No tabs for CO/Invoices. No replacement of team section.
