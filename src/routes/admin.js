@@ -272,29 +272,6 @@ router.get('/ai-usage', async (req, res) => {
 // admin index redirect
 router.get('/', async (req, res) => { setFlash(req, 'info', 'Admin panel moved to Settings.'); res.redirect('/settings'); });
 
-// ── One-shot migration: 006-estimate-statuses ──────────────────────────────
-router.all('/migrate-estimate-statuses', async (req, res) => {
-  const { Client } = require('pg');
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
-  if (!url || !key) return res.status(500).send('Missing Supabase creds. URL:' + !!url + ' Key:' + !!key);
-  const projectRef = url.match(/https:\/\/([^.]+)/)[1];
-  // Use pooler port 6543 with service role key as password
-  const connStr = 'postgresql://postgres:' + encodeURIComponent(key) + '@db.' + projectRef + '.supabase.co:6543/postgres';
-  try {
-    const client = new Client({ connectionString: connStr, ssl: { rejectUnauthorized: false } });
-    await client.connect();
-    const sql = `ALTER TABLE estimates DROP CONSTRAINT IF EXISTS estimates_status_check;
-ALTER TABLE estimates ADD CONSTRAINT estimates_status_check
-  CHECK (status IN ('new','draft','sent','pending','approved','accepted','rejected','expired'));`;
-    await client.query(sql);
-    await client.end();
-    res.type('text').send('Migration 006-estimate-statuses ran OK');
-  } catch (e) {
-    res.status(500).send('Migration error: ' + e.message);
-  }
-});
-
 // ── Audit log ─────────────────────────────────────────────────────────────
 router.get('/audit', async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
