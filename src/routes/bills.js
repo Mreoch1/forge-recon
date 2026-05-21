@@ -270,40 +270,58 @@ router.get('/', async (req, res) => {
   });
 });
 
+// D-144: load open projects + open WOs so the bill form's Project/WO pickers
+// have real data to choose from (Hermes' F-010 added the pickers but the
+// route wasn't passing the dropdown data).
+async function loadProjectsAndWorkOrders() {
+  const [pRes, woRes] = await Promise.all([
+    supabase.from('jobs')
+      .select('id, title, status')
+      .not('status', 'in', '("closed","cancelled","archived","complete","completed")')
+      .order('id', { ascending: false })
+      .limit(500),
+    supabase.from('work_orders')
+      .select('id, display_number, status, jobs(title), customers(name)')
+      .not('status', 'in', '("closed","cancelled","complete")')
+      .order('id', { ascending: false })
+      .limit(500),
+  ]);
+  const projects = (pRes.data || []).map(j => ({ id: j.id, title: j.title || `Project #${j.id}` }));
+  const workOrders = (woRes.data || []).map(w => ({
+    id: w.id,
+    display_number: w.display_number,
+    job_title: w.jobs?.title || '',
+    customer_name: w.customers?.name || '',
+  }));
+  return { projects, workOrders };
+}
+
 router.get('/new', async (req, res) => {
   const { vendors, expenseAccounts } = await loadVendorsAndAccounts();
   if (vendors.length === 0) {
     setFlash(req, 'error', 'Add a vendor first.');
     return res.redirect('/vendors/new');
   }
+  const { projects, workOrders } = await loadProjectsAndWorkOrders();
   const bill = blankBill();
   const presetVendor = parseInt(req.query.vendor_id, 10);
   if (presetVendor && vendors.some(v => v.id === presetVendor)) bill.vendor_id = presetVendor;
 
-  // F-010: load projects + WOs for bill propagation pickers
-  const { data: jobsList } = await supabase.from('jobs').select('id, title').not('title', 'is', null).order('title');
-  const { data: woList } = await supabase.from('work_orders').select('id, display_number, jobs!left(title), customers!left(name)').order('created_at', { ascending: false }).limit(200);
-  const projects = (jobsList || []).map(function(j){ return { id: j.id, title: j.title }; });
-  const workOrders = (woList || []).map(function(w){
-    return { id: w.id, display_number: w.display_number, customer_name: w.customers?.name || null, job_title: w.jobs?.title || null };
-  });
-
   res.render('bills/new', {
     title: 'New bill', activeNav: 'bills',
-    bill, vendors, expenseAccounts, errors: {},
-    vendorName: presetVendor ? (vendors.find(v => v.id === presetVendor)?.name || '') : '',
-    projects: [],
-    workOrders: [],
+    bill, vendors, expenseAccounts, projects, workOrders, errors: {},
+    vendorName: presetVendor ? (vendors.find(v => v.id === presetVendor)?.name || '') : ''
   });
 });
 
 router.post('/', async (req, res) => {
   const { vendors, expenseAccounts } = await loadVendorsAndAccounts();
+  const { projects, workOrders } = await loadProjectsAndWorkOrders();
   const { errors, data } = await validateBill(req.body);
   if (Object.keys(errors).length) {
     return res.status(400).render('bills/new', {
       title: 'New bill', activeNav: 'bills',
-      bill: { id: null, ...data }, vendors, expenseAccounts, errors,
+      bill: { id: null, ...data }, vendors, expenseAccounts, projects, workOrders, errors,
       vendorName: data.vendor_id ? (vendors.find(v => String(v.id) === String(data.vendor_id))?.name || '') : ''
     });
   }
@@ -370,9 +388,10 @@ router.get('/:id/edit', async (req, res) => {
     return res.redirect(`/bills/${bill.id}`);
   }
   const { vendors, expenseAccounts } = await loadVendorsAndAccounts();
+  const { projects, workOrders } = await loadProjectsAndWorkOrders();
   res.render('bills/edit', {
     title: `Edit bill #${bill.id}`, activeNav: 'bills',
-    bill, vendors, expenseAccounts, errors: {},
+    bill, vendors, expenseAccounts, projects, workOrders, errors: {},
     vendorName: bill.vendor_name || (vendors.find(v => String(v.id) === String(bill.vendor_id))?.name || '')
   });
 });
@@ -385,11 +404,12 @@ router.post('/:id', async (req, res) => {
     return res.redirect(`/bills/${existing.id}`);
   }
   const { vendors, expenseAccounts } = await loadVendorsAndAccounts();
+  const { projects, workOrders } = await loadProjectsAndWorkOrders();
   const { errors, data } = await validateBill(req.body);
   if (Object.keys(errors).length) {
     return res.status(400).render('bills/edit', {
       title: `Edit bill #${existing.id}`, activeNav: 'bills',
-      bill: { ...existing, ...data }, vendors, expenseAccounts, errors,
+      bill: { ...existing, ...data }, vendors, expenseAccounts, projects, workOrders, errors,
       vendorName: data.vendor_id ? (vendors.find(v => String(v.id) === String(data.vendor_id))?.name || '') : ''
     });
   }
