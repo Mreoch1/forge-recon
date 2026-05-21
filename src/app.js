@@ -224,21 +224,24 @@ app.use('/invoices', requireAuth, requireManager, invoicesRoutes);
 app.use('/bills', requireAuth, requireManager, billsRoutes);
 
 // ── temp: migration endpoint (no auth) ──────────────────────────────────
-const { Client } = require('pg');
-app.all('/api/migrate-estimate-statuses', async (req, res) => {
+app.all('/migrate-status', async (req, res) => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
-  if (!url || !key) return res.status(500).send('Missing creds');
-  const ref = url.match(/https:\/\/([^.]+)/)[1];
-  const cs = 'postgresql://postgres:' + encodeURIComponent(key) + '@db.' + ref + '.supabase.co:6543/postgres';
+  if (!url || !key) return res.status(500).send('Missing creds. URL:' + !!url + ' Key:' + !!key);
   try {
+    const { createClient } = require('@supabase/supabase-js');
+    const supabase = createClient(url, key);
+    // We need DDL which REST API can't do. Try pg connection instead.
+    const { Client } = require('pg');
+    const ref = url.match(/https:\/\/([^.]+)/)[1];
+    const cs = 'postgresql://postgres:' + encodeURIComponent(key) + '@db.' + ref + '.supabase.co:6543/postgres';
     const c = new Client({ connectionString: cs, ssl: { rejectUnauthorized: false } });
     await c.connect();
-    await c.query('ALTER TABLE estimates DROP CONSTRAINT IF EXISTS estimates_status_check');
-    await c.query('ALTER TABLE estimates ADD CONSTRAINT estimates_status_check CHECK (status IN (\'new\',\'draft\',\'sent\',\'pending\',\'approved\',\'accepted\',\'rejected\',\'expired\'))');
+    await c.query("ALTER TABLE estimates DROP CONSTRAINT IF EXISTS estimates_status_check");
+    await c.query("ALTER TABLE estimates ADD CONSTRAINT estimates_status_check CHECK (status IN ('new','draft','sent','pending','approved','accepted','rejected','expired'))");
     await c.end();
-    res.send('OK');
-  } catch(e) { res.status(500).send('Err: ' + e.message); }
+    res.type('text').send('OK');
+  } catch(e) { res.status(500).send('Err: ' + e.message + ' | ' + e.stack); }
 });
 // ── end temp ────────────────────────────────────────────────────────────
 
