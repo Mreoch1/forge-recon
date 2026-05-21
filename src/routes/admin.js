@@ -272,6 +272,25 @@ router.get('/ai-usage', async (req, res) => {
 // admin index redirect
 router.get('/', async (req, res) => { setFlash(req, 'info', 'Admin panel moved to Settings.'); res.redirect('/settings'); });
 
+// ── One-shot migration: 006-estimate-statuses ──────────────────────────────
+router.get('/migrate-estimate-statuses', async (req, res) => {
+  const { createClient } = require('@supabase/supabase-js');
+  const { Client } = require('pg');
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+  if (!url || !key) return res.status(500).send('Missing Supabase creds');
+  const projectRef = url.match(/https:\/\/([^.]+)/)[1];
+  const connStr = 'postgresql://postgres:' + encodeURIComponent(key) + '@db.' + projectRef + '.supabase.co:6543/postgres';
+  const client = new Client({ connectionString: connStr });
+  await client.connect();
+  const sql = `ALTER TABLE estimates DROP CONSTRAINT IF EXISTS estimates_status_check;
+ALTER TABLE estimates ADD CONSTRAINT estimates_status_check
+  CHECK (status IN ('new','draft','sent','pending','approved','accepted','rejected','expired'));`;
+  await client.query(sql);
+  await client.end();
+  res.send('Migration 006-estimate-statuses ran OK');
+});
+
 // ── Audit log ─────────────────────────────────────────────────────────────
 router.get('/audit', async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
