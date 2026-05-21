@@ -271,6 +271,15 @@ router.get('/:id', async (req, res) => {
     console.warn('[financial-panel] failed to load for job', id, ':', e.message);
   }
 
+  // F-011: contractor rollup — contract value from RFP vs billed from bills
+  let contractorRollup = [];
+  try {
+    const { getProjectContractorRollup } = require('../services/project-contractor-rollup');
+    contractorRollup = await getProjectContractorRollup(id);
+  } catch (e) {
+    console.warn('[contractor-rollup] failed for job', id, ':', e.message);
+  }
+
   // R37n: load vendor_invoices + project_contractors (RPM-style data) alongside
   // FORGE-native tables. Plymouth Square (and future RPM imports) carry 200+
   // vendor invoices that need to render on the project show page.
@@ -524,6 +533,8 @@ router.get('/:id', async (req, res) => {
     // D-007a: Financial Command Panel
     projectFinancials,
     projectFinancialsError,
+    // F-011: contractor/vendor rollup
+    contractorRollup,
     // D-024a: customer payment ledger
     payments: (payments || []).map(p => ({ ...p })),
     paymentTotal: paymentTotal || 0,
