@@ -164,8 +164,13 @@
       <div>
         <div class="px-5 py-2 border-b border-recon-mist bg-recon-deeper/10 flex items-center justify-between">
           <span class="text-xs font-medium text-recon-fog">Line items</span>
-          <button onclick="document.getElementById('rfp-item-form-<%= rfp.id %>').classList.toggle('hidden')"
-                  class="btn btn-primary text-xs" style="padding:.3rem .7rem;">+ Add line item</button>
+          <div class="flex items-center gap-2">
+            <a href="/projects/<%= job.id %>/rfps/<%= rfp.id %>/export.pdf" class="btn btn-secondary text-xs" style="padding:.3rem .7rem;" download>PDF</a>
+            <a href="/projects/<%= job.id %>/rfps/<%= rfp.id %>/export.csv" class="btn btn-secondary text-xs" style="padding:.3rem .7rem;" download>CSV</a>
+            <a href="/projects/<%= job.id %>/rfps/<%= rfp.id %>/export.xlsx" class="btn btn-secondary text-xs" style="padding:.3rem .7rem;" download>XLSX</a>
+            <button onclick="document.getElementById('rfp-item-form-<%= rfp.id %>').classList.toggle('hidden')"
+                    class="btn btn-primary text-xs" style="padding:.3rem .7rem;">+ Add line item</button>
+          </div>
         </div>
 
         <!-- D-134: Add item form — description only per Michael's direction. Pricing lives on sub-lines. -->
@@ -256,7 +261,7 @@
                   <td class="text-right text-xs"><%= liGr %></td>
                   <td class="text-right font-medium">$<%= liDisplayTotal.toFixed(2) %></td>
                   <td class="text-right text-xs">$<%= liDisplayUnit.toFixed(2) %></td>
-                  <td class="text-center"><% if (liHasSubs) { %><span class="text-xs <%= liApproved ? 'text-green-600' : 'text-recon-fog' %>"><%= liApproved ? '✓' : '○' %></span><% } else { %><input form="<%= itemFormId %>" type="hidden" name="approved" value="0"><input form="<%= itemFormId %>" type="checkbox" name="approved" value="1" <%= item.approved ? 'checked' : '' %>><% } %></td>
+                  <td class="text-center"><% if (liHasSubs) { %><span class="text-xs <%= liApproved ? 'text-green-600' : 'text-recon-fog' %>"><%= liApproved ? '✓' : '○' %></span><% } else { %><input form="<%= itemFormId %>" type="hidden" name="approved" value="0"><input form="<%= itemFormId %>" type="checkbox" name="approved" value="1" <%= item.approved ? 'checked' : '' %> data-rfp-item-id="<%= item.id %>" data-approve-toggle><% } %></td>
                   <td class="text-right flex gap-1 items-center">
                     <span class="text-xs text-recon-fog mr-1" title="Approved sub-lines"><%= liApprovedSubs %>/<%= liSubCount %></span>
                     <button type="submit" form="<%= itemFormId %>" class="text-green-600 hover:text-green-800 text-xs font-bold" title="Save">&#10003;</button>
@@ -316,7 +321,7 @@
                     <td class="text-right"><input form="<%= subFid %>" name="general_requirements_pct" type="number" step="any" value="<%= sub.general_requirements_pct != null ? sub.general_requirements_pct : '6' %>" class="input text-xs py-0.5 w-14 text-right"></td>
                     <td class="text-right font-medium"><%= sub.total_with_markup != null ? '$' + Number(sub.total_with_markup).toFixed(2) : '-' %></td>
                     <td class="text-right font-medium"><%= sub.final_unit_cost != null ? '$' + Number(sub.final_unit_cost).toFixed(2) : '-' %></td>
-                    <td class="text-center"><input form="<%= subFid %>" type="hidden" name="approved" value="0"><input form="<%= subFid %>" type="checkbox" name="approved" value="1" <%= sub.approved ? 'checked' : '' %>></td>
+                    <td class="text-center"><input form="<%= subFid %>" type="hidden" name="approved" value="0"><input form="<%= subFid %>" type="checkbox" name="approved" value="1" <%= sub.approved ? 'checked' : '' %> data-rfp-item-id="<%= sub.id %>" data-approve-toggle></td>
                     <td class="text-right flex gap-1">
                       <button onclick="document.getElementById('<%= subFid %>').requestSubmit()" class="text-green-600 hover:text-green-800 text-xs font-bold cursor-pointer" title="Save">&#10003;</button>
                       <form id="<%= subDid %>" action="/projects/rfps/items/<%= sub.id %>/delete" method="POST" onsubmit="return confirm('Delete?')"></form>
@@ -519,5 +524,71 @@ window.RFP_SOURCES = [
   document.querySelectorAll('.rfp-vendor-autocomplete').forEach(function(el) {
     setupAutocompleteFromElement(el);
   });
+
+  // F-007: AJAX approval toggle — auto-save approved checkbox without page reload
+  document.querySelectorAll('input[data-approve-toggle]').forEach(function(cb) {
+    cb.addEventListener('change', function() {
+      var itemId = this.getAttribute('data-rfp-item-id');
+      var checked = this.checked ? 1 : 0;
+      var row = this.closest('tr');
+      fetch('/projects/rfps/items/' + itemId + '/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ approved: checked })
+      }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.ok) {
+          row.style.transition = 'background-color 0.25s';
+          row.style.backgroundColor = '#d1fae5';
+          setTimeout(function() { row.style.backgroundColor = ''; }, 400);
+        } else {
+          cb.checked = !cb.checked;
+        }
+      }).catch(function() {
+        cb.checked = !cb.checked;
+      });
+    });
+  });
+
+  // F-007 bonus: persist expand state of parent rows in localStorage
+  document.querySelectorAll('[data-toggle-parent]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var rfpId = this.getAttribute('data-rfp-id');
+      var parentId = this.getAttribute('data-parent-id');
+      if (!rfpId || !parentId) return;
+      var key = 'rfp-expand-' + rfpId;
+      var expanded = {};
+      try { expanded = JSON.parse(localStorage.getItem(key)) || {}; } catch(e) {}
+      var children = document.getElementById('children-' + parentId);
+      if (children) {
+        var isHidden = children.classList.contains('hidden');
+        if (isHidden) {
+          expanded[parentId] = true;
+        } else {
+          delete expanded[parentId];
+        }
+        localStorage.setItem(key, JSON.stringify(expanded));
+      }
+    });
+  });
+
+  // Restore expand state from localStorage on page load
+  (function() {
+    var expandBtns = document.querySelectorAll('[data-toggle-parent]');
+    if (!expandBtns.length) return;
+    var rfpId = expandBtns[0].getAttribute('data-rfp-id');
+    if (!rfpId) return;
+    var key = 'rfp-expand-' + rfpId;
+    var expanded = {};
+    try { expanded = JSON.parse(localStorage.getItem(key)) || {}; } catch(e) {}
+    Object.keys(expanded).forEach(function(pid) {
+      var btn = document.querySelector('[data-toggle-parent][data-parent-id="' + pid + '"]');
+      var children = document.getElementById('children-' + pid);
+      if (btn && children) {
+        children.classList.remove('hidden');
+        var icon = btn.querySelector('.chevron-icon');
+        if (icon) icon.textContent = '▼';
+      }
+    });
+  })();
 })();
 </script>

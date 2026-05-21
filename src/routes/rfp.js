@@ -427,4 +427,72 @@ router.post('/projects/rfps/items/reorder', requireManager, async (req, res) => 
   res.redirect(`/projects/${rfp?.job_id}/rfp`);
 });
 
+// ── F-007: POST /projects/rfps/items/:itemId/approve — AJAX toggle ──
+router.post('/projects/rfps/items/:itemId/approve', requireManager, async (req, res) => {
+  const itemId = parseInt(req.params.itemId, 10);
+  if (!itemId) return res.status(400).json({ ok: false, error: 'Invalid item id' });
+  const approved = req.body.approved === 1 || req.body.approved === '1' || req.body.approved === true;
+  const { error } = await supabase.from('rfp_line_items').update({ approved: approved ? 1 : 0 }).eq('id', itemId);
+  if (error) return res.status(500).json({ ok: false, error: error.message });
+  res.json({ ok: true, approved });
+});
+
+// ── F-006: RFP export routes (PDF, CSV, XLSX) ──────────────────────────
+const rfpExport = require('../services/rfp-export');
+
+router.get('/projects/:id/rfps/:rId/export.pdf', async (req, res) => {
+  const { data: rfp, error: rfpErr } = await supabase.from('project_rfps').select('*, jobs!left(title)').eq('id', req.params.rId).maybeSingle();
+  if (rfpErr) throw rfpErr;
+  if (!rfp) return res.status(404).send('RFP not found');
+  const { data: allItems, error: itemsErr } = await supabase.from('rfp_line_items').select('*').eq('rfp_id', rfp.id).order('sort_order');
+  if (itemsErr) throw itemsErr;
+  const items = allItems || [];
+  const parentItems = items.filter(i => !i.parent_line_item_id);
+  const subItemsMap = {};
+  items.filter(i => i.parent_line_item_id).forEach(i => {
+    (subItemsMap[i.parent_line_item_id] = subItemsMap[i.parent_line_item_id] || []).push(i);
+  });
+  const user = res.locals.currentUser;
+  const buf = await rfpExport.renderPdf(rfp, parentItems, subItemsMap, { projectTitle: rfp.jobs?.title || '', createdBy: user?.name || '' });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="rfp-${rfp.id}.pdf"`);
+  res.send(buf);
+});
+
+router.get('/projects/:id/rfps/:rId/export.csv', async (req, res) => {
+  const { data: rfp, error: rfpErr } = await supabase.from('project_rfps').select('*').eq('id', req.params.rId).maybeSingle();
+  if (rfpErr) throw rfpErr;
+  if (!rfp) return res.status(404).send('RFP not found');
+  const { data: allItems, error: itemsErr } = await supabase.from('rfp_line_items').select('*').eq('rfp_id', rfp.id).order('sort_order');
+  if (itemsErr) throw itemsErr;
+  const items = allItems || [];
+  const parentItems = items.filter(i => !i.parent_line_item_id);
+  const subItemsMap = {};
+  items.filter(i => i.parent_line_item_id).forEach(i => {
+    (subItemsMap[i.parent_line_item_id] = subItemsMap[i.parent_line_item_id] || []).push(i);
+  });
+  const csv = rfpExport.renderCsv(rfp, parentItems, subItemsMap);
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="rfp-${rfp.id}.csv"`);
+  res.send(csv);
+});
+
+router.get('/projects/:id/rfps/:rId/export.xlsx', async (req, res) => {
+  const { data: rfp, error: rfpErr } = await supabase.from('project_rfps').select('*').eq('id', req.params.rId).maybeSingle();
+  if (rfpErr) throw rfpErr;
+  if (!rfp) return res.status(404).send('RFP not found');
+  const { data: allItems, error: itemsErr } = await supabase.from('rfp_line_items').select('*').eq('rfp_id', rfp.id).order('sort_order');
+  if (itemsErr) throw itemsErr;
+  const items = allItems || [];
+  const parentItems = items.filter(i => !i.parent_line_item_id);
+  const subItemsMap = {};
+  items.filter(i => i.parent_line_item_id).forEach(i => {
+    (subItemsMap[i.parent_line_item_id] = subItemsMap[i.parent_line_item_id] || []).push(i);
+  });
+  const buf = await rfpExport.renderXlsx(rfp, parentItems, subItemsMap);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="rfp-${rfp.id}.xlsx"`);
+  res.send(buf);
+});
+
 module.exports = router;

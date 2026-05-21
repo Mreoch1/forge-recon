@@ -1,0 +1,40 @@
+<%#
+  emails/assignment.ejs — Assignment notification inner body.
+  Rendered by services/assignment-notify.js, then wrapped in layout.ejs.
+
+  Locals:
+    entity_label    — human-readable label of what was assigned (e.g. "WO-1042 · Jane Doe")
+    entity_type     — type string (e.g. "work_order", "job", "estimate")
+    assigned_by     — name of the user who made the assignment
+    deep_link       — full URL to the entity in FORGE
+    context         — optional object with extra details (shown as key-value pairs if present)
+    host            — PUBLIC_BASE_URL
+-%>
+<p style="margin-top:0;">Hi <strong><%= user_name %></strong>,</p>
+<p>
+  You've been assigned <strong><%= entity_label %></strong>
+  by <%= assigned_by %>.
+</p>
+
+<div style="text-align:center;margin:28px 0;">
+  <a href="<%= deep_link %>"
+     style="display:inline-block;background:#c00000;color:#ffffff;padding:14px 36px;border-radius:8px;text-decoration:none;font-size:15px;font-weight:600;">
+    Open in FORGE
+  </a>
+</div>
+
+<% if (typeof context === 'object' && context !== null) { %>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:20px 0;font-size:13px;">
+    <% Object.entries(context).forEach(([key, val]) => { %>
+      <tr>
+        <td style="color:#888;padding:6px 8px;border:1px solid #eee;text-transform:capitalize;"><%= key.replace(/_/g, ' ') %></td>
+        <td style="color:#333;padding:6px 8px;border:1px solid #eee;font-weight:500;"><%= val %></td>
+      </tr>
+    <% }) %>
+  </table>
+<% } %>
+
+<p style="font-size:13px;color:#888;">
+  If you have questions about this assignment,
+  contact <%= assigned_by %> or reply to this email.
+</p>
