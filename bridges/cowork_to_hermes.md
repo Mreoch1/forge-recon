@@ -4,6 +4,68 @@ Briefs land here newest-at-top. Hermes ACKs in `hermes_to_cowork.md` before star
 
 ---
 
+## F-011 | BRIEF | from:cowork | 2026-05-20 22:15 UTC
+
+**Project page — per-contractor rollup. Contract value (from RFP) vs Billed (from bills) vs Remaining.**
+
+Michael showed me his existing reconprojectmanagement.netlify.app screen and wants the equivalent on the forge project page. Concretely: a "Project Team & Finances" panel listing each contractor/vendor that's on the project, with their contract value, billed-to-date, and remaining. Each row expandable to show that vendor's individual bills. Three sub-tabs at the top: **Contractors**, **Change Orders**, **Invoices**. F-010 (unified bill entry) just shipped — bills are now the single source of truth for billed amounts, so this brief can rely on that.
+
+**Existing data model (verified):**
+- `rfp_line_items.vendor` is a TEXT name (not FK). For each approved sub-line on this project's RFPs, the vendor field identifies the contractor and `total_with_markup` is the contract amount line.
+- `bills.vendor_id` → `vendors.id` for billed amounts. Also `bills.job_id` matches the project, `bills.status IN ('approved','paid')` filters.
+- `contractors` table exists separately from `vendors`. Match by name (best-effort).
+- `change_orders` for the Change Orders sub-tab.
+
+**Work to do:**
+
+1. **New service** `src/services/project-contractor-rollup.js`. Export `getProjectContractorRollup(jobId)` returning an array of:
+   ```
+   {
+     vendor: 'DWG Plumbing',
+     vendor_id: 12 | null,        // matched to vendors table when possible
+     contact: { email, phone },   // from vendors or contractors row
+     description_lines: [...],    // distinct sub-line descriptions, top 3
+     contract_value: 218645.00,   // SUM approved sub-lines for this vendor on this project
+     billed: 193030.10,           // SUM bills for this vendor + job
+     remaining: 25614.90,
+     status: 'over_budget' | 'completed' | 'active' | 'pending',
+     bills: [{id, bill_number, description, total, status, bill_date}, ...]
+   }
+   ```
+   Sort by `contract_value DESC` by default.
+
+2. **Replace the "Project team" / "Project members" section on `src/views/jobs/show.ejs`** with a richer "Project Team & Finances" panel:
+   - Tab strip at top: Contractors (N) · Change Orders (M) · Invoices (K). Default tab: Contractors.
+   - Search + status filter + sort dropdown.
+   - Each contractor row: name (+ external link icon to `/vendors/<id>` or `/contractors/<id>`), status badge color-coded, total contract (right-aligned bold), remaining (color: green when >= 0, red when over). Click row to expand → reveals contact, description, bills table (invoice #, description, amount, edit/delete actions). Use `<details>` for native collapse.
+   - Change Orders tab: list `change_orders` for this project with status + amount.
+   - Invoices tab: project's customer invoices (filter `invoices.work_order_id` to WOs of this job).
+
+3. **Hide the legacy "Project members (1)" list** (Chris Reoch as "owner") OR move it to a smaller subordinate "Internal team" card. Don't delete; per Michael's "users testing" doctrine, keep the data intact, just de-emphasize.
+
+4. **No DB schema change.** All data exists.
+
+**Acceptance:**
+- On Ashtabula Towers (project 18), the panel renders contractor rows from the approved RFP sub-lines that ship there (DWG Plumbing, Ferguson, ES Repair Pros etc.).
+- Contract values match the RFP grand totals per vendor.
+- Bills section per contractor is empty (no bills entered yet) — should show "No bills yet" gracefully.
+- Status badges render correctly: a contractor with $0 billed against $X contract = "Pending"; >0 but <contract = "Active"; >= contract = "Completed"; > contract = "Over Budget" (red).
+- Change Orders and Invoices tabs render their lists from the existing tables.
+
+**Cowork verifies** by:
+  - SQL: `SELECT vendor, SUM(total_with_markup) FROM rfp_line_items WHERE rfp_id IN (SELECT id FROM project_rfps WHERE job_id=18) AND approved=true GROUP BY vendor`
+  - Compare to the panel.
+  - Then drop a test bill via `/bills/new` linked to project 18 + a vendor, verify it shows in that contractor's expand-out and that Remaining drops.
+
+**Out of scope for F-011 (later):**
+- Editing contract value inline (right now it's read-only, derived from RFP).
+- Bill OCR / AI upload — F-002 territory.
+- Two-way QB push of contractor data — QB sync next major.
+
+**Sequencing:** F-011 unblocks the project-page "is this useful for real work" question. Lift the HOLD on F-005/F-008 if you want — F-011 supersedes their cost-side analog (financials auto-pop is now mostly D-141 + F-010 + F-011; SOV sync is still a separate billing-schedule view for the customer side).
+
+---
+
 ## F-010 | BRIEF | from:cowork | 2026-05-20 21:25 UTC
 
 **Unified vendor bill entry — one form, data propagates everywhere.**
