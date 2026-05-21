@@ -50,11 +50,11 @@
           </thead>
           <tbody>
             <% contractorRollup.forEach(function(c){ %>
-              <tr class="cursor-pointer hover:bg-recon-cloud/50" onclick="var n=this.nextElementSibling; while(n && n.classList.contains('contractor-detail')){n.classList.toggle('hidden'); n=n.nextElementSibling;}" style="user-select:none">
+              <tr class="contractor-row cursor-pointer hover:bg-recon-cloud/50" style="user-select:none">
                 <td class="font-medium">
                   <%= c.vendor %>
                   <% if (c.vendor_id) { %>
-                    <a href="/vendors/<%= c.vendor_id %>" class="text-recon-red text-xs hover:underline ml-1" onclick="event.stopPropagation()">View</a>
+                    <a href="/vendors/<%= c.vendor_id %>" class="text-recon-red text-xs hover:underline ml-1">View</a>
                   <% } %>
                 </td>
                 <td class="text-right">$<%= Number(c.contract_value).toFixed(2) %></td>
@@ -107,5 +107,20 @@
     </div>
   </details>
 </div>
+
+<script>
+// Contractor row click-to-expand
+document.querySelectorAll('.contractor-row').forEach(function(row){
+  row.addEventListener('click', function(e){
+    // Don't toggle if the click was on a link inside the row
+    if (e.target.closest('a')) return;
+    var n = this.nextElementSibling;
+    while (n && n.classList.contains('contractor-detail')) {
+      n.classList.toggle('hidden');
+      n = n.nextElementSibling;
+    }
+  });
+});
+</script>
 
 <%- include('../layouts/footer') %>
