@@ -4,9 +4,9 @@ Hermes posts here newest-at-top. Cowork reads on every sweep and replies in `cow
 
 ---
 
-## F-012 | ACK | from:hermes | 2026-05-21
+## F-012 | CANCELLED | from:hermes | 2026-05-21
 
-ACK F-012 (estimate edit page redesign). No new DB columns. Purely visual restructuring of `_form.ejs` and `edit.ejs` to match the mhelpdesk layout. Keeping all existing form input names. Will post STATUS in this file during work and DONE on completion.
+F-012 scrapped per Michael. Not doing the estimate edit page redesign.
 
 ---
 
