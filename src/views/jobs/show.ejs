@@ -46,63 +46,32 @@
               <th class="text-right">Contract</th>
               <th class="text-right">Billed</th>
               <th class="text-right">Remaining</th>
-              <th>Status</th>
+              <th>Bills</th>
             </tr>
           </thead>
           <tbody>
             <% contractorRollup.forEach(function(c){ %>
-              <tr class="cursor-pointer" onclick="this.nextElementSibling.classList.toggle('hidden')">
+              <tr>
                 <td class="font-medium">
                   <%= c.vendor %>
                   <% if (c.vendor_id) { %>
-                    <a href="/vendors/<%= c.vendor_id %>" class="text-recon-red text-xs hover:underline ml-1" onclick="event.stopPropagation()">View</a>
+                    <a href="/vendors/<%= c.vendor_id %>" class="text-recon-red text-xs hover:underline ml-1">View</a>
                   <% } %>
                 </td>
                 <td class="text-right">$<%= Number(c.contract_value).toFixed(2) %></td>
                 <td class="text-right">$<%= Number(c.billed).toFixed(2) %></td>
                 <td class="text-right font-medium <%= c.remaining >= 0 ? 'text-green-700' : 'text-recon-red' %>">$<%= Number(c.remaining).toFixed(2) %></td>
                 <td>
-                  <span class="badge <%= c.status === 'over_budget' ? 'badge-danger' : c.status === 'completed' ? 'badge-success' : c.status === 'active' ? 'badge-info' : 'badge-secondary' %> text-xs"><%= c.status.replace('_',' ') %></span>
-                </td>
-              </tr>
-              <tr class="hidden">
-                <td colspan="5" class="p-0">
-                  <div class="bg-recon-cloud p-3 text-sm">
-                    <% if (c.contact && (c.contact.email || c.contact.phone)) { %>
-                      <p class="text-xs text-recon-fog mb-1">
-                        Contact: <%= c.contact.email || '' %><%= c.contact.email && c.contact.phone ? ' · ' : '' %><%= c.contact.phone || '' %>
-                      </p>
-                    <% } %>
-                    <% if (c.description_lines.length) { %>
-                      <p class="text-xs text-recon-fog mb-1">
-                        Scope: <%= c.description_lines.join('; ') %>
-                      </p>
-                    <% } %>
-                    <% if (c.bills && c.bills.length) { %>
-                      <table class="w-full text-xs mt-2">
-                        <thead>
-                          <tr class="text-recon-fog">
-                            <th class="text-left">Bill #</th>
-                            <th class="text-left">Date</th>
-                            <th class="text-right">Amount</th>
-                            <th>Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <% c.bills.forEach(function(b){ %>
-                            <tr>
-                              <td><a href="/bills/<%= b.id %>" class="text-recon-red hover:underline"><%= b.bill_number || '#' + b.id %></a></td>
-                              <td><%= b.bill_date ? String(b.bill_date).slice(0,10) : '—' %></td>
-                              <td class="text-right">$<%= Number(b.total).toFixed(2) %></td>
-                              <td class="text-center"><span class="badge <%= b.status === 'paid' ? 'badge-success' : 'badge-info' %> text-xs"><%= b.status %></span></td>
-                            </tr>
-                          <% }); %>
-                        </tbody>
-                      </table>
-                    <% } else { %>
-                      <p class="text-xs text-recon-fog italic">No bills yet.</p>
-                    <% } %>
-                  </div>
+                  <% if (c.bills && c.bills.length) { %>
+                    <select class="input text-xs" onchange="if(this.value) window.location.href='/bills/'+this.value" style="max-width:160px">
+                      <option value=""><%= c.bills.length %> bill<%= c.bills.length === 1 ? '' : 's' %></option>
+                      <% c.bills.forEach(function(b){ %>
+                        <option value="<%= b.id %>">$<%= Number(b.total).toFixed(2) %> — <%= b.bill_number || '#' + b.id %> (<%= b.status %>)</option>
+                      <% }); %>
+                    </select>
+                  <% } else { %>
+                    <span class="text-xs text-recon-fog">No bills</span>
+                  <% } %>
                 </td>
               </tr>
             <% }); %>
