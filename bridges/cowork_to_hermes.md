@@ -4,50 +4,49 @@ Briefs land here newest-at-top. Hermes ACKs in `hermes_to_cowork.md` before star
 
 ---
 
-## F-012 | BRIEF | from:cowork | 2026-05-21 17:30 UTC
+## F-012 | BRIEF (REVISED) | from:cowork | 2026-05-21 17:45 UTC
 
-**Estimate edit page — redesign to mhelpdesk-style layout.**
+**Estimate edit page — redesign to mhelpdesk-style LAYOUT only. Use only forge fields that already exist.**
 
-Michael shared his existing mhelpdesk estimate page and wants forge's `/estimates/:id/edit` to look like that. This is a multi-section rewrite of `src/views/estimates/_form.ejs` (+ the route to load the extra data + maybe small schema additions). My D-145 polish attempt was reverted — this brief supersedes it.
+Michael clarified: borrow the visual structure of his mhelpdesk page but DON'T introduce new fields just because mhelpdesk has them. No new DB columns, no fake stars, no "Set Deposit" button. The redesign is purely view/route work over the existing data model.
 
-**Reference layout (mhelpdesk):**
+**What to render (using existing data only):**
 
-1. **Header bar:** "Estimate #15952" left, X close right.
-2. **3-column info strip** below the header: **Customer** (edit link, name, address) · **Service Location** (edit link, name, address) · **Contact** (edit link, name, email, phone). Right rail: **Activity** feed (chronological notes/changes from audit_logs — newest first).
-3. **Tab strip:** `Estimate | Work Order | + Add Invoice` — these are sibling document tabs for the same work, not full-page nav.
-4. **Compact metadata bar:** Status pill (Draft) with star rating · Email · Print · Download buttons · Estimate Number (right-aligned) · Issued Date (right-aligned).
-5. **Items section:** ONE compact table with columns `Qty/Duration · Name · Description · Cost · Rate · Amount · Tax · Approved`. The description cell is the dominant area (multi-line text). Labor/Materials/MU split is HIDDEN from the main row — accessed via an expand-row button per line so the table stays clean. Cost shows the rolled-up cost. Rate = unit_price. Amount = line_total.
-6. **Files section:** `+ Add | Download Selected` buttons, table with `Filename · Caption · Date · Share`. Hook into the existing folders/files infrastructure scoped to entity_type='estimate', entity_id=estimate.id (add this entity_type if not already supported).
-7. **Bottom row** (full-width):
-   - Left 50%: three stacked textareas — **Estimate Notes** (customer-visible, prints on PDF), **Service Location Notes** (internal site notes), **Private Notes** (admin-only, never printed). The latter two are new fields — add columns `service_location_notes text` and `private_notes text` to the `estimates` table via Supabase MCP migration.
-   - Right 50%: totals breakdown — Subtotal · Tax · **Total** (bold) · Cost · Profit · Profit Margin % · ROI %.
-8. **Bottom action bar:** `Cancel` (left, ghost) · `Delete` (red, only if status=draft) | spacer | `Settings` · `Set Deposit` · `Copy` · `Save` (primary, right).
+1. **Header bar:** "Edit `<estimate.display_number>`" left, status pill right (use existing estimate.status: draft/sent/accepted/rejected/expired).
+2. **3-column info strip** below the header — read from `estimate.work_order.job.customer`:
+   - **Customer** — name (linked to `/customers/<id>`), address, email, phone.
+   - **Project/Site** — job title (linked to `/projects/<id>`), job.address + city/state/zip.
+   - **Estimate meta** — display_number, valid_until (date input), payment_terms (select), tax_rate (select). These are existing fields currently in the Header card.
+   - NO separate "Contact" column — customer's email/phone goes in the Customer column.
+   - NO Activity rail — kill that idea, audit_logs are visible elsewhere if needed.
+3. **Tab strip:** `Estimate | Work Order | + Add Invoice` as sibling-document tabs. Links to the existing `/work-orders/<id>` and `/invoices/new?estimate_id=<id>` routes. Just navigation, no new data.
+4. **Compact metadata bar:** Email · Print · Download buttons left; Created · Sent dates right. All from existing estimate fields.
+5. **Items table:** description-dominant rows; the Labor / Materials / Cost / MU% columns visible today get hidden behind a per-row expand button so the main row reads `Qty · Unit · Description · Rate · Line $ · Approved`. Same form fields/names as today so the POST handler doesn't change.
+6. **Files section:** existing folders+files infrastructure scoped to estimate.id if supported, otherwise omit for now and revisit when estimate files are a real ask. **Do not add a new entity_type just to fill space.**
+7. **Bottom row:**
+   - Left ~60%: a SINGLE notes textarea — the existing `estimate.notes` field, customer-visible. **No service_location_notes, no private_notes** — those are not real forge fields and Michael doesn't want them added.
+   - Right ~40%: totals card — Subtotal · Tax · **Total** (bold) · Cost (sum of line costs) · Profit (Total − Cost) · Profit Margin % · ROI %. All computed from existing line item fields.
+8. **Bottom action bar:** `Cancel` (ghost) and `Delete` (red, only when status=draft) on the left; `Copy` and `Save` (primary) on the right. **No `Set Deposit`, no `Settings`** — those aren't forge concepts.
+
+**Schema:** NONE. No DB migration. If a field doesn't exist in forge today, don't add it for F-012.
 
 **Files to touch:**
-- `src/views/estimates/_form.ejs` — rewrite the whole layout. Keep the existing data fields + form names so the POST handler doesn't need to change.
-- `src/views/estimates/edit.ejs` — slim wrapper that includes the form.
-- `src/routes/estimates.js` — the GET /:id/edit handler needs to also load:
-  - The job's `customer` row (already linked through work_order.job).
-  - The job's `service_location` (use job.address fields).
-  - The customer's primary contact (probably customer.email/phone or a contacts table — check first).
-  - The estimate's `audit_logs` for the Activity rail.
-  - The estimate's linked work order + invoice (for the tab strip).
-  - The estimate's files (entity_type='estimate'/entity_id=estimate.id from folders+files).
-- **Migration:** `ALTER TABLE estimates ADD COLUMN service_location_notes text, ADD COLUMN private_notes text;` — Cowork applies via Supabase MCP after Hermes ACKs.
+- `src/views/estimates/_form.ejs` — rewrite layout, keep all existing form input names so POST handler stays untouched.
+- `src/views/estimates/edit.ejs` — slim wrapper.
+- `src/routes/estimates.js` — GET /:id/edit just needs to additionally load the linked customer + job rows (probably already loaded via the work_order join — verify in `loadEstimate`). If the job/customer fields aren't reaching the view yet, expose them.
 
 **Acceptance:**
-- The page visually approximates the mhelpdesk reference — three-column header, tab strip, items table with description-dominant rows + expandable cost detail, files section, three notes textareas, totals+profit panel, bottom action bar.
-- All existing form fields still POST correctly (don't break invoicing from this estimate).
-- The Activity rail renders from `audit_logs` filtered to this estimate (entity_type='estimate', entity_id=estimate.id) — newest first.
+- Visual structure resembles the mhelpdesk reference: 3-col header, tab strip, compact items, single notes textarea, totals/profit panel, bottom action bar.
+- Every input on the page maps to an existing column in the `estimates` or `estimate_line_items` tables.
+- Submitting the form still saves correctly — no regressions.
+- No new DB columns added.
 
 **Cowork verifies** by:
-  - Opening an existing estimate edit page and confirming the visual structure matches.
-  - Saving and confirming no regressions in the database write.
-  - Adding a new line item and confirming it persists.
+- Inspecting the rendered DOM for any input whose `name` isn't in the existing schema.
+- Saving an edit and confirming the DB round-trip is clean.
 
-**Out of scope for F-012:**
-- Inline sign-estimate flow (existing `/estimates/:id/send` route stays).
-- File upload UX polish — F-009 territory.
+**Out of scope:**
+- Activity feed, star rating, Set Deposit, Service Location Notes, Private Notes, any new entity_type.
 
 ---
 
