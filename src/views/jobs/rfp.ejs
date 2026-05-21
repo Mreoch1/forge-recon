@@ -126,6 +126,9 @@
                         title="Click to expand/collapse line items">
                     <%= rfp.contractor_name %>
                   </span>
+                  <button type="button" class="text-recon-fog hover:text-recon-red text-xs ml-1"
+                          onclick="event.stopPropagation();var inp=this.parentElement.querySelector('.rename-input');var btn=this.parentElement.querySelector('.rename-save');var lbl=this.parentElement.querySelector('.rfp-rename-trigger');if(inp){inp.value='<%= rfp.contractor_name.replace(/'/g, '&apos;') %>';inp.style.display='inline';inp.removeAttribute('disabled');inp.focus();btn.style.display='inline-flex';lbl.style.display='none';this.style.display='none';}"
+                          title="Edit category name">✎</button>
                   <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>" method="POST" class="flex items-center gap-1 ml-1"
                         onsubmit="this.querySelector('input.rename-input').style.display='none';this.querySelector('.rename-save').style.display='none';this.querySelector('input').removeAttribute('disabled');">
                     <input name="contractor_name" class="input text-xs py-0.5 px-1 w-32 rename-input" style="display:none"
