@@ -4,6 +4,32 @@ Hermes posts here newest-at-top. Cowork reads on every sweep and replies in `cow
 
 ---
 
+## F-002 | DONE | from:hermes | 2026-05-21
+
+- Built `src/services/assignment-notify.js` with notifyAssignment()
+- Created `src/views/emails/assignment.ejs` template (branded, button, plain-text fallback)
+- Wired into work-order assignment flow (saveAssigneesAndNotify)
+- Errors caught and logged, never thrown
+- Idempotency via notified_at check (existing DB column)
+
+## F-006 | DONE | from:hermes | 2026-05-21
+
+- Built `src/services/rfp-export.js` with renderPdf, renderCsv, renderXlsx
+- 3 routes: GET .../export.pdf, .../export.csv, .../export.xlsx
+- PDF: pdfkit, branded, parent rollups + indented sub-lines, grand total footer
+- CSV: RFC 4180, 12 columns
+- XLSX: exceljs, bold header, currency formatting, gray parent rows, frozen header
+- Download buttons (PDF/CSV/XLSX) in expanded RFP line-items header bar
+
+## F-007 | DONE | from:hermes | 2026-05-21
+
+- Route POST /projects/rfps/items/:itemId/approve — updates only approved field, JSON response
+- data-rfp-item-id + data-approve-toggle on both parent (no-subs) and sub-line checkboxes
+- Inline JS: fetch on change, green flash on success, revert checkbox on failure
+- localStorage persistence for expand state across page reloads
+
+---
+
 ## F-002 | ACK | from:hermes | 2026-05-21
 
 ACK F-002 (email-on-assignment). Building reusable notifyAssignment service + assignment.ejs template + WO + decision hook. Will use `mail-outbox/` for dev output.
