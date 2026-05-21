@@ -137,11 +137,22 @@ async function getProjectFinancials(jobId) {
     );
   }
 
-  // ── 6. Vendor invoices ─────────────────────────────────────────────
-  const vendor_billed = await sumByJobId('vendor_invoices', 'amount', jobId);
+  // ── 6. Vendor bills (from bills table — single source of truth) ──
+  const { data: vendorBills, error: vbError } = await supabase
+    .from('bills')
+    .select('total, amount_paid')
+    .eq('job_id', jobId)
+    .in('status', ['approved', 'paid']);
+  if (vbError) throw vbError;
 
-  // ── 7. Bills — amount_paid ─────────────────────────────────────────
-  const total_spent = await sumByJobId('bills', 'amount_paid', jobId);
+  const vendor_billed = (vendorBills || []).reduce(
+    (s, r) => s + toNum(r.total), 0
+  );
+
+  // ── 7. Bills — amount_paid (what we've actually paid out) ─────────
+  const total_spent = (vendorBills || []).reduce(
+    (s, r) => s + toNum(r.amount_paid), 0
+  );
 
   // ── Derived values ─────────────────────────────────────────────────
   // D-141: if no manual contract_value is set on the job, auto-derive it from

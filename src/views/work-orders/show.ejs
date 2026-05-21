@@ -247,6 +247,25 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
 
       <!-- Files removed per user request -->
 
+      <!-- F-010: Vendor bills -->
+      <h2 class="ws-h-secondary mt-8">Vendor Bills</h2>
+      <% if (typeof bills !== 'undefined' && bills && bills.length) { %>
+        <div class="mb-4 space-y-1">
+          <% bills.forEach(function(b){ %>
+            <div class="text-sm flex items-center gap-2 py-1 border-b border-recon-mist last:border-b-0">
+              <span class="badge <%= b.status === 'paid' ? 'badge-success' : b.status === 'approved' ? 'badge-info' : 'badge-secondary' %> text-xs"><%= b.status %></span>
+              <span class="font-medium"><%= b.vendor_name %></span>
+              <span class="text-recon-fog text-xs"><%= b.bill_number ? '#' + b.bill_number : '' %></span>
+              <span class="ml-auto font-medium">$<%= Number(b.total || 0).toFixed(2) %></span>
+              <% if (b.bill_date) { %><span class="text-recon-fog text-xs"><%= String(b.bill_date).slice(0,10) %></span><% } %>
+              <a href="/bills/<%= b.id %>" class="text-recon-red text-xs hover:underline">View</a>
+            </div>
+          <% }); %>
+        </div>
+      <% } else { %>
+        <p class="text-sm text-recon-fog mb-4">No vendor bills linked to this work order.</p>
+      <% } %>
+
       <!-- Photo gallery -->
       <h2 class="ws-h-secondary mt-8">Photos</h2>
       <form action="/work-orders/<%= wo.id %>/photos" method="post" enctype="multipart/form-data" class="mb-4">

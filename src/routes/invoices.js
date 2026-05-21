@@ -340,9 +340,27 @@ router.get('/:id(\\d+)', async (req, res) => {
     const dueAt = new Date(String(invoice.due_date).slice(0, 10));
     if (!isNaN(dueAt.getTime()) && dueAt < new Date()) displayStatus = 'overdue';
   }
+
+  // F-010: actual cost from linked vendor bills
+  let actualCost = 0;
+  if (invoice.wo_id) {
+    try {
+      const { data: actualBills } = await supabase
+        .from('bills')
+        .select('total')
+        .eq('work_order_id', invoice.wo_id)
+        .in('status', ['approved', 'paid']);
+      actualCost = (actualBills || []).reduce(function(s, r) {
+        var n = Number(r.total);
+        return s + (isFinite(n) ? n : 0);
+      }, 0);
+    } catch (e) { /* best-effort */ }
+  }
+
   res.render('invoices/show', {
     title: invoice.display_number, activeNav: 'invoices',
-    invoice, displayStatus
+    invoice, displayStatus,
+    actualCost,
   });
 });
 

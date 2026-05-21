@@ -280,10 +280,20 @@ router.get('/new', async (req, res) => {
   const presetVendor = parseInt(req.query.vendor_id, 10);
   if (presetVendor && vendors.some(v => v.id === presetVendor)) bill.vendor_id = presetVendor;
 
+  // F-010: load projects + WOs for bill propagation pickers
+  const { data: jobsList } = await supabase.from('jobs').select('id, title').not('title', 'is', null).order('title');
+  const { data: woList } = await supabase.from('work_orders').select('id, display_number, jobs!left(title), customers!left(name)').order('created_at', { ascending: false }).limit(200);
+  const projects = (jobsList || []).map(function(j){ return { id: j.id, title: j.title }; });
+  const workOrders = (woList || []).map(function(w){
+    return { id: w.id, display_number: w.display_number, customer_name: w.customers?.name || null, job_title: w.jobs?.title || null };
+  });
+
   res.render('bills/new', {
     title: 'New bill', activeNav: 'bills',
     bill, vendors, expenseAccounts, errors: {},
-    vendorName: presetVendor ? (vendors.find(v => v.id === presetVendor)?.name || '') : ''
+    vendorName: presetVendor ? (vendors.find(v => v.id === presetVendor)?.name || '') : '',
+    projects: [],
+    workOrders: [],
   });
 });
 

@@ -939,9 +939,22 @@ router.get('/:id', async (req, res) => {
     }
   } catch (e) { /* best-effort */ }
 
+  // F-010: vendor bills linked to this WO
+  let bills = [];
+  try {
+    const { data: billData } = await supabase
+      .from('bills')
+      .select('id, bill_number, total, status, bill_date, due_date, vendors!left(name)')
+      .eq('work_order_id', wo.id)
+      .order('bill_date', { ascending: false });
+    bills = (billData || []).map(function(b) {
+      return { ...b, vendor_name: b.vendors?.name || '—' };
+    });
+  } catch (e) { /* best-effort */ }
+
   res.render('work-orders/show', {
     title: `WO-${wo.display_number}`, activeNav: 'work-orders',
-    wo, estimate, invoice, notes, photos, fileCount
+    wo, estimate, invoice, notes, photos, fileCount, bills
   });
 });
 

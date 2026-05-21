@@ -378,9 +378,27 @@ router.get('/:id(\\d+)', async (req, res) => {
   const { data: company } = await supabase
     .from('company_settings').select('default_conditions').limit(1).maybeSingle();
   const defaultConditions = company?.default_conditions || null;
+
+  // F-010: actual cost from linked vendor bills
+  let actualCost = 0;
+  if (estimate.work_order_id) {
+    try {
+      const { data: actualBills } = await supabase
+        .from('bills')
+        .select('total')
+        .eq('work_order_id', estimate.work_order_id)
+        .in('status', ['approved', 'paid']);
+      actualCost = (actualBills || []).reduce(function(s, r) {
+        var n = Number(r.total);
+        return s + (isFinite(n) ? n : 0);
+      }, 0);
+    } catch (e) { /* best-effort */ }
+  }
+
   res.render('estimates/show', {
     title: estimate.display_number, activeNav: 'estimates',
     estimate, invoice, canSeePrices: true, defaultConditions,
+    actualCost,
   });
 });
 

@@ -104,6 +104,18 @@ const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
     </div>
   <% } %>
 
+  <% if (showCosts && typeof actualCost !== 'undefined' && actualCost > 0) { %>
+    <% var costVariance = actualCost - costTotal; %>
+    <div class="card p-4 mb-6 bg-amber-50 border-amber-200">
+      <div class="flex flex-wrap items-center gap-6 text-sm">
+        <span><span class="text-recon-fog">Est. cost:</span> <strong>$<%= fmt(costTotal) %></strong></span>
+        <span><span class="text-recon-fog">Actual cost:</span> <strong>$<%= fmt(actualCost) %></strong></span>
+        <span><span class="text-recon-fog">Variance:</span> <strong class="<%= costVariance <= 0 ? 'text-green-700' : 'text-recon-red' %>"><%= costVariance >= 0 ? '+' : '' %>$<%= fmt(costVariance) %></strong></span>
+      </div>
+      <p class="text-xs text-recon-fog mt-1">From linked vendor bills &mdash; internal only.</p>
+    </div>
+  <% } %>
+
   <% if (invoice) { %>
     <div class="card p-4 mb-6 bg-green-50 border-green-200">
       <p class="text-sm">
