@@ -212,6 +212,7 @@ async function loadWorkOrder(id) {
   // Flatten nested joins to match view expectations
   const j = wo.jobs;
   const c = j ? j.customers : wo.customers;
+  wo.project_id = j ? j.id : null;
   wo.job_title = j ? j.title : null;
   wo.job_address = j ? j.address : null;
   wo.job_city = j ? j.city : null;
@@ -474,6 +475,7 @@ router.get('/', async (req, res) => {
       id, display_number, wo_number_main, wo_number_sub, parent_wo_id,
       status, scheduled_date, completed_date, created_at, unit_number,
       customer_id, customers!left(id, name),
+      job_id, jobs!left(id, title, customers!left(id, name)),
       assigned_to_user_id, users!left(name),
       work_order_assignees(users!work_order_assignees_user_id_fkey(id, name))
     `, { count: 'exact', head: false });
@@ -517,6 +519,8 @@ router.get('/', async (req, res) => {
     unit_number: r.unit_number,
     customer_id: r.customer_id || (r.jobs && r.jobs.customers ? r.jobs.customers.id : null),
     customer_name: r.customers?.name || (r.jobs && r.jobs.customers ? r.jobs.customers.name : null),
+    project_id: r.job_id,
+    project_title: r.jobs?.title || null,
     assignees: (r.work_order_assignees || []).map(a => ({ id: a.users?.id, name: a.users?.name })),
     assigned_name: r.users ? r.users.name : null,
   }));
@@ -536,25 +540,37 @@ router.get('/new', async (req, res) => {
 
   const [
     { data: customers, error: customersError },
+    { data: projects, error: projectsError },
     { data: users, error: usersError },
     { data: settings, error: settingsError },
   ] = await Promise.all([
     supabase.from('customers').select('id, name, email, phone, address, city, state, zip').order('name'),
+    supabase.from('jobs').select(`
+      id, title, customer_id, address, city, state, zip,
+      customers!left(id, name)
+    `).neq('title', '').order('title'),
     supabase.from('users').select('id, name').eq('active', 1).order('name'),
     supabase.from('company_settings').select('next_wo_main_number').eq('id', 1).maybeSingle(),
   ]);
   if (customersError) throw customersError;
+  if (projectsError) throw projectsError;
   if (usersError) throw usersError;
   if (settingsError) throw settingsError;
+
+  // Flatten customer name into each project
+  const projectsWithCustomer = (projects || []).map(p => ({
+    ...p,
+    customer_name: p.customers?.name || '',
+  }));
 
   // Read next number WITHOUT incrementing (just for display)
   const suggestedNumber = settings ? { display: numbering.formatDisplay(settings.next_wo_main_number, 0) } : { display: '' };
   res.render('work-orders/new', {
     title: 'New work order', activeNav: 'work-orders',
     wo: { id: null, display_number: '', unit_number: '', suggested_display_number: suggestedNumber.display,
-          customer_id: '', scheduled_date: '', scheduled_time: '', notes: '', description: '',
+          customer_id: '', project_id: '', scheduled_date: '', scheduled_time: '', notes: '', description: '',
           assignee_ids: [], lines: [] },
-    customers: customers || [], users: users || [],
+    customers: customers || [], projects: projectsWithCustomer, users: users || [],
     customerName: '', errors: {}, units: VALID_UNITS,
   });
 });
@@ -570,16 +586,32 @@ router.post('/', async (req, res) => {
     customer = data;
   }
 
+  const projectId = parseInt(req.body.project_id, 10) || null;
+
   const { customers: allCustomers, users } = await loadWorkOrderFormRefs();
 
   const { errors, data } = validateWorkOrder(req.body);
   if (!customer) errors.customer_id = 'Customer is required.';
 
   if (Object.keys(errors).length) {
+    // Reload projects for re-render
+    const { data: projects, error: projectsError } = await supabase
+      .from('jobs')
+      .select('id, title, customer_id, address, city, state, zip, customers!left(id, name)')
+      .neq('title', '').order('title');
+    if (projectsError) throw projectsError;
+    const projectsWithCustomer = (projects || []).map(p => ({ ...p, customer_name: p.customers?.name || '' }));
+
     return res.status(400).render('work-orders/new', {
       title: 'New work order', activeNav: 'work-orders',
-      wo: { id: null, customer_id: customerId || '', status: data.status || 'open', unit_number: data.unit_number || '', display_number: req.body.display_number || '', suggested_display_number: '', scheduled_date: data.scheduled_date || '', scheduled_time: data.scheduled_time || '', notes: data.notes || '', description: data.description || '', assignee_ids: normalizeArr(req.body.assignee_ids), lines: data.lines || [] },
-      customers: allCustomers || [], users: users || [], customerName: customer?.name || req.body.customer_search || '', errors, units: VALID_UNITS,
+      wo: { id: null, customer_id: customerId || '', project_id: projectId || '',
+            status: data.status || 'open', unit_number: data.unit_number || '',
+            display_number: req.body.display_number || '', suggested_display_number: '',
+            scheduled_date: data.scheduled_date || '', scheduled_time: data.scheduled_time || '',
+            notes: data.notes || '', description: data.description || '',
+            assignee_ids: normalizeArr(req.body.assignee_ids), lines: data.lines || [] },
+      customers: allCustomers || [], projects: projectsWithCustomer, users: users || [],
+      customerName: customer?.name || req.body.customer_search || '', errors, units: VALID_UNITS,
     });
   }
 
@@ -594,8 +626,14 @@ router.post('/', async (req, res) => {
       errors.display_number = `WO ${display} already exists.`;
       return res.status(400).render('work-orders/new', {
         title: 'New work order', activeNav: 'work-orders',
-        wo: { id: null, customer_id: customerId, status: data.status || 'open', unit_number: data.unit_number || '', display_number: req.body.display_number || '', suggested_display_number: '', scheduled_date: data.scheduled_date || '', scheduled_time: data.scheduled_time || '', notes: data.notes || '', description: data.description || '', assignee_ids: normalizeArr(req.body.assignee_ids), lines: data.lines || [] },
-        customers: allCustomers || [], users: users || [], customerName: customer?.name || '', errors, units: VALID_UNITS,
+        wo: { id: null, customer_id: customerId, project_id: projectId || '',
+              status: data.status || 'open', unit_number: data.unit_number || '',
+              display_number: req.body.display_number || '', suggested_display_number: '',
+              scheduled_date: data.scheduled_date || '', scheduled_time: data.scheduled_time || '',
+              notes: data.notes || '', description: data.description || '',
+              assignee_ids: normalizeArr(req.body.assignee_ids), lines: data.lines || [] },
+        customers: allCustomers || [], projects: [], users: users || [],
+        customerName: customer?.name || '', errors, units: VALID_UNITS,
       });
     }
   } else {
@@ -611,7 +649,7 @@ router.post('/', async (req, res) => {
       customer_id: customerId,
       unit_number: (req.body.unit_number || '').trim(),
       description: data.description || '',
-      job_id: null,
+      job_id: projectId,
       parent_wo_id: null,
       wo_number_main: main,
       wo_number_sub: sub,
@@ -977,11 +1015,16 @@ router.get('/:id/edit', async (req, res) => {
     .from('customers')
     .select('id, name, email, phone, address, city, state, zip')
     .order('name');
+  const { data: projects } = await supabase
+    .from('jobs')
+    .select('id, title, customer_id, address, city, state, zip, customers!left(id, name)')
+    .neq('title', '').order('title');
+  const projectsWithCustomer = (projects || []).map(p => ({ ...p, customer_name: p.customers?.name || '' }));
 
   res.render('work-orders/edit', {
     title: `Edit WO-${wo.display_number}`, activeNav: 'work-orders',
-    wo: { ...wo, assignee_ids: (wo.assignees || []).map(a => a.id).filter(Boolean) },
-    customers: customers || [], users: users || [], errors: {}, units: VALID_UNITS
+    wo: { ...wo, project_id: wo.job_id, assignee_ids: (wo.assignees || []).map(a => a.id).filter(Boolean) },
+    customers: customers || [], projects: projectsWithCustomer, users: users || [], errors: {}, units: VALID_UNITS
   });
 });
 
@@ -1033,7 +1076,7 @@ router.post('/:id', async (req, res) => {
         assignee_ids: normalizeAssigneeIds(req.body.assignee_ids).filter(Boolean),
         display_number: req.body.display_number || existing.display_number
       },
-      customers: [], users: users || [], errors, units: VALID_UNITS
+      customers: [], projects: [], users: users || [], errors, units: VALID_UNITS
     });
   }
 
@@ -1048,6 +1091,8 @@ router.post('/:id', async (req, res) => {
   const nextNotes = Object.prototype.hasOwnProperty.call(req.body, 'notes')
     ? data.notes
     : existing.notes;
+
+  const newProjectId = parseInt(req.body.project_id, 10) || null;
 
   const { error: rpcErr } = await supabase.rpc('update_work_order_with_lines', {
     wo_id: parseInt(existing.id, 10),
@@ -1074,6 +1119,7 @@ router.post('/:id', async (req, res) => {
       status: data.status,
       assigned_to_user_id: assignmentFields.assigned_to_user_id,
       assigned_to: assignmentFields.assigned_to,
+      job_id: newProjectId,
     })
     .eq('id', existing.id);
   if (assignUpdateErr) throw assignUpdateErr;

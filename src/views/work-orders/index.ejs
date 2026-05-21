@@ -111,8 +111,8 @@
             <td><span class="wol-dot <%= dotClass %>"></span></td>
             <td><span class="wol-num">WO-<%= w.display_number %></span></td>
             <td>
-              <span class="wol-customer"><%= w.customer_name %></span>
-              <div class="wol-job-title"><%= w.job_title %></div>
+            <span class="wol-customer"><%= w.project_title || w.customer_name %></span>
+            <div class="wol-job-title"><%= w.project_title ? w.customer_name : '' %></div>
             </td>
             <td><span class="badge badge-<%= w.status %>" title="<%= statusHint %>"><%= w.status.replace('_',' ') %></span></td>
             <td class="wol-meta"><%= (w.scheduled_date || '—').slice(0,10) %></td>

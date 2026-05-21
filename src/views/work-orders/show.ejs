@@ -301,8 +301,22 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
       <% } %>
     </div>
 
-    <!-- RIGHT: customer + documents -->
+    <!-- RIGHT: project + customer + documents -->
     <div>
+
+      <!-- Project link (if tied to a project) -->
+      <% if (wo.job_title) { %>
+        <h2 class="ws-h-secondary">Project</h2>
+        <div class="ws-cust mb-4">
+          <div class="ws-cust-name">
+            <a href="/projects/<%= wo.project_id %>" class="hover:text-recon-red"><%= wo.job_title %></a>
+          </div>
+          <% const projAddr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(', '); %>
+          <% if (projAddr) { %>
+            <div class="ws-cust-line"><%= projAddr %></div>
+          <% } %>
+        </div>
+      <% } %>
 
       <!-- Customer card -->
       <h2 class="ws-h-secondary">Customer</h2>

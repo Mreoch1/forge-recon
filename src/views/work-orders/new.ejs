@@ -7,7 +7,7 @@
   <h1 class="page-h1 mb-6">New work order</h1>
 
   <%- include('_form', {
-    wo: wo, customers: customers, users: users, errors: errors, units: units,
+    wo: wo, customers: customers, projects: projects, users: users, errors: errors, units: units,
     formAction: '/work-orders', submitLabel: 'Create work order',
     customerName: customerName || ''
   }) %>

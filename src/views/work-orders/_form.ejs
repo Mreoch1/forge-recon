@@ -1,10 +1,12 @@
 <%
-// Shared WO form (R34 — customer-centric, multi-assignee).
-// Expects: wo, customers, users, errors, units, formAction, submitLabel
+// Shared WO form (R34 — customer-centric, multi-assignee, optional project link).
+// Expects: wo, customers, users, projects, errors, units, formAction, submitLabel
 // customers: array of {id, name, email, phone, address, city, state, zip}
+// projects: array of {id, title, customer_name, address, city, state}
 // users: array of {id, name}
 const selectedCustomerId = wo.customer_id || '';
 const selectedAssignees = wo.assignee_ids || [];
+const selectedProjectId = wo.project_id || '';
 %>
 <form action="<%= formAction %>" method="post" class="space-y-6">
   <!-- Customer autocomplete -->
@@ -26,6 +28,32 @@ const selectedAssignees = wo.assignee_ids || [];
         <p class="text-gray-500" id="cust-email"></p>
         <p class="text-gray-500" id="cust-phone"></p>
         <p class="text-gray-500" id="cust-address"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Optional project link -->
+  <div class="card p-5">
+    <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Project
+      <span class="ml-1 text-recon-fog cursor-help" title="Optionally link this WO to a project. The customer is still set above.">ⓘ</span>
+    </h3>
+    <div class="space-y-2">
+      <div>
+        <select name="project_id" id="project-select" class="input">
+          <option value="">-- None (standalone WO) --</option>
+          <% (projects || []).forEach(function(p){ %>
+            <option value="<%= p.id %>"
+                    data-customer-id="<%= p.customer_id || '' %>"
+                    data-customer-name="<%= p.customer_name || '' %>"
+                    data-address="<%= (p.address || '') %>, <%= (p.city || '') %>, <%= (p.state || '') %>"
+                    <%= (selectedProjectId == p.id) ? 'selected' : '' %>><%= p.title %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div id="project-card" class="<%= selectedProjectId ? '' : 'hidden' %> p-3 bg-gray-50 rounded text-sm">
+        <p class="font-medium" id="proj-title"></p>
+        <p class="text-gray-500" id="proj-customer"></p>
+        <p class="text-gray-500" id="proj-address"></p>
       </div>
     </div>
   </div>
@@ -88,7 +116,7 @@ const selectedAssignees = wo.assignee_ids || [];
           var _validStatuses = ['open', 'scheduled', 'in_progress', 'closed', 'complete', 'cancelled'];
           _validStatuses.forEach(function(s){
         %>
-          <option value="<%= s %>" <%= (wo.status || 'open') === s ? 'selected' : '' %>><%= s.replace('_',' ') %></option>
+          <option value="<%= s %>" <%= (wo.status || 'open') === s ? 'selected' : '' %>><%= s.replace('_',' ')%></option>
         <% }); %>
       </select>
       <% if (errors.status) { %><p class="text-sm text-red-600 mt-1"><%= errors.status %></p><% } %>
@@ -166,14 +194,12 @@ const selectedAssignees = wo.assignee_ids || [];
 
   if (hidden.value) showCustomer(hidden.value);
 
-  // When user selects from datalist, find the customer by name
   search.addEventListener('change', function(){
     var selectedName = search.value;
     var match = customers.find(function(c){ return c.name === selectedName; });
     if (match) showCustomer(match.id);
   });
 
-  // Clear customer ID if text input differs from any known name
   search.addEventListener('input', function(){
     var selectedName = search.value;
     var match = customers.find(function(c){ return c.name === selectedName; });
@@ -181,7 +207,34 @@ const selectedAssignees = wo.assignee_ids || [];
   });
 
   document.addEventListener('click', function(e){
-    if (!search.contains(e.target)) { /* noop — datalist handles dismissal */ }
+    if (!search.contains(e.target)) { /* noop */}
+  });
+})();
+
+// Project selector — shows project details on change (optional, independent of customer)
+(function(){
+  const select = document.getElementById('project-select');
+  const card = document.getElementById('project-card');
+  const title = document.getElementById('proj-title');
+  const customer = document.getElementById('proj-customer');
+  const addr = document.getElementById('proj-address');
+
+  function showProject(opt) {
+    if (!opt || !opt.value) {
+      card.classList.add('hidden');
+      return;
+    }
+    title.textContent = opt.textContent;
+    customer.textContent = opt.dataset.customerName ? 'Customer: ' + opt.dataset.customerName : '';
+    addr.textContent = opt.dataset.address || '';
+    card.classList.remove('hidden');
+  }
+
+  var initial = select.options[select.selectedIndex];
+  if (initial && initial.value) showProject(initial);
+
+  select.addEventListener('change', function(){
+    showProject(this.options[this.selectedIndex]);
   });
 })();
 
@@ -194,7 +247,6 @@ const selectedAssignees = wo.assignee_ids || [];
     var id = this.value;
     if (!id) return;
     var opt = this.options[this.selectedIndex];
-    // Check if already added
     if (chips.querySelector('[value="' + id + '"]')) { this.value = ''; return; }
     var span = document.createElement('span');
     span.className = 'inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm';

@@ -7,7 +7,7 @@
   <h1 class="page-h1 mb-6">Edit WO-<%= wo.display_number %></h1>
 
   <%- include('_form', {
-    wo: wo, customers: customers, users: users, errors: errors, units: units,
+    wo: wo, customers: customers, projects: projects, users: users, errors: errors, units: units,
     formAction: '/work-orders/' + wo.id, submitLabel: 'Save changes',
     customerName: wo.customer_name || ''
   }) %>
