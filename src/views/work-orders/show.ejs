@@ -247,8 +247,8 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
 
       <!-- Files removed per user request -->
 
-      <!-- F-010: Vendor bills -->
-      <h2 class="ws-h-secondary mt-8">Vendor Bills</h2>
+      <!-- F-010: Vendor Billing -->
+      <h2 class="ws-h-secondary mt-8">Vendor Billing</h2>
       <% if (typeof bills !== 'undefined' && bills && bills.length) { %>
         <div class="mb-4 space-y-1">
           <% bills.forEach(function(b){ %>
@@ -263,7 +263,7 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
           <% }); %>
         </div>
       <% } else { %>
-        <p class="text-sm text-recon-fog mb-4">No vendor bills linked to this work order.</p>
+        <p class="text-sm text-recon-fog mb-4">No vendor billing linked to this work order.</p>
       <% } %>
 
       <!-- Photo gallery -->
