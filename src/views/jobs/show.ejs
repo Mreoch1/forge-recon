@@ -52,10 +52,8 @@
             <% contractorRollup.forEach(function(c){ %>
               <tr class="contractor-row cursor-pointer hover:bg-recon-cloud/50" style="user-select:none">
                 <td class="font-medium">
+                  <span class="contractor-chevron text-recon-fog text-xs mr-1 inline-block transition-transform">▶</span>
                   <%= c.vendor %>
-                  <% if (c.vendor_id) { %>
-                    <a href="/vendors/<%= c.vendor_id %>" class="text-recon-red text-xs hover:underline ml-1">View</a>
-                  <% } %>
                 </td>
                 <td class="text-right">$<%= Number(c.contract_value).toFixed(2) %></td>
                 <td class="text-right">$<%= Number(c.billed).toFixed(2) %></td>
@@ -112,13 +110,14 @@
 // Contractor row click-to-expand
 document.querySelectorAll('.contractor-row').forEach(function(row){
   row.addEventListener('click', function(e){
-    // Don't toggle if the click was on a link inside the row
     if (e.target.closest('a')) return;
+    var chevron = this.querySelector('.contractor-chevron');
     var n = this.nextElementSibling;
     while (n && n.classList.contains('contractor-detail')) {
       n.classList.toggle('hidden');
       n = n.nextElementSibling;
     }
+    if (chevron) chevron.style.transform = chevron.style.transform === 'rotate(90deg)' ? '' : 'rotate(90deg)';
   });
 });
 </script>
