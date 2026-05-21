@@ -1,14 +1,5 @@
 <%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
 
-<%
-// Group root WOs and their subs for nested display
-const roots = workOrders.filter(w => !w.parent_wo_id);
-const subsByParent = {};
-workOrders.filter(w => w.parent_wo_id).forEach(s => {
-  (subsByParent[s.parent_wo_id] = subsByParent[s.parent_wo_id] || []).push(s);
-});
-%>
-
 <div class="max-w-7xl mx-auto px-4 py-6">
   <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
     <a href="/projects" class="text-sm text-recon-fog hover:text-recon-red">&larr; Projects</a>
@@ -21,7 +12,7 @@ workOrders.filter(w => w.parent_wo_id).forEach(s => {
   <!-- D-007a: Financial Command Panel (replaces legacy Financial Overview) -->
   <%- include('_financial_panel', { financials: projectFinancials, financialsError: projectFinancialsError }) %>
 
-  <!-- D-141: Project Files tile — links to existing /files/projects/:id area -->
+  <!-- D-141: Project Files tile -->
   <div class="card mb-6">
     <a href="/files/projects/<%= job.id %>" class="block px-5 py-4 hover:bg-recon-deeper/10 transition rounded">
       <div class="flex items-center justify-between gap-4">
@@ -40,104 +31,6 @@ workOrders.filter(w => w.parent_wo_id).forEach(s => {
         <span class="text-recon-red text-sm font-medium">Open files →</span>
       </div>
     </a>
-  </div>
-
-  <!-- Work Orders -->
-  <div class="card overflow-hidden mb-6">
-    <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
-      <h3 class="font-semibold">Work Orders (<%= workOrders.length %>)</h3>
-      <a href="/work-orders/new?job_id=<%= job.id %>" class="text-sm text-recon-red hover:underline">+ Add work order</a>
-    </div>
-    <% if (workOrders.length === 0) { %>
-      <div class="p-8 text-center text-recon-fog text-sm">
-        No work orders yet. <a href="/work-orders/new?job_id=<%= job.id %>" class="text-recon-red underline">Create one</a>.
-      </div>
-    <% } else { %>
-      <table class="data">
-        <thead>
-          <tr><th>Number</th><th>Status</th><th>Scheduled</th><th>Completed</th><th>Created</th></tr>
-        </thead>
-        <tbody>
-          <% roots.forEach(function(w){ %>
-            <tr>
-              <td class="font-medium">
-                <a href="/work-orders/<%= w.id %>" class="hover:text-recon-red">WO-<%= w.display_number %></a>
-              </td>
-              <td><span class="badge badge-<%= w.status %>"><%= w.status.replace('_',' ') %></span></td>
-              <td><%= w.scheduled_date ? String(w.scheduled_date).slice(0,10) : '—' %></td>
-              <td><%= w.completed_date ? String(w.completed_date).slice(0,10) : '—' %></td>
-              <td><%= (w.created_at || '').slice(0,10) %></td>
-            </tr>
-            <% (subsByParent[w.id] || []).forEach(function(s){ %>
-              <tr>
-                <td class="pl-8 text-sm">
-                  <span class="text-recon-fog">└</span>
-                  <a href="/work-orders/<%= s.id %>" class="hover:text-recon-red">WO-<%= s.display_number %></a>
-                </td>
-                <td><span class="badge badge-<%= s.status %>"><%= s.status.replace('_',' ') %></span></td>
-                <td><%= s.scheduled_date ? String(s.scheduled_date).slice(0,10) : '—' %></td>
-                <td><%= s.completed_date ? String(s.completed_date).slice(0,10) : '—' %></td>
-                <td><%= (s.created_at || '').slice(0,10) %></td>
-              </tr>
-            <% }); %>
-          <% }); %>
-        </tbody>
-      </table>
-    <% } %>
-  </div>
-
-  <!-- D-007: Change orders -->
-  <details class="mb-6" open>
-    <summary class="cursor-pointer text-sm font-medium text-recon-fog mb-2 hover:text-recon-red">Change orders &amp; vendor commitments</summary>
-    <div class="space-y-6 mt-3">
-      <%- include('_change_orders_table', { job: job, changeOrders: changeOrders, vendors: typeof vendors !== 'undefined' ? vendors : [] }) %>
-      <%- include('_line_items_table', { job: job, lineItems: lineItems, vendors: typeof vendors !== 'undefined' ? vendors : [] }) %>
-    </div>
-  </details>
-
-  <!-- R37n: Vendor spend rollup (RPM-imported invoices grouped by vendor) -->
-  <% if (typeof vendorInvoiceCount !== 'undefined') { %>
-    <details class="mb-6" open>
-      <summary class="cursor-pointer text-sm font-medium text-recon-fog mb-2 hover:text-recon-red">
-        Vendor spend (<%= vendorInvoiceCount %> invoice<%= vendorInvoiceCount === 1 ? '' : 's' %>)
-      </summary>
-      <div class="mt-3">
-        <%- include('_vendor_invoices_table', {
-          vendorSpend: vendorSpend,
-          vendorInvoiceCount: vendorInvoiceCount,
-          vendorInvoiceGrandTotal: vendorInvoiceGrandTotal,
-          jobId: job.id,
-          projectContractors: typeof projectContractors !== 'undefined' ? projectContractors : []
-        }) %>
-      </div>
-    </details>
-  <% } %>
-
-  <!-- D-024b: Schedule of Values -->
-  <div class="mb-6">
-    <%- include('_sov_table', {
-      jobId: job.id, sovItems: sovItems || [],
-      sovTotalScheduled: sovTotalScheduled || 0,
-      sovTotalPrev: sovTotalPrev || 0,
-      sovTotalCurrent: sovTotalCurrent || 0,
-      sovFmt: typeof sovFmt !== 'undefined' ? sovFmt : function(n){var num=Number(n);return isFinite(num)?num.toFixed(2):'0.00';}
-    }) %>
-  </div>
-
-  <!-- D-024c: RFI / Decision log -->
-  <div class="mb-6">
-    <%- include('_decisions_log', {
-      jobId: job.id, decisions: decisions || [],
-      users: users || []
-    }) %>
-  </div>
-
-  <!-- D-024a: Customer payments -->
-  <div class="mb-6">
-    <%- include('_payments_timeline', {
-      jobId: job.id, payments: payments || [],
-      paymentTotal: paymentTotal || 0
-    }) %>
   </div>
 
   <!-- D-007: Members -->
