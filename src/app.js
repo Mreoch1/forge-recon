@@ -102,6 +102,7 @@ async function ensureDbInit(req, res, next) {
           {table:'estimates',col:'sent_to_name',type:'TEXT'},{table:'invoices',col:'sent_by_user_id',type:'INTEGER'},
           {table:'invoices',col:'sent_to_email',type:'TEXT'},{table:'invoices',col:'sent_to_name',type:'TEXT'},
           {table:'estimates',col:'archived_at',type:'TEXT'},{table:'estimates',col:'payment_terms',type:"TEXT NOT NULL DEFAULT 'Net 30'"},
+          {table:'company_settings',col:'default_bill_markup_pct',type:'REAL NOT NULL DEFAULT 25'},
           {table:'estimate_line_items',col:'source_bill_id',type:'INTEGER'},{table:'estimate_line_items',col:'source_bill_line_id',type:'INTEGER'},
           {table:'invoice_line_items',col:'source_bill_id',type:'INTEGER'},{table:'invoice_line_items',col:'source_bill_line_id',type:'INTEGER'},
         ];
@@ -122,6 +123,7 @@ async function ensureDbInit(req, res, next) {
         "ALTER TABLE estimate_line_items ADD COLUMN IF NOT EXISTS source_bill_line_id BIGINT REFERENCES bill_lines(id) ON DELETE SET NULL",
         "ALTER TABLE invoice_line_items ADD COLUMN IF NOT EXISTS source_bill_id BIGINT REFERENCES bills(id) ON DELETE SET NULL",
         "ALTER TABLE invoice_line_items ADD COLUMN IF NOT EXISTS source_bill_line_id BIGINT REFERENCES bill_lines(id) ON DELETE SET NULL",
+        "ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS default_bill_markup_pct NUMERIC(8,4) NOT NULL DEFAULT 25",
         "CREATE INDEX IF NOT EXISTS idx_estimate_line_items_source_bill ON estimate_line_items(source_bill_id)",
         "CREATE INDEX IF NOT EXISTS idx_invoice_line_items_source_bill ON invoice_line_items(source_bill_id)",
       ];
@@ -463,6 +465,7 @@ app.use((err, req, res, next) => {
       "ALTER TABLE estimate_line_items ADD COLUMN IF NOT EXISTS source_bill_line_id BIGINT REFERENCES bill_lines(id) ON DELETE SET NULL",
       "ALTER TABLE invoice_line_items ADD COLUMN IF NOT EXISTS source_bill_id BIGINT REFERENCES bills(id) ON DELETE SET NULL",
       "ALTER TABLE invoice_line_items ADD COLUMN IF NOT EXISTS source_bill_line_id BIGINT REFERENCES bill_lines(id) ON DELETE SET NULL",
+      "ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS default_bill_markup_pct NUMERIC(8,4) NOT NULL DEFAULT 25",
       "CREATE INDEX IF NOT EXISTS idx_estimate_line_items_source_bill ON estimate_line_items(source_bill_id)",
       "CREATE INDEX IF NOT EXISTS idx_invoice_line_items_source_bill ON invoice_line_items(source_bill_id)",
     ];

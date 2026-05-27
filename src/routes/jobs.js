@@ -671,6 +671,40 @@ function projectAccess({ req, job, members }) {
   };
 }
 
+async function loadProjectAccess(req, job) {
+  const members = await loadMembers(job.id);
+  return projectAccess({ req, job, members });
+}
+
+function denyProjectAccess(res, message) {
+  return res.status(403).render('error', {
+    title: 'Forbidden',
+    code: 403,
+    message: message || 'You do not have access to this project area.',
+  });
+}
+
+async function requireProjectAccess(req, res, id, capability) {
+  const job = await requireProjectId(id);
+  if (!job) {
+    res.status(404).send('Project not found');
+    return null;
+  }
+  const access = await loadProjectAccess(req, job);
+  const allowed =
+    capability === 'billing' ? access.canSeeBilling :
+    capability === 'operations' ? access.canSeeOperations :
+    capability === 'manage' ? access.canManageMembers :
+    (access.canSeeBilling || access.canSeeOperations);
+  if (!allowed) {
+    denyProjectAccess(res, capability === 'billing'
+      ? 'This project area contains billing or cost information.'
+      : 'This project area requires project admin access.');
+    return null;
+  }
+  return { job, access };
+}
+
 async function loadChangeOrders(jobId) {
   const { data, error } = await supabase
     .from('change_orders')
@@ -727,7 +761,11 @@ async function loadActiveUsers() {
 }
 
 async function requireProjectId(id) {
-  const { data: job, error } = await supabase.from('jobs').select('id').eq('id', id).maybeSingle();
+  const { data: job, error } = await supabase
+    .from('jobs')
+    .select('id, project_manager_user_id, assigned_to_user_id')
+    .eq('id', id)
+    .maybeSingle();
   if (error) throw error;
   return job;
 }
@@ -736,16 +774,16 @@ async function requireProjectId(id) {
 
 router.get('/:id/change-orders', async (req, res) => {
   const id = req.params.id;
-  const job = await requireProjectId(id);
-  if (!job) return res.status(404).send('Project not found');
+  const allowed = await requireProjectAccess(req, res, id, 'billing');
+  if (!allowed) return;
   const [changeOrders, vendors] = await Promise.all([loadChangeOrders(id), loadVendors()]);
   res.render('jobs/_change_orders_table', { job: { id }, changeOrders, vendors });
 });
 
 router.post('/:id/change-orders', async (req, res) => {
   const id = req.params.id;
-  const job = await requireProjectId(id);
-  if (!job) return res.status(404).send('Project not found');
+  const allowed = await requireProjectAccess(req, res, id, 'billing');
+  if (!allowed) return;
   const description = emptyToNull(req.body.description);
   if (!description) return res.status(400).send('Description required');
   const vendorId = req.body.vendor_id ? parseInt(req.body.vendor_id, 10) || null : null;
@@ -766,6 +804,8 @@ router.post('/:id/change-orders', async (req, res) => {
 
 router.post('/:id/change-orders/:coId/approve', async (req, res) => {
   const { id, coId } = req.params;
+  const allowed = await requireProjectAccess(req, res, id, 'billing');
+  if (!allowed) return;
   const userId = req.session && req.session.userId ? req.session.userId : null;
   const { error } = await supabase
     .from('change_orders')
@@ -784,6 +824,8 @@ router.post('/:id/change-orders/:coId/approve', async (req, res) => {
 
 router.post('/:id/change-orders/:coId/reject', async (req, res) => {
   const { id, coId } = req.params;
+  const allowed = await requireProjectAccess(req, res, id, 'billing');
+  if (!allowed) return;
   const userId = req.session && req.session.userId ? req.session.userId : null;
   const { error } = await supabase
     .from('change_orders')
@@ -804,16 +846,16 @@ router.post('/:id/change-orders/:coId/reject', async (req, res) => {
 
 router.get('/:id/line-items', async (req, res) => {
   const id = req.params.id;
-  const job = await requireProjectId(id);
-  if (!job) return res.status(404).send('Project not found');
+  const allowed = await requireProjectAccess(req, res, id, 'billing');
+  if (!allowed) return;
   const [lineItems, vendors] = await Promise.all([loadLineItems(id), loadVendors()]);
   res.render('jobs/_line_items_table', { job: { id }, lineItems, vendors });
 });
 
 router.post('/:id/line-items', async (req, res) => {
   const id = req.params.id;
-  const job = await requireProjectId(id);
-  if (!job) return res.status(404).send('Project not found');
+  const allowed = await requireProjectAccess(req, res, id, 'billing');
+  if (!allowed) return;
   const description = emptyToNull(req.body.description);
   if (!description) return res.status(400).send('Description required');
   const vendorId = req.body.vendor_id ? parseInt(req.body.vendor_id, 10) || null : null;
@@ -844,6 +886,8 @@ router.post('/:id/line-items', async (req, res) => {
 
 router.delete('/:id/line-items/:itemId', async (req, res) => {
   const { id, itemId } = req.params;
+  const allowed = await requireProjectAccess(req, res, id, 'billing');
+  if (!allowed) return;
   const { error } = await supabase
     .from('job_vendor_line_items')
     .delete()
@@ -859,8 +903,8 @@ router.delete('/:id/line-items/:itemId', async (req, res) => {
 router.post('/:id/vendor-invoices', async (req, res) => {
   const id = req.params.id;
   const jobId = parseInt(id, 10);
-  const job = await requireProjectId(id);
-  if (!job) return res.status(404).send('Project not found');
+  const allowed = await requireProjectAccess(req, res, id, 'billing');
+  if (!allowed) return;
   const vendorName = emptyToNull(req.body.vendor_name);
   if (!vendorName) return res.status(400).send('Vendor name required');
   const amount = req.body.amount === '' || req.body.amount == null ? null : Number(req.body.amount);
@@ -910,8 +954,8 @@ router.post('/:id/vendor-invoices', async (req, res) => {
 
 router.get('/:id/payments', async (req, res) => {
   const id = req.params.id;
-  const job = await requireProjectId(id);
-  if (!job) return res.status(404).send('Project not found');
+  const allowed = await requireProjectAccess(req, res, id, 'billing');
+  if (!allowed) return;
   const { data: payments, error: pErr } = await supabase
     .from('project_payments')
     .select('*')
@@ -928,8 +972,8 @@ router.get('/:id/payments', async (req, res) => {
 
 router.post('/:id/payments', async (req, res) => {
   const id = req.params.id;
-  const job = await requireProjectId(id);
-  if (!job) return res.status(404).send('Project not found');
+  const allowed = await requireProjectAccess(req, res, id, 'billing');
+  if (!allowed) return;
   const amount = Number(req.body.amount);
   if (!amount || amount <= 0) return res.status(400).send('Valid amount required');
   const { error } = await supabase.from('project_payments').insert({
@@ -956,9 +1000,8 @@ router.post('/:id/payments', async (req, res) => {
 
 router.post('/:id/sov-items', async (req, res) => {
   const id = req.params.id;
-  const { data: job, error: jobError } = await supabase.from('jobs').select('id').eq('id', id).maybeSingle();
-  if (jobError) throw jobError;
-  if (!job) return res.status(404).send('Project not found');
+  const allowed = await requireProjectAccess(req, res, id, 'billing');
+  if (!allowed) return;
   const { error } = await supabase.from('project_sov_items').insert({
     job_id: parseInt(id, 10),
     code: req.body.code || null,
@@ -974,6 +1017,8 @@ router.post('/:id/sov-items', async (req, res) => {
 });
 
 router.post('/:id/sov-items/:itemId/delete', async (req, res) => {
+  const allowed = await requireProjectAccess(req, res, req.params.id, 'billing');
+  if (!allowed) return;
   const { error } = await supabase.from('project_sov_items').delete().eq('id', req.params.itemId).eq('job_id', req.params.id);
   if (error) {
     setFlash(req, 'error', 'SOV item delete failed: ' + error.message);
@@ -985,6 +1030,8 @@ router.post('/:id/sov-items/:itemId/delete', async (req, res) => {
 
 // D-024b-fix: inline SOV field update
 router.post('/:id/sov-items/:itemId/update', async (req, res) => {
+  const allowed = await requireProjectAccess(req, res, req.params.id, 'billing');
+  if (!allowed) return;
   const { field, value } = req.body;
   const allowedFields = ['current_billed', 'percent_complete', 'retainage_rate'];
   if (!allowedFields.includes(field)) return res.status(400).send('Invalid field');
@@ -999,6 +1046,8 @@ router.post('/:id/sov-items/:itemId/update', async (req, res) => {
 
 router.post('/:id/draws/generate', async (req, res) => {
   const id = parseInt(req.params.id, 10);
+  const allowed = await requireProjectAccess(req, res, id, 'billing');
+  if (!allowed) return;
   const { data: items, error: itemsError } = await supabase.from('project_sov_items').select('*').eq('job_id', id).order('id');
   if (itemsError) throw itemsError;
   if (!items || items.length === 0) { setFlash(req, 'error', 'No SOV items to bill.'); return res.redirect('/projects/' + id); }
@@ -1027,8 +1076,8 @@ router.post('/:id/draws/generate', async (req, res) => {
 
 router.post('/:id/decisions', async (req, res) => {
   const id = req.params.id;
-  const job = await requireProjectId(id);
-  if (!job) return res.status(404).send('Project not found');
+  const allowed = await requireProjectAccess(req, res, id, 'operations');
+  if (!allowed) return;
   const decisionTypes = new Set(['rfi', 'submittal', 'field_decision']);
   const decisionType = decisionTypes.has(req.body.decision_type) ? req.body.decision_type : 'rfi';
   const question = String(req.body.question || '').trim();
@@ -1063,6 +1112,8 @@ router.post('/:id/decisions', async (req, res) => {
 });
 
 router.post('/:id/decisions/:dId/answer', async (req, res) => {
+  const allowed = await requireProjectAccess(req, res, req.params.id, 'operations');
+  if (!allowed) return;
   const statuses = new Set(['open', 'answered', 'approved', 'rejected', 'closed']);
   const nextStatus = statuses.has(req.body.status) ? req.body.status : 'answered';
   const { error, count } = await supabase.from('project_decisions').update({
@@ -1083,6 +1134,8 @@ router.post('/:id/decisions/:dId/answer', async (req, res) => {
 
 router.get('/:id/export.xlsx', async (req, res) => {
   const id = req.params.id;
+  const allowed = await requireProjectAccess(req, res, id, 'billing');
+  if (!allowed) return;
   const ExcelJS = require('exceljs');
   const { data: job, error: jobError } = await supabase.from('jobs').select('*, customers!left(name, email)').eq('id', id).maybeSingle();
   if (jobError) throw jobError;
@@ -1121,16 +1174,16 @@ router.get('/:id/export.xlsx', async (req, res) => {
 
 router.get('/:id/members', async (req, res) => {
   const id = req.params.id;
-  const job = await requireProjectId(id);
-  if (!job) return res.status(404).send('Project not found');
+  const allowed = await requireProjectAccess(req, res, id, 'manage');
+  if (!allowed) return;
   const [members, users] = await Promise.all([loadMembers(id), loadActiveUsers()]);
-  res.render('jobs/_members_list', { job: { id }, members, users });
+  res.render('jobs/_members_list', { job: { id }, members, users, projectAccess: allowed.access });
 });
 
 router.post('/:id/members', async (req, res) => {
   const id = req.params.id;
-  const job = await requireProjectId(id);
-  if (!job) return res.status(404).send('Project not found');
+  const allowed = await requireProjectAccess(req, res, id, 'manage');
+  if (!allowed) return;
   const userId = parseInt(req.body.user_id, 10);
   if (!userId) return res.status(400).send('user_id required');
   const role = VALID_ROLES.includes(req.body.role) ? req.body.role : 'superintendent';
@@ -1154,11 +1207,17 @@ router.post('/:id/members', async (req, res) => {
     if (error) throw error;
   }
   const [members, users] = await Promise.all([loadMembers(id), loadActiveUsers()]);
-  res.render('jobs/_members_list', { job: { id }, members, users });
+  if (req.get('HX-Request')) {
+    return res.render('jobs/_members_list', { job: { id }, members, users, projectAccess: allowed.access });
+  }
+  setFlash(req, 'success', 'Project member saved.');
+  res.redirect(`/projects/${id}`);
 });
 
 router.delete('/:id/members/:memberId', async (req, res) => {
   const { id, memberId } = req.params;
+  const allowed = await requireProjectAccess(req, res, id, 'manage');
+  if (!allowed) return;
   const { error } = await supabase
     .from('job_members')
     .delete()
@@ -1166,7 +1225,21 @@ router.delete('/:id/members/:memberId', async (req, res) => {
     .eq('job_id', id);
   if (error) throw error;
   const [members, users] = await Promise.all([loadMembers(id), loadActiveUsers()]);
-  res.render('jobs/_members_list', { job: { id }, members, users });
+  res.render('jobs/_members_list', { job: { id }, members, users, projectAccess: allowed.access });
+});
+
+router.post('/:id/members/:memberId/delete', async (req, res) => {
+  const { id, memberId } = req.params;
+  const allowed = await requireProjectAccess(req, res, id, 'manage');
+  if (!allowed) return;
+  const { error } = await supabase
+    .from('job_members')
+    .delete()
+    .eq('id', memberId)
+    .eq('job_id', id);
+  if (error) throw error;
+  setFlash(req, 'success', 'Project member removed.');
+  res.redirect(`/projects/${id}`);
 });
 
 module.exports = router;

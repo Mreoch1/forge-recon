@@ -208,6 +208,7 @@ CREATE TABLE IF NOT EXISTS company_settings (
   email TEXT DEFAULT '',
   ein TEXT DEFAULT '',
   default_tax_rate NUMERIC(8,4) NOT NULL DEFAULT 0,
+  default_bill_markup_pct NUMERIC(8,4) NOT NULL DEFAULT 25,
   default_payment_terms TEXT NOT NULL DEFAULT 'Net 30',
   next_wo_main_number INTEGER NOT NULL DEFAULT 1,
   logo_path TEXT NOT NULL DEFAULT '/logos/recon.png',

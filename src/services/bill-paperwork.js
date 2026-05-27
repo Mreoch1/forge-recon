@@ -68,7 +68,7 @@ async function loadBill(billId) {
 async function loadSettings() {
   const { data, error } = await supabase
     .from('company_settings')
-    .select('default_tax_rate, default_payment_terms, default_conditions')
+    .select('default_tax_rate, default_payment_terms, default_conditions, default_bill_markup_pct')
     .limit(1)
     .maybeSingle();
   if (error) throw error;
@@ -277,7 +277,10 @@ async function ensureDraftPaperworkForBill({ billId }) {
     loadSettings(),
     loadWorkOrder(bill.work_order_id),
   ]);
-  const markupPct = DEFAULT_BILL_MARKUP_PCT;
+  const configuredMarkup = Number(settings.default_bill_markup_pct);
+  const markupPct = Number.isFinite(configuredMarkup) && configuredMarkup >= 0
+    ? configuredMarkup
+    : DEFAULT_BILL_MARKUP_PCT;
   const sourceLines = bill.lines.map((line, idx) => billLineToCustomerLine(line, idx, bill, markupPct));
   const estimateResult = await ensureEstimate(bill, settings, wo, sourceLines);
   const invoiceResult = await ensureInvoice(bill, settings, estimateResult.estimate, sourceLines);

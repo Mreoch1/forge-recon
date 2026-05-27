@@ -124,6 +124,34 @@ const billStatusHint = BILL_STATUS_HINTS[bill.status] || bill.status;
         <div><dt class="text-recon-fog text-xs inline">Created:</dt> <dd class="inline"><%= (bill.created_at || '—').slice(0,10) %></dd></div>
       </dl>
     </div>
+    <% if (bill.paperwork && ((bill.paperwork.estimates || []).length || (bill.paperwork.invoices || []).length)) { %>
+      <div class="card p-5">
+        <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-2">Customer paperwork</h3>
+        <p class="text-xs text-recon-fog mb-3">Created from this bill. Drafts are reviewable and editable before anything is sent.</p>
+        <% if ((bill.paperwork.estimates || []).length) { %>
+          <div class="mb-3">
+            <p class="text-xs uppercase tracking-wide text-recon-fog mb-1">Estimate</p>
+            <% bill.paperwork.estimates.forEach(function(est){ %>
+              <a href="/estimates/<%= est.id %>" class="flex items-center justify-between text-sm py-1 hover:text-recon-red">
+                <span>Estimate #<%= est.id %></span>
+                <span><span class="badge badge-<%= est.status %> text-xs"><%= est.status %></span> $<%= fmt(est.total) %></span>
+              </a>
+            <% }); %>
+          </div>
+        <% } %>
+        <% if ((bill.paperwork.invoices || []).length) { %>
+          <div>
+            <p class="text-xs uppercase tracking-wide text-recon-fog mb-1">Invoice</p>
+            <% bill.paperwork.invoices.forEach(function(inv){ %>
+              <a href="/invoices/<%= inv.id %>" class="flex items-center justify-between text-sm py-1 hover:text-recon-red">
+                <span>Invoice #<%= inv.id %></span>
+                <span><span class="badge badge-<%= inv.status %> text-xs"><%= inv.status %></span> $<%= fmt(inv.total) %></span>
+              </a>
+            <% }); %>
+          </div>
+        <% } %>
+      </div>
+    <% } %>
     <% if (bill.notes) { %>
       <div class="card p-5">
         <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-2">Notes</h3>

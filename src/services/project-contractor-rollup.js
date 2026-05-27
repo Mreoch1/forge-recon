@@ -12,6 +12,15 @@ function toNum(v) {
   return isFinite(n) ? n : 0;
 }
 
+function vendorKey(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
 /**
  * Get the contractor rollup for a project.
  * @param {number|string} jobId
@@ -68,7 +77,7 @@ async function getProjectContractorRollup(jobId) {
 
   const vendorLookup = {};
   (vendors || []).forEach(v => {
-    vendorLookup[v.name.toLowerCase()] = v;
+    vendorLookup[vendorKey(v.name)] = v;
   });
 
   // 4. Get bills for this job
@@ -79,28 +88,37 @@ async function getProjectContractorRollup(jobId) {
     .in('status', ['approved', 'paid']);
   if (bErr) throw bErr;
 
-  // Group bills by vendor_id
+  // Group bills by vendor id and by normalized vendor name. RFP vendor names
+  // are free text, so exact casing/punctuation cannot be the only join path.
   const billsByVendor = {};
+  const billsByVendorName = {};
   (bills || []).forEach(b => {
     const vId = b.vendor_id;
-    if (!vId) return;
-    if (!billsByVendor[vId]) billsByVendor[vId] = [];
-    billsByVendor[vId].push({
+    const billRow = {
       id: b.id,
       bill_number: b.bill_number,
       total: toNum(b.total),
       status: b.status,
       bill_date: b.bill_date,
       vendor_name: b.vendors?.name || null,
-    });
+    };
+    if (vId) {
+      if (!billsByVendor[vId]) billsByVendor[vId] = [];
+      billsByVendor[vId].push(billRow);
+    }
+    const key = vendorKey(b.vendors?.name);
+    if (key) {
+      if (!billsByVendorName[key]) billsByVendorName[key] = [];
+      billsByVendorName[key].push(billRow);
+    }
   });
 
   // 5. Build result array
   const result = vendorNames.map(vName => {
     const entry = vendorMap[vName];
-    const matched = vendorLookup[vName.toLowerCase()] || null;
+    const matched = vendorLookup[vendorKey(vName)] || null;
     const vId = matched ? matched.id : null;
-    const vendorBills = vId ? (billsByVendor[vId] || []) : [];
+    const vendorBills = vId ? (billsByVendor[vId] || []) : (billsByVendorName[vendorKey(vName)] || []);
     const billed = vendorBills.reduce((s, b) => s + b.total, 0);
     const remaining = entry.contract_value - billed;
 

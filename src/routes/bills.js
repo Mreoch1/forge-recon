@@ -175,6 +175,39 @@ async function loadBill(id) {
     account_name: l.accounts?.name || null,
   }));
   bill.lines.forEach(l => delete l.accounts);
+
+  bill.paperwork = { estimates: [], invoices: [] };
+  try {
+    const { data: estLinks, error: estLinkError } = await supabase
+      .from('estimate_line_items')
+      .select('estimate_id, estimates!inner(id, status, total, work_order_id)')
+      .eq('source_bill_id', bill.id);
+    if (estLinkError) throw estLinkError;
+    const estById = {};
+    (estLinks || []).forEach(row => {
+      const est = row.estimates;
+      if (est && !estById[est.id]) estById[est.id] = est;
+    });
+    bill.paperwork.estimates = Object.values(estById);
+  } catch (e) {
+    bill.paperwork.estimates = [];
+  }
+
+  try {
+    const { data: invLinks, error: invLinkError } = await supabase
+      .from('invoice_line_items')
+      .select('invoice_id, invoices!inner(id, status, total, work_order_id)')
+      .eq('source_bill_id', bill.id);
+    if (invLinkError) throw invLinkError;
+    const invById = {};
+    (invLinks || []).forEach(row => {
+      const inv = row.invoices;
+      if (inv && !invById[inv.id]) invById[inv.id] = inv;
+    });
+    bill.paperwork.invoices = Object.values(invById);
+  } catch (e) {
+    bill.paperwork.invoices = [];
+  }
   return bill;
 }
 

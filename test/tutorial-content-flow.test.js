@@ -9,14 +9,13 @@ describe('D-066 tutorial content flow', () => {
     content.loadChapters();
   });
 
-  test('loads the full WO, estimate, invoice, payment, quiz, and cleanup tour', () => {
-    assert.equal(content.totalChapters(), 11);
+  test('loads the current WO, estimate, invoice, and payment tour', () => {
+    assert.equal(content.totalChapters(), 8);
     assert.equal(chapters[0].id, '00-welcome');
-    assert.equal(chapters.at(-2).id, '09-quiz');
-    assert.equal(chapters.at(-1).id, '09-5-cleanup-explanation');
+    assert.equal(chapters.at(-1).id, '07-record-payment');
 
     const allText = JSON.stringify(chapters).toLowerCase();
-    for (const required of ['work order', 'estimate', 'invoice', 'payment', 'loose estimate', 'cleanup']) {
+    for (const required of ['work order', 'estimate', 'invoice', 'payment']) {
       assert.match(allText, new RegExp(required));
     }
   });
@@ -59,22 +58,13 @@ describe('D-066 tutorial content flow', () => {
     }
   });
 
-  test('happy path reaches quiz before cleanup and records the quiz answers', () => {
+  test('happy path can walk the current tutorial without dangling steps', () => {
     const state = new TutorialState('tutorial-flow', 1);
     const choiceByStep = {
       'checkpoint-real-vs-tutorial': 'got_it',
       'ready-prompt': 'start',
       'comprehension-check': 'wo_before_est',
       'numbering-comprehension': 'correct',
-      'q1-prompt': 'q1_false',
-      'q1-correct': 'next',
-      'q2-prompt': 'q2_b',
-      'q2-correct': 'next',
-      'q3-prompt': 'q3_a',
-      'q3-correct': 'next',
-      'score-summary': 'next',
-      recommend: 'cleanup',
-      'cleanup-confirm': 'done',
     };
     const visited = [];
 
@@ -90,12 +80,12 @@ describe('D-066 tutorial content flow', () => {
       const result = choice
         ? state.processAction('select_chip', { value: choice })
         : state.processAction('next');
-      if (result.exit) break;
+      if (result.exit || result.done) break;
     }
 
-    assert.ok(visited.includes('09-quiz:q1-prompt'));
-    assert.ok(visited.includes('09-5-cleanup-explanation:recommend'));
-    assert.deepEqual(state.quizAnswers, { q1: true, q2: true, q3: true });
-    assert.deepEqual(state.quizWeakSpots, []);
+    assert.ok(visited.includes('04-create-wo:form-arrived'));
+    assert.ok(visited.includes('05-add-estimate:after-save'));
+    assert.ok(visited.includes('06-convert-to-invoice:after-convert'));
+    assert.ok(visited.some(step => step.startsWith('07-record-payment:')));
   });
 });

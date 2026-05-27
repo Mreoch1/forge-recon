@@ -15,14 +15,16 @@ var canManage = typeof projectAccess === 'undefined' || projectAccess.canManageM
     <h3 class="font-semibold">Project members (<%= members.length %>)</h3>
     <% if (canManage) { %>
     <button type="button"
-            onclick="document.getElementById('mem-form').classList.toggle('hidden')"
+            data-toggle-member-form
             class="text-sm text-recon-red hover:underline">+ Add member</button>
     <% } %>
   </div>
 
   <% if (canManage) { %>
   <div id="mem-form" class="hidden p-5 border-b border-recon-mist bg-recon-cloud">
-    <form hx-post="/projects/<%= job.id %>/members"
+    <form method="post"
+          action="/projects/<%= job.id %>/members"
+          hx-post="/projects/<%= job.id %>/members"
           hx-target="#members-section"
           hx-swap="outerHTML"
           class="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -64,7 +66,9 @@ var canManage = typeof projectAccess === 'undefined' || projectAccess.canManageM
           <div class="flex items-center gap-3">
             <span class="badge badge-<%= roleBadges[m.role] || 'draft' %>"><%= roleLabels[m.role] || m.role %></span>
             <% if (canManage) { %>
-            <form hx-delete="/projects/<%= job.id %>/members/<%= m.id %>"
+            <form method="post"
+                  action="/projects/<%= job.id %>/members/<%= m.id %>/delete"
+                  hx-delete="/projects/<%= job.id %>/members/<%= m.id %>"
                   hx-target="#members-section" hx-swap="outerHTML"
                   hx-confirm="Remove <%= m.user_name %> from this project?"
                   class="inline m-0">
@@ -77,3 +81,16 @@ var canManage = typeof projectAccess === 'undefined' || projectAccess.canManageM
     </ul>
   <% } %>
 </div>
+
+<script>
+(function(){
+  var section = document.getElementById('members-section');
+  if (!section) return;
+  var toggle = section.querySelector('[data-toggle-member-form]');
+  var form = section.querySelector('#mem-form');
+  if (!toggle || !form) return;
+  toggle.addEventListener('click', function(){
+    form.classList.toggle('hidden');
+  });
+})();
+</script>

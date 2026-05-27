@@ -81,6 +81,13 @@
                    value="<%= settings.default_tax_rate || 0 %>" class="input">
           </div>
           <div>
+            <label class="label" for="default_bill_markup_pct">Default bill markup (%)
+              <span class="ml-1 text-recon-fog cursor-help" title="Markup applied when a vendor bill creates draft customer estimate and invoice lines.">ⓘ</span>
+            </label>
+            <input type="number" step="0.001" min="0" name="default_bill_markup_pct" id="default_bill_markup_pct"
+                   value="<%= settings.default_bill_markup_pct == null ? 25 : settings.default_bill_markup_pct %>" class="input">
+          </div>
+          <div>
             <label class="label" for="default_payment_terms">Default payment terms
               <span class="ml-1 text-recon-fog cursor-help" title="Default payment terms applied to new estimates and invoices. Can be overridden per document.">ⓘ</span>
             </label>
