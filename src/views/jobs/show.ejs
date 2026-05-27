@@ -33,7 +33,7 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
   <% } %>
 
   <!-- D-141: Project Files tile -->
-  <% if (access.canSeeOperations || access.canSeeBilling) { %>
+  <% if (access.canSeeOperations) { %>
   <div class="card mb-6">
     <a href="/files/projects/<%= job.id %>" class="block px-5 py-4 hover:bg-recon-deeper/10 transition rounded">
       <div class="flex items-center justify-between gap-4">
@@ -120,12 +120,14 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
   <% } %>
 
   <!-- D-007: Members -->
+  <% if (access.canSeeOperations) { %>
   <details class="mb-6">
     <summary class="cursor-pointer text-sm font-medium text-recon-fog mb-2 hover:text-recon-red">Project team</summary>
     <div class="mt-3">
       <%- include('_members_list', { job: job, members: members, users: typeof users !== 'undefined' ? users : [], projectAccess: access }) %>
     </div>
   </details>
+  <% } %>
 </div>
 
 <script>
