@@ -15,13 +15,19 @@ Fill in:
 - **Name** — full name; this is what shows on assignments, notes, and audit entries.
 - **Email** — used for sign-in and password resets. Must be unique.
 - **Role** — pick one:
-  - **admin** — full access, including this admin area.
-  - **manager** — office staff. Can create customers, jobs, WOs, estimates, invoices, bills.
+  - **admin** — full access, including accounting, invoices, bills, QuickBooks sync/import, and this admin area.
+  - **manager** — office staff. Can create work orders, schedule work, create/send estimates, and update operational statuses.
   - **worker** — field crew. Can only see and update WOs assigned to them.
 - **Password** — at least 8 characters with an uppercase letter, a lowercase letter, a number, and a symbol.
 - **Active** — leave on. Toggle off to disable an account without deleting it.
 
 You cannot demote or deactivate the last active admin, and you cannot demote yourself while signed in. There is one hard-coded owner email (set in env as `OWNER_EMAILS`) that is always admin no matter what the DB role says.
+
+Admin-only billing workflow:
+
+- Managers complete the operational side: WO scheduled/in progress/complete and estimate sent/approved.
+- Admin creates and sends invoices, syncs or reconciles them to QuickBooks, and marks invoices billing complete.
+- Accounting, bills, QuickBooks staging/import, and financial reports are admin-only.
 
 ## Resetting a user's password
 

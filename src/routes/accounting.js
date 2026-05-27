@@ -15,6 +15,7 @@
 const express = require('express');
 const supabase = require('../db/supabase');
 const reportPdf = require('../services/accounting-report-pdf');
+const qbImportSummary = require('../services/quickbooks-import-summary');
 
 const router = express.Router();
 
@@ -56,6 +57,61 @@ router.get('/', async (req, res) => {
     billCount: 0,
     vendorCount: 0,
     recentEntries: [],
+  });
+});
+
+async function loadQuickBooksStaging() {
+  const empty = {
+    ready: false,
+    batches: [],
+    rowCounts: {},
+    batchCount: 0,
+    rowCount: 0,
+    error: null,
+  };
+
+  try {
+    const [{ data: batches, error: batchErr }, { data: rows, error: rowErr }] = await Promise.all([
+      supabase
+        .from('quickbooks_import_batches')
+        .select('id, source_type, original_filename, status, row_count, total_amount, imported_at')
+        .order('imported_at', { ascending: false })
+        .limit(25),
+      supabase
+        .from('quickbooks_import_rows')
+        .select('review_status')
+        .limit(5000),
+    ]);
+    if (batchErr) throw batchErr;
+    if (rowErr) throw rowErr;
+    const rowCounts = {};
+    (rows || []).forEach(row => {
+      const key = row.review_status || 'unknown';
+      rowCounts[key] = (rowCounts[key] || 0) + 1;
+    });
+    return {
+      ready: true,
+      batches: batches || [],
+      rowCounts,
+      batchCount: (batches || []).length,
+      rowCount: (rows || []).length,
+      error: null,
+    };
+  } catch (error) {
+    return { ...empty, error: error.message || String(error) };
+  }
+}
+
+router.get('/quickbooks-import', async (req, res) => {
+  const summary = qbImportSummary.readDiscoverySummary();
+  const staging = await loadQuickBooksStaging();
+  res.render('accounting/quickbooks-import', {
+    title: 'QuickBooks import staging',
+    activeNav: 'accounting',
+    summary,
+    exportCards: qbImportSummary.exportCards(summary),
+    staging,
+    money: qbImportSummary.money,
   });
 });
 

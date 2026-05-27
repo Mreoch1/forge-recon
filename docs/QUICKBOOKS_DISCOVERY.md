@@ -299,6 +299,15 @@ Forge invoice requirements from the PDF:
 7. Active projects/jobs and work orders.
 8. Historical invoices, bills, payments, and journal entries only after the open balances reconcile.
 
+## Forge Staging Model
+
+QuickBooks imports should land in `quickbooks_import_batches` and `quickbooks_import_rows` first. These staging records preserve the original file name, row data, external invoice/bill/account numbers, source metadata, match status, and review status. Live Forge records should only be created or updated after the staged rows are reviewed and reconciled.
+
+Current staging statuses:
+
+- Batch status: `staged`, `reviewed`, `applied`, `void`.
+- Row review status: `needs_review`, `ready`, `applied`, `ignored`.
+
 ## Data We Still Need
 
 To move from summary/reconciliation into a real import, we still need:

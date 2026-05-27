@@ -1,6 +1,6 @@
 # FORGE User Guide
 
-This guide is for office staff who use FORGE day-to-day. It covers the basics: logging in, managing customers, creating work orders, sending estimates, collecting payment, paying vendor bills, and reading the schedule.
+This guide is for office staff who use FORGE day-to-day. It covers the basics: logging in, managing customers, creating work orders, sending estimates, reading the schedule, and understanding how billing flows to admin.
 
 ## Logging in
 
@@ -43,21 +43,22 @@ From any WO, click **Create estimate**. FORGE copies the line items over and set
 
 - Edit the estimate while it is **draft** — add tax rate, valid-until date, and notes.
 - Click **Send** to email a PDF to the customer's primary email. The estimate becomes **Sent**.
-- When the customer agrees, click **Accept**. If they decline, click **Reject**.
-- From an accepted estimate, click **Generate invoice** to push it through to invoicing.
+- When the customer agrees, mark it **Approved/Accepted**. If they decline, click **Reject**.
+- Once the work is complete and the estimate is approved, the admin creates and sends the invoice.
 
 ## Invoices
 
-Each invoice is created from an accepted estimate and inherits the WO's display number (prefixed `INV-`).
+Invoices are admin-only. Each invoice is created from an accepted estimate and inherits the WO's display number (prefixed `INV-`).
 
 - Set payment terms (Due on receipt, Net 15/30/45/60, or Custom) and a due date.
 - Click **Send** to email a PDF to the customer's billing email (falls back to the primary email if blank).
 - Click **Mark paid** when payment arrives. Partial payments are supported — the invoice stays in **Sent** until fully paid.
+- After QuickBooks sync/reconciliation is done, mark the invoice **Billing complete**.
 - Click **Void** to cancel an invoice. You cannot delete a sent invoice; void it instead.
 
 ## Bills (vendor side)
 
-The **Bills** page (under **More**) tracks what you owe vendors.
+The **Bills** page tracks what you owe vendors. Bills are admin/accounting work.
 
 - Click **+ New bill**, pick the vendor, enter the bill number, date, due date, optional job/WO link, and line items.
 - **Save** as **Draft**.

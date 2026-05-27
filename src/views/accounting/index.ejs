@@ -61,6 +61,16 @@ const financialReports = [
     description: 'Assets, liabilities, equity, and balance check.'
   }
 ];
+const importTools = [
+  {
+    name: 'QuickBooks import staging',
+    href: '/accounting/quickbooks-import',
+    pdf: '',
+    type: 'Staging',
+    cadence: 'Review first',
+    description: 'Review QuickBooks exports before anything is applied to live Forge records.'
+  }
+];
 const allReports = primaryReports.concat(financialReports);
 %>
 
@@ -125,6 +135,48 @@ const allReports = primaryReports.concat(financialReports);
       <div class="ops-summary-label">Exports</div>
       <div class="ops-summary-value">PDF</div>
       <div class="ops-summary-meta">print-ready</div>
+    </div>
+  </div>
+
+  <div class="ops-panel ops-table mb-4">
+    <div class="ops-panel-head">
+      <div class="ops-panel-title">Import controls</div>
+      <div class="text-xs text-recon-fog"><%= importTools.length %> tool</div>
+    </div>
+    <div class="ops-panel-body">
+      <table class="data accounting-table">
+        <colgroup>
+          <col class="acct-name-col">
+          <col class="acct-type-col">
+          <col class="acct-description-col">
+          <col class="acct-updated-col">
+          <col class="acct-actions-col">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Tool</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Status</th>
+            <th class="text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% importTools.forEach(function(r){ %>
+            <tr class="row-link" data-href="<%= r.href %>">
+              <td class="font-semibold"><%= r.name %></td>
+              <td><span class="badge badge-draft"><%= r.type %></span></td>
+              <td class="text-recon-fog"><%= r.description %></td>
+              <td><%= r.cadence %></td>
+              <td class="text-right">
+                <span class="accounting-actions">
+                  <a href="<%= r.href %>" class="btn btn-secondary text-xs">Open</a>
+                </span>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
     </div>
   </div>
 

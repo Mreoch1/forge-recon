@@ -37,8 +37,8 @@ The app listens on port 3001 because 3000 was occupied by another Next.js servic
 5. **Convert to Work Order.** Once accepted, click "Convert to Work Order." Line items copy across. Multiple WOs can be created from one estimate (for phased jobs).
 6. **Schedule + assign.** Edit the WO to set a scheduled date and crew lead. Mark line items "done" as work progresses.
 7. **Start work / mark complete.** Status flow: `scheduled` → `in_progress` → `complete`. Cancel from any non-complete state.
-8. **Generate invoice.** Once a WO is `complete`, click "Generate invoice" on the WO page. The invoice copies WO line items, applies the tax rate from the originating estimate, and sets a 30-day due date.
-9. **Send invoice.** Click "Send" on the invoice. Generates a PDF, drops a `.eml` file in `mail-outbox/` (a real email if you've wired SMTP). Status flips to `sent`.
+8. **Admin generates invoice.** Once the WO is complete and the estimate is approved, an admin creates the invoice. The invoice copies approved estimate items, applies the tax rate from the originating estimate, and sets the due date.
+9. **Admin sends and closes billing.** Admin sends the invoice PDF, syncs/reconciles it to QuickBooks, then marks the invoice `billing_complete`.
 10. **Mark paid.** Use the inline mark-paid form. Partial payments stay `sent`; full payment flips to `paid`.
 
 Every estimate, WO, and invoice has a downloadable PDF with the recon logo, company info, line items, totals, and meta strip.
@@ -121,9 +121,9 @@ Application-level config (Admin > Settings):
 
 **Estimate:** `draft` → `sent` → `accepted` | `rejected`. Edits only allowed in `draft`. Once accepted, "Convert to Work Order" appears.
 
-**Work Order:** `scheduled` → `in_progress` → `complete`, cancellable from any non-complete state. Edits allowed in `scheduled` or `in_progress`. "Generate invoice" appears once `complete`.
+**Work Order:** `scheduled` → `in_progress` → `complete`, cancellable from any non-complete state. Edits allowed in `scheduled` or `in_progress`. Managers handle WO completion; admins handle invoicing.
 
-**Invoice:** `draft` → `sent` → `paid`, with `overdue` computed for display when `sent` and past due-date. Voidable from any non-paid state. Edits only in `draft`.
+**Invoice:** `draft` → `sent` → `paid` → `billing_complete`, with `overdue` computed for display when `sent` and past due-date. Invoices are admin-only. Voidable from any non-paid state. Edits only in `draft`.
 
 ---
 
