@@ -152,7 +152,7 @@ CREATE TABLE IF NOT EXISTS invoices (
   estimate_id INTEGER NOT NULL UNIQUE REFERENCES estimates(id),  -- 1:1 with estimate
   work_order_id INTEGER NOT NULL REFERENCES work_orders(id),     -- denormalized for fast lookups
   status TEXT NOT NULL DEFAULT 'draft'
-    CHECK(status IN ('draft','sent','paid','overdue','void')),
+    CHECK(status IN ('draft','sent','paid','billing_complete','overdue','void')),
   subtotal REAL NOT NULL DEFAULT 0,
   tax_rate REAL NOT NULL DEFAULT 0,
   tax_amount REAL NOT NULL DEFAULT 0,

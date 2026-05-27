@@ -23,11 +23,10 @@
 
 const express = require('express');
 const supabase = require('../db/supabase');
-const { setFlash } = require('../middleware/auth');
+const { requireAdmin, setFlash } = require('../middleware/auth');
 const calc = require('../services/calculations');
 const pdf = require('../services/pdf');
 const email = require('../services/email');
-const posting = require('../services/accounting-posting');
 const { sanitizePostgrestSearch } = require('../services/sanitize');
 const { writeAudit } = require('../services/audit');
 const { listEntityActivity } = require('../services/activity');
@@ -655,7 +654,7 @@ router.post('/:id/line-approvals', async (req, res) => {
   res.redirect(`/estimates/${estimate.id}`);
 });
 
-router.post('/:id/create-invoice', async (req, res) => {
+router.post('/:id/create-invoice', requireAdmin, async (req, res) => {
   const estimate = await loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
   if (!['sent', 'pending', 'approved', 'accepted'].includes(estimate.status)) {
@@ -668,7 +667,7 @@ router.post('/:id/create-invoice', async (req, res) => {
   return res.redirect(`/estimates/${estimate.id}/create-invoice`);
 });
 
-router.get('/:id/create-invoice', async (req, res) => {
+router.get('/:id/create-invoice', requireAdmin, async (req, res) => {
   const estimate = await loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
   if (!['sent', 'pending', 'approved', 'accepted'].includes(estimate.status)) {
@@ -744,7 +743,7 @@ router.post('/:id/unarchive', async (req, res) => {
 });
 
 // Generate invoice from approved estimate items.
-router.post('/:id/generate-invoice', async (req, res) => {
+router.post('/:id/generate-invoice', requireAdmin, async (req, res) => {
   const estimate = await loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
   if (!['sent', 'pending', 'approved', 'accepted'].includes(estimate.status)) {
@@ -821,7 +820,7 @@ router.post('/:id/generate-invoice', async (req, res) => {
   const { data: invoice, error: invError } = await supabase.from('invoices').insert({
     estimate_id: estimate.id,
     work_order_id: estimate.wo_id,
-    status: 'sent',
+    status: 'draft',
     subtotal: totals.subtotal,
     tax_rate: totals.taxRate,
     tax_amount: totals.taxAmount,
@@ -871,18 +870,6 @@ router.post('/:id/generate-invoice', async (req, res) => {
     });
   } catch(e) { console.error('audit failed:', e.message); }
 
-  try {
-    await posting.postInvoiceSent({
-      id: invResult,
-      subtotal: totals.subtotal,
-      tax_amount: totals.taxAmount,
-      total: totals.total,
-      display_number: `INV-${estimate.wo_display_number}`,
-    }, { userId: req.session.userId });
-  } catch (e) {
-    console.error('JE post failed (invoice create) - continuing:', e.message);
-  }
-
   const { error: estUpdateError } = await supabase.from('estimates').update({
     updated_at: now,
   }).eq('id', estimate.id);
@@ -892,7 +879,7 @@ router.post('/:id/generate-invoice', async (req, res) => {
   // (description, line items, terms) before clicking Send. Eliminates the
   // pre-send round-trip through /show → click Edit. GPT G-010 review caught
   // that the original redirect change was lost in commit d48b8e1 — re-applied.
-  setFlash(req, 'success', `INV-${estimate.wo_display_number} created from ${selectedLines.length} approved item(s). Edit as needed and click Save.`);
+  setFlash(req, 'success', `INV-${estimate.wo_display_number} drafted from ${selectedLines.length} approved item(s). Edit as needed, then send when ready.`);
   return res.redirect(`/invoices/${invResult}/edit`);
 });
 

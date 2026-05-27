@@ -18,6 +18,8 @@ const EST_STATUS_HINTS = {
   converted: 'Converted — an invoice has been created from this estimate.'
 };
 const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
+const isAdmin = currentUser && currentUser.role === 'admin';
+const customerLabel = estimate.customer_name || 'Customer';
 %>
 
 <div class="document-shell">
@@ -40,7 +42,12 @@ const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
       </div>
       <p class="page-sub">
         <a href="/work-orders/<%= estimate.wo_id %>" class="hover:text-recon-red font-medium">&larr; WO-<%= estimate.wo_display_number %></a>
-        &middot; Customer: <a href="/customers/<%= estimate.customer_id %>" class="hover:text-recon-red"><%= estimate.customer_name %></a>
+        &middot; Customer:
+        <% if (isAdmin) { %>
+          <a href="/customers/<%= estimate.customer_id %>" class="hover:text-recon-red"><%= customerLabel %></a>
+        <% } else { %>
+          <%= customerLabel %>
+        <% } %>
         <% var unitNum = estimate.unit_number || estimate.wo_unit_number; if (unitNum) { %>
           &middot; Unit: <%= unitNum %>
         <% } %>
@@ -69,7 +76,7 @@ const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
 
         <%# Create invoice — POSTs directly to /generate-invoice (skips the review/preview page).
             Creates the invoice immediately from approved lines and redirects to the invoice EDIT page. %>
-        <% if (!invoice && estimate.lines.length > 0) { %>
+        <% if (isAdmin && !invoice && estimate.lines.length > 0) { %>
           <button form="line-approvals-form"
                   formaction="/estimates/<%= estimate.id %>/generate-invoice"
                   formmethod="post"
@@ -110,7 +117,7 @@ const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
       woStatus: 'Field scope',
       estimateId: estimate.id,
       estimateStatus: estimate.status,
-      invoiceId: invoice && invoice.id,
+      invoiceId: isAdmin && invoice && invoice.id,
       invoiceStatus: invoice && invoice.status
     }
   }) %>
@@ -138,7 +145,7 @@ const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
     </div>
   <% } %>
 
-  <% if (invoice) { %>
+  <% if (isAdmin && invoice) { %>
     <div class="card p-4 mb-6 bg-green-50 border-green-200">
       <p class="text-sm">
         Invoice generated: <a href="/invoices/<%= invoice.id %>" class="font-medium text-recon-red hover:underline">INV-<%= estimate.wo_display_number %></a>

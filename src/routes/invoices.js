@@ -31,7 +31,7 @@ const { listEntityActivity } = require('../services/activity');
 const router = express.Router();
 
 const PAGE_SIZE = 25;
-const VALID_STATUSES = ['draft', 'sent', 'paid', 'overdue', 'void'];
+const VALID_STATUSES = ['draft', 'sent', 'paid', 'billing_complete', 'overdue', 'void'];
 const VALID_UNITS = ['ea', 'hr', 'sqft', 'lf', 'ton', 'lot'];
 const PAYMENT_TERMS_PRESETS = ['Due on receipt', 'Net 15', 'Net 30', 'Net 45', 'Net 60'];
 
@@ -394,7 +394,7 @@ router.post('/:id/activity-note', async (req, res) => {
 router.get('/:id/edit', async (req, res) => {
   const invoice = await loadInvoice(req.params.id);
   if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
-  if (['paid', 'void'].includes(invoice.status)) {
+  if (['paid', 'billing_complete', 'void'].includes(invoice.status)) {
     setFlash(req, 'error', `${invoice.display_number} is "${invoice.status}" — cannot edit.`);
     return res.redirect(`/invoices/${invoice.id}`);
   }
@@ -407,7 +407,7 @@ router.get('/:id/edit', async (req, res) => {
 router.post('/:id', async (req, res) => {
   const existing = await loadInvoice(req.params.id);
   if (!existing) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
-  if (['paid', 'void'].includes(existing.status)) {
+  if (['paid', 'billing_complete', 'void'].includes(existing.status)) {
     setFlash(req, 'error', `${existing.display_number} is "${existing.status}" — cannot edit.`);
     return res.redirect(`/invoices/${existing.id}`);
   }
@@ -524,6 +524,14 @@ router.post('/:id/send', async (req, res, next) => {
       });
     } catch (e) { /* best-effort */ }
 
+    if (invoice.status === 'draft') {
+      try {
+        await posting.postInvoiceSent(invoice, { userId: req.session.userId });
+      } catch (e) {
+        console.error('JE post failed (invoice send) - continuing:', e.message);
+      }
+    }
+
     const note = sent.mode === 'file' ? ` Email saved to ${sent.filepath}.` : '';
     setFlash(req, 'success', `${invoice.display_number} email sent to ${recipient}.${note}`);
     res.redirect(`/invoices/${invoice.id}`);
@@ -575,6 +583,78 @@ router.post('/:id/mark-paid', async (req, res) => {
     const newBalance = Number(invoice.total) - (Number(invoice.amount_paid) || 0) - amount;
     setFlash(req, 'success', `Partial payment $${amount.toFixed(2)} recorded. Balance: $${newBalance.toFixed(2)}.`);
   }
+  res.redirect(`/invoices/${invoice.id}`);
+});
+
+router.post('/:id/billing-complete', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const { data: invoice, error: findErr } = await supabase
+    .from('invoices')
+    .select('id, status')
+    .eq('id', id)
+    .maybeSingle();
+  if (findErr) throw findErr;
+  if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
+  if (!['sent', 'overdue', 'paid'].includes(invoice.status)) {
+    setFlash(req, 'error', `Cannot mark billing complete from status "${invoice.status}".`);
+    return res.redirect(`/invoices/${invoice.id}`);
+  }
+
+  const { error: updateErr } = await supabase
+    .from('invoices')
+    .update({ status: 'billing_complete', updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (updateErr) throw updateErr;
+
+  try {
+    await writeAudit({
+      entityType: 'invoice',
+      entityId: invoice.id,
+      action: 'billing_complete',
+      before: { status: invoice.status },
+      after: { status: 'billing_complete' },
+      source: 'user',
+      userId: req.session.userId,
+    });
+  } catch (e) { /* best-effort */ }
+
+  setFlash(req, 'success', `Invoice marked billing complete.`);
+  res.redirect(`/invoices/${invoice.id}`);
+});
+
+router.post('/:id/reopen-billing', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const { data: invoice, error: findErr } = await supabase
+    .from('invoices')
+    .select('id, status')
+    .eq('id', id)
+    .maybeSingle();
+  if (findErr) throw findErr;
+  if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
+  if (invoice.status !== 'billing_complete') {
+    setFlash(req, 'error', `Cannot reopen billing from status "${invoice.status}".`);
+    return res.redirect(`/invoices/${invoice.id}`);
+  }
+
+  const { error: updateErr } = await supabase
+    .from('invoices')
+    .update({ status: 'sent', updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (updateErr) throw updateErr;
+
+  try {
+    await writeAudit({
+      entityType: 'invoice',
+      entityId: invoice.id,
+      action: 'billing_reopened',
+      before: { status: invoice.status },
+      after: { status: 'sent' },
+      source: 'user',
+      userId: req.session.userId,
+    });
+  } catch (e) { /* best-effort */ }
+
+  setFlash(req, 'success', `Invoice billing reopened.`);
   res.redirect(`/invoices/${invoice.id}`);
 });
 

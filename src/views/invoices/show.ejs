@@ -8,6 +8,7 @@ const costTotal = Number(invoice.cost_total) || 0;
 const subtotal = Number(invoice.subtotal) || 0;
 const margin = subtotal - costTotal;
 const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '—';
+const invoiceStatusLabel = (displayStatus || invoice.status || '').replace(/_/g, ' ');
 %>
 
 <div class="document-shell">
@@ -19,6 +20,7 @@ const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '—';
     <div>
       <div class="flex items-center gap-3">
         <h1 class="page-h1"><%= invoice.display_number %></h1>
+        <span class="badge badge-<%= displayStatus || invoice.status %>"><%= invoiceStatusLabel %></span>
       </div>
       <p class="page-sub">
         WO: <a href="/work-orders/<%= invoice.wo_id %>" class="hover:text-recon-red">WO-<%= invoice.wo_display_number %></a>
@@ -41,6 +43,17 @@ const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '—';
           <button type="button" onclick="document.getElementById('mark-paid-form').classList.toggle('hidden')" class="btn btn-primary"
                   title="Record a customer payment against this invoice. Supports full or partial payments.">Mark paid</button>
         <% } %>
+        <% if (invoice.status === 'sent' || invoice.status === 'overdue' || invoice.status === 'paid') { %>
+          <form action="/invoices/<%= invoice.id %>/billing-complete" method="post" class="m-0 inline"
+                onsubmit="return confirm('Mark <%= invoice.display_number %> billing complete after QuickBooks sync?');">
+            <button class="btn btn-primary" title="Use after the invoice has been sent and synced to QuickBooks.">Billing complete</button>
+          </form>
+        <% } %>
+      <% } else if (invoice.status === 'billing_complete') { %>
+        <form action="/invoices/<%= invoice.id %>/reopen-billing" method="post" class="m-0 inline"
+              onsubmit="return confirm('Reopen billing for <%= invoice.display_number %>?');">
+          <button class="btn btn-secondary" title="Move this invoice back to sent if billing was completed by mistake.">Reopen billing</button>
+        </form>
       <% } %>
     </div>
   </div>
@@ -206,7 +219,7 @@ const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '—';
     activityNoteAction: '/invoices/' + invoice.id + '/activity-note'
   }) %>
 
-  <% if (invoice.status !== 'paid') { %>
+  <% if (invoice.status !== 'paid' && invoice.status !== 'billing_complete') { %>
     <details class="document-danger">
       <summary>Danger zone</summary>
       <div class="document-danger-body">

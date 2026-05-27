@@ -10,7 +10,7 @@ function isOverdue(inv) {
 const pageTotal = invoices.reduce(function(s, i){ return s + (Number(i.total) || 0); }, 0);
 const pageBalance = invoices.reduce(function(s, i){ return s + ((Number(i.total) || 0) - (Number(i.amount_paid) || 0)); }, 0);
 const sentCount = invoices.filter(function(i){ return i.status === 'sent' || i.status === 'draft'; }).length;
-const paidCount = invoices.filter(function(i){ return i.status === 'paid'; }).length;
+const paidCount = invoices.filter(function(i){ return i.status === 'paid' || i.status === 'billing_complete'; }).length;
 %>
 
 <div class="ops-shell">
@@ -64,16 +64,18 @@ const paidCount = invoices.filter(function(i){ return i.status === 'paid'; }).le
           <% invoices.forEach(function(i){ %>
             <% const balance = (Number(i.total)||0) - (Number(i.amount_paid)||0); %>
             <% const showStatus = isOverdue(i) ? 'overdue' : i.status; %>
-            <% const invStatusHint = showStatus === 'sent' ? 'Invoice created, awaiting payment.'
+            <% const invStatusHint = showStatus === 'sent' ? 'Invoice sent, awaiting payment or QuickBooks completion.'
                                   : showStatus === 'paid' ? 'Full payment recorded. Read-only.'
+                                  : showStatus === 'billing_complete' ? 'Invoice sent and synced/closed in billing workflow.'
                                   : showStatus === 'void' ? 'Cancelled. Does not count toward AR.'
                                   : showStatus === 'overdue' ? 'Past due date and not paid. Send a reminder.'
                                   : showStatus; %>
+            <% const showStatusLabel = String(showStatus).replace(/_/g, ' '); %>
             <tr class="row-link" data-href="/invoices/<%= i.id %>">
               <td class="font-medium">INV-<%= i.wo_display_number %></td>
               <td>WO-<%= i.wo_display_number %></td>
               <td><%= i.customer_name %></td>
-              <td><span class="badge badge-<%= showStatus %>" title="<%= invStatusHint %>"><%= showStatus %></span></td>
+              <td><span class="badge badge-<%= showStatus %>" title="<%= invStatusHint %>"><%= showStatusLabel %></span></td>
               <td class="text-right">$<%= fmt(i.total) %></td>
               <td class="text-right">$<%= fmt(i.amount_paid) %></td>
               <td class="text-right font-medium <%= balance > 0 ? 'text-recon-red' : 'text-recon-fog' %>">$<%= fmt(balance) %></td>

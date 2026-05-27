@@ -47,6 +47,10 @@
     var _users = (typeof users !== 'undefined') ? users : [];
     var _assigneeFilter = (typeof assigneeFilter !== 'undefined') ? assigneeFilter : '';
     var _statuses = (typeof statuses !== 'undefined') ? statuses : [];
+    function woStatusLabel(s) {
+      if (s === 'complete') return 'complete: no changes';
+      return s ? String(s).replace('_', ' ') : '';
+    }
   %>
   <div class="ops-summary">
     <div class="ops-summary-item">
@@ -75,7 +79,7 @@
     <select name="status" class="list-filter">
       <option value="">All statuses</option>
       <% _statuses.forEach(function(s){ %>
-        <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s.replace('_',' ') %></option>
+        <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= woStatusLabel(s) %></option>
       <% }); %>
     </select>
     <% if (_users.length) { %>
@@ -129,7 +133,7 @@
                               : w.status === 'scheduled' ? 'On the calendar but work has not started yet.'
                               : w.status === 'in_progress' ? 'Crew has started work on this WO.'
                               : w.status === 'closed' ? 'Work completed and closed out.'
-                              : w.status === 'complete' ? 'All work finished and signed off.'
+                              : w.status === 'complete' ? 'Completed: no changes. Ready for admin billing workflow.'
                               : w.status === 'cancelled' ? 'WO will not be performed. Read-only.'
                               : w.status === 'on_hold' ? 'Paused for now. Resume by editing the WO.'
                               : w.status;
@@ -141,7 +145,7 @@
             <span class="wol-customer"><%= w.project_title || w.customer_name %></span>
             <div class="wol-job-title"><%= w.project_title ? w.customer_name : '' %></div>
             </td>
-            <td><span class="badge badge-<%= w.status %>" title="<%= statusHint %>"><%= w.status.replace('_',' ') %></span></td>
+            <td><span class="badge badge-<%= w.status %>" title="<%= statusHint %>"><%= woStatusLabel(w.status) %></span></td>
             <td class="wol-meta"><%= (w.scheduled_date || '—').slice(0,10) %></td>
             <td class="wol-meta"><%= w.assigned_to || '—' %></td>
             <td class="wol-meta"><%= (w.created_at || '').slice(0,10) %></td>

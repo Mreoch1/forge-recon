@@ -114,9 +114,17 @@ const selectedProjectId = wo.project_id || '';
       <select name="status" class="input <%= errors.status ? 'border-red-500' : '' %>">
         <%
           var _validStatuses = ['open', 'scheduled', 'in_progress', 'closed', 'complete', 'cancelled'];
+          var _statusLabels = {
+            open: 'open',
+            scheduled: 'scheduled',
+            in_progress: 'in progress',
+            closed: 'closed',
+            complete: 'complete: no changes',
+            cancelled: 'cancelled'
+          };
           _validStatuses.forEach(function(s){
         %>
-          <option value="<%= s %>" <%= (wo.status || 'open') === s ? 'selected' : '' %>><%= s.replace('_',' ')%></option>
+          <option value="<%= s %>" <%= (wo.status || 'open') === s ? 'selected' : '' %>><%= _statusLabels[s] || s.replace('_',' ')%></option>
         <% }); %>
       </select>
       <% if (errors.status) { %><p class="text-sm text-red-600 mt-1"><%= errors.status %></p><% } %>
