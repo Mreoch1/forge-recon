@@ -41,7 +41,7 @@
     </div>
     <div class="card p-4 <%= balanced ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200' %>">
       <p class="text-center <%= balanced ? 'text-green-700' : 'text-red-700' %> font-semibold">
-        <%= balanced ? '&#10003; Balanced: Assets = Liabilities + Equity' : '&#10007; Unbalanced: Assets &ne; Liabilities + Equity' %>
+        <%= balanced ? 'Balanced: Assets = Liabilities + Equity' : 'Unbalanced: Assets do not equal Liabilities + Equity' %>
       </p>
       <p class="text-center text-sm text-recon-fog mt-1">
         Assets $<%= fmt(totalAssets) %> = Liabilities $<%= fmt(totalLiabilities) %> + Equity $<%= fmt(totalEquity) %>

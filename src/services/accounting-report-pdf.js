@@ -44,18 +44,18 @@ function drawKeyValues(doc, values) {
   const width = right - left;
   const colW = width / Math.min(values.length, 5);
   let x = left;
-  const y = doc.y;
+  let rowY = doc.y;
   values.forEach((kv, idx) => {
     if (idx > 0 && idx % 5 === 0) {
-      doc.y += 42;
+      rowY += 42;
       x = left;
     }
-    doc.roundedRect(x, doc.y, colW - 8, 34, 4).strokeColor(COLOR.mist).lineWidth(0.8).stroke();
-    doc.fillColor(COLOR.fog).font('Helvetica-Bold').fontSize(7).text(kv.label.toUpperCase(), x + 8, doc.y + 7, { width: colW - 24 });
-    doc.fillColor(kv.color || COLOR.charcoal).font('Helvetica-Bold').fontSize(11).text(kv.value, x + 8, doc.y + 18, { width: colW - 24 });
+    doc.roundedRect(x, rowY, colW - 8, 34, 4).strokeColor(COLOR.mist).lineWidth(0.8).stroke();
+    doc.fillColor(COLOR.fog).font('Helvetica-Bold').fontSize(7).text(kv.label.toUpperCase(), x + 8, rowY + 7, { width: colW - 24 });
+    doc.fillColor(kv.color || COLOR.charcoal).font('Helvetica-Bold').fontSize(11).text(kv.value, x + 8, rowY + 18, { width: colW - 24 });
     x += colW;
   });
-  doc.y = y + (Math.ceil(values.length / 5) * 42);
+  doc.y = rowY + 42;
 }
 
 function drawTable(doc, columns, rows, options = {}) {
