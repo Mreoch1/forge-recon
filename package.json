@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "In-house construction work order system: estimates -> work orders -> invoices.",
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   },
   "main": "src/server.js",
   "type": "commonjs",
