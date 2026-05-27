@@ -3,7 +3,7 @@
  *
  * Roles:
  *   admin   — full access
- *   manager — same as admin for v0.5 (can create/edit/send everything)
+ *   manager — operations access: work orders, estimates, and scheduling.
  *   worker  — limited: WO list (own + assigned), edit WO, notes/photos. NEVER prices.
  *
  * Money-blind workers: routes that expose pricing or estimates/invoices use

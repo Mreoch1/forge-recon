@@ -53,6 +53,7 @@ async function checkedDashboardRead(query, label) {
 // Classic dashboard handler (was the original "/")
 router.get('/dashboard-classic', async (req, res) => {
   if (req.session?.role === 'worker') return res.redirect('/work-orders');
+  if (req.session?.role === 'manager') return res.redirect('/work-orders');
 
   const today = new Date().toISOString().slice(0, 10);
   const currentMonth = today.slice(0, 7);
@@ -143,6 +144,7 @@ router.get('/dashboard-classic', async (req, res) => {
 // =============================================================================
 router.get('/', async (req, res) => {
   if (req.session?.role === 'worker') return res.redirect('/work-orders');
+  if (req.session?.role === 'manager') return res.redirect('/work-orders');
 
   // D-059 A4: default_landing redirect — if user prefers chat, send to /forge
   // AI/tutorial landing is paused while the assistant is rebuilt.

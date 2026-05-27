@@ -1,7 +1,7 @@
 /**
  * Accounting module routes (v0.6) - Supabase SDK.
  *
- * All gated by requireManager in server.js.
+ * All gated by requireAdmin in app.js.
  *
  *   GET  /accounting                       - hub page with KPIs
  *   GET  /accounting/accounts              - chart of accounts list

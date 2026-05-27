@@ -220,26 +220,26 @@ app.use('/reset-password', lowLimiter);
 
 app.use('/', authRoutes);
 app.use('/', signupRoutes);
-app.use('/customers', requireAuth, requireManager, customersRoutes);
+app.use('/customers', requireAuth, requireAdmin, customersRoutes);
 // D-007: Projects layer — Jobs renamed Projects in UI. /projects is canonical;
 // /jobs preserved as a redirect so older links keep working.
-app.use('/projects', requireAuth, requireManager, jobsRoutes);
+app.use('/projects', requireAuth, requireAdmin, jobsRoutes);
 app.use('/', requireAuth, rfpRoutes);
-app.use('/jobs', requireAuth, requireManager, (req, res) => {
+app.use('/jobs', requireAuth, requireAdmin, (req, res) => {
   const tail = req.url === '/' ? '' : req.url;
   res.redirect(302, '/projects' + tail);
 });
 app.use('/estimates', requireAuth, requireManager, estimatesRoutes);
-app.use('/invoices', requireAuth, requireManager, invoicesRoutes);
-app.use('/bills', requireAuth, requireManager, billsRoutes);
+app.use('/invoices', requireAuth, requireAdmin, invoicesRoutes);
+app.use('/bills', requireAuth, requireAdmin, billsRoutes);
 app.use('/admin', requireAuth, requireAdmin, adminRoutes);
 app.use('/admin/closures', requireAuth, requireAdmin, closuresRoutes);
 app.use('/settings', requireAuth, settingsRoutes);
 app.use('/work-orders', requireAuth, workOrdersRoutes);
 app.use('/schedule', requireAuth, scheduleRoutes);
-app.use('/accounting', requireAuth, requireManager, accountingRoutes);
-app.use('/vendors', requireAuth, requireManager, vendorsRoutes);
-app.use('/contractors', requireAuth, requireManager, contractorsRoutes);
+app.use('/accounting', requireAuth, requireAdmin, accountingRoutes);
+app.use('/vendors', requireAuth, requireAdmin, vendorsRoutes);
+app.use('/contractors', requireAuth, requireAdmin, contractorsRoutes);
 app.use('/files', requireAuth, filesRoutes);
 app.get('/ai/chat/health', (req, res) => {
   const ai = require('./services/ai');

@@ -7,7 +7,7 @@
  */
 const express = require('express');
 const supabase = require('../db/supabase');
-const { requireManager } = require('../middleware/auth');
+const { requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -79,7 +79,7 @@ function isMissingOptionalRfpTable(error) {
 }
 
 // ── GET /projects/:id/rfp — dedicated RFP management page for a project ──
-router.get('/projects/:id/rfp', async (req, res) => {
+router.get('/projects/:id/rfp', requireAdmin, async (req, res) => {
   const jobId = req.params.id;
 
   const [{ data: job, error: jobError }, { data: rfps, error: rfpsError }, { data: vendors, error: vendorsError }, { data: contractors, error: contractorsError }] = await Promise.all([
@@ -134,7 +134,7 @@ router.get('/projects/:id/rfp', async (req, res) => {
 });
 
 // ── GET /api/rfp-sources — JSON endpoint with vendors + contractors for autocomplete ──
-router.get('/api/rfp-sources', async (req, res) => {
+router.get('/api/rfp-sources', requireAdmin, async (req, res) => {
   try {
     const [vr, cr] = await Promise.all([
       supabase.from('vendors').select('id, name').order('name'),
@@ -151,7 +151,7 @@ router.get('/api/rfp-sources', async (req, res) => {
 });
 
 // ── GET /projects/:id/rfps — list RFPs for a project (JSON endpoint) ──
-router.get('/projects/:id/rfps', async (req, res) => {
+router.get('/projects/:id/rfps', requireAdmin, async (req, res) => {
   const jobId = req.params.id;
   const { data: rfps, error } = await supabase
     .from('project_rfps')
@@ -163,7 +163,7 @@ router.get('/projects/:id/rfps', async (req, res) => {
 });
 
 // ── GET /projects/:id/rfps/:rId/items — line items for an RFP (JSON) ──
-router.get('/projects/:id/rfps/:rId/items', async (req, res) => {
+router.get('/projects/:id/rfps/:rId/items', requireAdmin, async (req, res) => {
   const { data: items, error } = await supabase
     .from('rfp_line_items')
     .select('*')
@@ -175,7 +175,7 @@ router.get('/projects/:id/rfps/:rId/items', async (req, res) => {
 });
 
 // ── POST /projects/:id/rfps — create a new RFP ──
-router.post('/projects/:id/rfps', requireManager, async (req, res) => {
+router.post('/projects/:id/rfps', requireAdmin, async (req, res) => {
   const { contractor_name, notes } = req.body;
   const { data, error } = await supabase
     .from('project_rfps')
@@ -192,7 +192,7 @@ router.post('/projects/:id/rfps', requireManager, async (req, res) => {
 });
 
 // ── POST /projects/:id/rfps/:rId — update RFP status or rename category (D-101) ──
-router.post('/projects/:id/rfps/:rId', requireManager, async (req, res) => {
+router.post('/projects/:id/rfps/:rId', requireAdmin, async (req, res) => {
   const { status, contractor_name } = req.body;
   const updateFields = { updated_at: new Date().toISOString() };
   const validStatuses = ['pending', 'submitted', 'awarded', 'declined'];
@@ -214,7 +214,7 @@ router.post('/projects/:id/rfps/:rId', requireManager, async (req, res) => {
 });
 
 // ── POST /projects/:id/rfps/:rId/items — add line item ──
-router.post('/projects/:id/rfps/:rId/items', requireManager, async (req, res) => {
+router.post('/projects/:id/rfps/:rId/items', requireAdmin, async (req, res) => {
   const { vendor, description, quantity, contractor_cost, vendor_cost,
           unit_cost, total_cost, markup_pct, parent_id } = req.body;
 
@@ -273,7 +273,7 @@ router.post('/projects/:id/rfps/:rId/items', requireManager, async (req, res) =>
 
 // ── POST /projects/:id/rfps/:rId/delete — remove an RFP (POST + suffix path because
 //    method-override middleware isn't installed; ?_method=DELETE doesn't work) ──
-router.post('/projects/:id/rfps/:rId/delete', requireManager, async (req, res) => {
+router.post('/projects/:id/rfps/:rId/delete', requireAdmin, async (req, res) => {
   const { error: itemsError } = await supabase.from('rfp_line_items').delete().eq('rfp_id', req.params.rId);
   if (itemsError) throw itemsError;
   const { error: rfpError } = await supabase.from('project_rfps').delete().eq('id', req.params.rId).eq('job_id', req.params.id);
@@ -284,7 +284,7 @@ router.post('/projects/:id/rfps/:rId/delete', requireManager, async (req, res) =
 // ── POST /projects/rfps/items/:itemId/delete — remove a line item (D-102 fix:
 //    was DELETE via ?_method=DELETE which silently no-op'd because method-override
 //    isn't installed; clicks on × actually hit the POST update route below) ──
-router.post('/projects/rfps/items/:itemId/delete', requireManager, async (req, res) => {
+router.post('/projects/rfps/items/:itemId/delete', requireAdmin, async (req, res) => {
   // Resolve job_id BEFORE delete so we can redirect back to the right project
   const { data: lineItem, error: lineItemError } = await supabase
     .from('rfp_line_items')
@@ -301,21 +301,21 @@ router.post('/projects/rfps/items/:itemId/delete', requireManager, async (req, r
 
 // Keep DELETE handlers for any code paths that DO have method-override active
 // (defensive — does no harm to define both):
-router.delete('/projects/:id/rfps/:rId', requireManager, async (req, res) => {
+router.delete('/projects/:id/rfps/:rId', requireAdmin, async (req, res) => {
   const { error: itemsError } = await supabase.from('rfp_line_items').delete().eq('rfp_id', req.params.rId);
   if (itemsError) throw itemsError;
   const { error: rfpError } = await supabase.from('project_rfps').delete().eq('id', req.params.rId).eq('job_id', req.params.id);
   if (rfpError) throw rfpError;
   res.redirect(`/projects/${req.params.id}/rfp`);
 });
-router.delete('/projects/rfps/items/:itemId', requireManager, async (req, res) => {
+router.delete('/projects/rfps/items/:itemId', requireAdmin, async (req, res) => {
   const { error } = await supabase.from('rfp_line_items').delete().eq('id', req.params.itemId);
   if (error) throw error;
   res.json({ ok: true });
 });
 
 // ── POST /projects/rfps/items/:itemId — update a line item (D-101 inline edit) ──
-router.post('/projects/rfps/items/:itemId', requireManager, async (req, res) => {
+router.post('/projects/rfps/items/:itemId', requireAdmin, async (req, res) => {
   // D-119 fix: when an HTML form has BOTH a hidden input (value="0") AND a
   // checkbox (value="1") sharing the same name, Express's qs body parser
   // returns an ARRAY of values. The previous code did `approved === '1'`
@@ -409,7 +409,7 @@ function computeSubLineTotals(params) {
 }
 
 // ── D-105: POST /projects/rfps/items/reorder — drag-drop save new sort order ──
-router.post('/projects/rfps/items/reorder', requireManager, async (req, res) => {
+router.post('/projects/rfps/items/reorder', requireAdmin, async (req, res) => {
   const { rfp_id } = req.body;
   let itemIds = req.body.item_ids;
   if (typeof itemIds === 'string' && itemIds.trim().startsWith('[')) {
@@ -428,7 +428,7 @@ router.post('/projects/rfps/items/reorder', requireManager, async (req, res) => 
 });
 
 // ── F-007: POST /projects/rfps/items/:itemId/approve — AJAX toggle ──
-router.post('/projects/rfps/items/:itemId/approve', requireManager, async (req, res) => {
+router.post('/projects/rfps/items/:itemId/approve', requireAdmin, async (req, res) => {
   const itemId = parseInt(req.params.itemId, 10);
   if (!itemId) return res.status(400).json({ ok: false, error: 'Invalid item id' });
   const approved = req.body.approved === 1 || req.body.approved === '1' || req.body.approved === true;
@@ -440,7 +440,7 @@ router.post('/projects/rfps/items/:itemId/approve', requireManager, async (req, 
 // ── F-006: RFP export routes (PDF, CSV, XLSX) ──────────────────────────
 const rfpExport = require('../services/rfp-export');
 
-router.get('/projects/:id/rfps/:rId/export.pdf', async (req, res) => {
+router.get('/projects/:id/rfps/:rId/export.pdf', requireAdmin, async (req, res) => {
   const { data: rfp, error: rfpErr } = await supabase.from('project_rfps').select('*, jobs!left(title)').eq('id', req.params.rId).maybeSingle();
   if (rfpErr) throw rfpErr;
   if (!rfp) return res.status(404).send('RFP not found');
@@ -459,7 +459,7 @@ router.get('/projects/:id/rfps/:rId/export.pdf', async (req, res) => {
   res.send(buf);
 });
 
-router.get('/projects/:id/rfps/:rId/export.csv', async (req, res) => {
+router.get('/projects/:id/rfps/:rId/export.csv', requireAdmin, async (req, res) => {
   const { data: rfp, error: rfpErr } = await supabase.from('project_rfps').select('*').eq('id', req.params.rId).maybeSingle();
   if (rfpErr) throw rfpErr;
   if (!rfp) return res.status(404).send('RFP not found');
@@ -477,7 +477,7 @@ router.get('/projects/:id/rfps/:rId/export.csv', async (req, res) => {
   res.send(csv);
 });
 
-router.get('/projects/:id/rfps/:rId/export.xlsx', async (req, res) => {
+router.get('/projects/:id/rfps/:rId/export.xlsx', requireAdmin, async (req, res) => {
   const { data: rfp, error: rfpErr } = await supabase.from('project_rfps').select('*').eq('id', req.params.rId).maybeSingle();
   if (rfpErr) throw rfpErr;
   if (!rfp) return res.status(404).send('RFP not found');
