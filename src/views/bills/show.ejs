@@ -26,7 +26,7 @@ const billStatusHint = BILL_STATUS_HINTS[bill.status] || bill.status;
       </div>
       <p class="page-sub">
         Vendor: <a href="/vendors/<%= bill.vendor_id %>" class="hover:text-recon-red"><%= bill.vendor_name || 'Vendor #' + bill.vendor_id %></a>
-        <% if (bill.job_title) { %> &middot; Legacy job: <%= bill.job_title %><% } %>
+        <% if (bill.job_title) { %> &middot; Project: <%= bill.job_title %><% } %>
       </p>
     </div>
     <div class="flex flex-wrap gap-2">

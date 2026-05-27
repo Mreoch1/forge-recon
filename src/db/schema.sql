@@ -138,7 +138,9 @@ CREATE TABLE IF NOT EXISTS estimate_line_items (
   cost REAL NOT NULL DEFAULT 0,
   line_total REAL NOT NULL DEFAULT 0,
   selected INTEGER NOT NULL DEFAULT 1,    -- if customer accepts only some lines (carries to invoice)
-  sort_order INTEGER NOT NULL DEFAULT 0
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  source_bill_id INTEGER,
+  source_bill_line_id INTEGER
 );
 
 -- ========== INVOICES ==========
@@ -175,7 +177,9 @@ CREATE TABLE IF NOT EXISTS invoice_line_items (
   unit_price REAL NOT NULL DEFAULT 0,
   cost REAL NOT NULL DEFAULT 0,
   line_total REAL NOT NULL DEFAULT 0,
-  sort_order INTEGER NOT NULL DEFAULT 0
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  source_bill_id INTEGER,
+  source_bill_line_id INTEGER
 );
 
 -- ========== COMPANY SETTINGS ==========

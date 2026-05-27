@@ -102,6 +102,8 @@ async function ensureDbInit(req, res, next) {
           {table:'estimates',col:'sent_to_name',type:'TEXT'},{table:'invoices',col:'sent_by_user_id',type:'INTEGER'},
           {table:'invoices',col:'sent_to_email',type:'TEXT'},{table:'invoices',col:'sent_to_name',type:'TEXT'},
           {table:'estimates',col:'archived_at',type:'TEXT'},{table:'estimates',col:'payment_terms',type:"TEXT NOT NULL DEFAULT 'Net 30'"},
+          {table:'estimate_line_items',col:'source_bill_id',type:'INTEGER'},{table:'estimate_line_items',col:'source_bill_line_id',type:'INTEGER'},
+          {table:'invoice_line_items',col:'source_bill_id',type:'INTEGER'},{table:'invoice_line_items',col:'source_bill_line_id',type:'INTEGER'},
         ];
         for (const m of bootMigrations) {
           const existing = await db.all('PRAGMA table_info(' + m.table + ')');
@@ -116,6 +118,12 @@ async function ensureDbInit(req, res, next) {
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_expires_at TIMESTAMPTZ",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS acknowledged_live_email_warning_at TIMESTAMPTZ",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS completed_onboarding_at TIMESTAMPTZ",
+        "ALTER TABLE estimate_line_items ADD COLUMN IF NOT EXISTS source_bill_id BIGINT REFERENCES bills(id) ON DELETE SET NULL",
+        "ALTER TABLE estimate_line_items ADD COLUMN IF NOT EXISTS source_bill_line_id BIGINT REFERENCES bill_lines(id) ON DELETE SET NULL",
+        "ALTER TABLE invoice_line_items ADD COLUMN IF NOT EXISTS source_bill_id BIGINT REFERENCES bills(id) ON DELETE SET NULL",
+        "ALTER TABLE invoice_line_items ADD COLUMN IF NOT EXISTS source_bill_line_id BIGINT REFERENCES bill_lines(id) ON DELETE SET NULL",
+        "CREATE INDEX IF NOT EXISTS idx_estimate_line_items_source_bill ON estimate_line_items(source_bill_id)",
+        "CREATE INDEX IF NOT EXISTS idx_invoice_line_items_source_bill ON invoice_line_items(source_bill_id)",
       ];
       for (const sql of pgMigrations) {
         try { await db.run(sql); } catch(e) { console.warn('[boot] pg migration:', e.message); }
@@ -451,6 +459,12 @@ app.use((err, req, res, next) => {
       "ALTER TABLE users ADD COLUMN IF NOT EXISTS default_landing TEXT DEFAULT 'chat'",
       "ALTER TABLE estimates DROP CONSTRAINT IF EXISTS estimates_status_check",
       "ALTER TABLE estimates ADD CONSTRAINT estimates_status_check CHECK (status IN ('new','draft','sent','pending','approved','accepted','rejected','expired'))",
+      "ALTER TABLE estimate_line_items ADD COLUMN IF NOT EXISTS source_bill_id BIGINT REFERENCES bills(id) ON DELETE SET NULL",
+      "ALTER TABLE estimate_line_items ADD COLUMN IF NOT EXISTS source_bill_line_id BIGINT REFERENCES bill_lines(id) ON DELETE SET NULL",
+      "ALTER TABLE invoice_line_items ADD COLUMN IF NOT EXISTS source_bill_id BIGINT REFERENCES bills(id) ON DELETE SET NULL",
+      "ALTER TABLE invoice_line_items ADD COLUMN IF NOT EXISTS source_bill_line_id BIGINT REFERENCES bill_lines(id) ON DELETE SET NULL",
+      "CREATE INDEX IF NOT EXISTS idx_estimate_line_items_source_bill ON estimate_line_items(source_bill_id)",
+      "CREATE INDEX IF NOT EXISTS idx_invoice_line_items_source_bill ON invoice_line_items(source_bill_id)",
     ];
     for (const sql of migrations) {
       try { await pool.query(sql); } catch(e) { /* column may already exist with different options */ }

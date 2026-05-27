@@ -47,11 +47,11 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
     </div>
   </div>
 
-  <!-- F-010: Project + WO links for propagation -->
+  <!-- F-010: Project + WO links for propagation. Internally this posts job_id because the legacy DB column is still named that. -->
   <div class="card p-5">
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
-        <label class="label" for="job_id">Project (job)
+        <label class="label" for="job_id">Project
           <span class="ml-1 text-recon-fog cursor-help" title="Link this bill to a project. The project's financial panel and cost actuals will auto-update.">ⓘ</span>
         </label>
         <select name="job_id" id="job_id" class="input text-sm">
@@ -163,7 +163,7 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
 
   <div class="card p-5">
     <label class="label" for="notes">Notes / memo
-      <span class="ml-1 text-recon-fog cursor-help" title="Internal memo for this bill (PO number, approver, job reference). Not shown to the vendor.">ⓘ</span>
+          <span class="ml-1 text-recon-fog cursor-help" title="Internal memo for this bill (PO number, approver, project reference). Not shown to the vendor.">ⓘ</span>
     </label>
     <textarea name="notes" id="notes" rows="3" class="input" data-autosize><%= bill.notes || '' %></textarea>
   </div>
@@ -204,5 +204,54 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
     var match = vendors.find(function(v){ return v.name === selectedName; });
     if (!match) { hidden.value = ''; }
   });
+})();
+
+// D-144: real-time totals — line $, subtotal, tax, total recompute as the user
+// types qty / unit $ / tax_amount. Replaces the static server-rendered values.
+(function(){
+  var form = document.querySelector('form[data-line-items], form .table, form');
+  if (!form) return;
+  var taxInput = document.getElementById('tax_amount');
+  var subEl    = document.querySelector('[data-totals="subtotal"]');
+  var taxEl    = document.querySelector('[data-totals="tax_amount"]');
+  var totEl    = document.querySelector('[data-totals="total"]');
+  if (!subEl || !taxEl || !totEl) return;
+
+  function fmt(n){ var x = Number(n); return isFinite(x) ? x.toFixed(2) : '0.00'; }
+
+  function recalc(){
+    var sub = 0;
+    document.querySelectorAll('tr.line-row').forEach(function(row){
+      if (row.classList.contains('hidden') || row.hasAttribute('data-template')) return;
+      var q = parseFloat(row.querySelector('[data-field="quantity"]')?.value) || 0;
+      var p = parseFloat(row.querySelector('[data-field="unit_price"]')?.value) || 0;
+      var lt = Math.round(q * p * 100) / 100;
+      var ltEl = row.querySelector('[data-field="line_total"]');
+      if (ltEl) ltEl.textContent = fmt(lt);
+      sub += lt;
+    });
+    var tax = parseFloat(taxInput && taxInput.value) || 0;
+    if (tax < 0) tax = 0;
+    var tot = Math.round((sub + tax) * 100) / 100;
+    subEl.textContent = fmt(sub);
+    taxEl.textContent = fmt(tax);
+    totEl.textContent = fmt(tot);
+  }
+
+  // Delegate input events so new rows added after load are covered.
+  document.addEventListener('input', function(e){
+    if (!e.target) return;
+    var f = e.target.getAttribute && e.target.getAttribute('data-field');
+    if (f === 'quantity' || f === 'unit_price' || e.target.id === 'tax_amount') {
+      recalc();
+    }
+  });
+  // Initial calc on load + after Add line button.
+  document.addEventListener('click', function(e){
+    if (e.target && e.target.matches('[data-add-line], [data-remove-line]')) {
+      setTimeout(recalc, 0);
+    }
+  });
+  recalc();
 })();
 </script>

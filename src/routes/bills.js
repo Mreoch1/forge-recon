@@ -24,6 +24,7 @@ const { setFlash } = require('../middleware/auth');
 const posting = require('../services/accounting-posting');
 const { writeAudit } = require('../services/audit');
 const { sanitizePostgrestSearch } = require('../services/sanitize');
+const billPaperwork = require('../services/bill-paperwork');
 
 const router = express.Router();
 const PAGE_SIZE = 25;
@@ -370,7 +371,20 @@ router.post('/', async (req, res) => {
     });
   } catch (e) { /* best-effort */ }
 
-  setFlash(req, 'success', `Bill draft created.`);
+  let paperwork = null;
+  if (data.work_order_id) {
+    try {
+      paperwork = await billPaperwork.ensureDraftPaperworkForBill({ billId: newId });
+    } catch (e) {
+      console.warn('[bills] draft estimate/invoice creation failed:', e.message);
+    }
+  }
+
+  if (paperwork && !paperwork.skipped) {
+    setFlash(req, 'success', `Bill draft created. Draft estimate #${paperwork.estimate_id} and invoice #${paperwork.invoice_id} are ready to edit before sending.`);
+  } else {
+    setFlash(req, 'success', `Bill draft created.`);
+  }
   res.redirect(`/bills/${newId}`);
 });
 
@@ -454,6 +468,14 @@ router.post('/:id', async (req, res) => {
     });
     if (auditErr) throw auditErr;
   } catch (e) { /* best-effort */ }
+
+  if (data.work_order_id) {
+    try {
+      await billPaperwork.ensureDraftPaperworkForBill({ billId: existing.id });
+    } catch (e) {
+      console.warn('[bills] draft estimate/invoice sync failed:', e.message);
+    }
+  }
 
   setFlash(req, 'success', `Bill updated.`);
   res.redirect(`/bills/${existing.id}`);

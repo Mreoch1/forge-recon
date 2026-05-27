@@ -154,7 +154,9 @@ CREATE TABLE IF NOT EXISTS estimate_line_items (
   cost NUMERIC(14,2) NOT NULL DEFAULT 0,
   line_total NUMERIC(14,2) NOT NULL DEFAULT 0,
   selected BOOLEAN NOT NULL DEFAULT TRUE,
-  sort_order INTEGER NOT NULL DEFAULT 0
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  source_bill_id BIGINT,
+  source_bill_line_id BIGINT
 );
 
 -- ========== INVOICES ==========
@@ -189,7 +191,9 @@ CREATE TABLE IF NOT EXISTS invoice_line_items (
   unit_price NUMERIC(14,2) NOT NULL DEFAULT 0,
   cost NUMERIC(14,2) NOT NULL DEFAULT 0,
   line_total NUMERIC(14,2) NOT NULL DEFAULT 0,
-  sort_order INTEGER NOT NULL DEFAULT 0
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  source_bill_id BIGINT,
+  source_bill_line_id BIGINT
 );
 
 -- ========== COMPANY SETTINGS ==========
