@@ -14,6 +14,7 @@
 
 const express = require('express');
 const supabase = require('../db/supabase');
+const { setFlash } = require('../middleware/auth');
 const reportPdf = require('../services/accounting-report-pdf');
 const qbImportSummary = require('../services/quickbooks-import-summary');
 
@@ -120,6 +121,7 @@ async function loadPayrollOverview() {
     ready: false,
     settings: null,
     employees: [],
+    users: [],
     runs: [],
     employeeCount: 0,
     activeCount: 0,
@@ -129,12 +131,23 @@ async function loadPayrollOverview() {
   };
 
   try {
-    const [{ data: settings, error: settingsErr }, { data: employees, error: employeeErr }, { data: runs, error: runsErr }] = await Promise.all([
+    const [
+      { data: settings, error: settingsErr },
+      { data: employees, error: employeeErr },
+      { data: users, error: usersErr },
+      { data: runs, error: runsErr },
+    ] = await Promise.all([
       supabase.from('payroll_settings').select('*').eq('id', 1).maybeSingle(),
       supabase
         .from('payroll_employees')
-        .select('id, display_name, email, role_title, status, pay_type, pay_rate_amount, pay_rate_period, pay_method, pay_schedule, imported_at')
+        .select('id, user_id, display_name, email, role_title, status, pay_type, pay_rate_amount, pay_rate_period, pay_method, pay_schedule, imported_at')
         .order('display_name', { ascending: true })
+        .limit(250),
+      supabase
+        .from('users')
+        .select('id, name, email, role')
+        .in('role', ['admin', 'manager', 'worker'])
+        .order('name', { ascending: true })
         .limit(250),
       supabase
         .from('payroll_runs')
@@ -144,6 +157,7 @@ async function loadPayrollOverview() {
     ]);
     if (settingsErr) throw settingsErr;
     if (employeeErr) throw employeeErr;
+    if (usersErr) throw usersErr;
     if (runsErr) throw runsErr;
 
     const roster = employees || [];
@@ -152,6 +166,7 @@ async function loadPayrollOverview() {
       ready: true,
       settings: settings || null,
       employees: roster,
+      users: users || [],
       runs: payrollRuns,
       employeeCount: roster.length,
       activeCount: roster.filter(e => e.status === 'active').length,
@@ -170,8 +185,84 @@ router.get('/payroll', async (req, res) => {
     title: 'Payroll',
     activeNav: 'accounting',
     payroll,
+    employeeForm: {},
     money: qbImportSummary.money,
   });
+});
+
+function cleanOptionalText(value) {
+  const text = String(value || '').trim();
+  return text || null;
+}
+
+function cleanPayrollEmployeeInput(body) {
+  const displayName = cleanOptionalText(body.display_name);
+  const email = cleanOptionalText(body.email);
+  const roleTitle = cleanOptionalText(body.role_title);
+  const payMethod = cleanOptionalText(body.pay_method);
+  const paySchedule = cleanOptionalText(body.pay_schedule);
+  const userId = Number.parseInt(body.user_id, 10);
+  const rawPayRate = String(body.pay_rate_amount || '').replace(/[$,]/g, '').trim();
+  const payRate = rawPayRate ? Number(rawPayRate) : null;
+  const status = ['active', 'inactive', 'terminated'].includes(body.status) ? body.status : 'active';
+  const payType = ['salary', 'hourly', 'contract', 'other'].includes(body.pay_type) ? body.pay_type : 'salary';
+  const payRatePeriod = ['year', 'hour', 'day', 'pay_period', 'other'].includes(body.pay_rate_period) ? body.pay_rate_period : null;
+
+  const errors = [];
+  if (!displayName) errors.push('Employee name is required.');
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push('Email address is not valid.');
+  if (rawPayRate && (!Number.isFinite(payRate) || payRate < 0)) errors.push('Pay rate must be a positive number.');
+  if (payRate != null && !payRatePeriod) errors.push('Choose a pay rate period.');
+
+  return {
+    data: {
+      user_id: Number.isFinite(userId) && userId > 0 ? userId : null,
+      display_name: displayName,
+      email,
+      role_title: roleTitle,
+      status,
+      pay_type: payType,
+      pay_rate_amount: payRate,
+      pay_rate_period: payRate != null ? payRatePeriod : null,
+      pay_method: payMethod,
+      pay_schedule: paySchedule,
+      imported_from: 'manual',
+      imported_at: new Date().toISOString(),
+      metadata: { entry: 'manual' },
+    },
+    errors,
+  };
+}
+
+router.post('/payroll/employees', async (req, res) => {
+  const { data, errors } = cleanPayrollEmployeeInput(req.body || {});
+  if (errors.length) {
+    const payroll = await loadPayrollOverview();
+    return res.status(400).render('accounting/payroll', {
+      title: 'Payroll',
+      activeNav: 'accounting',
+      payroll,
+      employeeForm: req.body || {},
+      employeeError: errors.join(' '),
+      money: qbImportSummary.money,
+    });
+  }
+
+  const { error } = await supabase.from('payroll_employees').insert(data);
+  if (error) {
+    const payroll = await loadPayrollOverview();
+    return res.status(400).render('accounting/payroll', {
+      title: 'Payroll',
+      activeNav: 'accounting',
+      payroll,
+      employeeForm: req.body || {},
+      employeeError: `Employee could not be saved: ${error.message}`,
+      money: qbImportSummary.money,
+    });
+  }
+
+  setFlash(req, 'success', `Payroll employee "${data.display_name}" added.`);
+  res.redirect('/accounting/payroll');
 });
 
 // --- chart of accounts ---

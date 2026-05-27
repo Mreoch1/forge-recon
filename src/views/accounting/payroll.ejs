@@ -47,6 +47,95 @@ function rateLabel(employee) {
     </div>
   <% } %>
 
+  <div class="ops-panel mb-4">
+    <div class="ops-panel-head">
+      <div class="ops-panel-title">Add employee</div>
+      <div class="text-xs text-recon-fog">Manual admin entry</div>
+    </div>
+    <div class="p-4">
+      <% if (typeof employeeError !== 'undefined' && employeeError) { %>
+        <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"><%= employeeError %></div>
+      <% } %>
+      <form method="post" action="/accounting/payroll/employees" class="grid gap-4">
+        <div class="grid gap-4 md:grid-cols-3">
+          <label>
+            <span class="label">Employee name *</span>
+            <input class="input" name="display_name" value="<%= employeeForm.display_name || '' %>" required>
+          </label>
+          <label>
+            <span class="label">Email</span>
+            <input class="input" name="email" type="email" value="<%= employeeForm.email || '' %>">
+          </label>
+          <label>
+            <span class="label">Forge user link</span>
+            <select class="input" name="user_id">
+              <option value="">No linked user</option>
+              <% (payroll.users || []).forEach(function(user){ %>
+                <option value="<%= user.id %>" <%= String(employeeForm.user_id || '') === String(user.id) ? 'selected' : '' %>>
+                  <%= user.name %><%= user.email ? ' - ' + user.email : '' %>
+                </option>
+              <% }); %>
+            </select>
+          </label>
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-4">
+          <label>
+            <span class="label">Role / title</span>
+            <input class="input" name="role_title" value="<%= employeeForm.role_title || '' %>" placeholder="Field rep, accountant, office">
+          </label>
+          <label>
+            <span class="label">Status</span>
+            <select class="input" name="status">
+              <% ['active', 'inactive', 'terminated'].forEach(function(status){ %>
+                <option value="<%= status %>" <%= (employeeForm.status || 'active') === status ? 'selected' : '' %>><%= status %></option>
+              <% }); %>
+            </select>
+          </label>
+          <label>
+            <span class="label">Pay type</span>
+            <select class="input" name="pay_type">
+              <% ['salary', 'hourly', 'contract', 'other'].forEach(function(type){ %>
+                <option value="<%= type %>" <%= (employeeForm.pay_type || 'salary') === type ? 'selected' : '' %>><%= type %></option>
+              <% }); %>
+            </select>
+          </label>
+          <label>
+            <span class="label">Pay method</span>
+            <input class="input" name="pay_method" value="<%= employeeForm.pay_method || '' %>" placeholder="Paper check, direct deposit">
+          </label>
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end">
+          <label>
+            <span class="label">Pay rate</span>
+            <input class="input" name="pay_rate_amount" inputmode="decimal" value="<%= employeeForm.pay_rate_amount || '' %>" placeholder="70000.00">
+          </label>
+          <label>
+            <span class="label">Rate period</span>
+            <select class="input" name="pay_rate_period">
+              <option value="">Choose if rate entered</option>
+              <% [
+                ['year', 'per year'],
+                ['hour', 'per hour'],
+                ['day', 'per day'],
+                ['pay_period', 'per pay period'],
+                ['other', 'other']
+              ].forEach(function(option){ %>
+                <option value="<%= option[0] %>" <%= employeeForm.pay_rate_period === option[0] ? 'selected' : '' %>><%= option[1] %></option>
+              <% }); %>
+            </select>
+          </label>
+          <label>
+            <span class="label">Pay schedule</span>
+            <input class="input" name="pay_schedule" value="<%= employeeForm.pay_schedule || '' %>" placeholder="Every other Friday">
+          </label>
+          <button class="btn btn-primary" type="submit">Add employee</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div class="ops-panel ops-table mb-4">
     <div class="ops-panel-head">
       <div class="ops-panel-title">Guardrails</div>
