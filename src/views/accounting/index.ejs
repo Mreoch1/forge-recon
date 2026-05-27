@@ -1,43 +1,166 @@
 <%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
 
-<div class="max-w-7xl mx-auto px-4 py-6">
-  <h1 class="page-h1 mb-2">Accounting</h1>
-  <p class="page-sub mb-6">Financial cockpit — aging, reports, and journal entries.</p>
+<%
+const primaryReports = [
+  {
+    name: 'AR Aging',
+    href: '/accounting/ar-aging',
+    pdf: '/accounting/ar-aging.pdf',
+    type: 'Receivable',
+    cadence: 'Current',
+    description: 'Customer invoice balances by age and due date.'
+  },
+  {
+    name: 'AP Aging',
+    href: '/accounting/ap-aging',
+    pdf: '/accounting/ap-aging.pdf',
+    type: 'Payable',
+    cadence: 'Current',
+    description: 'Open vendor bills by age and due date.'
+  }
+];
+const financialReports = [
+  {
+    name: 'Chart of accounts',
+    href: '/accounting/accounts',
+    pdf: '/accounting/accounts.pdf',
+    type: 'Setup',
+    cadence: 'As needed',
+    description: 'Account list used for posting and reports.'
+  },
+  {
+    name: 'Journal entries',
+    href: '/accounting/journal',
+    pdf: '/accounting/journal.pdf',
+    type: 'Ledger',
+    cadence: 'As posted',
+    description: 'Posted accounting activity from invoices, bills, and payments.'
+  },
+  {
+    name: 'Trial balance',
+    href: '/accounting/reports/trial-balance',
+    pdf: '/accounting/reports/trial-balance.pdf',
+    type: 'Report',
+    cadence: 'Current',
+    description: 'Debit and credit balances from posted journal lines.'
+  },
+  {
+    name: 'Profit & loss',
+    href: '/accounting/reports/profit-loss',
+    pdf: '/accounting/reports/profit-loss.pdf',
+    type: 'Report',
+    cadence: 'Current',
+    description: 'Revenue, expenses, and net income.'
+  },
+  {
+    name: 'Balance sheet',
+    href: '/accounting/reports/balance-sheet',
+    pdf: '/accounting/reports/balance-sheet.pdf',
+    type: 'Report',
+    cadence: 'Current',
+    description: 'Assets, liabilities, equity, and balance check.'
+  }
+];
+const allReports = primaryReports.concat(financialReports);
+%>
 
-  <!-- Aging cards -->
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-    <a href="/accounting/ar-aging" class="card p-6 hover:shadow-md transition block border-l-4 border-recon-red">
-      <div class="text-2xl font-bold text-recon-red mb-1">AR Aging</div>
-      <p class="text-sm text-recon-fog">Accounts receivable by age — who owes you money and how overdue.</p>
-    </a>
-    <a href="/accounting/ap-aging" class="card p-6 hover:shadow-md transition block border-l-4 border-amber-500">
-      <div class="text-2xl font-bold text-amber-600 mb-1">AP Aging</div>
-      <p class="text-sm text-recon-fog">Accounts payable by age — who you owe and when it's due.</p>
-    </a>
+<div class="ops-shell">
+  <div class="ops-header">
+    <div class="ops-title-block">
+      <h1 class="page-h1">Accounting</h1>
+      <p class="page-sub mt-1">Aging, ledgers, and financial reports.</p>
+    </div>
   </div>
 
-  <!-- Reports + tools grid -->
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-    <a href="/accounting/accounts" class="card p-6 hover:shadow-md transition block">
-      <div class="text-lg font-bold text-recon-red mb-1">Chart of accounts</div>
-      <p class="text-sm text-recon-fog">View and print/export the account list.</p>
-    </a>
-    <a href="/accounting/journal" class="card p-6 hover:shadow-md transition block">
-      <div class="text-lg font-bold text-recon-red mb-1">Journal entries</div>
-      <p class="text-sm text-recon-fog">Browse posted entries and export journal detail.</p>
-    </a>
-    <a href="/accounting/reports/trial-balance" class="card p-6 hover:shadow-md transition block">
-      <div class="text-lg font-bold text-recon-red mb-1">Trial balance</div>
-      <p class="text-sm text-recon-fog">Debit and credit report from posted journal lines.</p>
-    </a>
-    <a href="/accounting/reports/profit-loss" class="card p-6 hover:shadow-md transition block">
-      <div class="text-lg font-bold text-recon-red mb-1">Profit &amp; loss</div>
-      <p class="text-sm text-recon-fog">Revenue, expenses, and net income.</p>
-    </a>
-    <a href="/accounting/reports/balance-sheet" class="card p-6 hover:shadow-md transition block">
-      <div class="text-lg font-bold text-recon-red mb-1">Balance sheet</div>
-      <p class="text-sm text-recon-fog">Assets, liabilities, equity, and balance check.</p>
-    </a>
+  <div class="ops-summary">
+    <div class="ops-summary-item">
+      <div class="ops-summary-label">Reports</div>
+      <div class="ops-summary-value"><%= allReports.length %></div>
+      <div class="ops-summary-meta">available</div>
+    </div>
+    <div class="ops-summary-item">
+      <div class="ops-summary-label">AR / AP</div>
+      <div class="ops-summary-value">2</div>
+      <div class="ops-summary-meta">aging views</div>
+    </div>
+    <div class="ops-summary-item">
+      <div class="ops-summary-label">Ledger</div>
+      <div class="ops-summary-value">1</div>
+      <div class="ops-summary-meta">journal register</div>
+    </div>
+    <div class="ops-summary-item">
+      <div class="ops-summary-label">Exports</div>
+      <div class="ops-summary-value">PDF</div>
+      <div class="ops-summary-meta">print-ready</div>
+    </div>
+  </div>
+
+  <div class="ops-panel ops-table mb-4">
+    <div class="ops-panel-head">
+      <div class="ops-panel-title">Aging</div>
+      <div class="text-xs text-recon-fog"><%= primaryReports.length %> views</div>
+    </div>
+    <div class="ops-panel-body">
+      <table class="data">
+        <thead>
+          <tr>
+            <th>View</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Updated</th>
+            <th class="text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% primaryReports.forEach(function(r){ %>
+            <tr class="row-link" data-href="<%= r.href %>">
+              <td class="font-semibold"><%= r.name %></td>
+              <td><span class="badge badge-draft"><%= r.type %></span></td>
+              <td class="text-recon-fog"><%= r.description %></td>
+              <td><%= r.cadence %></td>
+              <td class="text-right">
+                <a href="<%= r.href %>" class="btn btn-secondary text-xs">Open</a>
+                <a href="<%= r.pdf %>" class="btn btn-ghost text-xs">PDF</a>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="ops-panel ops-table">
+    <div class="ops-panel-head">
+      <div class="ops-panel-title">Reports and ledger</div>
+      <div class="text-xs text-recon-fog"><%= financialReports.length %> items</div>
+    </div>
+    <div class="ops-panel-body">
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Report</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Updated</th>
+            <th class="text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% financialReports.forEach(function(r){ %>
+            <tr class="row-link" data-href="<%= r.href %>">
+              <td class="font-semibold"><%= r.name %></td>
+              <td><span class="badge badge-draft"><%= r.type %></span></td>
+              <td class="text-recon-fog"><%= r.description %></td>
+              <td><%= r.cadence %></td>
+              <td class="text-right">
+                <a href="<%= r.href %>" class="btn btn-secondary text-xs">Open</a>
+                <a href="<%= r.pdf %>" class="btn btn-ghost text-xs">PDF</a>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 
