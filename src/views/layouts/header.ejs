@@ -92,6 +92,9 @@
     .navlink { color: #d0d0d0; padding: .35rem .45rem; border-radius: .25rem; transition: all .15s; font-size: .8rem; white-space: nowrap; }
     .navlink:hover { background: #3d3d3d; color: #ffffff; }
     .navlink.active { background: #c0202b; color: #ffffff; }
+    .nav-shell { width: min(100% - 1.5rem, 92rem); margin: 0 auto; padding: 0 .75rem; display: flex; align-items: center; justify-content: space-between; height: 4rem; gap: .25rem; }
+    @media (min-width: 768px) { .nav-shell { height: 5rem; gap: .5rem; padding: 0 1rem; } }
+    @media (min-width: 1536px) { .nav-shell { width: min(100% - 3rem, 100rem); } }
     .btn { display: inline-flex; align-items: center; justify-content: center; padding: .5rem 1rem; border-radius: .375rem; font-weight: 500; transition: all .15s; cursor: pointer; border: none; font-size: .9rem; }
     /* R33: bigger tap targets on phones */
     @media (max-width: 767px) {
@@ -136,6 +139,8 @@
     .ops-shell { width: min(100% - 2rem, 92rem); margin: 0 auto; padding: 1.5rem 0 2rem; }
     @media (min-width: 1536px) { .ops-shell { width: min(100% - 4rem, 100rem); } }
     .ops-header { display: flex; align-items: end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .page-back-shell { width: min(100% - 2rem, 92rem); margin: 0 auto; padding: .5rem 0 0; }
+    @media (min-width: 1536px) { .page-back-shell { width: min(100% - 4rem, 100rem); } }
     .ops-title-block { min-width: 16rem; }
     .ops-actions { display: flex; align-items: center; justify-content: flex-end; gap: .5rem; flex-wrap: wrap; }
     .ops-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid #e5e5e5; border-radius: .5rem; background: #fff; overflow: hidden; margin-bottom: 1rem; }
@@ -152,10 +157,10 @@
     .ops-table table.data th { font-size: .68rem; letter-spacing: .11em; padding: .65rem .9rem; }
     .ops-table table.data td { padding: .68rem .9rem; }
     .ops-table table.data tbody tr:last-child td { border-bottom: 0; }
-    .document-shell { width: min(100% - 2rem, 86rem); margin: 0 auto; padding: 1.5rem 0 2.25rem; }
+    .document-shell { width: min(100% - 2rem, 92rem); margin: 0 auto; padding: 1.5rem 0 2.25rem; }
     .document-edit-shell { width: min(100% - 2rem, 92rem); margin: 0 auto; padding: 1.5rem 0 2.25rem; }
     @media (min-width: 1536px) {
-      .document-shell { width: min(100% - 4rem, 94rem); }
+      .document-shell { width: min(100% - 4rem, 100rem); }
       .document-edit-shell { width: min(100% - 4rem, 104rem); }
     }
     .document-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .5rem; }
@@ -172,6 +177,7 @@
     .document-edit-shell textarea[data-field="description"] { min-width: 14rem; }
     @media (max-width: 900px) {
       .ops-shell { width: min(100% - 1rem, 92rem); padding-top: 1rem; }
+      .page-back-shell { width: min(100% - 1rem, 92rem); }
       .document-shell, .document-edit-shell { width: min(100% - 1rem, 92rem); padding-top: 1rem; }
       .ops-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .ops-summary-item:nth-child(2n) { border-right: 0; }
@@ -220,7 +226,7 @@
     #mobile-panel { display: none; }
     #r33-nav-toggle:checked ~ #mobile-panel { display: block; }
     /* Hover-style hint to indicate active state on the label when panel is open */
-    #r33-nav-toggle:checked ~ .max-w-7xl .r33-hamburger { background: #3d3d3d; color: #fff; }
+    #r33-nav-toggle:checked ~ .nav-shell .r33-hamburger { background: #3d3d3d; color: #fff; }
     /* On lg+ screens always hide the toggle UI even if state was checked */
     @media (min-width: 1024px) {
       #r33-nav-toggle:checked ~ #mobile-panel { display: none; }
@@ -239,7 +245,7 @@
   <nav class="bg-recon-charcoal text-white shadow-md">
     <!-- R33: hidden checkbox drives the mobile menu open/closed state -->
     <input type="checkbox" id="r33-nav-toggle" aria-hidden="true">
-    <div class="max-w-7xl mx-auto px-3 md:px-4 flex items-center justify-between h-16 md:h-20 gap-1 md:gap-2">
+    <div class="nav-shell">
       <div class="flex items-center gap-1 md:gap-2 min-w-0">
         <a href="/" class="flex items-center gap-2 md:gap-2 md:mr-2 group shrink-0">
           <img src="/logos/recon-logo.jpg" alt="Recon Enterprises Inc." class="h-8 md:h-11 w-auto">

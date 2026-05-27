@@ -1,6 +1,6 @@
 <%- include('../layouts/header', { title: 'RFP — ' + (job.title || job.name), currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
 
-<div class="max-w-7xl mx-auto px-4 py-6">
+<div class="ops-shell">
   <div class="mb-4 flex items-center justify-between">
     <a href="/projects/<%= job.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; Back to <%= job.title || job.name %></a>
     <button onclick="document.getElementById('rfp-new-form').classList.toggle('hidden')"

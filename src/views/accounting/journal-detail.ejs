@@ -9,7 +9,7 @@ const totalDebits = (lines || []).reduce(function(s, l){ return s + Number(l.deb
 const totalCredits = (lines || []).reduce(function(s, l){ return s + Number(l.credit || 0); }, 0);
 %>
 
-<div class="max-w-5xl mx-auto px-4 py-6">
+<div class="document-shell">
   <div class="mb-4">
     <a href="/accounting/journal" class="text-sm text-recon-fog hover:text-recon-red">&larr; Journal entries</a>
   </div>
