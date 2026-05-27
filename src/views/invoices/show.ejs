@@ -45,6 +45,20 @@ const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '—';
     </div>
   </div>
 
+  <%- include('../partials/document-tabs', {
+    documentTabs: {
+      active: 'invoice',
+      woId: invoice.wo_id,
+      woDisplayNumber: invoice.wo_display_number,
+      displayNumber: invoice.wo_display_number,
+      woStatus: 'Field scope',
+      estimateId: invoice.estimate_id,
+      estimateStatus: 'Estimate',
+      invoiceId: invoice.id,
+      invoiceStatus: displayStatus || invoice.status
+    }
+  }) %>
+
   <% if (invoice.status === 'sent' || invoice.status === 'overdue') { %>
     <div id="mark-paid-form" class="card p-5 mb-6 hidden bg-green-50 border-green-200">
       <form action="/invoices/<%= invoice.id %>/mark-paid" method="post" class="flex items-end gap-3">

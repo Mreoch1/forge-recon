@@ -161,6 +161,20 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
     </div>
   </div>
 
+  <%- include('../partials/document-tabs', {
+    documentTabs: {
+      active: 'work_order',
+      woId: wo.id,
+      woDisplayNumber: wo.display_number,
+      displayNumber: wo.display_number,
+      woStatus: wo.status ? wo.status.replace('_', ' ') : '',
+      estimateId: estimate && estimate.id,
+      estimateStatus: estimate && estimate.status,
+      invoiceId: invoice && invoice.id,
+      invoiceStatus: invoice && invoice.status
+    }
+  }) %>
+
   <!-- Operational strip: dense info bar with rule-line dividers, no card chrome -->
   <div class="ws-strip">
     <div class="ws-strip-cell">

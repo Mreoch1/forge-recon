@@ -101,6 +101,20 @@ const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
     </div>
   </div>
 
+  <%- include('../partials/document-tabs', {
+    documentTabs: {
+      active: 'estimate',
+      woId: estimate.wo_id,
+      woDisplayNumber: estimate.wo_display_number,
+      displayNumber: estimate.wo_display_number,
+      woStatus: 'Field scope',
+      estimateId: estimate.id,
+      estimateStatus: estimate.status,
+      invoiceId: invoice && invoice.id,
+      invoiceStatus: invoice && invoice.status
+    }
+  }) %>
+
   <% if (showCosts && costTotal > 0) { %>
     <div class="card p-4 mb-6 bg-recon-cloud">
       <div class="flex flex-wrap items-center gap-6 text-sm">
