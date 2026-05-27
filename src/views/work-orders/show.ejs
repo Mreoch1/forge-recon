@@ -363,6 +363,12 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
     </div>
   </div>
 
+  <%- include('../partials/activity-panel', {
+    activity: activity,
+    activityTitle: 'Activity',
+    activityNoteAction: '/work-orders/' + wo.id + '/notes'
+  }) %>
+
   <% if (wo.status !== 'complete' || wo.status === 'cancelled') { %>
     <div class="card p-5 border-red-200 mt-8">
       <h2 class="ws-h-secondary text-recon-red" style="border-color:#fca5a5;">Danger zone</h2>

@@ -24,6 +24,7 @@ const calc = require('../services/calculations');
 const numbering = require('../services/numbering');
 const storage = require('../services/storage');
 const { sanitizePostgrestSearch } = require('../services/sanitize');
+const { listEntityActivity } = require('../services/activity');
 
 // PDF service is optional in some envs — wrap import so test boots don't fail
 let pdf;
@@ -1010,9 +1011,15 @@ router.get('/:id', async (req, res) => {
     });
   } catch (e) { /* best-effort */ }
 
+  const activity = await listEntityActivity({
+    workOrderId: wo.id,
+    estimateId: estimate?.id,
+    invoiceId: invoice?.id,
+  });
+
   res.render('work-orders/show', {
     title: `WO-${wo.display_number}`, activeNav: 'work-orders',
-    wo, estimate, invoice, notes, photos, fileCount, bills
+    wo, estimate, invoice, notes, photos, fileCount, bills, activity
   });
 });
 

@@ -1,0 +1,74 @@
+<%
+const _activity = typeof activity !== 'undefined' && activity ? activity : [];
+const _title = typeof activityTitle !== 'undefined' && activityTitle ? activityTitle : 'Activity';
+const _noteAction = typeof activityNoteAction !== 'undefined' ? activityNoteAction : null;
+function activityTime(ts) {
+  if (!ts) return '';
+  return String(ts).slice(0,16).replace('T', ' ');
+}
+function kindClass(kind) {
+  return kind === 'note' ? 'act-dot-note' : kind === 'message' ? 'act-dot-message' : 'act-dot-system';
+}
+%>
+<style>
+  .act-panel { border: 1px solid #e5e5e5; border-radius: 8px; background: #fff; overflow: hidden; margin-bottom: 1.5rem; }
+  .act-panel summary { cursor: pointer; list-style: none; padding: .85rem 1rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: #fafafa; border-bottom: 1px solid #e5e5e5; }
+  .act-panel summary::-webkit-details-marker { display: none; }
+  .act-title { font-weight: 700; color: #1a1a1a; }
+  .act-count { font-size: .72rem; color: #888; font-family: ui-monospace, monospace; }
+  .act-body { padding: 1rem; }
+  .act-form { display: grid; gap: .5rem; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid #eeeeee; }
+  .act-list { display: grid; gap: .65rem; max-height: 32rem; overflow: auto; padding-right: .25rem; }
+  .act-row { display: grid; grid-template-columns: 1.1rem 1fr; gap: .65rem; }
+  .act-dot { width: .55rem; height: .55rem; border-radius: 999px; margin-top: .35rem; background: #bbb; }
+  .act-dot-note { background: #2563eb; }
+  .act-dot-message { background: #7c3aed; }
+  .act-dot-system { background: #c0202b; }
+  .act-card { border: 1px solid #eeeeee; border-radius: 6px; padding: .65rem .75rem; background: #fff; }
+  .act-head { display: flex; flex-wrap: wrap; gap: .35rem; align-items: baseline; justify-content: space-between; }
+  .act-name { font-weight: 700; font-size: .82rem; color: #1a1a1a; }
+  .act-meta { font-size: .7rem; color: #888; font-family: ui-monospace, monospace; }
+  .act-event { margin-top: .2rem; font-size: .82rem; color: #333; }
+  .act-text { margin-top: .25rem; color: #555; font-size: .8rem; white-space: pre-line; line-height: 1.4; }
+  .act-empty { padding: 1.5rem 0; text-align: center; color: #999; font-size: .85rem; }
+  html.dark .act-panel, html.dark .act-card { background: var(--dark-surface) !important; border-color: var(--dark-border) !important; }
+  html.dark .act-panel summary { background: var(--dark-elevated) !important; border-color: var(--dark-border) !important; }
+  html.dark .act-title, html.dark .act-name, html.dark .act-event { color: var(--dark-text) !important; }
+  html.dark .act-count, html.dark .act-meta, html.dark .act-text, html.dark .act-empty { color: var(--dark-text-muted) !important; }
+  html.dark .act-form { border-color: var(--dark-border) !important; }
+</style>
+<details class="act-panel">
+  <summary>
+    <span class="act-title"><%= _title %></span>
+    <span class="act-count"><%= _activity.length %> update<%= _activity.length === 1 ? '' : 's' %></span>
+  </summary>
+  <div class="act-body">
+    <% if (_noteAction) { %>
+      <form action="<%= _noteAction %>" method="post" class="act-form">
+        <textarea name="body" required minlength="2" maxlength="2000" rows="2" class="input text-sm" placeholder="Add an internal activity note..."></textarea>
+        <div class="flex justify-end">
+          <button class="btn btn-secondary text-sm">Add note</button>
+        </div>
+      </form>
+    <% } %>
+    <% if (!_activity.length) { %>
+      <div class="act-empty">No activity yet.</div>
+    <% } else { %>
+      <div class="act-list">
+        <% _activity.forEach(function(item){ %>
+          <div class="act-row">
+            <span class="act-dot <%= kindClass(item.kind) %>"></span>
+            <div class="act-card">
+              <div class="act-head">
+                <span class="act-name"><%= item.actor || 'Office' %></span>
+                <span class="act-meta"><%= activityTime(item.created_at) %></span>
+              </div>
+              <div class="act-event"><%= item.title || 'Activity' %></div>
+              <% if (item.body) { %><div class="act-text"><%= item.body %></div><% } %>
+            </div>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </div>
+</details>

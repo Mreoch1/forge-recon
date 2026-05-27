@@ -250,6 +250,12 @@ const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
     </div>
   </div>
 
+  <%- include('../partials/activity-panel', {
+    activity: activity,
+    activityTitle: 'Activity',
+    activityNoteAction: '/estimates/' + estimate.id + '/activity-note'
+  }) %>
+
   <div class="card p-5 border-red-200">
     <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
 

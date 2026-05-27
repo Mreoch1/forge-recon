@@ -186,6 +186,12 @@ const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '—';
     </div>
   <% } %>
 
+  <%- include('../partials/activity-panel', {
+    activity: activity,
+    activityTitle: 'Activity',
+    activityNoteAction: '/invoices/' + invoice.id + '/activity-note'
+  }) %>
+
   <% if (invoice.status !== 'paid') { %>
     <div class="card p-5 border-red-200">
       <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>

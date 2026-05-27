@@ -29,6 +29,8 @@ const pdf = require('../services/pdf');
 const email = require('../services/email');
 const posting = require('../services/accounting-posting');
 const { sanitizePostgrestSearch } = require('../services/sanitize');
+const { writeAudit } = require('../services/audit');
+const { listEntityActivity } = require('../services/activity');
 
 const router = express.Router();
 
@@ -394,12 +396,38 @@ router.get('/:id(\\d+)', async (req, res) => {
       }, 0);
     } catch (e) { /* best-effort */ }
   }
+  const activity = await listEntityActivity({
+    workOrderId: estimate.wo_id,
+    estimateId: estimate.id,
+    invoiceId: invoice?.id,
+  });
 
   res.render('estimates/show', {
     title: estimate.display_number, activeNav: 'estimates',
     estimate, invoice, canSeePrices: true, defaultConditions,
-    actualCost,
+    actualCost, activity,
   });
+});
+
+router.post('/:id/activity-note', async (req, res) => {
+  const estimate = await loadEstimate(req.params.id);
+  if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
+  const body = (req.body.body || '').trim();
+  if (!body || body.length < 2) {
+    setFlash(req, 'error', 'Activity note must be at least 2 characters.');
+    return res.redirect(`/estimates/${estimate.id}`);
+  }
+  await writeAudit({
+    entityType: 'estimate',
+    entityId: estimate.id,
+    action: 'note_added',
+    before: null,
+    after: { body },
+    source: 'user',
+    userId: req.session.userId,
+  });
+  setFlash(req, 'success', 'Activity note added.');
+  res.redirect(`/estimates/${estimate.id}`);
 });
 
 router.get('/:id/edit', async (req, res) => {
