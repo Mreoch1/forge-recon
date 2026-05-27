@@ -1,11 +1,21 @@
 <%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
 
-<div class="max-w-7xl mx-auto px-4 py-6">
-  <div class="flex items-baseline justify-between mb-4 flex-wrap gap-2">
-    <div>
+<div class="ops-shell">
+  <div class="ops-header">
+    <div class="ops-title-block">
       <h1 class="page-h1">Projects</h1>
       <p class="page-sub"><%= total %> total<% if (q) { %> &middot; filter: "<%= q %>"<% } %><% if (status) { %> &middot; status: <%= status.replace('_',' ') %><% } %></p>
     </div>
+    <div class="ops-actions">
+      <a href="/projects/new" class="btn btn-primary">+ New project</a>
+    </div>
+  </div>
+
+  <div class="ops-summary">
+    <div class="ops-summary-item"><div class="ops-summary-label">Total</div><div class="ops-summary-value"><%= total %></div><div class="ops-summary-meta">projects</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">Estimating</div><div class="ops-summary-value"><%= jobs.filter(function(j){ return j.status === 'estimating'; }).length %></div><div class="ops-summary-meta">shown on page</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">In progress</div><div class="ops-summary-value"><%= jobs.filter(function(j){ return j.status === 'in_progress'; }).length %></div><div class="ops-summary-meta">shown on page</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">Shown</div><div class="ops-summary-value"><%= jobs.length %></div><div class="ops-summary-meta">current page</div></div>
   </div>
 
   <form method="get" action="/projects" class="list-utility-bar">
@@ -20,12 +30,16 @@
     <% if (q || status) { %>
       <a href="/projects" class="list-clear">Clear</a>
     <% } %>
-    <a href="/projects/new" class="btn btn-primary">+ New project</a>
   </form>
 
-  <div class="card overflow-hidden">
+  <div class="ops-panel ops-table">
+    <div class="ops-panel-head">
+      <div class="ops-panel-title">Project list</div>
+      <div class="text-xs text-recon-fog"><%= jobs.length %> shown</div>
+    </div>
+    <div class="ops-panel-body">
     <% if (jobs.length === 0) { %>
-      <div class="p-8 text-center text-recon-fog">
+      <div class="ops-empty">
         <% if (q || status) { %>
           No projects match those filters. <a href="/projects" class="text-recon-red underline">Clear</a>
         <% } else { %>
@@ -56,6 +70,7 @@
         </tbody>
       </table>
     <% } %>
+    </div>
   </div>
 
   <% if (totalPages > 1) { %>

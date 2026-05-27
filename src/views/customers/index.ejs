@@ -1,11 +1,21 @@
 <%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
 
-<div class="max-w-7xl mx-auto px-4 py-6">
-  <div class="flex items-baseline justify-between mb-4 flex-wrap gap-2">
-    <div>
+<div class="ops-shell">
+  <div class="ops-header">
+    <div class="ops-title-block">
       <h1 class="page-h1">Customers</h1>
       <p class="page-sub"><%= total %> total<% if (q) { %> &middot; filter: "<%= q %>"<% } %></p>
     </div>
+    <div class="ops-actions">
+      <a href="/customers/new" class="btn btn-primary">+ New customer</a>
+    </div>
+  </div>
+
+  <div class="ops-summary">
+    <div class="ops-summary-item"><div class="ops-summary-label">Total</div><div class="ops-summary-value"><%= total %></div><div class="ops-summary-meta">customers</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">Shown</div><div class="ops-summary-value"><%= customers.length %></div><div class="ops-summary-meta">current page</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">With email</div><div class="ops-summary-value"><%= customers.filter(function(c){ return !!c.email; }).length %></div><div class="ops-summary-meta">shown on page</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">With phone</div><div class="ops-summary-value"><%= customers.filter(function(c){ return !!c.phone; }).length %></div><div class="ops-summary-meta">shown on page</div></div>
   </div>
 
   <form method="get" action="/customers" class="list-utility-bar" id="customer-search-form">
@@ -13,7 +23,6 @@
     <% if (q) { %>
       <a href="/customers" class="list-clear">Clear</a>
     <% } %>
-    <a href="/customers/new" class="btn btn-primary">+ New customer</a>
   </form>
 
 <script>
@@ -28,9 +37,14 @@
 })();
 </script>
 
-  <div class="card overflow-hidden">
+  <div class="ops-panel ops-table">
+    <div class="ops-panel-head">
+      <div class="ops-panel-title">Customer directory</div>
+      <div class="text-xs text-recon-fog"><%= customers.length %> shown</div>
+    </div>
+    <div class="ops-panel-body">
     <% if (customers.length === 0) { %>
-      <div class="p-8 text-center text-recon-fog">
+      <div class="ops-empty">
         <% if (q) { %>
           No customers match "<%= q %>". <a href="/customers" class="text-recon-red underline">Clear search</a>
         <% } else { %>
@@ -45,7 +59,6 @@
             <th>Email</th>
             <th>Phone</th>
             <th>Location</th>
-            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -60,6 +73,7 @@
         </tbody>
       </table>
     <% } %>
+    </div>
   </div>
 
   <% if (totalPages > 1) { %>

@@ -1,21 +1,28 @@
 <%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
-<div class="max-w-7xl mx-auto px-4 py-6">
-  <div class="flex items-baseline justify-between mb-2"><div><h1 class="page-h1">Vendors</h1><p class="page-sub"><%= total %> total<% if (q) { %> &middot; filter: "<%= q %>"<% } %></p></div>
+<div class="ops-shell">
+  <div class="ops-header"><div class="ops-title-block"><h1 class="page-h1">Vendors</h1><p class="page-sub"><%= total %> total<% if (q) { %> &middot; filter: "<%= q %>"<% } %></p></div>
+    <div class="ops-actions"><a href="/vendors/new" class="btn btn-primary">+ New vendor</a></div>
+  </div>
+  <div class="ops-summary">
+    <div class="ops-summary-item"><div class="ops-summary-label">Total</div><div class="ops-summary-value"><%= total %></div><div class="ops-summary-meta">vendors</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">Shown</div><div class="ops-summary-value"><%= vendors.length %></div><div class="ops-summary-meta">current page</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">With email</div><div class="ops-summary-value"><%= vendors.filter(function(v){ return !!v.email; }).length %></div><div class="ops-summary-meta">shown on page</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">With phone</div><div class="ops-summary-value"><%= vendors.filter(function(v){ return !!v.phone; }).length %></div><div class="ops-summary-meta">shown on page</div></div>
   </div>
   <form method="get" class="list-utility-bar"><input type="text" name="q" value="<%= q %>" placeholder="Search name, email, phone..." class="list-search"><button class="btn btn-secondary">Search</button>
     <% if (q) { %><a href="/vendors" class="list-clear">Clear</a><% } %>
-    <a href="/vendors/new" class="btn btn-primary">+ New vendor</a></form>
+    </form>
   <% if (!vendors || vendors.length === 0) { %>
-    <div class="card p-8 text-center"><p class="text-recon-fog"><% if (q) { %>No vendors match "<%= q %>".<% } else { %>No vendors yet. <a href="/vendors/new" class="text-recon-red underline">Add your first vendor</a> to start recording bills.<% } %></p>
-      <% if (q) { %><a href="/vendors" class="btn btn-ghost mt-2">Clear filter</a><% } %></div>
+    <div class="ops-panel"><div class="ops-panel-head"><div class="ops-panel-title">Vendor directory</div><div class="text-xs text-recon-fog">0 shown</div></div><div class="ops-empty"><% if (q) { %>No vendors match "<%= q %>".<% } else { %>No vendors yet. <a href="/vendors/new" class="text-recon-red underline">Add your first vendor</a> to start recording bills.<% } %>
+      <% if (q) { %><div class="mt-3"><a href="/vendors" class="btn btn-ghost">Clear filter</a></div><% } %></div></div>
   <% } else { %>
-    <div class="card overflow-hidden"><table class="data"><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Location</th></tr></thead><tbody>
+    <div class="ops-panel ops-table"><div class="ops-panel-head"><div class="ops-panel-title">Vendor directory</div><div class="text-xs text-recon-fog"><%= vendors.length %> shown</div></div><div class="ops-panel-body"><table class="data"><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Location</th></tr></thead><tbody>
       <% vendors.forEach(function(v) { %>
         <tr class="row-link" data-href="/vendors/<%= v.id %>"><td><%= v.name %></td>
           <td><%= v.email || '-' %></td><td><%= v.phone || '-' %></td>
           <td><%= [v.city, v.state].filter(Boolean).join(', ') || '-' %></td></tr>
       <% }); %>
-    </tbody></table></div>
+    </tbody></table></div></div>
     <div class="flex justify-between items-center mt-4 text-sm text-recon-fog">
       <span>Page <%= page %> of <%= totalPages %></span>
       <div class="flex gap-2">

@@ -31,14 +31,14 @@
   .wol-empty { padding: 2rem 1rem; text-align: center; color: #888; font-size: .85rem; }
 </style>
 
-<div class="max-w-7xl mx-auto px-4 py-5">
+<div class="ops-shell">
   <!-- R33: stack title and CTA on mobile -->
-  <div class="flex flex-col md:flex-row md:items-baseline md:justify-between mb-2 gap-2">
-    <div>
+  <div class="ops-header">
+    <div class="ops-title-block">
       <h1 class="wol-h1">Work orders</h1>
       <p class="wol-sub mt-1"><%= total %> total<% if (q) { %> &middot; "<%= q %>"<% } %><% if (status) { %> &middot; <%= status.replace('_',' ') %><% } %></p>
     </div>
-    <div class="flex gap-2">
+    <div class="ops-actions">
       <a href="/work-orders/new" class="btn btn-primary min-h-[44px]">+ New work order</a>
     </div>
   </div>
@@ -48,6 +48,28 @@
     var _assigneeFilter = (typeof assigneeFilter !== 'undefined') ? assigneeFilter : '';
     var _statuses = (typeof statuses !== 'undefined') ? statuses : [];
   %>
+  <div class="ops-summary">
+    <div class="ops-summary-item">
+      <div class="ops-summary-label">Total</div>
+      <div class="ops-summary-value"><%= total %></div>
+      <div class="ops-summary-meta">work orders</div>
+    </div>
+    <div class="ops-summary-item">
+      <div class="ops-summary-label">In progress</div>
+      <div class="ops-summary-value"><%= workOrders.filter(function(w){ return w.status === 'in_progress'; }).length %></div>
+      <div class="ops-summary-meta">shown on this page</div>
+    </div>
+    <div class="ops-summary-item">
+      <div class="ops-summary-label">Scheduled</div>
+      <div class="ops-summary-value"><%= workOrders.filter(function(w){ return w.status === 'scheduled'; }).length %></div>
+      <div class="ops-summary-meta">shown on this page</div>
+    </div>
+    <div class="ops-summary-item">
+      <div class="ops-summary-label">Unassigned</div>
+      <div class="ops-summary-value"><%= workOrders.filter(function(w){ return !w.assigned_to && !(w.assignees && w.assignees.length); }).length %></div>
+      <div class="ops-summary-meta">needs owner</div>
+    </div>
+  </div>
   <form method="get" action="/work-orders" class="list-utility-bar" style="margin-bottom:.65rem">
     <input type="text" name="q" value="<%= q %>" placeholder="Search WO #, customer..." class="list-search">
     <select name="status" class="list-filter">
@@ -77,7 +99,12 @@
     </div>
   <% } else { %>
     <!-- R33: horizontal-scroll wrapper for narrow viewports -->
-    <div class="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0" style="-webkit-overflow-scrolling: touch;">
+    <div class="ops-panel ops-table">
+      <div class="ops-panel-head">
+        <div class="ops-panel-title">Work order queue</div>
+        <div class="text-xs text-recon-fog"><%= workOrders.length %> shown</div>
+      </div>
+      <div class="ops-panel-body">
     <table class="wol-table" style="min-width: 720px;">
       <thead>
         <tr>
@@ -122,6 +149,7 @@
         <% }); %>
       </tbody>
     </table>
+      </div>
     </div>
   <% } %>
 

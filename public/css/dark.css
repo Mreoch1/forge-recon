@@ -37,6 +37,8 @@ html.dark main {
    darken. Covers .card, raw bg-white, gray-50/100, etc.
    ============================================================ */
 html.dark .card,
+html.dark .ops-panel,
+html.dark .ops-summary,
 html.dark .bg-white,
 html.dark .bg-gray-50,
 html.dark .bg-gray-100,
@@ -45,6 +47,27 @@ html.dark .bg-recon-mist {
   background-color: var(--dark-surface) !important;
   border-color: var(--dark-border) !important;
   color: var(--dark-text) !important;
+}
+
+html.dark .ops-panel-head {
+  background-color: var(--dark-elevated) !important;
+  border-color: var(--dark-border) !important;
+}
+
+html.dark .ops-summary-item {
+  border-color: var(--dark-border) !important;
+}
+
+html.dark .ops-summary-value,
+html.dark .ops-table table.data td {
+  color: var(--dark-text) !important;
+}
+
+html.dark .ops-summary-label,
+html.dark .ops-summary-meta,
+html.dark .ops-panel-title,
+html.dark .ops-empty {
+  color: var(--dark-text-muted) !important;
 }
 
 /* ============================================================

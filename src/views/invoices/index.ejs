@@ -7,14 +7,25 @@ function isOverdue(inv) {
   if (!inv.due_date) return false;
   return new Date(String(inv.due_date).slice(0,10)) < new Date();
 }
+const pageTotal = invoices.reduce(function(s, i){ return s + (Number(i.total) || 0); }, 0);
+const pageBalance = invoices.reduce(function(s, i){ return s + ((Number(i.total) || 0) - (Number(i.amount_paid) || 0)); }, 0);
+const sentCount = invoices.filter(function(i){ return i.status === 'sent' || i.status === 'draft'; }).length;
+const paidCount = invoices.filter(function(i){ return i.status === 'paid'; }).length;
 %>
 
-<div class="max-w-7xl mx-auto px-4 py-6">
-  <div class="flex items-baseline justify-between mb-2 flex-wrap gap-2">
-    <div>
+<div class="ops-shell">
+  <div class="ops-header">
+    <div class="ops-title-block">
       <h1 class="page-h1">Invoices</h1>
       <p class="page-sub"><%= total %> total<% if (q) { %> &middot; "<%= q %>"<% } %><% if (status) { %> &middot; <%= status %><% } %></p>
     </div>
+  </div>
+
+  <div class="ops-summary">
+    <div class="ops-summary-item"><div class="ops-summary-label">Total</div><div class="ops-summary-value"><%= total %></div><div class="ops-summary-meta">invoices</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">Open / draft</div><div class="ops-summary-value"><%= sentCount %></div><div class="ops-summary-meta">shown on page</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">Paid</div><div class="ops-summary-value"><%= paidCount %></div><div class="ops-summary-meta">shown on page</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">Balance</div><div class="ops-summary-value">$<%= fmt(pageBalance) %></div><div class="ops-summary-meta">$<%= fmt(pageTotal) %> invoiced shown</div></div>
   </div>
 
   <form method="get" action="/invoices" class="list-utility-bar">
@@ -30,8 +41,14 @@ function isOverdue(inv) {
       <a href="/invoices" class="list-clear">Clear</a>
     <% } %>
   </form>
+  <div class="ops-panel ops-table">
+    <div class="ops-panel-head">
+      <div class="ops-panel-title">Invoice register</div>
+      <div class="text-xs text-recon-fog"><%= invoices.length %> shown</div>
+    </div>
+    <div class="ops-panel-body">
     <% if (invoices.length === 0) { %>
-      <div class="p-8 text-center text-recon-fog">
+      <div class="ops-empty">
         <% if (q || status) { %>
           No invoices match. <a href="/invoices" class="text-recon-red underline">Clear</a>
         <% } else { %>
@@ -66,6 +83,7 @@ function isOverdue(inv) {
         </tbody>
       </table>
     <% } %>
+    </div>
   </div>
 
   <% if (totalPages > 1) { %>

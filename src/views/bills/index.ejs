@@ -1,8 +1,20 @@
 <%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
-<div class="max-w-7xl mx-auto px-4 py-6">
-  <div class="flex items-baseline justify-between mb-2">
-    <div><h1 class="page-h1">Billing</h1><p class="page-sub"><%= total %> total</p></div>
-    <a href="/bills/new" class="btn btn-primary">+ New bill</a>
+<%
+const pageTotal = (bills || []).reduce(function(s, b){ return s + (Number(b.total) || 0); }, 0);
+const pagePaid = (bills || []).reduce(function(s, b){ return s + (Number(b.amount_paid) || 0); }, 0);
+const approvedCount = (bills || []).filter(function(b){ return b.status === 'approved'; }).length;
+const draftCount = (bills || []).filter(function(b){ return b.status === 'draft'; }).length;
+%>
+<div class="ops-shell">
+  <div class="ops-header">
+    <div class="ops-title-block"><h1 class="page-h1">Billing</h1><p class="page-sub"><%= total %> total</p></div>
+    <div class="ops-actions"><a href="/bills/new" class="btn btn-primary">+ New bill</a></div>
+  </div>
+  <div class="ops-summary">
+    <div class="ops-summary-item"><div class="ops-summary-label">Total</div><div class="ops-summary-value"><%= total %></div><div class="ops-summary-meta">bills</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">Draft</div><div class="ops-summary-value"><%= draftCount %></div><div class="ops-summary-meta">needs approval</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">Approved</div><div class="ops-summary-value"><%= approvedCount %></div><div class="ops-summary-meta">ready to pay</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">Open balance</div><div class="ops-summary-value">$<%= (pageTotal - pagePaid).toFixed(2) %></div><div class="ops-summary-meta">$<%= pageTotal.toFixed(2) %> billed shown</div></div>
   </div>
   <form method="get" class="list-utility-bar">
     <input type="text" name="q" value="<%= q || '' %>" placeholder="Search bill #, vendor..." class="list-search">
@@ -22,12 +34,17 @@
     <% if (status || vendorId || q) { %><a href="/bills" class="list-clear">Clear</a><% } %>
   </form>
   <% if (!bills || bills.length === 0) { %>
-    <div class="card p-8 text-center">
-      <p class="text-recon-fog">No bills yet. Add a <a href="/vendors" class="text-recon-red underline">vendor</a> first, then use <a href="/bills/new" class="text-recon-red underline">+ New bill</a> to record what you owe.</p>
-      <% if (status || vendorId || q) { %><a href="/bills" class="btn btn-ghost mt-2">Clear filter</a><% } %>
+    <div class="ops-panel">
+      <div class="ops-panel-head"><div class="ops-panel-title">Accounts payable</div><div class="text-xs text-recon-fog">0 shown</div></div>
+      <div class="ops-empty">
+        No bills yet. Add a <a href="/vendors" class="text-recon-red underline">vendor</a> first, then use <a href="/bills/new" class="text-recon-red underline">+ New bill</a> to record what you owe.
+        <% if (status || vendorId || q) { %><div class="mt-3"><a href="/bills" class="btn btn-ghost">Clear filter</a></div><% } %>
+      </div>
     </div>
   <% } else { %>
-    <div class="card overflow-hidden">
+    <div class="ops-panel ops-table">
+      <div class="ops-panel-head"><div class="ops-panel-title">Accounts payable</div><div class="text-xs text-recon-fog"><%= bills.length %> shown</div></div>
+      <div class="ops-panel-body">
       <table class="data">
         <thead>
           <tr>
@@ -58,6 +75,7 @@
           <% }); %>
         </tbody>
       </table>
+      </div>
     </div>
     <div class="flex justify-between items-center mt-4 text-sm text-recon-fog">
       <span>Page <%= page %> of <%= totalPages %></span>

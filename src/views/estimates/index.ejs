@@ -11,14 +11,27 @@ function calcMargin(e) {
   return ((profit / cost) * 100).toFixed(1) + '%';
 }
 const showPrices = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
+const pageTotal = estimates.reduce(function(s, e){ return s + (Number(e.total) || 0); }, 0);
+const draftCount = estimates.filter(function(e){ return e.status === 'draft' || e.status === 'new'; }).length;
+const approvedCount = estimates.filter(function(e){ return e.status === 'approved' || e.status === 'accepted'; }).length;
 %>
 
-<div class="max-w-7xl mx-auto px-4 py-6">
-  <div class="flex items-baseline justify-between mb-2 flex-wrap gap-2">
-    <div>
+<div class="ops-shell">
+  <div class="ops-header">
+    <div class="ops-title-block">
       <h1 class="page-h1">Estimates</h1>
       <p class="page-sub"><%= total %> total<% if (q) { %> &middot; "<%= q %>"<% } %><% if (status) { %> &middot; <%= status %><% } %></p>
     </div>
+    <div class="ops-actions">
+      <a href="/estimates/new" class="btn btn-primary">+ New estimate</a>
+    </div>
+  </div>
+
+  <div class="ops-summary">
+    <div class="ops-summary-item"><div class="ops-summary-label">Total</div><div class="ops-summary-value"><%= total %></div><div class="ops-summary-meta">estimates</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">Draft / new</div><div class="ops-summary-value"><%= draftCount %></div><div class="ops-summary-meta">shown on page</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">Approved</div><div class="ops-summary-value"><%= approvedCount %></div><div class="ops-summary-meta">ready to invoice</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">Shown value</div><div class="ops-summary-value">$<%= fmt(pageTotal) %></div><div class="ops-summary-meta">current page</div></div>
   </div>
 
   <form method="get" action="/estimates" class="list-utility-bar">
@@ -41,12 +54,16 @@ const showPrices = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
     <% if (q || status) { %>
       <a href="/estimates" class="list-clear">Clear</a>
     <% } %>
-    <a href="/estimates/new" class="btn btn-primary">+ New estimate</a>
   </form>
 
-  <div class="card overflow-hidden">
+  <div class="ops-panel ops-table">
+    <div class="ops-panel-head">
+      <div class="ops-panel-title">Estimate pipeline</div>
+      <div class="text-xs text-recon-fog"><%= estimates.length %> shown</div>
+    </div>
+    <div class="ops-panel-body">
     <% if (estimates.length === 0) { %>
-      <div class="p-8 text-center text-recon-fog">
+      <div class="ops-empty">
         <% if (q || status) { %>
           No estimates match. <a href="/estimates" class="text-recon-red underline">Clear</a>
         <% } else { %>
@@ -94,6 +111,7 @@ const showPrices = (typeof canSeePrices === 'undefined') ? true : canSeePrices;
         </tbody>
       </table>
     <% } %>
+    </div>
   </div>
 
   <% if (totalPages > 1) { %>
