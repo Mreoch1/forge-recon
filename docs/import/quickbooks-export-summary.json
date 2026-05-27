@@ -40,6 +40,37 @@
         50190.81,
         -9363.400000000001
       ]
+    },
+    "invoice_pdf": {
+      "file": "Invoices.pdf",
+      "pdf_pages": 60,
+      "parsed_invoices": 57,
+      "total": 785556.01,
+      "invoice_date_range": {
+        "from": "2026-01-01",
+        "to": "2026-04-22"
+      },
+      "status_counts": {
+        "overdue": 57
+      },
+      "line_items": {
+        "min_per_invoice": 1,
+        "max_per_invoice": 9,
+        "average_per_invoice": 1.4,
+        "multi_line_invoices": 13
+      },
+      "top_product_or_service_labels": {
+        "**A": 44,
+        "20 Minute Fire Rated Door": 7,
+        "Services": 7,
+        "Trash Chute Door/Frame": 4,
+        "Tub Cut": 4,
+        "Reglaze Tub & Surround W/ Strip": 2,
+        "Reglaze Tub With Strip": 2,
+        "R&R Trash Chute Handle & Latch": 2,
+        "Countertop reglaze w/strip": 2,
+        "Reglaze Vanity Top": 2
+      }
     }
   },
   "import_sequence": [
@@ -58,6 +89,9 @@
     "add opening balance import source",
     "add customer/vendor import staging and cleanup",
     "add vendor 1099 tracking",
+    "add external QuickBooks invoice numbers",
+    "add product/service line-item mapping",
+    "add retainage fields before importing progress invoices",
     "add reconciliation reports"
   ]
 }

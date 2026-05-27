@@ -11,6 +11,7 @@ This document captures what we learned from Recon's QuickBooks exports on May 27
 - `RECON ENTERPRISES_A_P Aging Summary Report.csv` — A/P aging as of May 27, 2026.
 - `RECON ENTERPRISES_Balance Sheet.csv` — balance sheet as of May 27, 2026.
 - `RECON ENTERPRISES_Profit and Loss.csv` — P&L for January 1-May 27, 2026.
+- `Invoices.pdf` — QuickBooks invoice PDF export generated May 27, 2026.
 
 ## Current QuickBooks Scale
 
@@ -31,6 +32,8 @@ This document captures what we learned from Recon's QuickBooks exports on May 27
 | P&L gross profit | $1,427,485.91 |
 | P&L expenses | $655,266.07 |
 | P&L net income | $772,230.61 |
+| Invoice PDF sample | 57 invoices / 60 PDF pages |
+| Invoice PDF total | $785,556.01 |
 
 ## Chart of Accounts
 
@@ -249,6 +252,42 @@ Forge mapping requirements:
 - Invoices should post to the correct income account, usually construction-related revenue unless a specific service/item says otherwise.
 - Project profitability should use the same revenue/COGS categories as P&L.
 
+## Invoice PDF Export
+
+The QuickBooks `Invoices.pdf` export contains 57 invoices across 60 PDF pages. Three pages are continuations of longer invoices. The export appears to be open invoices, because every invoice page shows `Overdue`.
+
+Invoice export findings:
+
+- Invoice dates range from January 1, 2026 through April 22, 2026.
+- Parsed invoice total: $785,556.01.
+- Invoice numbers are not always simple integers. QuickBooks includes values such as `14743.11`, `15011.9`, and `15170.6`.
+- Terms vary by invoice, including `Net 30` and `Net 45`.
+- Customer/job labeling is inconsistent but important:
+  - Some invoices show a project/unit line above `Bill to`, for example `Peterboro Arms:703` or `Plymouth Square Apts:Unit 20241`.
+  - Some invoices put the project/customer hierarchy inside the bill-to block, for example `Scott Anderson` plus `Rose community builders/Plymouth Square`.
+  - Some customer addresses include weak placeholders such as `US`, so import cleanup must not assume address fields are reliable.
+- Line items use QuickBooks `Product or service` separately from the customer-facing description.
+- Many real line items use generic service/item names:
+  - `**A` appeared 44 times.
+  - `Services` appeared 7 times.
+  - `20 Minute Fire Rated Door` appeared 7 times.
+  - `Trash Chute Door/Frame` appeared 4 times.
+  - `Tub Cut` appeared 4 times.
+- Thirteen invoices have more than one line item. The longest parsed invoice has 9 line items.
+- Retainage currently appears embedded in invoice descriptions on large progress invoices, not as a clean retained-balance field.
+- QuickBooks appends a long `token=...` footer on each PDF page. Forge should not copy that footer into customer-facing PDFs unless a future QuickBooks link/share workflow requires it.
+
+Forge invoice requirements from the PDF:
+
+- Add external QuickBooks invoice number support separate from Forge's internal display number.
+- Preserve decimal invoice numbers exactly as text.
+- Add import metadata for original invoice number, PDF source, page span, original customer label, and original bill-to block.
+- Support project/unit labels on invoices and PDFs, not only the bill-to customer.
+- Support product/service or item mapping per line, but do not rely on product/service names alone for accounting because many lines are generic `**A`.
+- Preserve multiline descriptions, bullets, quote marks, and manual markers such as `**Paint by Others**`.
+- Add or map retainage explicitly before importing large progress invoices; otherwise retainage will be trapped inside description text.
+- Treat this PDF as a discovery/sample export, not a full A/R import. It totals $785,556.01 versus the A/R aging total of $2,131,480.79.
+
 ## Recommended Import Order
 
 1. Chart of accounts.
@@ -265,7 +304,7 @@ Forge mapping requirements:
 To move from summary/reconciliation into a real import, we still need:
 
 - Products and services list.
-- Invoice list/detail export with invoice number, customer, date, due date, line items, account/item, total, balance, and status.
+- Invoice list/detail export with invoice number, customer, date, due date, line items, account/item, total, balance, and status. The PDF export gives useful invoice structure, but not a reliable full import because it omits machine-readable IDs, balances, payment history, tax/account mappings, and may be only a subset of A/R.
 - Bill list/detail export with vendor, bill number, bill date, due date, line items, account/item, project/customer, total, balance, and status.
 - Payment detail for customer payments and vendor payments.
 - Project/customer/job list if QuickBooks tracks projects separately.
@@ -276,4 +315,3 @@ To move from summary/reconciliation into a real import, we still need:
 - Do not import summary aging rows as final invoice/bill records unless detailed exports are unavailable and Michael explicitly approves opening-balance records.
 - Do not merge customers/vendors by loose name matching without review. Similar names may be different properties or legal entities.
 - Preserve original QuickBooks values in import metadata so every imported Forge record can be audited back to its source row.
-
