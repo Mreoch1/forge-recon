@@ -4,7 +4,7 @@
  * WO is the ROOT document: customer -> job -> WO -> estimate -> invoice.
  *
  *   GET  /                          list (search + status filter + paging)
- *   GET  /new?job_id=N              new root WO form
+ *   GET  /new?project_id=N          new root WO form, optionally prelinked to a project
  *   POST /                          create (uses create_work_order_with_lines RPC)
  *   GET  /ai-create                 AI-assisted WO form
  *   POST /ai-create                 parse free text into structured WO + render preview
@@ -551,6 +551,7 @@ router.get('/', async (req, res) => {
 
 router.get('/new', async (req, res) => {
   if (!requireManagerRole(req, res)) return;
+  const presetProjectId = parseInt(req.query.project_id || req.query.job_id, 10) || null;
 
   const [
     { data: customers, error: customersError },
@@ -576,16 +577,21 @@ router.get('/new', async (req, res) => {
     ...p,
     customer_name: p.customers?.name || '',
   }));
+  const presetProject = presetProjectId
+    ? projectsWithCustomer.find(p => Number(p.id) === presetProjectId)
+    : null;
+  const presetCustomerId = presetProject?.customer_id || '';
+  const presetCustomerName = presetProject?.customer_name || '';
 
   // Read next number WITHOUT incrementing (just for display)
   const suggestedNumber = settings ? { display: numbering.formatDisplay(settings.next_wo_main_number, 0) } : { display: '' };
   res.render('work-orders/new', {
     title: 'New work order', activeNav: 'work-orders',
     wo: { id: null, display_number: '', unit_number: '', suggested_display_number: suggestedNumber.display,
-          customer_id: '', project_id: '', scheduled_date: '', scheduled_time: '', notes: '', description: '',
+          customer_id: presetCustomerId, project_id: presetProject?.id || '', scheduled_date: '', scheduled_time: '', notes: '', description: '',
           assignee_ids: [], lines: [] },
     customers: customers || [], projects: projectsWithCustomer, users: users || [],
-    customerName: '', errors: {}, units: VALID_UNITS,
+    customerName: presetCustomerName, errors: {}, units: VALID_UNITS,
   });
 });
 
