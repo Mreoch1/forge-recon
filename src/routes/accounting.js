@@ -115,6 +115,65 @@ router.get('/quickbooks-import', async (req, res) => {
   });
 });
 
+async function loadPayrollOverview() {
+  const empty = {
+    ready: false,
+    settings: null,
+    employees: [],
+    runs: [],
+    employeeCount: 0,
+    activeCount: 0,
+    nextPayDate: null,
+    latestRun: null,
+    error: null,
+  };
+
+  try {
+    const [{ data: settings, error: settingsErr }, { data: employees, error: employeeErr }, { data: runs, error: runsErr }] = await Promise.all([
+      supabase.from('payroll_settings').select('*').eq('id', 1).maybeSingle(),
+      supabase
+        .from('payroll_employees')
+        .select('id, display_name, email, role_title, status, pay_type, pay_rate_amount, pay_rate_period, pay_method, pay_schedule, imported_at')
+        .order('display_name', { ascending: true })
+        .limit(250),
+      supabase
+        .from('payroll_runs')
+        .select('id, source, pay_period_start, pay_period_end, pay_date, status, gross_pay, employer_taxes, deductions, net_pay')
+        .order('pay_date', { ascending: false })
+        .limit(20),
+    ]);
+    if (settingsErr) throw settingsErr;
+    if (employeeErr) throw employeeErr;
+    if (runsErr) throw runsErr;
+
+    const roster = employees || [];
+    const payrollRuns = runs || [];
+    return {
+      ready: true,
+      settings: settings || null,
+      employees: roster,
+      runs: payrollRuns,
+      employeeCount: roster.length,
+      activeCount: roster.filter(e => e.status === 'active').length,
+      nextPayDate: settings?.next_pay_date || null,
+      latestRun: payrollRuns[0] || null,
+      error: null,
+    };
+  } catch (error) {
+    return { ...empty, error: error.message || String(error) };
+  }
+}
+
+router.get('/payroll', async (req, res) => {
+  const payroll = await loadPayrollOverview();
+  res.render('accounting/payroll', {
+    title: 'Payroll',
+    activeNav: 'accounting',
+    payroll,
+    money: qbImportSummary.money,
+  });
+});
+
 // --- chart of accounts ---
 
 async function loadAccounts() {

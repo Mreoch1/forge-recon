@@ -69,6 +69,14 @@ const importTools = [
     type: 'Staging',
     cadence: 'Review first',
     description: 'Review QuickBooks exports before anything is applied to live Forge records.'
+  },
+  {
+    name: 'Payroll',
+    href: '/accounting/payroll',
+    pdf: '',
+    type: 'Admin only',
+    cadence: 'QuickBooks source',
+    description: 'Review payroll roster, payroll runs, and labor-cost allocation status.'
   }
 ];
 const allReports = primaryReports.concat(financialReports);

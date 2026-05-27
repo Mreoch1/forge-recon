@@ -308,6 +308,19 @@ Current staging statuses:
 - Batch status: `staged`, `reviewed`, `applied`, `void`.
 - Row review status: `needs_review`, `ready`, `applied`, `ignored`.
 
+## Payroll
+
+Payroll should be mirrored into Forge for labor costing and project profitability, but QuickBooks Payroll should remain the source of truth for running payroll, tax filings, W-2s, official checks, and compliance.
+
+Forge payroll requirements:
+
+- Payroll pages and pay-rate data must be admin-only.
+- Payroll employees should optionally link to Forge users so scheduled work and labor cost can connect.
+- Payroll runs should preserve pay period, pay date, gross pay, employer taxes, deductions, net pay, and source metadata.
+- Payroll run lines should support project/work-order allocation so labor cost can roll into project financials.
+- Payroll import batches should use `source_type = payroll` and should be reviewed before payroll data is applied.
+- Do not store raw payroll exports or pasted salary data in git.
+
 ## Data We Still Need
 
 To move from summary/reconciliation into a real import, we still need:
@@ -317,6 +330,7 @@ To move from summary/reconciliation into a real import, we still need:
 - Bill list/detail export with vendor, bill number, bill date, due date, line items, account/item, project/customer, total, balance, and status.
 - Payment detail for customer payments and vendor payments.
 - Project/customer/job list if QuickBooks tracks projects separately.
+- Payroll export/detail for employee roster, pay schedules, payroll runs, gross/net pay, employer taxes, deductions, and any job/project allocations QuickBooks can export.
 
 ## Guardrails
 

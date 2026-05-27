@@ -395,6 +395,7 @@ CREATE TABLE IF NOT EXISTS quickbooks_import_batches (
     'invoices',
     'bills',
     'payments',
+    'payroll',
     'ar_aging',
     'ap_aging',
     'balance_sheet',
@@ -440,6 +441,79 @@ CREATE TABLE IF NOT EXISTS quickbooks_import_rows (
   matched_entity_id BIGINT,
   review_status TEXT NOT NULL DEFAULT 'needs_review' CHECK (review_status IN ('needs_review','ready','applied','ignored')),
   review_note TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ========== PAYROLL ==========
+-- QuickBooks Payroll remains the payroll source of truth. Forge stores/imports
+-- payroll data for admin review, labor costing, and project profitability.
+CREATE TABLE IF NOT EXISTS payroll_settings (
+  id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  default_pay_schedule TEXT,
+  next_pay_date DATE,
+  source TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('manual', 'quickbooks', 'import')),
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS payroll_employees (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  quickbooks_employee_id TEXT,
+  quickbooks_display_name TEXT,
+  display_name TEXT NOT NULL,
+  email TEXT,
+  role_title TEXT,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'terminated')),
+  pay_type TEXT NOT NULL DEFAULT 'salary' CHECK (pay_type IN ('salary', 'hourly', 'contract', 'other')),
+  pay_rate_amount NUMERIC(14,4),
+  pay_rate_period TEXT CHECK (pay_rate_period IS NULL OR pay_rate_period IN ('year', 'hour', 'day', 'pay_period', 'other')),
+  pay_method TEXT,
+  pay_schedule TEXT,
+  imported_from TEXT,
+  imported_at TIMESTAMPTZ,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (quickbooks_employee_id)
+);
+
+CREATE TABLE IF NOT EXISTS payroll_runs (
+  id BIGSERIAL PRIMARY KEY,
+  source TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('manual', 'quickbooks', 'import')),
+  source_batch_id BIGINT REFERENCES quickbooks_import_batches(id) ON DELETE SET NULL,
+  pay_period_start DATE,
+  pay_period_end DATE,
+  pay_date DATE,
+  status TEXT NOT NULL DEFAULT 'staged' CHECK (status IN ('staged', 'reviewed', 'approved', 'paid', 'void')),
+  gross_pay NUMERIC(14,2) NOT NULL DEFAULT 0,
+  employer_taxes NUMERIC(14,2) NOT NULL DEFAULT 0,
+  deductions NUMERIC(14,2) NOT NULL DEFAULT 0,
+  net_pay NUMERIC(14,2) NOT NULL DEFAULT 0,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS payroll_run_lines (
+  id BIGSERIAL PRIMARY KEY,
+  payroll_run_id BIGINT NOT NULL REFERENCES payroll_runs(id) ON DELETE CASCADE,
+  payroll_employee_id BIGINT REFERENCES payroll_employees(id) ON DELETE SET NULL,
+  user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  job_id BIGINT REFERENCES jobs(id) ON DELETE SET NULL,
+  work_order_id BIGINT REFERENCES work_orders(id) ON DELETE SET NULL,
+  earning_type TEXT,
+  regular_hours NUMERIC(10,2) NOT NULL DEFAULT 0,
+  overtime_hours NUMERIC(10,2) NOT NULL DEFAULT 0,
+  gross_pay NUMERIC(14,2) NOT NULL DEFAULT 0,
+  employer_taxes NUMERIC(14,2) NOT NULL DEFAULT 0,
+  deductions NUMERIC(14,2) NOT NULL DEFAULT 0,
+  net_pay NUMERIC(14,2) NOT NULL DEFAULT 0,
+  labor_cost NUMERIC(14,2) NOT NULL DEFAULT 0,
+  allocation_status TEXT NOT NULL DEFAULT 'unallocated' CHECK (allocation_status IN ('unallocated', 'allocated', 'ignored')),
+  raw_data JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -508,6 +582,15 @@ CREATE INDEX IF NOT EXISTS idx_qb_import_rows_type ON quickbooks_import_rows(row
 CREATE INDEX IF NOT EXISTS idx_qb_import_rows_review ON quickbooks_import_rows(review_status);
 CREATE INDEX IF NOT EXISTS idx_qb_import_rows_external_number ON quickbooks_import_rows(external_number);
 
+CREATE INDEX IF NOT EXISTS idx_payroll_employees_status ON payroll_employees(status);
+CREATE INDEX IF NOT EXISTS idx_payroll_employees_user ON payroll_employees(user_id);
+CREATE INDEX IF NOT EXISTS idx_payroll_runs_pay_date ON payroll_runs(pay_date);
+CREATE INDEX IF NOT EXISTS idx_payroll_runs_status ON payroll_runs(status);
+CREATE INDEX IF NOT EXISTS idx_payroll_run_lines_run ON payroll_run_lines(payroll_run_id);
+CREATE INDEX IF NOT EXISTS idx_payroll_run_lines_employee ON payroll_run_lines(payroll_employee_id);
+CREATE INDEX IF NOT EXISTS idx_payroll_run_lines_job ON payroll_run_lines(job_id);
+CREATE INDEX IF NOT EXISTS idx_payroll_run_lines_wo ON payroll_run_lines(work_order_id);
+
 -- ========== auto-update updated_at on row updates (Postgres trigger) ==========
 CREATE OR REPLACE FUNCTION set_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -522,7 +605,8 @@ DECLARE t TEXT;
 BEGIN
   FOR t IN SELECT unnest(ARRAY[
     'users','customers','jobs','work_orders','estimates','invoices',
-    'accounts','vendors','bills','quickbooks_import_batches','quickbooks_import_rows'
+    'accounts','vendors','bills','quickbooks_import_batches','quickbooks_import_rows',
+    'payroll_settings','payroll_employees','payroll_runs','payroll_run_lines'
   ]) LOOP
     EXECUTE format('DROP TRIGGER IF EXISTS trg_%I_updated_at ON %I', t, t);
     EXECUTE format('CREATE TRIGGER trg_%I_updated_at BEFORE UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION set_updated_at_column()', t, t);

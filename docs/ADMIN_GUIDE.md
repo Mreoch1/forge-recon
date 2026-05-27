@@ -27,7 +27,13 @@ Admin-only billing workflow:
 
 - Managers complete the operational side: WO scheduled/in progress/complete and estimate sent/approved.
 - Admin creates and sends invoices, syncs or reconciles them to QuickBooks, and marks invoices billing complete.
-- Accounting, bills, QuickBooks staging/import, and financial reports are admin-only.
+- Accounting, bills, payroll, QuickBooks staging/import, and financial reports are admin-only.
+
+Payroll workflow:
+
+- QuickBooks Payroll remains the source of truth for payroll runs, tax filings, W-2s, direct deposit/check records, and compliance.
+- Forge payroll is an admin-only mirror used for labor costing, project/work-order allocation, and profitability reporting.
+- Do not commit payroll exports or pay-rate data into git. Load them into staging/import tables only.
 
 ## Resetting a user's password
 

@@ -1,0 +1,154 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<%
+function rateLabel(employee) {
+  if (employee.pay_rate_amount == null) return '-';
+  const period = employee.pay_rate_period ? '/' + employee.pay_rate_period.replace('pay_period', 'pay period') : '';
+  return money(employee.pay_rate_amount) + period;
+}
+%>
+
+<div class="ops-shell">
+  <div class="ops-header">
+    <div class="ops-title-block">
+      <a href="/accounting" class="text-sm text-recon-fog hover:text-recon-red">&larr; Accounting</a>
+      <h1 class="page-h1 mt-3">Payroll</h1>
+      <p class="page-sub mt-1">Admin-only payroll mirror for labor costing. QuickBooks Payroll remains the source of truth.</p>
+    </div>
+  </div>
+
+  <div class="ops-summary">
+    <div class="ops-summary-item">
+      <div class="ops-summary-label">Employees</div>
+      <div class="ops-summary-value"><%= payroll.ready ? payroll.employeeCount : 0 %></div>
+      <div class="ops-summary-meta">staged roster</div>
+    </div>
+    <div class="ops-summary-item">
+      <div class="ops-summary-label">Active</div>
+      <div class="ops-summary-value"><%= payroll.ready ? payroll.activeCount : 0 %></div>
+      <div class="ops-summary-meta">employees</div>
+    </div>
+    <div class="ops-summary-item">
+      <div class="ops-summary-label">Next payroll</div>
+      <div class="ops-summary-value"><%= payroll.nextPayDate ? String(payroll.nextPayDate).slice(5, 10) : '-' %></div>
+      <div class="ops-summary-meta"><%= payroll.nextPayDate ? String(payroll.nextPayDate).slice(0, 10) : 'not set' %></div>
+    </div>
+    <div class="ops-summary-item">
+      <div class="ops-summary-label">Payroll runs</div>
+      <div class="ops-summary-value"><%= payroll.ready ? payroll.runs.length : 0 %></div>
+      <div class="ops-summary-meta">recent staged</div>
+    </div>
+  </div>
+
+  <% if (!payroll.ready) { %>
+    <div class="card border border-yellow-200 bg-yellow-50 text-yellow-900 p-4 mb-4">
+      Payroll tables are not available yet. Deploy the latest migration before importing payroll.
+      <% if (payroll.error) { %><span class="block text-xs mt-1">Database said: <%= payroll.error %></span><% } %>
+    </div>
+  <% } %>
+
+  <div class="ops-panel ops-table mb-4">
+    <div class="ops-panel-head">
+      <div class="ops-panel-title">Guardrails</div>
+      <div class="text-xs text-recon-fog">Admin/accounting only</div>
+    </div>
+    <div class="ops-panel-body">
+      <table class="data">
+        <tbody>
+          <tr>
+            <td class="font-semibold">Payroll source of truth</td>
+            <td class="text-recon-fog">Run payroll, tax filings, W-2s, and official checks in QuickBooks Payroll.</td>
+          </tr>
+          <tr>
+            <td class="font-semibold">Forge payroll purpose</td>
+            <td class="text-recon-fog">Import/review payroll data, allocate labor cost to projects and work orders, and feed profitability reporting.</td>
+          </tr>
+          <tr>
+            <td class="font-semibold">Privacy</td>
+            <td class="text-recon-fog">Pay rates and payroll runs stay behind admin-only accounting access.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="ops-panel ops-table mb-4">
+    <div class="ops-panel-head">
+      <div class="ops-panel-title">Employee payroll roster</div>
+      <div class="text-xs text-recon-fog"><%= payroll.ready ? payroll.employees.length : 0 %> shown</div>
+    </div>
+    <div class="ops-panel-body">
+      <% if (!payroll.ready || payroll.employees.length === 0) { %>
+        <div class="empty-state">No payroll employees have been imported yet.</div>
+      <% } else { %>
+        <table class="data">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Role</th>
+              <th>Email</th>
+              <th>Status</th>
+              <th>Pay rate</th>
+              <th>Method</th>
+              <th>Schedule</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% payroll.employees.forEach(function(employee){ %>
+              <tr>
+                <td class="font-semibold"><%= employee.display_name %></td>
+                <td class="text-recon-fog"><%= employee.role_title || '-' %></td>
+                <td class="text-recon-fog"><%= employee.email || '-' %></td>
+                <td><span class="badge badge-draft"><%= employee.status %></span></td>
+                <td class="font-mono"><%= rateLabel(employee) %></td>
+                <td><%= employee.pay_method || '-' %></td>
+                <td><%= employee.pay_schedule || '-' %></td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      <% } %>
+    </div>
+  </div>
+
+  <div class="ops-panel ops-table">
+    <div class="ops-panel-head">
+      <div class="ops-panel-title">Payroll runs</div>
+      <div class="text-xs text-recon-fog">For labor-cost review and allocation</div>
+    </div>
+    <div class="ops-panel-body">
+      <% if (!payroll.ready || payroll.runs.length === 0) { %>
+        <div class="empty-state">No payroll runs have been imported yet.</div>
+      <% } else { %>
+        <table class="data">
+          <thead>
+            <tr>
+              <th>Pay date</th>
+              <th>Period</th>
+              <th>Status</th>
+              <th class="text-right">Gross</th>
+              <th class="text-right">Employer taxes</th>
+              <th class="text-right">Deductions</th>
+              <th class="text-right">Net</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% payroll.runs.forEach(function(run){ %>
+              <tr>
+                <td class="font-semibold"><%= run.pay_date || '-' %></td>
+                <td class="text-recon-fog"><%= [run.pay_period_start, run.pay_period_end].filter(Boolean).join(' - ') || '-' %></td>
+                <td><span class="badge badge-draft"><%= run.status %></span></td>
+                <td class="text-right font-mono"><%= money(run.gross_pay) %></td>
+                <td class="text-right font-mono"><%= money(run.employer_taxes) %></td>
+                <td class="text-right font-mono"><%= money(run.deductions) %></td>
+                <td class="text-right font-mono"><%= money(run.net_pay) %></td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<%- include('../layouts/footer') %>

@@ -41,6 +41,8 @@ The app listens on port 3001 because 3000 was occupied by another Next.js servic
 9. **Admin sends and closes billing.** Admin sends the invoice PDF, syncs/reconciles it to QuickBooks, then marks the invoice `billing_complete`.
 10. **Mark paid.** Use the inline mark-paid form. Partial payments stay `sent`; full payment flips to `paid`.
 
+Payroll stays in QuickBooks Payroll for official runs and filings. Forge mirrors payroll data only for admin-only labor costing and project profitability.
+
 Every estimate, WO, and invoice has a downloadable PDF with the recon logo, company info, line items, totals, and meta strip.
 
 ---
