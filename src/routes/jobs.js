@@ -760,6 +760,18 @@ async function loadActiveUsers() {
   return data || [];
 }
 
+async function renderMembersSection(res, id, access, options = {}) {
+  const [members, users] = await Promise.all([loadMembers(id), loadActiveUsers()]);
+  return res.render('jobs/_members_list', {
+    job: { id },
+    members,
+    users,
+    projectAccess: access,
+    memberError: options.memberError || null,
+    memberForm: options.memberForm || {},
+  });
+}
+
 async function requireProjectId(id) {
   const { data: job, error } = await supabase
     .from('jobs')
@@ -1176,8 +1188,7 @@ router.get('/:id/members', async (req, res) => {
   const id = req.params.id;
   const allowed = await requireProjectAccess(req, res, id, 'manage');
   if (!allowed) return;
-  const [members, users] = await Promise.all([loadMembers(id), loadActiveUsers()]);
-  res.render('jobs/_members_list', { job: { id }, members, users, projectAccess: allowed.access });
+  return renderMembersSection(res, id, allowed.access);
 });
 
 router.post('/:id/members', async (req, res) => {
@@ -1185,30 +1196,55 @@ router.post('/:id/members', async (req, res) => {
   const allowed = await requireProjectAccess(req, res, id, 'manage');
   if (!allowed) return;
   const userId = parseInt(req.body.user_id, 10);
-  if (!userId) return res.status(400).send('user_id required');
   const role = VALID_ROLES.includes(req.body.role) ? req.body.role : 'superintendent';
-  // UNIQUE(job_id, user_id) — if already a member, just update role.
-  const { data: existing, error: existingMemberError } = await supabase
-    .from('job_members')
-    .select('id')
-    .eq('job_id', id)
-    .eq('user_id', userId)
-    .maybeSingle();
-  if (existingMemberError) throw existingMemberError;
-  if (existing) {
-    const { error } = await supabase.from('job_members').update({ role }).eq('id', existing.id);
-    if (error) throw error;
-  } else {
-    const { error } = await supabase.from('job_members').insert({
-      job_id: parseInt(id, 10),
-      user_id: userId,
-      role,
-    });
-    if (error) throw error;
+  const memberForm = { user_id: userId || req.body.user_id, role };
+  if (!userId) {
+    if (req.get('HX-Request')) {
+      res.status(400);
+      return renderMembersSection(res, id, allowed.access, {
+        memberError: 'Choose a user before adding a project member.',
+        memberForm,
+      });
+    }
+    setFlash(req, 'error', 'Choose a user before adding a project member.');
+    return res.redirect(`/projects/${id}`);
   }
-  const [members, users] = await Promise.all([loadMembers(id), loadActiveUsers()]);
+
+  try {
+    // UNIQUE(job_id, user_id) — if already a member, just update role.
+    const { data: existing, error: existingMemberError } = await supabase
+      .from('job_members')
+      .select('id')
+      .eq('job_id', id)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (existingMemberError) throw existingMemberError;
+    if (existing) {
+      const { error } = await supabase.from('job_members').update({ role }).eq('id', existing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from('job_members').insert({
+        job_id: parseInt(id, 10),
+        user_id: userId,
+        role,
+      });
+      if (error) throw error;
+    }
+  } catch (error) {
+    const msg = error?.message || 'Project member could not be saved.';
+    if (req.get('HX-Request')) {
+      res.status(400);
+      return renderMembersSection(res, id, allowed.access, {
+        memberError: `Project member could not be saved: ${msg}`,
+        memberForm,
+      });
+    }
+    setFlash(req, 'error', `Project member could not be saved: ${msg}`);
+    return res.redirect(`/projects/${id}`);
+  }
+
   if (req.get('HX-Request')) {
-    return res.render('jobs/_members_list', { job: { id }, members, users, projectAccess: allowed.access });
+    return renderMembersSection(res, id, allowed.access);
   }
   setFlash(req, 'success', 'Project member saved.');
   res.redirect(`/projects/${id}`);
@@ -1224,8 +1260,7 @@ router.delete('/:id/members/:memberId', async (req, res) => {
     .eq('id', memberId)
     .eq('job_id', id);
   if (error) throw error;
-  const [members, users] = await Promise.all([loadMembers(id), loadActiveUsers()]);
-  res.render('jobs/_members_list', { job: { id }, members, users, projectAccess: allowed.access });
+  return renderMembersSection(res, id, allowed.access);
 });
 
 router.post('/:id/members/:memberId/delete', async (req, res) => {

@@ -9,6 +9,10 @@ var roles = [
 var roleLabels = { superintendent: 'Superintendent', accountant: 'Accountant', admin: 'Admin' };
 var roleBadges = { superintendent: 'scheduled', accountant: 'info', admin: 'accepted' };
 var canManage = typeof projectAccess === 'undefined' || projectAccess.canManageMembers;
+var memberForm = typeof memberForm !== 'undefined' ? memberForm : {};
+var memberError = typeof memberError !== 'undefined' ? memberError : null;
+var selectedUserId = memberForm.user_id ? String(memberForm.user_id) : '';
+var selectedRole = memberForm.role || 'superintendent';
 %>
 <div class="card overflow-hidden" id="members-section">
   <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
@@ -21,7 +25,12 @@ var canManage = typeof projectAccess === 'undefined' || projectAccess.canManageM
   </div>
 
   <% if (canManage) { %>
-  <div id="mem-form" class="hidden p-5 border-b border-recon-mist bg-recon-cloud">
+  <div id="mem-form" class="<%= memberError ? '' : 'hidden ' %>p-5 border-b border-recon-mist bg-recon-cloud">
+    <% if (memberError) { %>
+      <div class="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+        <%= memberError %>
+      </div>
+    <% } %>
     <form method="post"
           action="/projects/<%= job.id %>/members"
           hx-post="/projects/<%= job.id %>/members"
@@ -33,7 +42,7 @@ var canManage = typeof projectAccess === 'undefined' || projectAccess.canManageM
         <select name="user_id" required class="input">
           <option value="">— select user —</option>
           <% (typeof users !== 'undefined' ? users : []).forEach(function(u){ %>
-            <option value="<%= u.id %>"><%= u.name %></option>
+            <option value="<%= u.id %>" <%= String(u.id) === selectedUserId ? 'selected' : '' %>><%= u.name %></option>
           <% }); %>
         </select>
       </div>
@@ -41,7 +50,7 @@ var canManage = typeof projectAccess === 'undefined' || projectAccess.canManageM
         <label class="label">Role</label>
         <select name="role" class="input">
           <% roles.forEach(function(r){ %>
-            <option value="<%= r.value %>" <%= r.value === 'superintendent' ? 'selected' : '' %> title="<%= r.hint %>"><%= r.label %></option>
+            <option value="<%= r.value %>" <%= r.value === selectedRole ? 'selected' : '' %> title="<%= r.hint %>"><%= r.label %></option>
           <% }); %>
         </select>
         <p class="text-[.7rem] text-recon-fog mt-1">Project manager already has full access. Add roles only for extra project team visibility.</p>

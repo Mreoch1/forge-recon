@@ -88,6 +88,15 @@ CREATE TABLE IF NOT EXISTS jobs (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS job_members (
+  id BIGSERIAL PRIMARY KEY,
+  job_id BIGINT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK(role IN ('superintendent','accountant','admin')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(job_id, user_id)
+);
+
 -- ========== WORK ORDERS ==========
 CREATE TABLE IF NOT EXISTS work_orders (
   id BIGSERIAL PRIMARY KEY,
@@ -379,6 +388,8 @@ CREATE INDEX IF NOT EXISTS idx_jobs_customer ON jobs(customer_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_assigned ON jobs(assigned_to_user_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_scheduled ON jobs(scheduled_date);
+CREATE INDEX IF NOT EXISTS idx_job_members_job ON job_members(job_id);
+CREATE INDEX IF NOT EXISTS idx_job_members_user ON job_members(user_id);
 
 CREATE INDEX IF NOT EXISTS idx_wo_job ON work_orders(job_id);
 CREATE INDEX IF NOT EXISTS idx_wo_status ON work_orders(status);
