@@ -47,14 +47,14 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
     </div>
   </div>
 
-  <!-- F-010: Project + WO links for propagation. Internally this posts job_id because the legacy DB column is still named that. -->
+  <!-- F-010: Project + WO links for propagation. Form posts project_id; bills.js maps it to the legacy DB column. -->
   <div class="card p-5">
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
-        <label class="label" for="job_id">Project
+        <label class="label" for="project_id">Project
           <span class="ml-1 text-recon-fog cursor-help" title="Link this bill to a project. The project's financial panel and cost actuals will auto-update.">ⓘ</span>
         </label>
-        <select name="job_id" id="job_id" class="input text-sm">
+        <select name="project_id" id="project_id" class="input text-sm">
           <option value="">— None —</option>
           <% (projects || []).forEach(function(j){ %>
             <option value="<%= j.id %>" <%= String(bill.job_id) === String(j.id) ? 'selected' : '' %>><%= j.title %></option>

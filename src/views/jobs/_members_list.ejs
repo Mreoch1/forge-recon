@@ -1,16 +1,26 @@
 <%
 // D-007 Project members list partial.
 // Inputs: members[] (with user_name, user_email, role), job, users[] (avail users).
-var roles = ['owner', 'manager', 'member', 'contractor'];
+var roles = [
+  { value: 'superintendent', label: 'Superintendent', hint: 'Operations only. No billing or cost visibility.' },
+  { value: 'accountant', label: 'Accountant', hint: 'Billing and cost visibility only.' },
+  { value: 'admin', label: 'Admin', hint: 'Full project access.' },
+];
+var roleLabels = { superintendent: 'Superintendent', accountant: 'Accountant', admin: 'Admin' };
+var roleBadges = { superintendent: 'scheduled', accountant: 'info', admin: 'accepted' };
+var canManage = typeof projectAccess === 'undefined' || projectAccess.canManageMembers;
 %>
 <div class="card overflow-hidden" id="members-section">
   <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
     <h3 class="font-semibold">Project members (<%= members.length %>)</h3>
+    <% if (canManage) { %>
     <button type="button"
             onclick="document.getElementById('mem-form').classList.toggle('hidden')"
             class="text-sm text-recon-red hover:underline">+ Add member</button>
+    <% } %>
   </div>
 
+  <% if (canManage) { %>
   <div id="mem-form" class="hidden p-5 border-b border-recon-mist bg-recon-cloud">
     <form hx-post="/projects/<%= job.id %>/members"
           hx-target="#members-section"
@@ -29,15 +39,17 @@ var roles = ['owner', 'manager', 'member', 'contractor'];
         <label class="label">Role</label>
         <select name="role" class="input">
           <% roles.forEach(function(r){ %>
-            <option value="<%= r %>" <%= r === 'member' ? 'selected' : '' %>><%= r %></option>
+            <option value="<%= r.value %>" <%= r.value === 'superintendent' ? 'selected' : '' %> title="<%= r.hint %>"><%= r.label %></option>
           <% }); %>
         </select>
+        <p class="text-[.7rem] text-recon-fog mt-1">Project manager already has full access. Add roles only for extra project team visibility.</p>
       </div>
       <div class="flex items-end">
         <button type="submit" class="btn btn-primary w-full">Add</button>
       </div>
     </form>
   </div>
+  <% } %>
 
   <% if (members.length === 0) { %>
     <div class="p-8 text-center text-recon-fog text-sm">No members yet.</div>
@@ -50,13 +62,15 @@ var roles = ['owner', 'manager', 'member', 'contractor'];
             <% if (m.user_email) { %><p class="text-xs text-recon-fog"><%= m.user_email %></p><% } %>
           </div>
           <div class="flex items-center gap-3">
-            <span class="badge badge-<%= m.role === 'owner' ? 'accepted' : (m.role === 'manager' ? 'scheduled' : 'draft') %>"><%= m.role %></span>
+            <span class="badge badge-<%= roleBadges[m.role] || 'draft' %>"><%= roleLabels[m.role] || m.role %></span>
+            <% if (canManage) { %>
             <form hx-delete="/projects/<%= job.id %>/members/<%= m.id %>"
                   hx-target="#members-section" hx-swap="outerHTML"
                   hx-confirm="Remove <%= m.user_name %> from this project?"
                   class="inline m-0">
               <button type="submit" class="text-xs text-red-700 hover:underline">Remove</button>
             </form>
+            <% } %>
           </div>
         </li>
       <% }); %>

@@ -383,6 +383,13 @@ router.get('/:id', async (req, res) => {
   const sovItems = sovItemsResult.data;
   const decisions = decisionsResult.data;
   const rfps = rfpsResult.error ? [] : rfpsResult.data;
+  const normalizedMembers = (members || []).map(m => ({
+    ...m,
+    role: normalizeProjectRole(m.role),
+    user_name: m.users?.name,
+    user_email: m.users?.email,
+  }));
+  const access = projectAccess({ req, job, members: normalizedMembers });
 
   // F-001: load decision assignees (multi-user)
   var decisionAssignees = {};
@@ -516,11 +523,8 @@ router.get('/:id', async (req, res) => {
       vendor_name: li.vendors?.name,
       total_cost: Number(li.quantity || 0) * Number(li.unit_cost || 0),
     })),
-    members: (members || []).map(m => ({
-      ...m,
-      user_name: m.users?.name,
-      user_email: m.users?.email,
-    })),
+    members: normalizedMembers,
+    projectAccess: access,
     // R37n: RPM-style vendor invoice rollup.
     vendorSpend,
     vendorInvoiceGrandTotal,
@@ -531,13 +535,13 @@ router.get('/:id', async (req, res) => {
       vendor_name: pc.vendors?.name || '—',
     })),
     // D-007a: Financial Command Panel
-    projectFinancials,
+    projectFinancials: access.canSeeBilling ? projectFinancials : null,
     projectFinancialsError,
     // F-011: contractor/vendor rollup
-    contractorRollup,
+    contractorRollup: access.canSeeBilling ? contractorRollup : [],
     // D-024a: customer payment ledger
-    payments: (payments || []).map(p => ({ ...p })),
-    paymentTotal: paymentTotal || 0,
+    payments: access.canSeeBilling ? (payments || []).map(p => ({ ...p })) : [],
+    paymentTotal: access.canSeeBilling ? (paymentTotal || 0) : 0,
     // D-024b: Schedule of Values
     sovItems: sovItems || [],
     sovTotalScheduled: (sovItems || []).reduce((s, i) => s + Number(i.scheduled_value || 0), 0),
@@ -632,7 +636,40 @@ router.post('/:id/delete', async (req, res) => {
 // ============================================================
 
 const VALID_CO_STATUSES = ['pending', 'approved', 'rejected', 'invoiced'];
-const VALID_ROLES = ['owner', 'manager', 'member', 'contractor'];
+const VALID_ROLES = ['superintendent', 'accountant', 'admin'];
+const LEGACY_PROJECT_ROLE_MAP = {
+  owner: 'admin',
+  manager: 'admin',
+  member: 'superintendent',
+  contractor: 'superintendent',
+};
+
+function normalizeProjectRole(role) {
+  const raw = String(role || '').toLowerCase();
+  return LEGACY_PROJECT_ROLE_MAP[raw] || (VALID_ROLES.includes(raw) ? raw : 'superintendent');
+}
+
+function projectAccess({ req, job, members }) {
+  const userId = Number(req.session?.userId);
+  const appRole = req.session?.role;
+  const appFull = appRole === 'admin' || appRole === 'manager';
+  const isProjectManager =
+    userId &&
+    (Number(job.project_manager_user_id) === userId || Number(job.assigned_to_user_id) === userId);
+  const member = (members || []).find(m => Number(m.user_id) === userId);
+  const projectRole = isProjectManager ? 'project_manager' : normalizeProjectRole(member?.role);
+  const projectFull = isProjectManager || normalizeProjectRole(member?.role) === 'admin';
+  const full = appFull || projectFull;
+  const billing = full || projectRole === 'accountant';
+  const operations = full || projectRole === 'superintendent';
+  return {
+    projectRole,
+    isProjectManager: !!isProjectManager,
+    canSeeBilling: !!billing,
+    canSeeOperations: !!operations,
+    canManageMembers: !!full,
+  };
+}
 
 async function loadChangeOrders(jobId) {
   const { data, error } = await supabase
@@ -674,7 +711,7 @@ async function loadMembers(jobId) {
     .eq('job_id', jobId)
     .order('id', { ascending: true });
   if (error) throw error;
-  return (data || []).map(m => ({ ...m, user_name: m.users?.name, user_email: m.users?.email }));
+  return (data || []).map(m => ({ ...m, role: normalizeProjectRole(m.role), user_name: m.users?.name, user_email: m.users?.email }));
 }
 
 async function loadVendors() {
@@ -1096,7 +1133,7 @@ router.post('/:id/members', async (req, res) => {
   if (!job) return res.status(404).send('Project not found');
   const userId = parseInt(req.body.user_id, 10);
   if (!userId) return res.status(400).send('user_id required');
-  const role = VALID_ROLES.includes(req.body.role) ? req.body.role : 'member';
+  const role = VALID_ROLES.includes(req.body.role) ? req.body.role : 'superintendent';
   // UNIQUE(job_id, user_id) — if already a member, just update role.
   const { data: existing, error: existingMemberError } = await supabase
     .from('job_members')

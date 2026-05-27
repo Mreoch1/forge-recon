@@ -78,7 +78,8 @@ async function validateBill(body) {
   const dueDate = emptyToNull(body.due_date);
   if (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) errors.due_date = 'Use YYYY-MM-DD.';
 
-  const jobId = body.job_id ? parseInt(body.job_id, 10) : null;
+  const projectIdRaw = body.project_id || body.job_id;
+  const jobId = projectIdRaw ? parseInt(projectIdRaw, 10) : null;
   const woId = body.work_order_id ? parseInt(body.work_order_id, 10) : null;
   const taxAmount = parseFloat(body.tax_amount);
   const taxAmountNum = isFinite(taxAmount) && taxAmount >= 0 ? taxAmount : 0;
