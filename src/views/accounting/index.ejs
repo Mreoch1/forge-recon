@@ -64,6 +64,39 @@ const financialReports = [
 const allReports = primaryReports.concat(financialReports);
 %>
 
+<style>
+  .accounting-table {
+    table-layout: fixed;
+    min-width: 64rem;
+  }
+  .accounting-table .acct-name-col { width: 17%; }
+  .accounting-table .acct-type-col { width: 13%; }
+  .accounting-table .acct-description-col { width: 45%; }
+  .accounting-table .acct-updated-col { width: 12%; }
+  .accounting-table .acct-actions-col { width: 13%; }
+  .accounting-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .55rem;
+    width: 100%;
+    white-space: nowrap;
+  }
+  .accounting-actions .btn {
+    min-width: 3.75rem;
+    text-align: center;
+  }
+  .accounting-actions .acct-pdf-link {
+    display: inline-block;
+    min-width: 2rem;
+    text-align: center;
+    color: #1a1a1a;
+    font-size: .78rem;
+    font-weight: 600;
+  }
+  .accounting-actions .acct-pdf-link:hover { color: #c0202b; }
+</style>
+
 <div class="ops-shell">
   <div class="ops-header">
     <div class="ops-title-block">
@@ -101,7 +134,14 @@ const allReports = primaryReports.concat(financialReports);
       <div class="text-xs text-recon-fog"><%= primaryReports.length %> views</div>
     </div>
     <div class="ops-panel-body">
-      <table class="data">
+      <table class="data accounting-table">
+        <colgroup>
+          <col class="acct-name-col">
+          <col class="acct-type-col">
+          <col class="acct-description-col">
+          <col class="acct-updated-col">
+          <col class="acct-actions-col">
+        </colgroup>
         <thead>
           <tr>
             <th>View</th>
@@ -119,8 +159,10 @@ const allReports = primaryReports.concat(financialReports);
               <td class="text-recon-fog"><%= r.description %></td>
               <td><%= r.cadence %></td>
               <td class="text-right">
-                <a href="<%= r.href %>" class="btn btn-secondary text-xs">Open</a>
-                <a href="<%= r.pdf %>" class="btn btn-ghost text-xs">PDF</a>
+                <span class="accounting-actions">
+                  <a href="<%= r.href %>" class="btn btn-secondary text-xs">Open</a>
+                  <a href="<%= r.pdf %>" class="acct-pdf-link">PDF</a>
+                </span>
               </td>
             </tr>
           <% }); %>
@@ -135,7 +177,14 @@ const allReports = primaryReports.concat(financialReports);
       <div class="text-xs text-recon-fog"><%= financialReports.length %> items</div>
     </div>
     <div class="ops-panel-body">
-      <table class="data">
+      <table class="data accounting-table">
+        <colgroup>
+          <col class="acct-name-col">
+          <col class="acct-type-col">
+          <col class="acct-description-col">
+          <col class="acct-updated-col">
+          <col class="acct-actions-col">
+        </colgroup>
         <thead>
           <tr>
             <th>Report</th>
@@ -153,8 +202,10 @@ const allReports = primaryReports.concat(financialReports);
               <td class="text-recon-fog"><%= r.description %></td>
               <td><%= r.cadence %></td>
               <td class="text-right">
-                <a href="<%= r.href %>" class="btn btn-secondary text-xs">Open</a>
-                <a href="<%= r.pdf %>" class="btn btn-ghost text-xs">PDF</a>
+                <span class="accounting-actions">
+                  <a href="<%= r.href %>" class="btn btn-secondary text-xs">Open</a>
+                  <a href="<%= r.pdf %>" class="acct-pdf-link">PDF</a>
+                </span>
               </td>
             </tr>
           <% }); %>
