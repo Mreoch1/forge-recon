@@ -14,7 +14,7 @@ function numberInputValue(n) {
 }
 %>
 
-<div class="max-w-5xl mx-auto px-4 py-6">
+<div class="document-edit-shell">
   <div class="mb-4">
     <a href="/invoices/<%= invoice.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; <%= invoice.display_number %></a>
   </div>
@@ -66,7 +66,7 @@ function numberInputValue(n) {
         <div class="px-5 py-2 text-sm text-red-600 bg-red-50 border-b border-red-200"><%= errors.lines %></div>
       <% } %>
       <div class="overflow-x-auto">
-        <table class="data" data-line-items>
+        <table class="data invoice-line-table" data-line-items>
           <thead>
             <tr>
               <th title="Customer-visible description of this line item. Appears on the invoice PDF.">Description</th>

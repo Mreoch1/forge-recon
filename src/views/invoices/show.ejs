@@ -10,7 +10,7 @@ const margin = subtotal - costTotal;
 const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '—';
 %>
 
-<div class="max-w-5xl mx-auto px-4 py-6">
+<div class="document-shell">
   <div class="mb-4">
     <a href="/invoices" class="text-sm text-recon-fog hover:text-recon-red">&larr; Invoices</a>
   </div>
@@ -26,7 +26,7 @@ const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '—';
         &middot; Customer: <a href="/customers/<%= invoice.customer_id %>" class="hover:text-recon-red"><%= invoice.customer_name %></a>
       </p>
     </div>
-    <div class="flex flex-wrap items-center gap-2">
+    <div class="document-actions">
       <a href="/invoices/<%= invoice.id %>/pdf" class="btn btn-ghost" target="_blank" rel="noopener"
          title="Open the invoice PDF in a new tab.">View PDF</a>
 
@@ -207,21 +207,23 @@ const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '—';
   }) %>
 
   <% if (invoice.status !== 'paid') { %>
-    <div class="card p-5 border-red-200">
-      <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
+    <details class="document-danger">
+      <summary>Danger zone</summary>
+      <div class="document-danger-body">
       <% if (invoice.status !== 'void') { %>
-        <form action="/invoices/<%= invoice.id %>/void" method="post" class="mb-3"
+        <form action="/invoices/<%= invoice.id %>/void" method="post"
               onsubmit="return confirm('Void this invoice?');">
           <button class="btn btn-danger" title="Cancel this invoice without deleting it. Removes it from AR totals but keeps history.">Void invoice</button>
         </form>
       <% } %>
       <% if (invoice.status === 'void') { %>
         <form action="/invoices/<%= invoice.id %>/delete" method="post"
-              onsubmit="return confirm('Delete <%= invoice.display_number %>?');" class="m-0">
+              onsubmit="return confirm('Delete <%= invoice.display_number %>?');">
           <button type="submit" class="btn btn-danger" title="Permanently delete this void invoice.">Delete invoice</button>
         </form>
       <% } %>
-    </div>
+      </div>
+    </details>
   <% } %>
 </div>
 

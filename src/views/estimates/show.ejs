@@ -20,7 +20,7 @@ const EST_STATUS_HINTS = {
 const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
 %>
 
-<div class="max-w-5xl mx-auto px-4 py-6">
+<div class="document-shell">
   <div class="mb-4">
     <a href="/estimates" class="text-sm text-recon-fog hover:text-recon-red">&larr; Estimates</a>
   </div>
@@ -55,7 +55,7 @@ const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
             Edit (secondary) → Create invoice (secondary skip-ahead OR primary when accepted) → Send/Accept (primary CTA)
         Only ONE primary button is visible at any status, so the user always sees a clear next step.
     %>
-    <div class="flex flex-wrap items-center gap-2">
+    <div class="document-actions">
       <!-- Document group: ghost outline, grouped together on the left -->
       <a href="/estimates/<%= estimate.id %>/pdf" class="btn btn-ghost" target="_blank" rel="noopener"
          title="Open the estimate PDF in a new tab.">View PDF</a>
@@ -270,23 +270,24 @@ const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
     activityNoteAction: '/estimates/' + estimate.id + '/activity-note'
   }) %>
 
-  <div class="card p-5 border-red-200">
-    <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
+  <details class="document-danger">
+    <summary>Danger zone</summary>
+    <div class="document-danger-body">
 
     <% if (estimate.status === 'sent' || estimate.status === 'pending') { %>
-      <form action="/estimates/<%= estimate.id %>/reject" method="post" class="mb-3"
+      <form action="/estimates/<%= estimate.id %>/reject" method="post"
             onsubmit="return confirm('Mark <%= estimate.display_number %> rejected?');">
         <button class="btn btn-danger" title="Customer declined — mark rejected. Estimate becomes read-only history.">Mark rejected</button>
       </form>
     <% } %>
 
     <% if (!estimate.archived_at) { %>
-      <form action="/estimates/<%= estimate.id %>/archive" method="post" class="mb-3"
+      <form action="/estimates/<%= estimate.id %>/archive" method="post"
             onsubmit="return confirm('Close <%= estimate.display_number %>?');">
         <button type="submit" class="btn btn-danger" title="Archive this estimate. Hides it from the main list but keeps history. Admins can unarchive later.">Close estimate</button>
       </form>
     <% } else if (currentUser && currentUser.role === 'admin') { %>
-      <form action="/estimates/<%= estimate.id %>/unarchive" method="post" class="mb-3"
+      <form action="/estimates/<%= estimate.id %>/unarchive" method="post"
             onsubmit="return confirm('Unarchive <%= estimate.display_number %>?');">
         <button type="submit" class="btn btn-ghost" title="Restore this estimate to the active list.">Unarchive</button>
       </form>
@@ -294,11 +295,12 @@ const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
 
     <% if ((estimate.status === 'new' || estimate.status === 'draft') && !invoice) { %>
       <form action="/estimates/<%= estimate.id %>/delete" method="post"
-            onsubmit="return confirm('Delete <%= estimate.display_number %>?');" class="m-0">
+            onsubmit="return confirm('Delete <%= estimate.display_number %>?');">
         <button type="submit" class="btn btn-danger" title="Permanently delete this draft estimate. Only possible while in Draft status with no invoice.">Delete estimate</button>
       </form>
     <% } %>
-  </div>
+    </div>
+  </details>
 </div>
 
 <%- include('../layouts/footer') %>
