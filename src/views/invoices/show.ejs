@@ -30,15 +30,17 @@ const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '—';
       <a href="/invoices/<%= invoice.id %>/pdf" class="btn btn-ghost" target="_blank" rel="noopener"
          title="Open the invoice PDF in a new tab.">View PDF</a>
 
-      <% if (invoice.status === 'sent' || invoice.status === 'overdue') { %>
+      <% if (invoice.status === 'draft' || invoice.status === 'sent' || invoice.status === 'overdue') { %>
         <span class="hidden md:inline text-recon-mist px-1" aria-hidden="true">|</span>
 
         <a href="/invoices/<%= invoice.id %>/edit" class="btn btn-secondary">Edit</a>
         <form action="/invoices/<%= invoice.id %>/send" method="post" class="m-0 inline">
           <button class="btn btn-secondary" title="Email this invoice to the customer billing email with the PDF attached."><%= invoice.sent_at ? 'Send again' : 'Send invoice email' %></button>
         </form>
-        <button type="button" onclick="document.getElementById('mark-paid-form').classList.toggle('hidden')" class="btn btn-primary"
-                title="Record a customer payment against this invoice. Supports full or partial payments.">Mark paid</button>
+        <% if (invoice.status === 'sent' || invoice.status === 'overdue') { %>
+          <button type="button" onclick="document.getElementById('mark-paid-form').classList.toggle('hidden')" class="btn btn-primary"
+                  title="Record a customer payment against this invoice. Supports full or partial payments.">Mark paid</button>
+        <% } %>
       <% } %>
     </div>
   </div>

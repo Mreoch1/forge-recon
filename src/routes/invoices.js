@@ -30,7 +30,7 @@ const { sanitizePostgrestSearch } = require('../services/sanitize');
 const router = express.Router();
 
 const PAGE_SIZE = 25;
-const VALID_STATUSES = ['sent', 'paid', 'overdue', 'void'];
+const VALID_STATUSES = ['draft', 'sent', 'paid', 'overdue', 'void'];
 const VALID_UNITS = ['ea', 'hr', 'sqft', 'lf', 'ton', 'lot'];
 const PAYMENT_TERMS_PRESETS = ['Due on receipt', 'Net 15', 'Net 30', 'Net 45', 'Net 60'];
 
@@ -454,7 +454,7 @@ router.post('/:id', async (req, res) => {
 router.post('/:id/send', async (req, res, next) => {
   const invoice = await loadInvoice(req.params.id);
   if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
-  if (!['sent', 'overdue'].includes(invoice.status)) {
+  if (!['draft', 'sent', 'overdue'].includes(invoice.status)) {
     setFlash(req, 'error', `${invoice.display_number} is "${invoice.status}" - cannot send email.`);
     return res.redirect(`/invoices/${invoice.id}`);
   }
@@ -482,6 +482,7 @@ router.post('/:id/send', async (req, res, next) => {
         sent_by_user_id: req.session.userId,
         sent_to_email: recipient,
         sent_to_name: invoice.customer_name || 'Unknown',
+        status: 'sent',
         updated_at: new Date().toISOString(),
       })
       .eq('id', invoice.id);
@@ -491,7 +492,7 @@ router.post('/:id/send', async (req, res, next) => {
       await writeAudit({
         entityType: 'invoice', entityId: invoice.id, action: invoice.sent_at ? 'resend' : 'send',
         before: { status: invoice.status },
-        after: { status: invoice.status, recipient, sent_at: new Date().toISOString() },
+        after: { status: 'sent', recipient, sent_at: new Date().toISOString() },
         source: 'user', userId: req.session.userId,
       });
     } catch (e) { /* best-effort */ }
