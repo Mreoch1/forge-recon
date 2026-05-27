@@ -1,0 +1,63 @@
+{
+  "generated_at": "2026-05-27T11:56:22.823Z",
+  "quickbooks_exports": {
+    "chart_of_accounts": {
+      "rows": 157,
+      "account_types": {
+        "Bank": 4,
+        "Accounts receivable (A/R)": 1,
+        "Other Current Assets": 24,
+        "Accounts payable (A/P)": 1,
+        "Credit Card": 1,
+        "Other Current Liabilities": 33,
+        "Long Term Liabilities": 2,
+        "Equity": 10,
+        "Income": 16,
+        "Cost of Goods Sold": 7,
+        "Expenses": 47,
+        "Other Income": 2,
+        "Other Expense": 9
+      }
+    },
+    "ar_aging": {
+      "rows": 153,
+      "total": 2131480.7899999996,
+      "buckets": [
+        1207851.37,
+        711351.01,
+        29370,
+        11170,
+        171738.41
+      ]
+    },
+    "ap_aging": {
+      "rows": 31,
+      "total": 1113851.8099999996,
+      "buckets": [
+        493839.56999999995,
+        329264.08999999997,
+        249920.74000000002,
+        50190.81,
+        -9363.400000000001
+      ]
+    }
+  },
+  "import_sequence": [
+    "chart_of_accounts",
+    "customers",
+    "vendors",
+    "opening_ar",
+    "opening_ap",
+    "projects_and_open_work",
+    "products_services",
+    "historical_transactions"
+  ],
+  "forge_changes_needed": [
+    "replace placeholder chart of accounts",
+    "add quickbooks external ids/source tracking",
+    "add opening balance import source",
+    "add customer/vendor import staging and cleanup",
+    "add vendor 1099 tracking",
+    "add reconciliation reports"
+  ]
+}

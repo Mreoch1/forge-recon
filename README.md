@@ -6,7 +6,7 @@ In-house web app for managing the customer-to-cash flow at Recon Enterprises:
 Customer  →  Job  →  Estimate  →  Work Order  →  Invoice  →  Paid
 ```
 
-Built overnight 2026-05-10 by Claude (planner) + Hermes (executor) coordinating via a file-based bridge while Michael slept. Architecture, lessons, and every default we picked without him are in `PROJECT_PLAN.md`, `DECISIONS.md`, and `CHANGELOG.md`. Things waiting on Michael are in `TODO_FOR_MICHAEL.md`.
+Built overnight 2026-05-10 by Claude (planner) + Hermes (executor) coordinating via a file-based bridge while Michael slept. Architecture, lessons, and every default we picked without him are in `PROJECT_PLAN.md`, `DECISIONS.md`, and `CHANGELOG.md`. Things waiting on Michael are in `TODO_FOR_MICHAEL.md`. QuickBooks discovery and import planning are tracked in `docs/QUICKBOOKS_DISCOVERY.md`.
 
 ---
 
