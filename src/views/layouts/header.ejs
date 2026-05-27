@@ -177,6 +177,12 @@
       .ops-summary-item:nth-child(n+3) { border-top: 1px solid #eeeeee; }
       .ops-actions { justify-content: flex-start; }
     }
+    @media print {
+      nav, footer, .no-print, .fb-btn, #fb-overlay, #fb-modal { display: none !important; }
+      body { background: #fff !important; color: #000 !important; }
+      .card, .ops-panel { box-shadow: none !important; border-color: #ccc !important; }
+      a { color: inherit !important; text-decoration: none !important; }
+    }
     .list-utility-bar { display: flex; align-items: center; gap: .5rem; margin-bottom: 1rem; min-height: 38px; flex-wrap: wrap; }
     .list-utility-bar .list-search { flex: 1 1 100%; min-width: 140px; max-width: 100%; padding: .55rem .75rem; border-radius: .375rem; border: 1px solid #d0d0d0; background: #fff; font-size: .9rem; min-height: 40px; }
     @media (min-width: 768px) {

@@ -14,6 +14,7 @@
 
 const express = require('express');
 const supabase = require('../db/supabase');
+const reportPdf = require('../services/accounting-report-pdf');
 
 const router = express.Router();
 
@@ -21,6 +22,18 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
 
 function logAccountingSetupWarning(route, error) {
   console.warn(`[accounting] ${route} unavailable; rendering empty state: ${error.message || error.code || error}`);
+}
+
+async function getCompany() {
+  const { data, error } = await supabase.from('company_settings').select('*').eq('id', 1).maybeSingle();
+  if (error) throw error;
+  return data || {};
+}
+
+function sendPdf(res, filename, report) {
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  reportPdf.generateReportPDF(report, res);
 }
 
 // Helper: sum debit for a JE id by fetching its lines and reducing in JS.
@@ -48,38 +61,61 @@ router.get('/', async (req, res) => {
 
 // --- chart of accounts ---
 
-router.get('/accounts', async (req, res) => {
+async function loadAccounts() {
   const { data: accounts, error } = await supabase
     .from('accounts')
     .select('*')
     .order('code', { ascending: true });
-  if (error) logAccountingSetupWarning('/accounts', error);
+  if (error) throw error;
 
   const grouped = { asset: [], liability: [], equity: [], revenue: [], expense: [] };
   (accounts || []).forEach(a => { (grouped[a.type] = grouped[a.type] || []).push(a); });
+  return { accounts: accounts || [], grouped };
+}
+
+router.get('/accounts', async (req, res) => {
+  let data = { accounts: [], grouped: { asset: [], liability: [], equity: [], revenue: [], expense: [] } };
+  try {
+    data = await loadAccounts();
+  } catch (error) {
+    logAccountingSetupWarning('/accounts', error);
+  }
 
   res.render('accounting/accounts', {
     title: 'Chart of accounts', activeNav: 'accounting',
-    accounts: accounts || [], grouped,
+    ...data,
+  });
+});
+
+router.get('/accounts.pdf', async (req, res) => {
+  const [{ accounts }, company] = await Promise.all([loadAccounts(), getCompany()]);
+  sendPdf(res, 'chart-of-accounts.pdf', {
+    title: 'Chart of accounts',
+    company,
+    summary: [
+      { label: 'Accounts', value: String(accounts.length) },
+      { label: 'Active', value: String(accounts.filter(a => a.active).length) },
+    ],
+    columns: [
+      { key: 'code', label: 'Code', width: 1 },
+      { key: 'name', label: 'Name', width: 3 },
+      { key: 'type', label: 'Type', width: 1.2 },
+      { key: 'active', label: 'Status', width: 1, value: r => r.active ? 'Active' : 'Inactive' },
+    ],
+    rows: accounts,
   });
 });
 
 // --- journal ---
 
-router.get('/journal', async (req, res) => {
+async function loadJournalEntries(limit = 100) {
   const { data: rawEntries, error } = await supabase
     .from('journal_entries')
     .select('*, users:created_by_user_id ( name )')
     .order('entry_date', { ascending: false })
     .order('created_at', { ascending: false })
-    .limit(100);
-  if (error) {
-    logAccountingSetupWarning('/journal', error);
-    return res.render('accounting/journal', {
-      title: 'Journal entries', activeNav: 'accounting',
-      entries: [],
-    });
-  }
+    .limit(limit);
+  if (error) throw error;
 
   const entries = [];
   for (const je of (rawEntries || [])) {
@@ -91,30 +127,57 @@ router.get('/journal', async (req, res) => {
       total_debits,
     });
   }
+  return entries;
+}
 
+router.get('/journal', async (req, res) => {
+  let entries = [];
+  try {
+    entries = await loadJournalEntries();
+  } catch (error) {
+    logAccountingSetupWarning('/journal', error);
+  }
   res.render('accounting/journal', {
     title: 'Journal entries', activeNav: 'accounting',
     entries,
   });
 });
 
-router.get('/journal/:id', async (req, res) => {
+router.get('/journal.pdf', async (req, res) => {
+  const [entries, company] = await Promise.all([loadJournalEntries(250), getCompany()]);
+  sendPdf(res, 'journal-entries.pdf', {
+    title: 'Journal entries',
+    company,
+    summary: [
+      { label: 'Entries', value: String(entries.length) },
+      { label: 'Total posted', value: reportPdf.money(entries.reduce((s, e) => s + Number(e.total_debits || 0), 0)) },
+    ],
+    columns: [
+      { key: 'entry_date', label: 'Date', width: 1.1 },
+      { key: 'description', label: 'Description', width: 3 },
+      { key: 'source_type', label: 'Source', width: 1.2, value: e => e.source_type ? `${e.source_type} #${e.source_id}` : '-' },
+      { key: 'created_by_name', label: 'By', width: 1.2, value: e => e.created_by_name || '-' },
+      { key: 'total_debits', label: 'Amount', width: 1, align: 'right', value: e => reportPdf.money(e.total_debits) },
+    ],
+    rows: entries,
+  });
+});
+
+async function loadJournalEntry(id) {
   const { data: raw, error: entryErr } = await supabase
     .from('journal_entries')
     .select('*, users:created_by_user_id ( name )')
-    .eq('id', req.params.id)
+    .eq('id', id)
     .maybeSingle();
   if (entryErr) throw entryErr;
-  if (!raw) {
-    return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Journal entry not found.' });
-  }
+  if (!raw) return null;
   const { users, ...rest } = raw;
   const entry = { ...rest, created_by_name: users?.name || null };
 
   const { data: rawLines, error: linesErr } = await supabase
     .from('journal_lines')
     .select('*, accounts!inner ( code, name, type )')
-    .eq('journal_entry_id', req.params.id)
+    .eq('journal_entry_id', id)
     .order('id', { ascending: true });
   if (linesErr) throw linesErr;
 
@@ -127,10 +190,43 @@ router.get('/journal/:id', async (req, res) => {
       account_type: acct?.type,
     };
   });
+  return { entry, lines };
+}
+
+router.get('/journal/:id.pdf', async (req, res) => {
+  const [data, company] = await Promise.all([loadJournalEntry(req.params.id), getCompany()]);
+  if (!data) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Journal entry not found.' });
+  const { entry, lines } = data;
+  sendPdf(res, `journal-${entry.id}.pdf`, {
+    title: `Journal entry #${entry.id}`,
+    subtitle: `${entry.entry_date || ''} ${entry.description || ''}`.trim(),
+    company,
+    summary: [
+      { label: 'Source', value: entry.source_type ? `${entry.source_type} #${entry.source_id}` : '-' },
+      { label: 'Posted by', value: entry.created_by_name || '-' },
+      { label: 'Debits', value: reportPdf.money(lines.reduce((s, l) => s + Number(l.debit || 0), 0)) },
+      { label: 'Credits', value: reportPdf.money(lines.reduce((s, l) => s + Number(l.credit || 0), 0)) },
+    ],
+    columns: [
+      { key: 'account_code', label: 'Code', width: 1 },
+      { key: 'account_name', label: 'Account', width: 3 },
+      { key: 'account_type', label: 'Type', width: 1.2 },
+      { key: 'debit', label: 'Debit', width: 1, align: 'right', value: l => Number(l.debit || 0) ? reportPdf.money(l.debit) : '' },
+      { key: 'credit', label: 'Credit', width: 1, align: 'right', value: l => Number(l.credit || 0) ? reportPdf.money(l.credit) : '' },
+    ],
+    rows: lines,
+  });
+});
+
+router.get('/journal/:id', async (req, res) => {
+  const data = await loadJournalEntry(req.params.id);
+  if (!data) {
+    return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Journal entry not found.' });
+  }
 
   res.render('accounting/journal-detail', {
-    title: `Journal #${entry.id}`, activeNav: 'accounting',
-    entry, lines,
+    title: `Journal #${data.entry.id}`, activeNav: 'accounting',
+    ...data,
   });
 });
 
@@ -181,6 +277,33 @@ router.get('/reports/trial-balance', async (req, res) => {
   });
 });
 
+router.get('/reports/trial-balance.pdf', async (req, res) => {
+  const [rows, company] = await Promise.all([computeTrialBalance(), getCompany()]);
+  let totalDr = 0, totalCr = 0;
+  rows.forEach(r => {
+    if (r.balance > 0) totalDr += r.balance;
+    else if (r.balance < 0) totalCr += -r.balance;
+  });
+  sendPdf(res, 'trial-balance.pdf', {
+    title: 'Trial balance',
+    company,
+    summary: [
+      { label: 'Debit total', value: reportPdf.money(totalDr) },
+      { label: 'Credit total', value: reportPdf.money(totalCr) },
+      { label: 'Status', value: Math.abs(totalDr - totalCr) < 0.01 ? 'Balanced' : 'Unbalanced', color: Math.abs(totalDr - totalCr) < 0.01 ? '#166534' : '#c0202b' },
+    ],
+    columns: [
+      { key: 'code', label: 'Code', width: 1 },
+      { key: 'name', label: 'Account', width: 3 },
+      { key: 'type', label: 'Type', width: 1.2 },
+      { key: 'debit', label: 'Debit', width: 1, align: 'right', value: r => r.balance > 0 ? reportPdf.money(r.balance) : '' },
+      { key: 'credit', label: 'Credit', width: 1, align: 'right', value: r => r.balance < 0 ? reportPdf.money(-r.balance) : '' },
+    ],
+    rows,
+    footerRows: [{ code: '', name: 'Total', type: '', debit: reportPdf.money(totalDr), credit: reportPdf.money(totalCr) }],
+  });
+});
+
 router.get('/reports/profit-loss', async (req, res) => {
   let rows = [];
   try {
@@ -202,6 +325,29 @@ router.get('/reports/profit-loss', async (req, res) => {
   res.render('accounting/reports/profit-loss', {
     title: 'Profit & loss', activeNav: 'accounting',
     revenueRows, expenseRows, totalRevenue, totalExpenses, netIncome, fmt,
+  });
+});
+
+router.get('/reports/profit-loss.pdf', async (req, res) => {
+  const [rows, company] = await Promise.all([computeTrialBalance(), getCompany()]);
+  const revenueRows = rows.filter(r => r.type === 'revenue').map(r => ({ ...r, amount: -r.balance }));
+  const expenseRows = rows.filter(r => r.type === 'expense').map(r => ({ ...r, amount: r.balance }));
+  const totalRevenue = revenueRows.reduce((s, r) => s + r.amount, 0);
+  const totalExpenses = expenseRows.reduce((s, r) => s + r.amount, 0);
+  const netIncome = totalRevenue - totalExpenses;
+  sendPdf(res, 'profit-loss.pdf', {
+    title: 'Profit & loss',
+    company,
+    summary: [
+      { label: 'Revenue', value: reportPdf.money(totalRevenue) },
+      { label: 'Expenses', value: reportPdf.money(totalExpenses) },
+      { label: 'Net income', value: reportPdf.money(netIncome), color: netIncome >= 0 ? '#166534' : '#c0202b' },
+    ],
+    sections: [
+      { title: 'Revenue', rows: revenueRows.map(r => ({ label: r.name, value: reportPdf.money(r.amount) })).concat([{ label: 'Total Revenue', value: reportPdf.money(totalRevenue), bold: true }]) },
+      { title: 'Expenses', rows: expenseRows.map(r => ({ label: r.name, value: reportPdf.money(r.amount) })).concat([{ label: 'Total Expenses', value: reportPdf.money(totalExpenses), bold: true }]) },
+      { title: 'Result', rows: [{ label: 'Net Income', value: reportPdf.money(netIncome), bold: true }] },
+    ],
   });
 });
 
@@ -234,6 +380,36 @@ router.get('/reports/balance-sheet', async (req, res) => {
   });
 });
 
+router.get('/reports/balance-sheet.pdf', async (req, res) => {
+  const [rows, company] = await Promise.all([computeTrialBalance(), getCompany()]);
+  const assets = rows.filter(r => r.type === 'asset').map(r => ({ ...r, amount: r.balance }));
+  const liabilities = rows.filter(r => r.type === 'liability').map(r => ({ ...r, amount: -r.balance }));
+  const equity = rows.filter(r => r.type === 'equity').map(r => ({ ...r, amount: -r.balance }));
+  const totalAssets = assets.reduce((s, r) => s + r.amount, 0);
+  const totalLiabilities = liabilities.reduce((s, r) => s + r.amount, 0);
+  const totalEquityBase = equity.reduce((s, r) => s + r.amount, 0);
+  const revenue = rows.filter(r => r.type === 'revenue').reduce((s, r) => s + (-r.balance), 0);
+  const expenses = rows.filter(r => r.type === 'expense').reduce((s, r) => s + r.balance, 0);
+  const netIncome = revenue - expenses;
+  const totalEquity = totalEquityBase + netIncome;
+  const balanced = Math.abs(totalAssets - (totalLiabilities + totalEquity)) < 0.01;
+  sendPdf(res, 'balance-sheet.pdf', {
+    title: 'Balance sheet',
+    company,
+    summary: [
+      { label: 'Assets', value: reportPdf.money(totalAssets) },
+      { label: 'Liabilities', value: reportPdf.money(totalLiabilities) },
+      { label: 'Equity', value: reportPdf.money(totalEquity) },
+      { label: 'Status', value: balanced ? 'Balanced' : 'Unbalanced', color: balanced ? '#166534' : '#c0202b' },
+    ],
+    sections: [
+      { title: 'Assets', rows: assets.map(a => ({ label: a.name, value: reportPdf.money(a.amount) })).concat([{ label: 'Total Assets', value: reportPdf.money(totalAssets), bold: true }]) },
+      { title: 'Liabilities', rows: liabilities.map(l => ({ label: l.name, value: reportPdf.money(l.amount) })).concat([{ label: 'Total Liabilities', value: reportPdf.money(totalLiabilities), bold: true }]) },
+      { title: 'Equity', rows: equity.map(e => ({ label: e.name, value: reportPdf.money(e.amount) })).concat([{ label: 'Net Income (current period)', value: reportPdf.money(netIncome) }, { label: 'Total Equity', value: reportPdf.money(totalEquity), bold: true }]) },
+    ],
+  });
+});
+
 // --- AR Aging ---
 
 function ageBucket(dueDate) {
@@ -248,7 +424,7 @@ function ageBucket(dueDate) {
   return '90+';
 }
 
-router.get('/ar-aging', async (req, res) => {
+async function loadARAging() {
   const { data: invoices, error: invoicesErr } = await supabase
     .from('invoices')
     .select('*, work_orders!left(display_number, customers!left(id, name))')
@@ -281,6 +457,11 @@ router.get('/ar-aging', async (req, res) => {
   // Bucket totals
   const buckets = { Current: 0, '1-30': 0, '31-60': 0, '61-90': 0, '90+': 0 };
   rows.forEach(r => { buckets[r.bucket] = (buckets[r.bucket] || 0) + r.balance; });
+  return { rows, buckets };
+}
+
+router.get('/ar-aging', async (req, res) => {
+  const { rows, buckets } = await loadARAging();
 
   res.render('accounting/ar-aging', {
     title: 'AR Aging', activeNav: 'accounting',
@@ -288,9 +469,28 @@ router.get('/ar-aging', async (req, res) => {
   });
 });
 
+router.get('/ar-aging.pdf', async (req, res) => {
+  const [{ rows, buckets }, company] = await Promise.all([loadARAging(), getCompany()]);
+  sendPdf(res, 'ar-aging.pdf', {
+    title: 'Accounts receivable aging',
+    company,
+    summary: Object.keys(buckets).map(b => ({ label: b, value: reportPdf.money(buckets[b]), color: b === '90+' ? '#c0202b' : undefined })),
+    columns: [
+      { key: 'customer', label: 'Customer', width: 2 },
+      { key: 'invoiceNumber', label: 'Invoice', width: 1.2 },
+      { key: 'dueDate', label: 'Due', width: 1 },
+      { key: 'ageDays', label: 'Age', width: 0.8, align: 'right' },
+      { key: 'total', label: 'Total', width: 1, align: 'right', value: r => reportPdf.money(r.total) },
+      { key: 'balance', label: 'Balance', width: 1, align: 'right', value: r => reportPdf.money(r.balance), bold: r => Number(r.balance) > 0 },
+      { key: 'bucket', label: 'Bucket', width: 0.9 },
+    ],
+    rows,
+  });
+});
+
 // --- AP Aging ---
 
-router.get('/ap-aging', async (req, res) => {
+async function loadAPAging() {
   // Bills: unpaid or partially paid
   const { data: bills, error: billsErr } = await supabase
     .from('bills')
@@ -343,10 +543,35 @@ router.get('/ap-aging', async (req, res) => {
 
   const buckets = { Current: 0, '1-30': 0, '31-60': 0, '61-90': 0, '90+': 0 };
   rows.forEach(r => { buckets[r.bucket] = (buckets[r.bucket] || 0) + r.balance; });
+  return { rows, buckets };
+}
+
+router.get('/ap-aging', async (req, res) => {
+  const { rows, buckets } = await loadAPAging();
 
   res.render('accounting/ap-aging', {
     title: 'AP Aging', activeNav: 'accounting',
     rows, buckets, fmt,
+  });
+});
+
+router.get('/ap-aging.pdf', async (req, res) => {
+  const [{ rows, buckets }, company] = await Promise.all([loadAPAging(), getCompany()]);
+  sendPdf(res, 'ap-aging.pdf', {
+    title: 'Accounts payable aging',
+    company,
+    summary: Object.keys(buckets).map(b => ({ label: b, value: reportPdf.money(buckets[b]), color: b === '90+' ? '#c0202b' : undefined })),
+    columns: [
+      { key: 'vendor', label: 'Vendor', width: 2 },
+      { key: 'source', label: 'Source', width: 1.1 },
+      { key: 'ref', label: 'Reference', width: 1.2 },
+      { key: 'dueDate', label: 'Due', width: 1 },
+      { key: 'ageDays', label: 'Age', width: 0.8, align: 'right' },
+      { key: 'total', label: 'Total', width: 1, align: 'right', value: r => reportPdf.money(r.total) },
+      { key: 'balance', label: 'Balance', width: 1, align: 'right', value: r => reportPdf.money(r.balance), bold: r => Number(r.balance) > 0 },
+      { key: 'bucket', label: 'Bucket', width: 0.9 },
+    ],
+    rows,
   });
 });
 

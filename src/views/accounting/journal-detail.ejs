@@ -1,0 +1,100 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<%
+function money(n) {
+  const num = Number(n);
+  return '$' + (isFinite(num) ? num.toFixed(2) : '0.00');
+}
+const totalDebits = (lines || []).reduce(function(s, l){ return s + Number(l.debit || 0); }, 0);
+const totalCredits = (lines || []).reduce(function(s, l){ return s + Number(l.credit || 0); }, 0);
+%>
+
+<div class="max-w-5xl mx-auto px-4 py-6">
+  <div class="mb-4">
+    <a href="/accounting/journal" class="text-sm text-recon-fog hover:text-recon-red">&larr; Journal entries</a>
+  </div>
+
+  <div class="flex items-start justify-between gap-3 mb-6 flex-wrap">
+    <div>
+      <h1 class="page-h1">Journal #<%= entry.id %></h1>
+      <p class="page-sub">
+        <%= entry.entry_date || 'No date' %>
+        <% if (entry.source_type) { %>
+          &middot; <%= entry.source_type %> #<%= entry.source_id %>
+        <% } %>
+        <% if (entry.created_by_name) { %>
+          &middot; Posted by <%= entry.created_by_name %>
+        <% } %>
+      </p>
+    </div>
+    <div class="flex gap-2 no-print">
+      <button type="button" class="btn btn-secondary text-sm" onclick="window.print()">Print</button>
+      <a href="/accounting/journal/<%= entry.id %>.pdf" class="btn btn-secondary text-sm">PDF</a>
+    </div>
+  </div>
+
+  <% if (entry.description) { %>
+    <div class="card p-4 mb-6">
+      <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-2">Description</h3>
+      <p class="text-sm"><%= entry.description %></p>
+    </div>
+  <% } %>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+    <div class="card p-4">
+      <div class="text-xs uppercase tracking-wide text-recon-fog">Debits</div>
+      <div class="text-xl font-bold mt-1"><%= money(totalDebits) %></div>
+    </div>
+    <div class="card p-4">
+      <div class="text-xs uppercase tracking-wide text-recon-fog">Credits</div>
+      <div class="text-xl font-bold mt-1"><%= money(totalCredits) %></div>
+    </div>
+    <div class="card p-4">
+      <div class="text-xs uppercase tracking-wide text-recon-fog">Status</div>
+      <div class="text-xl font-bold mt-1 <%= Math.abs(totalDebits - totalCredits) < 0.01 ? 'text-green-700' : 'text-recon-red' %>">
+        <%= Math.abs(totalDebits - totalCredits) < 0.01 ? 'Balanced' : 'Unbalanced' %>
+      </div>
+    </div>
+  </div>
+
+  <div class="card overflow-hidden">
+    <div class="px-5 py-3 border-b border-recon-mist">
+      <h3 class="font-semibold"><%= lines.length %> line<%= lines.length === 1 ? '' : 's' %></h3>
+    </div>
+    <% if (!lines || lines.length === 0) { %>
+      <div class="p-6 text-center text-recon-fog text-sm">No journal lines found.</div>
+    <% } else { %>
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Account</th>
+            <th>Type</th>
+            <th class="text-right">Debit</th>
+            <th class="text-right">Credit</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% lines.forEach(function(line){ %>
+            <tr>
+              <td class="font-mono text-sm"><%= line.account_code || '-' %></td>
+              <td><%= line.account_name || '-' %></td>
+              <td><span class="badge badge-<%= line.account_type || 'info' %>"><%= line.account_type || '-' %></span></td>
+              <td class="text-right font-mono"><%= Number(line.debit || 0) ? money(line.debit) : '' %></td>
+              <td class="text-right font-mono"><%= Number(line.credit || 0) ? money(line.credit) : '' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+        <tfoot class="bg-recon-cloud">
+          <tr>
+            <td colspan="3" class="text-right font-semibold">Total</td>
+            <td class="text-right font-mono font-semibold"><%= money(totalDebits) %></td>
+            <td class="text-right font-mono font-semibold"><%= money(totalCredits) %></td>
+          </tr>
+        </tfoot>
+      </table>
+    <% } %>
+  </div>
+</div>
+
+<%- include('../layouts/footer') %>

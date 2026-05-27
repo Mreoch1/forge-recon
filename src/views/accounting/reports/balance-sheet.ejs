@@ -1,7 +1,13 @@
 <%- include('../../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
 <div class="max-w-4xl mx-auto px-4 py-6">
   <div class="mb-4"><a href="/accounting" class="text-sm text-recon-fog hover:text-recon-red">&larr; Accounting</a></div>
-  <h1 class="page-h1 mb-6">Balance sheet</h1>
+  <div class="flex items-center justify-between gap-3 mb-6 flex-wrap">
+    <h1 class="page-h1">Balance sheet</h1>
+    <div class="flex gap-2 no-print">
+      <button type="button" class="btn btn-secondary text-sm" onclick="window.print()">Print</button>
+      <a href="/accounting/reports/balance-sheet.pdf" class="btn btn-secondary text-sm">PDF</a>
+    </div>
+  </div>
   <% if (!assets || assets.length === 0) { %>
     <div class="card p-8 text-center"><p class="text-recon-fog">No account balances yet.</p></div>
   <% } else { %>

@@ -4,7 +4,13 @@
   <div class="mb-4">
     <a href="/accounting" class="text-sm text-recon-fog hover:text-recon-red">&larr; Accounting</a>
   </div>
-  <h1 class="page-h1 mb-6">Chart of accounts</h1>
+  <div class="flex items-center justify-between gap-3 mb-6 flex-wrap">
+    <h1 class="page-h1">Chart of accounts</h1>
+    <div class="flex gap-2 no-print">
+      <button type="button" class="btn btn-secondary text-sm" onclick="window.print()">Print</button>
+      <a href="/accounting/accounts.pdf" class="btn btn-secondary text-sm">PDF</a>
+    </div>
+  </div>
 
   <% if (!accounts || accounts.length === 0) { %>
     <div class="card p-8 text-center">
