@@ -34,6 +34,7 @@ Payroll workflow:
 - QuickBooks Payroll remains the source of truth for payroll runs, tax filings, W-2s, direct deposit/check records, and compliance.
 - Forge payroll is an admin-only mirror used for labor costing, project/work-order allocation, and profitability reporting.
 - Admins can manually add payroll employees in Forge when a payroll export is not available yet. Link the payroll employee to a Forge user when possible so labor can later be allocated to work orders and projects.
+- If QuickBooks Payroll is retired later, Forge can become the internal payroll record and labor-cost system, but tax filings, W-2s, direct deposit, and compliance still need a payroll provider/accountant process unless those features are deliberately built and verified.
 - Do not commit payroll exports or pay-rate data into git. Load them into staging/import tables only.
 
 ## Resetting a user's password

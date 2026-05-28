@@ -265,6 +265,64 @@ router.post('/payroll/employees', async (req, res) => {
   res.redirect('/accounting/payroll');
 });
 
+router.post('/payroll/employees/:id', async (req, res) => {
+  const id = Number.parseInt(req.params.id, 10);
+  if (!Number.isFinite(id) || id <= 0) {
+    setFlash(req, 'error', 'Payroll employee not found.');
+    return res.redirect('/accounting/payroll');
+  }
+
+  const { data, errors } = cleanPayrollEmployeeInput(req.body || {});
+  if (errors.length) {
+    setFlash(req, 'error', errors.join(' '));
+    return res.redirect('/accounting/payroll');
+  }
+
+  const update = {
+    user_id: data.user_id,
+    display_name: data.display_name,
+    email: data.email,
+    role_title: data.role_title,
+    status: data.status,
+    pay_type: data.pay_type,
+    pay_rate_amount: data.pay_rate_amount,
+    pay_rate_period: data.pay_rate_period,
+    pay_method: data.pay_method,
+    pay_schedule: data.pay_schedule,
+    imported_from: data.imported_from,
+    metadata: { entry: 'manual_update' },
+  };
+
+  const { error } = await supabase.from('payroll_employees').update(update).eq('id', id);
+  if (error) {
+    setFlash(req, 'error', `Payroll employee could not be updated: ${error.message}`);
+    return res.redirect('/accounting/payroll');
+  }
+
+  setFlash(req, 'success', `Payroll employee "${data.display_name}" updated.`);
+  res.redirect('/accounting/payroll');
+});
+
+router.post('/payroll/employees/:id/deactivate', async (req, res) => {
+  const id = Number.parseInt(req.params.id, 10);
+  if (!Number.isFinite(id) || id <= 0) {
+    setFlash(req, 'error', 'Payroll employee not found.');
+    return res.redirect('/accounting/payroll');
+  }
+
+  const { error } = await supabase
+    .from('payroll_employees')
+    .update({ status: 'inactive', metadata: { entry: 'manual_deactivate' } })
+    .eq('id', id);
+  if (error) {
+    setFlash(req, 'error', `Payroll employee could not be deactivated: ${error.message}`);
+    return res.redirect('/accounting/payroll');
+  }
+
+  setFlash(req, 'success', 'Payroll employee deactivated.');
+  res.redirect('/accounting/payroll');
+});
+
 // --- chart of accounts ---
 
 async function loadAccounts() {

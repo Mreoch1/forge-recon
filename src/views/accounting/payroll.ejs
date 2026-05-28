@@ -180,6 +180,7 @@ function rateLabel(employee) {
               <th>Pay rate</th>
               <th>Method</th>
               <th>Schedule</th>
+              <th class="text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -192,6 +193,95 @@ function rateLabel(employee) {
                 <td class="font-mono"><%= rateLabel(employee) %></td>
                 <td><%= employee.pay_method || '-' %></td>
                 <td><%= employee.pay_schedule || '-' %></td>
+                <td class="text-right">
+                  <details class="inline-block text-left">
+                    <summary class="btn btn-secondary cursor-pointer list-none">Edit</summary>
+                    <div class="mt-2 w-[min(44rem,calc(100vw-2rem))] rounded-lg border border-recon-mist bg-white p-4 text-left shadow-xl">
+                      <form method="post" action="/accounting/payroll/employees/<%= employee.id %>" class="grid gap-3">
+                        <div class="grid gap-3 md:grid-cols-2">
+                          <label>
+                            <span class="label">Employee name *</span>
+                            <input class="input" name="display_name" value="<%= employee.display_name || '' %>" required>
+                          </label>
+                          <label>
+                            <span class="label">Email</span>
+                            <input class="input" name="email" type="email" value="<%= employee.email || '' %>">
+                          </label>
+                        </div>
+                        <div class="grid gap-3 md:grid-cols-2">
+                          <label>
+                            <span class="label">Forge user link</span>
+                            <select class="input" name="user_id">
+                              <option value="">No linked user</option>
+                              <% (payroll.users || []).forEach(function(user){ %>
+                                <option value="<%= user.id %>" <%= String(employee.user_id || '') === String(user.id) ? 'selected' : '' %>>
+                                  <%= user.name %><%= user.email ? ' - ' + user.email : '' %>
+                                </option>
+                              <% }); %>
+                            </select>
+                          </label>
+                          <label>
+                            <span class="label">Role / title</span>
+                            <input class="input" name="role_title" value="<%= employee.role_title || '' %>">
+                          </label>
+                        </div>
+                        <div class="grid gap-3 md:grid-cols-3">
+                          <label>
+                            <span class="label">Status</span>
+                            <select class="input" name="status">
+                              <% ['active', 'inactive', 'terminated'].forEach(function(status){ %>
+                                <option value="<%= status %>" <%= employee.status === status ? 'selected' : '' %>><%= status %></option>
+                              <% }); %>
+                            </select>
+                          </label>
+                          <label>
+                            <span class="label">Pay type</span>
+                            <select class="input" name="pay_type">
+                              <% ['salary', 'hourly', 'contract', 'other'].forEach(function(type){ %>
+                                <option value="<%= type %>" <%= employee.pay_type === type ? 'selected' : '' %>><%= type %></option>
+                              <% }); %>
+                            </select>
+                          </label>
+                          <label>
+                            <span class="label">Pay method</span>
+                            <input class="input" name="pay_method" value="<%= employee.pay_method || '' %>">
+                          </label>
+                        </div>
+                        <div class="grid gap-3 md:grid-cols-3">
+                          <label>
+                            <span class="label">Pay rate</span>
+                            <input class="input" name="pay_rate_amount" inputmode="decimal" value="<%= employee.pay_rate_amount == null ? '' : employee.pay_rate_amount %>">
+                          </label>
+                          <label>
+                            <span class="label">Rate period</span>
+                            <select class="input" name="pay_rate_period">
+                              <option value="">Choose if rate entered</option>
+                              <% [
+                                ['year', 'per year'],
+                                ['hour', 'per hour'],
+                                ['day', 'per day'],
+                                ['pay_period', 'per pay period'],
+                                ['other', 'other']
+                              ].forEach(function(option){ %>
+                                <option value="<%= option[0] %>" <%= employee.pay_rate_period === option[0] ? 'selected' : '' %>><%= option[1] %></option>
+                              <% }); %>
+                            </select>
+                          </label>
+                          <label>
+                            <span class="label">Pay schedule</span>
+                            <input class="input" name="pay_schedule" value="<%= employee.pay_schedule || '' %>">
+                          </label>
+                        </div>
+                        <div class="flex flex-wrap items-center justify-end gap-2">
+                          <button class="btn btn-primary" type="submit">Save employee</button>
+                        </div>
+                      </form>
+                      <form method="post" action="/accounting/payroll/employees/<%= employee.id %>/deactivate" class="mt-2 flex justify-end">
+                        <button class="btn btn-danger" type="submit">Deactivate</button>
+                      </form>
+                    </div>
+                  </details>
+                </td>
               </tr>
             <% }); %>
           </tbody>
