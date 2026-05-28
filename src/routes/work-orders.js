@@ -354,20 +354,6 @@ async function saveAssigneesAndNotify({ workOrderId, assigneeIds, users = [], cu
     const assignee = (users || []).find(u => Number(u.id) === Number(uid));
     if (!assignee || !assignee.email) continue;
 
-    // F-002: fire the reusable assignment notification service
-    try {
-      const notifyAssignment = require('../services/assignment-notify').notifyAssignment;
-      notifyAssignment({
-        entity_type: 'work_order',
-        entity_id: workOrderId,
-        entity_label: 'WO-' + display + (customer?.name ? ' — ' + customer.name : ''),
-        user: assignee,
-        assignedBy: assignedByUserId ? { id: assignedByUserId } : null,
-        deep_link: '/work-orders/' + workOrderId,
-        context: { unitNumber: unitNumber || '', scheduledDate: scheduledDate || '', scheduledTime: scheduledTime || '' },
-      }).catch(err => console.warn('[work-orders] assignment-notify failed:', err.message));
-    } catch(e) { console.warn('[work-orders] assignment-notify load failed:', e.message); }
-
     try {
       await sendWoEmail({
         to: assignee.email,

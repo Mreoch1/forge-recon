@@ -42,6 +42,16 @@ function defaultEscapeHtml(s) {
     .replace(/'/g, '&#039;');
 }
 
+function displayName(value, fallback = 'a teammate') {
+  if (!value) return fallback;
+  if (typeof value === 'string') return value.trim() || fallback;
+  if (typeof value === 'object') {
+    const name = value.name || value.display_name || value.email || value.username;
+    return typeof name === 'string' && name.trim() ? name.trim() : fallback;
+  }
+  return String(value);
+}
+
 const TEMPLATE_PATH = path.join(__dirname, '..', 'views', 'emails', 'assignment.ejs');
 const TEMPLATE_CACHE = { source: null, mtime: null };
 
@@ -62,7 +72,7 @@ function renderAssignmentBody(opts) {
   return ejs.render(ejsSource, {
     user_name:    escapeHtml(opts.user?.name || 'there'),
     entity_label: escapeHtml(opts.entity_label || 'an item'),
-    assigned_by:  escapeHtml(opts.assignedBy || 'a teammate'),
+    assigned_by:  escapeHtml(displayName(opts.assignedBy)),
     deep_link:    opts.deep_link || '',
     context:      opts.context || null,
     entity_type:  opts.entity_type || '',
@@ -76,7 +86,7 @@ function renderAssignmentBody(opts) {
 function buildPlainText(opts) {
   const name   = opts.user?.name || 'there';
   const label  = opts.entity_label || 'an item';
-  const by     = opts.assignedBy || 'a teammate';
+  const by     = displayName(opts.assignedBy);
   const link   = opts.deep_link || '';
 
   const lines = [
@@ -196,6 +206,7 @@ notifyAssignment._internal = {
   renderAssignmentBody,
   buildPlainText,
   escapeHtml,
+  displayName,
   TEMPLATE_PATH,
 };
 
