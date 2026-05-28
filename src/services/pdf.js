@@ -438,14 +438,15 @@ function generateEstimatePDF(estimate, company, stream) {
 // --- public: work order ---
 
 function drawWOLineItems(doc, lines) {
-  // WO line items — description only, no pricing or checkboxes.
+  if (!Array.isArray(lines) || lines.length === 0) return;
+
+  // WO line items are supplemental scope notes. Do not show qty/unit on field
+  // PDFs; that belongs on estimates/invoices where pricing is being reviewed.
   const left = doc.page.margins.left;
   const right = doc.page.width - doc.page.margins.right;
   const tableWidth = right - left;
   const cols = [
-    { key: 'description', label: 'DESCRIPTION', width: tableWidth - 50 - 50, align: 'left' },
-    { key: 'quantity',    label: 'QTY',         width: 50,  align: 'right' },
-    { key: 'unit',        label: 'UNIT',        width: 50,  align: 'left' },
+    { key: 'description', label: 'WORK ITEMS', width: tableWidth, align: 'left' },
   ];
 
   let y = doc.y;
@@ -544,8 +545,14 @@ function generateWorkOrderPDF(wo, company, stream) {
 
   drawWOMeta(doc, wo);
   drawTextBlock(doc, 'Description', wo.description);
-  // Remove completed column from WO line items — WOs use descriptions, not checklists
-  drawWOLineItems(doc, (wo.lines || []).map(li => ({ ...li, completed: undefined })));
+  const mainDescription = String(wo.description || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  const supplementalLines = (wo.lines || [])
+    .map(li => ({ description: String(li.description || '').trim() }))
+    .filter(li => {
+      const desc = li.description.replace(/\s+/g, ' ').toLowerCase();
+      return desc && desc !== mainDescription;
+    });
+  drawWOLineItems(doc, supplementalLines);
 
   const footerLines = [];
   if (wo.created_at) footerLines.push(`Issued: ${String(wo.created_at).slice(0,10)}`);
