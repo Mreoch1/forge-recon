@@ -481,8 +481,20 @@ router.get('/', async (req, res) => {
   // F4: sanitize before interpolating into PostgREST .ilike()/.or() filter.
   const q = sanitizePostgrestSearch((req.query.q || '').trim());
   const status = (req.query.status || '').trim();
+  const assigneeFilter = parseInt(req.query.assignee, 10) || null;
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
+
+  let users = [];
+  if (req.session.role !== 'worker') {
+    const { data: userRows, error: userErr } = await supabase
+      .from('users')
+      .select('id, name')
+      .in('role', ['admin', 'manager', 'worker'])
+      .order('name', { ascending: true });
+    if (userErr) throw userErr;
+    users = userRows || [];
+  }
 
   let query = supabase
     .from('work_orders')
@@ -502,6 +514,10 @@ router.get('/', async (req, res) => {
   }
   if (status && VALID_STATUSES.includes(status)) {
     query = query.eq('status', status);
+  }
+  if (assigneeFilter && req.session.role !== 'worker') {
+    const assignedIds = await workOrderIdsAssignedToUser(assigneeFilter);
+    query = assignedIds.length ? query.in('id', assignedIds) : query.in('id', [-1]);
   }
   if (req.session.role === 'worker') {
     // F4: sanitize userName before interpolating into the .or() filter — even
@@ -536,13 +552,14 @@ router.get('/', async (req, res) => {
     customer_name: r.customers?.name || (r.jobs && r.jobs.customers ? r.jobs.customers.name : null),
     project_id: r.job_id,
     project_title: r.jobs?.title || null,
-    assignees: (r.work_order_assignees || []).map(a => ({ id: a.users?.id, name: a.users?.name })),
+    assignees: (r.work_order_assignees || []).map(a => ({ id: a.users?.id, name: a.users?.name })).filter(a => a.id),
     assigned_name: r.users ? r.users.name : null,
+    assigned_to: (r.work_order_assignees || []).map(a => a.users?.name).filter(Boolean).join(', ') || (r.users ? r.users.name : null),
   }));
 
   res.render('work-orders/index', {
     title: 'Work Orders', activeNav: 'work-orders',
-    workOrders, q, status, page,
+    workOrders, q, status, page, users, assigneeFilter,
     totalPages: Math.max(1, Math.ceil((total || 0) / PAGE_SIZE)),
     total: total || 0, statuses: VALID_STATUSES
   });

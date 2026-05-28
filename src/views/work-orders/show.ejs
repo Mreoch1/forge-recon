@@ -152,6 +152,17 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
     <div class="flex flex-wrap gap-2 -mx-4 px-4 md:mx-0 md:px-0 overflow-x-auto md:overflow-visible md:flex-wrap" style="-webkit-overflow-scrolling: touch;">
       <a href="/work-orders/<%= wo.id %>/pdf" class="btn btn-secondary text-sm" target="_blank" rel="noopener"
          title="Open the WO PDF in a new tab. This is the version the crew and customer see.">PDF</a>
+      <% if (wo.status === 'open' || wo.status === 'scheduled') { %>
+        <form action="/work-orders/<%= wo.id %>/start" method="post" class="m-0 inline">
+          <button class="btn btn-secondary text-sm" title="Mark this work order in progress.">Start work</button>
+        </form>
+      <% } %>
+      <% if (wo.status === 'in_progress') { %>
+        <form action="/work-orders/<%= wo.id %>/complete" method="post" class="m-0 inline"
+              onsubmit="return confirm('Mark WO-<%= wo.display_number %> complete: no changes?');">
+          <button class="btn btn-primary text-sm" title="Mark this work order complete: no changes.">Complete: no changes</button>
+        </form>
+      <% } %>
       <% const hasAssigneeEmail = (wo.assignees && wo.assignees.some(function(a){ return a.email; })) || wo.assigned_to_user_id; %>
       <% if (currentUser && currentUser.role !== 'worker' && hasAssigneeEmail) { %>
         <form action="/work-orders/<%= wo.id %>/send" method="post" class="m-0 inline"
@@ -159,10 +170,10 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
           <button class="btn btn-primary text-sm" title="Email this WO and PDF to the assigned person or crew.">Send to assigned</button>
         </form>
       <% } %>
-      <% if (wo.status === 'scheduled' || wo.status === 'in_progress') { %>
+      <% if (currentUser && currentUser.role !== 'worker' && (wo.status === 'scheduled' || wo.status === 'in_progress')) { %>
         <a href="/work-orders/<%= wo.id %>/edit" class="btn btn-secondary text-sm">Edit</a>
       <% } %>
-      <% if (wo.status !== 'cancelled' && !estimate) { %>
+      <% if (currentUser && currentUser.role !== 'worker' && wo.status !== 'cancelled' && !estimate) { %>
         <form action="/work-orders/<%= wo.id %>/create-estimate" method="post" class="m-0 inline">
           <button class="btn btn-primary text-sm" title="Create a customer-facing estimate from this WO's line items. You can edit before sending.">Create estimate</button>
         </form>
@@ -294,15 +305,15 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
       <!-- Photo gallery -->
       <h2 class="ws-h-secondary mt-8">Photos</h2>
       <form action="/work-orders/<%= wo.id %>/photos" method="post" enctype="multipart/form-data" class="mb-4">
-        <div class="flex items-start gap-3">
+        <div class="flex flex-col sm:flex-row sm:items-start gap-3">
           <input type="file" name="photos" multiple accept="image/jpeg,image/png,image/webp,image/heic"
-                 class="text-sm flex-1" style="padding-top:.35rem;">
+                 class="text-sm flex-1 min-h-[44px]" style="padding-top:.35rem;">
           <input type="text" name="caption" placeholder="Caption (optional)" class="input text-sm flex-1" maxlength="200">
           <button type="submit" class="btn btn-sm btn-primary whitespace-nowrap">Upload</button>
         </div>
       </form>
       <% if (typeof photos !== 'undefined' && photos && photos.length) { %>
-        <div class="grid grid-cols-3 gap-2 mb-4">
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
           <% photos.forEach(function(p){ %>
             <div class="relative group">
               <a href="<%= p.url %>" target="_blank">

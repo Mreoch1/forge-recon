@@ -91,11 +91,11 @@
       </select>
     <% } %>
     <button type="submit" class="btn btn-secondary">Filter</button>
-    <% if (q || status) { %><a href="/work-orders" class="list-clear">Clear</a><% } %>
+    <% if (q || status || _assigneeFilter) { %><a href="/work-orders" class="list-clear">Clear</a><% } %>
   </form>
   <% if (workOrders.length === 0) { %>
     <div class="wol-empty">
-      <% if (q || status) { %>
+      <% if (q || status || _assigneeFilter) { %>
         No work orders match. <a href="/work-orders" class="text-recon-red underline">Clear filters</a>.
       <% } else { %>
         No work orders yet. Use the <a href="/work-orders/new" class="text-recon-red underline">+ New work order</a> button above, or convert an accepted <a href="/estimates" class="text-recon-red underline">estimate</a>.
@@ -160,7 +160,7 @@
   <% if (totalPages > 1) { %>
     <div class="flex items-center justify-center gap-2 mt-4">
       <% for (let p = 1; p <= totalPages; p++) { %>
-        <% const qs = ['page='+p]; if (q) qs.push('q='+encodeURIComponent(q)); if (status) qs.push('status='+encodeURIComponent(status)); %>
+        <% const qs = ['page='+p]; if (q) qs.push('q='+encodeURIComponent(q)); if (status) qs.push('status='+encodeURIComponent(status)); if (_assigneeFilter) qs.push('assignee='+encodeURIComponent(_assigneeFilter)); %>
         <% if (p === page) { %><span class="btn btn-primary"><%= p %></span>
         <% } else { %><a href="/work-orders?<%= qs.join('&') %>" class="btn btn-ghost"><%= p %></a><% } %>
       <% } %>
