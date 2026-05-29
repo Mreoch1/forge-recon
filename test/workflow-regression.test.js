@@ -33,3 +33,14 @@ test('project subroutes enforce capability checks', () => {
   assert.match(routes, /requireProjectAccess\(req, res, id, 'operations'\)/);
   assert.match(routes, /requireProjectAccess\(req, res, id, 'manage'\)/);
 });
+
+test('managers can access customers but cannot delete them', () => {
+  const app = read('src/app.js');
+  const customers = read('src/routes/customers.js');
+  const header = read('src/views/layouts/header.ejs');
+
+  assert.match(app, /app\.use\('\/customers', requireAuth, requireManager, customersRoutes\)/);
+  assert.match(customers, /router\.post\('\/:id\/delete', requireAdmin,/);
+  assert.match(header, /_isAdminNav \|\| _isManagerNav[\s\S]*href="\/customers"/);
+  assert.match(header, /_isAdminMobile \|\| _isManagerMobile[\s\S]*href="\/customers"/);
+});

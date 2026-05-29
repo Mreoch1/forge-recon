@@ -268,6 +268,7 @@
           <a href="/work-orders" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'work-orders' ? ' active' : '' %>">Work Orders</a>
           <% if (_isAdminNav || _isManagerNav) { %>
             <a href="/estimates" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'estimates' ? ' active' : '' %>">Estimates</a>
+            <a href="/customers" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'customers' ? ' active' : '' %>">Customers</a>
           <% } %>
           <a href="/schedule" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'schedule' ? ' active' : '' %>">Schedule</a>
           <% if (_isAdminNav) { %>
@@ -288,7 +289,6 @@
               <div class="more-menu-section">
                 <div class="more-menu-heading">Sales</div>
                 <a href="/invoices" class="more-menu-link<%= typeof activeNav !== 'undefined' && activeNav === 'invoices' ? ' active' : '' %>">Invoices</a>
-                <a href="/customers" class="more-menu-link<%= typeof activeNav !== 'undefined' && activeNav === 'customers' ? ' active' : '' %>">Customers</a>
               </div>
               <div class="more-menu-section">
                 <div class="more-menu-heading">Costs</div>
@@ -349,6 +349,7 @@
         <a href="/work-orders" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'work-orders' ? ' active' : '' %>">Work Orders</a>
         <% if (_isAdminMobile || _isManagerMobile) { %>
           <a href="/estimates" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'estimates' ? ' active' : '' %>">Estimates</a>
+          <a href="/customers" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'customers' ? ' active' : '' %>">Customers</a>
         <% } %>
         <a href="/schedule" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'schedule' ? ' active' : '' %>">Schedule</a>
         <% if (_isAdminMobile) { %>
@@ -356,7 +357,6 @@
           <a href="/projects" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'projects' ? ' active' : '' %>">Projects</a>
           <div class="mobile-menu-heading">Sales</div>
           <a href="/invoices" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'invoices' ? ' active' : '' %>">Invoices</a>
-          <a href="/customers" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'customers' ? ' active' : '' %>">Customers</a>
           <div class="mobile-menu-heading">Costs</div>
           <a href="/bills" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'bills' ? ' active' : '' %>">Bills</a>
           <a href="/vendors" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'vendors' ? ' active' : '' %>">Vendors</a>

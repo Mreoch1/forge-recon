@@ -220,7 +220,7 @@ app.use('/reset-password', lowLimiter);
 
 app.use('/', authRoutes);
 app.use('/', signupRoutes);
-app.use('/customers', requireAuth, requireAdmin, customersRoutes);
+app.use('/customers', requireAuth, requireManager, customersRoutes);
 // D-007: Projects layer — Jobs renamed Projects in UI. /projects is canonical;
 // /jobs preserved as a redirect so older links keep working.
 app.use('/projects', requireAuth, requireAdmin, jobsRoutes);

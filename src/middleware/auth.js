@@ -3,12 +3,13 @@
  *
  * Roles:
  *   admin   — full access
- *   manager — operations access: work orders, estimates, and scheduling.
+ *   manager — operations access: work orders, estimates, scheduling, and customers.
  *   worker  — limited: WO list (own + assigned), edit WO, notes/photos. NEVER prices.
  *
  * Money-blind workers: routes that expose pricing or estimates/invoices use
- * requireManager. The dashboard, customer/job CRUD, estimate/invoice CRUD,
- * admin pages all sit behind requireManager. Workers only see /work-orders
+ * requireManager. Customer CRUD and estimate CRUD sit behind requireManager.
+ * The dashboard, project CRUD, invoice CRUD, and admin pages remain admin-only.
+ * Workers only see /work-orders
  * and a worker-specific dashboard (Round 4 work).
  */
 

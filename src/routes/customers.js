@@ -8,7 +8,7 @@
 
 const express = require('express');
 const supabase = require('../db/supabase');
-const { setFlash } = require('../middleware/auth');
+const { requireAdmin, setFlash } = require('../middleware/auth');
 const { sanitizePostgrestSearch } = require('../services/sanitize');
 const { emptyToNullFormattedPhone } = require('../services/phone');
 
@@ -230,7 +230,7 @@ router.post('/:id', async (req, res) => {
   res.redirect(`/customers/${req.params.id}`);
 });
 
-router.post('/:id/delete', async (req, res) => {
+router.post('/:id/delete', requireAdmin, async (req, res) => {
   const id = req.params.id;
   const { data: customer, error: findError } = await supabase.from('customers').select('id, name').eq('id', id).maybeSingle();
   if (findError) throw findError;
