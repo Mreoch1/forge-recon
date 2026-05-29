@@ -117,7 +117,7 @@
         </thead>
         <tbody>
           <% rfps.forEach(function(rfp){ %>
-            <tr class="cursor-pointer hover:bg-recon-cloud/20" onclick="var el=document.getElementById('rfp-items-<%= rfp.id %>');var icon=document.getElementById('rfp-chev-<%= rfp.id %>');el.classList.toggle('hidden');if(icon){icon.textContent=el.classList.contains('hidden')?'▶':'▼';}">
+            <tr id="rfp-row-<%= rfp.id %>" class="cursor-pointer hover:bg-recon-cloud/20" onclick="var el=document.getElementById('rfp-items-<%= rfp.id %>');var icon=document.getElementById('rfp-chev-<%= rfp.id %>');el.classList.toggle('hidden');if(icon){icon.textContent=el.classList.contains('hidden')?'▶':'▼';}">
               <td>
                 <div class="flex items-center gap-1">
                   <button type="button" id="rfp-chev-<%= rfp.id %>"
@@ -246,7 +246,7 @@
                 <% var liMarkup = liHasSubs ? (children.some(function(s){return Number(s.markup_pct||20) !== Number(children[0].markup_pct||20);}) ? 'mixed' : (Number(children[0].markup_pct||20))) : (Number(item.markup_pct) || '—'); %>
                 <% var liGr = liHasSubs ? (children.some(function(s){return Number(s.general_requirements_pct||6) !== Number(children[0].general_requirements_pct||6);}) ? 'mixed' : (Number(children[0].general_requirements_pct||6))) : (Number(item.general_requirements_pct) || '—'); %>
                 <% var liApproved = liHasSubs ? (apprChildren.length === children.length ? true : false) : !!item.approved; %>
-                <tr class="rfp-li-row bg-recon-deeper/20 hover:bg-recon-cloud/20 border-t-2 border-recon-mist/40" style="cursor:pointer" onclick="var n=this.nextElementSibling;while(n&&n.classList.contains('rfp-sub-row')){n.style.display=n.style.display==='none'?'':'none';n=n.nextElementSibling;}var ch=this.querySelector('.rfp-li-chevron');if(ch)ch.style.transform=(this.nextElementSibling&&this.nextElementSibling.style.display==='none')?'rotate(0deg)':'rotate(90deg)';">
+                <tr id="rfp-line-<%= item.id %>" class="rfp-li-row bg-recon-deeper/20 hover:bg-recon-cloud/20 border-t-2 border-recon-mist/40" style="cursor:pointer" onclick="var n=this.nextElementSibling;while(n&&n.classList.contains('rfp-sub-row')){n.style.display=n.style.display==='none'?'':'none';n=n.nextElementSibling;}var ch=this.querySelector('.rfp-li-chevron');if(ch)ch.style.transform=(this.nextElementSibling&&this.nextElementSibling.style.display==='none')?'rotate(0deg)':'rotate(90deg)';">
                   <td>
                     <div class="flex items-start gap-1">
                       <% if (liHasSubs) { %><span class="rfp-li-chevron text-recon-fog text-xs mt-1 select-none inline-block" style="transition:transform 0.15s; transform:rotate(0deg);">▸</span><% } else { %><span class="inline-block w-3"></span><% } %>
@@ -430,6 +430,52 @@
     inputs.forEach(function(el){ el.addEventListener('input', recalc); });
     recalc();
   });
+
+  function expandRfp(rfpId) {
+    if (!rfpId) return null;
+    var section = document.getElementById('rfp-items-' + rfpId);
+    var icon = document.getElementById('rfp-chev-' + rfpId);
+    if (section) section.classList.remove('hidden');
+    if (icon) icon.textContent = '▼';
+    return document.getElementById('rfp-row-' + rfpId) || section;
+  }
+
+  function expandLineItem(itemId) {
+    if (!itemId) return null;
+    var row = document.getElementById('rfp-line-' + itemId);
+    if (!row) return null;
+    var next = row.nextElementSibling;
+    while (next && next.classList.contains('rfp-sub-row')) {
+      next.style.display = '';
+      next = next.nextElementSibling;
+    }
+    var chevron = row.querySelector('.rfp-li-chevron');
+    if (chevron) chevron.style.transform = 'rotate(90deg)';
+    return row;
+  }
+
+  (function restoreRfpPosition(){
+    var params = new URLSearchParams(window.location.search);
+    var rfpId = params.get('open_rfp');
+    var itemId = params.get('open_item');
+    var showSubForm = params.get('show_sub_form');
+    if (!rfpId && !itemId && !showSubForm) return;
+
+    var target = expandRfp(rfpId);
+    if (itemId) target = expandLineItem(itemId) || target;
+    if (showSubForm) {
+      var subForm = document.getElementById('add-sub-' + showSubForm);
+      if (subForm) {
+        subForm.classList.remove('hidden');
+        target = subForm;
+      }
+    }
+    if (target && target.scrollIntoView) {
+      setTimeout(function(){
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 60);
+    }
+  })();
 })();
 })();
 </script>

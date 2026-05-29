@@ -77,3 +77,21 @@ test('work order row links do not depend on the More menu', () => {
   assert.match(workOrderIndex, /<a href="\/work-orders\/<%= w\.id %>" class="wol-num/);
   assert.match(workOrderIndex, /<a href="\/work-orders\/<%= w\.id %>" class="wol-customer/);
 });
+
+test('RFP edits return users to the open category and line item', () => {
+  const routes = read('src/routes/rfp.js');
+  const view = read('src/views/jobs/rfp.ejs');
+
+  assert.match(routes, /function rfpRedirect\(jobId, params = \{\}\)/);
+  assert.match(routes, /open_rfp: req\.params\.rId/);
+  assert.match(routes, /open_item: parent_id \|\| data\?\.id/);
+  assert.match(routes, /show_sub_form: parent_id \|\| ''/);
+  assert.match(routes, /open_item: item\.parent_line_item_id \|\| req\.params\.itemId/);
+
+  assert.match(view, /id="rfp-row-<%= rfp\.id %>"/);
+  assert.match(view, /id="rfp-line-<%= item\.id %>"/);
+  assert.match(view, /function restoreRfpPosition\(\)/);
+  assert.match(view, /params\.get\('open_rfp'\)/);
+  assert.match(view, /params\.get\('open_item'\)/);
+  assert.match(view, /params\.get\('show_sub_form'\)/);
+});
