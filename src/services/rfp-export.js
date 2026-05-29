@@ -58,6 +58,18 @@ function pdfText(val) {
     .trim();
 }
 
+function exportText(val) {
+  return pdfText(val);
+}
+
+function lineType(level) {
+  return level === 'sub' ? 'Sub-line item' : 'Line item';
+}
+
+function approvalText(approved) {
+  return approved ? 'Yes' : 'No';
+}
+
 function measurePdfText(doc, text, width, font, fontSize, options = {}) {
   doc.font(font).fontSize(fontSize);
   return doc.heightOfString(pdfText(text), { width, align: options.align || 'left', lineGap: options.lineGap || 1 });
@@ -535,20 +547,109 @@ function renderProjectPdf(project, rfps, itemsByRfp, extra) {
 //  CSV
 // ════════════════════════════════════════════════════════════════════════
 
-const CSV_HEADERS = [
-  'parent_id',
-  'level',
-  'vendor',
-  'description',
-  'qty',
-  'unit_cost',
-  'total_cost',
-  'markup_pct',
-  'general_requirements_pct',
-  'total_with_markup',
-  'final_unit_cost',
-  'approved',
+const EXPORT_COLUMNS = [
+  { header: 'Line Type', key: 'line_type', width: 16 },
+  { header: 'Vendor / Contractor', key: 'vendor', width: 24 },
+  { header: 'Description', key: 'description', width: 62 },
+  { header: 'Qty', key: 'qty', width: 10 },
+  { header: 'Unit Cost', key: 'unit_cost', width: 14, money: true },
+  { header: 'Total Cost', key: 'total_cost', width: 14, money: true },
+  { header: 'Markup %', key: 'markup_pct', width: 11 },
+  { header: 'GR %', key: 'general_requirements_pct', width: 10 },
+  { header: 'Total w/ Markup', key: 'total_with_markup', width: 18, money: true },
+  { header: 'Final Unit Cost', key: 'final_unit_cost', width: 16, money: true },
+  { header: 'Approved', key: 'approved', width: 11 },
 ];
+
+function csvRowForExport(r, includeCategory = false) {
+  const row = [];
+  if (includeCategory) {
+    row.push(exportText(r.category));
+    row.push(exportText(r.category_status || 'pending'));
+  }
+  row.push(
+    lineType(r.level),
+    exportText(r.vendor),
+    exportText(r.description),
+    fmt(r.qty),
+    fmt(r.unit_cost),
+    fmt(r.total_cost),
+    r.markup_pct != null ? String(r.markup_pct) : '',
+    r.general_requirements_pct != null ? String(r.general_requirements_pct) : '',
+    fmt(r.total_with_markup),
+    fmt(r.final_unit_cost),
+    approvalText(r.approved)
+  );
+  return row.map(escCsv).join(',');
+}
+
+function applyWorksheetStyles(sheet, moneyColumns, descriptionColumn) {
+  const headerRow = sheet.getRow(1);
+  headerRow.height = 22;
+  headerRow.font = { bold: true, size: 11, name: 'Calibri', color: { argb: 'FFFFFFFF' } };
+  headerRow.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFC0202B' },
+  };
+  headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+  sheet.views = [{ state: 'frozen', ySplit: 1 }];
+  sheet.autoFilter = {
+    from: 'A1',
+    to: sheet.getRow(1).getCell(sheet.columnCount).address,
+  };
+
+  sheet.columns.forEach(column => {
+    column.alignment = { vertical: 'top' };
+  });
+  if (descriptionColumn) {
+    sheet.getColumn(descriptionColumn).alignment = { vertical: 'top', wrapText: true };
+  }
+
+  const moneyFmt = '$#,##0.00';
+  moneyColumns.forEach(cellNum => {
+    sheet.getColumn(cellNum).numFmt = moneyFmt;
+  });
+}
+
+function addExportRow(sheet, r, rowIdx, includeCategory = false) {
+  const values = [];
+  if (includeCategory) {
+    values.push(exportText(r.category));
+    values.push(exportText(r.category_status || 'pending'));
+  }
+  values.push(
+    lineType(r.level),
+    exportText(r.vendor),
+    exportText(r.description),
+    Number(r.qty) || 0,
+    Number(r.unit_cost) || 0,
+    Number(r.total_cost) || 0,
+    r.markup_pct != null ? Number(r.markup_pct) : null,
+    r.general_requirements_pct != null ? Number(r.general_requirements_pct) : null,
+    Number(r.total_with_markup) || 0,
+    Number(r.final_unit_cost) || 0,
+    approvalText(r.approved)
+  );
+
+  const row = sheet.getRow(rowIdx);
+  row.values = values;
+  row.alignment = { vertical: 'top' };
+
+  if (r.level === 'parent') {
+    row.font = { bold: true };
+    row.eachCell(cell => {
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFF0F0F0' },
+      };
+    });
+  }
+
+  return row;
+}
 
 /**
  * Render an RFP to a CSV string (RFC 4180).
@@ -563,49 +664,21 @@ function renderCsv(rfp, items, subItemsMap) {
   const lines = [];
 
   // Header row
-  lines.push(CSV_HEADERS.map(escCsv).join(','));
+  lines.push(EXPORT_COLUMNS.map(c => escCsv(c.header)).join(','));
 
   // Data rows
   rows.forEach(r => {
-    lines.push([
-      r.parent_id != null ? String(r.parent_id) : '',
-      r.level,
-      escCsv(r.vendor),
-      escCsv(r.description),
-      fmt(r.qty),
-      fmt(r.unit_cost),
-      fmt(r.total_cost),
-      r.markup_pct != null ? String(r.markup_pct) : '',
-      r.general_requirements_pct != null ? String(r.general_requirements_pct) : '',
-      fmt(r.total_with_markup),
-      fmt(r.final_unit_cost),
-      r.approved ? '1' : '0',
-    ].join(','));
+    lines.push(csvRowForExport(r));
   });
 
   return lines.join('\r\n') + '\r\n';
 }
 
 function renderProjectCsv(project, rfps, itemsByRfp) {
-  const headers = ['category', 'category_status', ...CSV_HEADERS];
+  const headers = ['Category', 'Status', ...EXPORT_COLUMNS.map(c => c.header)];
   const lines = [headers.map(escCsv).join(',')];
   buildProjectExportRows(rfps, itemsByRfp).forEach(r => {
-    lines.push([
-      escCsv(r.category),
-      escCsv(r.category_status),
-      r.parent_id != null ? String(r.parent_id) : '',
-      r.level,
-      escCsv(r.vendor),
-      escCsv(r.description),
-      fmt(r.qty),
-      fmt(r.unit_cost),
-      fmt(r.total_cost),
-      r.markup_pct != null ? String(r.markup_pct) : '',
-      r.general_requirements_pct != null ? String(r.general_requirements_pct) : '',
-      fmt(r.total_with_markup),
-      fmt(r.final_unit_cost),
-      r.approved ? '1' : '0',
-    ].join(','));
+    lines.push(csvRowForExport(r, true));
   });
   return lines.join('\r\n') + '\r\n';
 }
@@ -628,70 +701,12 @@ async function renderXlsx(rfp, items, subItemsMap) {
   const sheet = workbook.addWorksheet(rfp.contractor_name || 'RFP');
 
   // ── Columns ──
-  sheet.columns = [
-    { header: 'parent_id',                  key: 'parent_id',                 width: 12 },
-    { header: 'level',                      key: 'level',                     width: 10 },
-    { header: 'vendor',                     key: 'vendor',                    width: 24 },
-    { header: 'description',                key: 'description',               width: 40 },
-    { header: 'qty',                        key: 'qty',                       width: 10 },
-    { header: 'unit_cost',                  key: 'unit_cost',                 width: 14 },
-    { header: 'total_cost',                 key: 'total_cost',                width: 14 },
-    { header: 'markup_pct',                 key: 'markup_pct',                width: 10 },
-    { header: 'general_requirements_pct',   key: 'general_requirements_pct',  width: 10 },
-    { header: 'total_with_markup',          key: 'total_with_markup',         width: 18 },
-    { header: 'final_unit_cost',            key: 'final_unit_cost',           width: 15 },
-    { header: 'approved',                   key: 'approved',                  width: 10 },
-  ];
-
-  // ── Bold header row ──
-  const headerRow = sheet.getRow(1);
-  headerRow.font = { bold: true, size: 11, name: 'Calibri' };
-  headerRow.fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FFC0202B' }, // Recon red
-  };
-  headerRow.font = { bold: true, size: 11, name: 'Calibri', color: { argb: 'FFFFFFFF' } };
-  headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
-
-  // ── Freeze header row ──
-  sheet.views = [{ state: 'frozen', ySplit: 1 }];
-
-  // ── Currency format ──
-  const moneyFmt = '$#,##0.00';
+  sheet.columns = EXPORT_COLUMNS;
+  applyWorksheetStyles(sheet, [5, 6, 9, 10], 3);
 
   // ── Data rows ──
   rows.forEach((r, i) => {
-    const rowIdx = i + 2; // 1-indexed, after header
-    const row = sheet.getRow(rowIdx);
-
-    row.getCell(1).value = r.parent_id != null ? r.parent_id : null;
-    row.getCell(2).value = r.level;
-    row.getCell(3).value = r.vendor;
-    row.getCell(4).value = r.description;
-    row.getCell(5).value = r.qty;
-    row.getCell(6).value = r.unit_cost;
-    row.getCell(6).numFmt = moneyFmt;
-    row.getCell(7).value = r.total_cost;
-    row.getCell(7).numFmt = moneyFmt;
-    row.getCell(8).value = r.markup_pct != null ? Number(r.markup_pct) : null;
-    row.getCell(9).value = r.general_requirements_pct != null ? Number(r.general_requirements_pct) : null;
-    row.getCell(10).value = r.total_with_markup;
-    row.getCell(10).numFmt = moneyFmt;
-    row.getCell(11).value = r.final_unit_cost;
-    row.getCell(11).numFmt = moneyFmt;
-    row.getCell(12).value = r.approved ? 'Yes' : 'No';
-
-    // Light-gray fill on parent rows
-    if (r.level === 'parent') {
-      row.eachCell(cell => {
-        cell.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FFF0F0F0' },
-        };
-      });
-    }
+    addExportRow(sheet, r, i + 2);
   });
 
   const buffer = await workbook.xlsx.writeBuffer();
@@ -703,60 +718,20 @@ async function renderProjectXlsx(project, rfps, itemsByRfp) {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('RFP');
   sheet.columns = [
-    { header: 'category', key: 'category', width: 24 },
-    { header: 'category_status', key: 'category_status', width: 16 },
-    { header: 'parent_id', key: 'parent_id', width: 12 },
-    { header: 'level', key: 'level', width: 10 },
-    { header: 'vendor', key: 'vendor', width: 24 },
-    { header: 'description', key: 'description', width: 44 },
-    { header: 'qty', key: 'qty', width: 10 },
-    { header: 'unit_cost', key: 'unit_cost', width: 14 },
-    { header: 'total_cost', key: 'total_cost', width: 14 },
-    { header: 'markup_pct', key: 'markup_pct', width: 10 },
-    { header: 'general_requirements_pct', key: 'general_requirements_pct', width: 12 },
-    { header: 'total_with_markup', key: 'total_with_markup', width: 18 },
-    { header: 'final_unit_cost', key: 'final_unit_cost', width: 15 },
-    { header: 'approved', key: 'approved', width: 10 },
+    { header: 'Category', key: 'category', width: 24 },
+    { header: 'Status', key: 'category_status', width: 14 },
+    ...EXPORT_COLUMNS,
   ];
+  applyWorksheetStyles(sheet, [7, 8, 11, 12], 5);
 
-  const headerRow = sheet.getRow(1);
-  headerRow.font = { bold: true, size: 11, name: 'Calibri', color: { argb: 'FFFFFFFF' } };
-  headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC0202B' } };
-  headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
-  sheet.views = [{ state: 'frozen', ySplit: 1 }];
-
-  const moneyFmt = '$#,##0.00';
   rows.forEach((r, idx) => {
-    const row = sheet.getRow(idx + 2);
-    row.values = [
-      null,
-      r.category,
-      r.category_status,
-      r.parent_id != null ? r.parent_id : null,
-      r.level,
-      r.vendor,
-      r.description,
-      r.qty,
-      r.unit_cost,
-      r.total_cost,
-      r.markup_pct != null ? Number(r.markup_pct) : null,
-      r.general_requirements_pct != null ? Number(r.general_requirements_pct) : null,
-      r.total_with_markup,
-      r.final_unit_cost,
-      r.approved ? 'Yes' : 'No',
-    ];
-    [8, 9, 12, 13].forEach(cellNum => { row.getCell(cellNum).numFmt = moneyFmt; });
-    if (r.level === 'parent') {
-      row.eachCell(cell => {
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } };
-      });
-    }
+    addExportRow(sheet, r, idx + 2, true);
   });
 
   const totalRow = sheet.getRow(rows.length + 3);
   totalRow.getCell(11).value = 'Grand Total (Approved)';
   totalRow.getCell(12).value = computeProjectGrandTotal(rfps, itemsByRfp);
-  totalRow.getCell(12).numFmt = moneyFmt;
+  totalRow.getCell(12).numFmt = '$#,##0.00';
   totalRow.font = { bold: true };
 
   const buffer = await workbook.xlsx.writeBuffer();
