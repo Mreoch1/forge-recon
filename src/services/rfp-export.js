@@ -48,6 +48,21 @@ function escCsv(val) {
   return s;
 }
 
+function pdfText(val) {
+  if (val == null) return '';
+  return String(val)
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/[^\S\n]+/g, ' ')
+    .replace(/\n+/g, ' ')
+    .trim();
+}
+
+function measurePdfText(doc, text, width, font, fontSize, options = {}) {
+  doc.font(font).fontSize(fontSize);
+  return doc.heightOfString(pdfText(text), { width, align: options.align || 'left', lineGap: options.lineGap || 1 });
+}
+
 /**
  * Build a flat sorted array of row objects for export.
  * Each row has: parent_id, level ('parent'|'sub'), vendor, description,
@@ -297,10 +312,10 @@ function renderPdf(rfp, items, subItemsMap, extra) {
         const isParent = r.level === 'parent';
 
         // Measure row height
-        let displayDesc = r.description;
-        if (!isParent) displayDesc = '    ' + (r.description || ''); // indent sub-lines
+        let displayDesc = pdfText(r.description);
+        if (!isParent) displayDesc = '    ' + displayDesc; // indent sub-lines
 
-        const descH = doc.heightOfString(displayDesc, { width: cols[0].width - 8, align: 'left' });
+        const descH = measurePdfText(doc, displayDesc, cols[0].width - 8, isParent ? 'Helvetica-Bold' : 'Helvetica', 8);
         const actualRowHeight = Math.max(rowHeight, descH + 8);
 
         if (y + actualRowHeight > pageBottom) {
@@ -326,7 +341,7 @@ function renderPdf(rfp, items, subItemsMap, extra) {
 
         // Sub-line indent via description prefix
         doc.font(isParent ? 'Helvetica-Bold' : 'Helvetica').fontSize(8).fillColor(COLOR.charcoal);
-        doc.text(displayDesc, left + 4, y + 4, { width: cols[0].width - 8, align: cols[0].align });
+        doc.text(displayDesc, left + 4, y + 4, { width: cols[0].width - 8, align: cols[0].align, lineGap: 1 });
 
         // Numeric cells
         const vals = [
@@ -431,13 +446,13 @@ function renderProjectPdf(project, rfps, itemsByRfp, extra) {
     const rows = buildProjectExportRows(rfps, itemsByRfp);
     const grandTotal = computeProjectGrandTotal(rfps, itemsByRfp);
     const cols = [
-      { key: 'category', label: 'CATEGORY', width: 90, align: 'left' },
-      { key: 'description', label: 'DESCRIPTION', width: tableWidth - 90 - 38 - 58 - 38 - 38 - 68, align: 'left' },
-      { key: 'qty', label: 'QTY', width: 38, align: 'right' },
-      { key: 'total_cost', label: 'COST', width: 58, align: 'right' },
-      { key: 'markup_pct', label: 'MU%', width: 38, align: 'right' },
-      { key: 'gr_pct', label: 'GR%', width: 38, align: 'right' },
-      { key: 'total_w_mu', label: 'TOTAL', width: 68, align: 'right' },
+      { key: 'category', label: 'CATEGORY', width: 108, align: 'left' },
+      { key: 'description', label: 'DESCRIPTION', width: tableWidth - 108 - 32 - 54 - 34 - 34 - 62, align: 'left' },
+      { key: 'qty', label: 'QTY', width: 32, align: 'right' },
+      { key: 'total_cost', label: 'COST', width: 54, align: 'right' },
+      { key: 'markup_pct', label: 'MU%', width: 34, align: 'right' },
+      { key: 'gr_pct', label: 'GR%', width: 34, align: 'right' },
+      { key: 'total_w_mu', label: 'TOTAL', width: 62, align: 'right' },
     ];
     const headerHeight = 22;
     const rowHeight = 18;
@@ -457,9 +472,10 @@ function renderProjectPdf(project, rfps, itemsByRfp, extra) {
     let pageBottom = doc.page.height - doc.page.margins.bottom - 60;
     rows.forEach(r => {
       const isParent = r.level === 'parent';
-      const displayDesc = (isParent ? '' : '    ') + (r.description || '');
-      const categoryH = doc.heightOfString(r.category || '', { width: cols[0].width - 8, align: 'left' });
-      const descH = doc.heightOfString(displayDesc, { width: cols[1].width - 8, align: 'left' });
+      const categoryText = pdfText(r.category);
+      const displayDesc = (isParent ? '' : '    ') + pdfText(r.description);
+      const categoryH = measurePdfText(doc, categoryText, cols[0].width - 8, isParent ? 'Helvetica-Bold' : 'Helvetica', 7.5);
+      const descH = measurePdfText(doc, displayDesc, cols[1].width - 8, isParent ? 'Helvetica-Bold' : 'Helvetica', 8);
       const actualRowHeight = Math.max(rowHeight, categoryH + 8, descH + 8);
       if (y + actualRowHeight > pageBottom) {
         doc.addPage();
@@ -469,11 +485,11 @@ function renderProjectPdf(project, rfps, itemsByRfp, extra) {
       if (isParent) doc.fillColor(COLOR.cloud).opacity(0.5).rect(left, y, tableWidth, actualRowHeight).fill().opacity(1);
 
       let cx = left;
-      doc.font(isParent ? 'Helvetica-Bold' : 'Helvetica').fontSize(8).fillColor(COLOR.charcoal)
-        .text(r.category || '', cx + 4, y + 4, { width: cols[0].width - 8, align: cols[0].align });
+      doc.font(isParent ? 'Helvetica-Bold' : 'Helvetica').fontSize(7.5).fillColor(COLOR.charcoal)
+        .text(categoryText, cx + 4, y + 4, { width: cols[0].width - 8, align: cols[0].align, lineGap: 1 });
       cx += cols[0].width;
       doc.font(isParent ? 'Helvetica-Bold' : 'Helvetica').fontSize(8).fillColor(COLOR.charcoal)
-        .text(displayDesc, cx + 4, y + 4, { width: cols[1].width - 8, align: cols[1].align });
+        .text(displayDesc, cx + 4, y + 4, { width: cols[1].width - 8, align: cols[1].align, lineGap: 1 });
       cx += cols[1].width;
 
       [
@@ -756,4 +772,7 @@ module.exports = {
   renderProjectPdf,
   renderProjectCsv,
   renderProjectXlsx,
+  _internal: {
+    pdfText,
+  },
 };
