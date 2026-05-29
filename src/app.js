@@ -238,8 +238,8 @@ app.use('/settings', requireAuth, settingsRoutes);
 app.use('/work-orders', requireAuth, workOrdersRoutes);
 app.use('/schedule', requireAuth, scheduleRoutes);
 app.use('/accounting', requireAuth, requireAdmin, accountingRoutes);
-app.use('/vendors', requireAuth, requireAdmin, vendorsRoutes);
-app.use('/contractors', requireAuth, requireAdmin, contractorsRoutes);
+app.use('/vendors', requireAuth, requireManager, vendorsRoutes);
+app.use('/contractors', requireAuth, requireManager, contractorsRoutes);
 app.use('/files', requireAuth, filesRoutes);
 app.get('/ai/chat/health', (req, res) => {
   const ai = require('./services/ai');

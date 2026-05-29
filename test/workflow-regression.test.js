@@ -45,6 +45,22 @@ test('managers can access customers but cannot delete them', () => {
   assert.match(header, /_isAdminMobile \|\| _isManagerMobile[\s\S]*href="\/customers"/);
 });
 
+test('managers can manage vendor and contractor records but cannot delete them', () => {
+  const app = read('src/app.js');
+  const vendors = read('src/routes/vendors.js');
+  const contractors = read('src/routes/contractors.js');
+  const header = read('src/views/layouts/header.ejs');
+
+  assert.match(app, /app\.use\('\/vendors', requireAuth, requireManager, vendorsRoutes\)/);
+  assert.match(app, /app\.use\('\/contractors', requireAuth, requireManager, contractorsRoutes\)/);
+  assert.match(vendors, /router\.post\('\/:id\/delete', requireAdmin,/);
+  assert.match(contractors, /router\.post\('\/:id\/delete', requireAdmin,/);
+  assert.match(header, /_isAdminNav \|\| _isManagerNav[\s\S]*href="\/vendors"/);
+  assert.match(header, /_isAdminNav \|\| _isManagerNav[\s\S]*href="\/contractors"/);
+  assert.match(header, /_isAdminMobile \|\| _isManagerMobile[\s\S]*href="\/vendors"/);
+  assert.match(header, /_isAdminMobile \|\| _isManagerMobile[\s\S]*href="\/contractors"/);
+});
+
 test('project RFP export loader only selects real project columns', () => {
   const routes = read('src/routes/rfp.js');
   assert.match(routes, /\.from\('jobs'\)\s*\.select\('id, title'\)/);
