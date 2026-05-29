@@ -50,3 +50,14 @@ test('project RFP export loader only selects real project columns', () => {
   assert.match(routes, /\.from\('jobs'\)\s*\.select\('id, title'\)/);
   assert.doesNotMatch(routes, /\.select\('id, title, name'\)/);
 });
+
+test('work order row links do not depend on the More menu', () => {
+  const header = read('src/views/layouts/header.ejs');
+  const workOrderIndex = read('src/views/work-orders/index.ejs');
+
+  const rowLinkScript = header.match(/\(function\(\)\{\s*\/\/ Full-row click for list tables[\s\S]*?\}\)\(\);/);
+  assert.ok(rowLinkScript, 'row-link click handler should be in its own script block');
+  assert.doesNotMatch(rowLinkScript[0], /moreBtn|moreMenu/);
+  assert.match(workOrderIndex, /<a href="\/work-orders\/<%= w\.id %>" class="wol-num/);
+  assert.match(workOrderIndex, /<a href="\/work-orders\/<%= w\.id %>" class="wol-customer/);
+});

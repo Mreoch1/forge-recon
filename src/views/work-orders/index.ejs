@@ -140,9 +140,9 @@
         %>
           <tr class="row-link" data-href="/work-orders/<%= w.id %>">
             <td><span class="wol-dot <%= dotClass %>"></span></td>
-            <td><span class="wol-num">WO-<%= w.display_number %></span></td>
+            <td><a href="/work-orders/<%= w.id %>" class="wol-num hover:text-recon-red">WO-<%= w.display_number %></a></td>
             <td>
-            <span class="wol-customer"><%= w.project_title || w.customer_name %></span>
+            <a href="/work-orders/<%= w.id %>" class="wol-customer hover:text-recon-red"><%= w.project_title || w.customer_name %></a>
             <div class="wol-job-title"><%= w.project_title ? w.customer_name : '' %></div>
             </td>
             <td><span class="badge badge-<%= w.status %>" title="<%= statusHint %>"><%= woStatusLabel(w.status) %></span></td>

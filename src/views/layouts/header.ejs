@@ -420,8 +420,11 @@
       moreMenu.classList.add('hidden');
     }
   });
+})();
+(function(){
   // Full-row click for list tables
   document.addEventListener('click', function(e) {
+    if (e.target.closest('a, button, input, select, textarea, label')) return;
     var tr = e.target.closest('tr.row-link');
     if (!tr) return;
     var href = tr.getAttribute('data-href');
