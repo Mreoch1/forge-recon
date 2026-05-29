@@ -87,6 +87,28 @@ function rfpRedirect(jobId, params = {}) {
   return `/projects/${jobId}/rfp${qs ? `?${qs}` : ''}`;
 }
 
+async function deleteRfpLineItemTree(itemId, visited = new Set()) {
+  const normalizedItemId = String(itemId);
+  if (visited.has(normalizedItemId)) return;
+  visited.add(normalizedItemId);
+
+  const { data: children, error: childrenError } = await supabase
+    .from('rfp_line_items')
+    .select('id')
+    .eq('parent_line_item_id', itemId);
+  if (childrenError) throw childrenError;
+
+  for (const child of children || []) {
+    await deleteRfpLineItemTree(child.id, visited);
+  }
+
+  const { error } = await supabase
+    .from('rfp_line_items')
+    .delete()
+    .eq('id', itemId);
+  if (error) throw error;
+}
+
 // ── GET /projects/:id/rfp — dedicated RFP management page for a project ──
 router.get('/projects/:id/rfp', requireAdmin, async (req, res) => {
   const jobId = req.params.id;
@@ -306,8 +328,7 @@ router.post('/projects/rfps/items/:itemId/delete', requireAdmin, async (req, res
     .maybeSingle();
   if (lineItemError) throw lineItemError;
   const jobId = lineItem?.project_rfps?.job_id;
-  const { error } = await supabase.from('rfp_line_items').delete().eq('id', req.params.itemId);
-  if (error) throw error;
+  await deleteRfpLineItemTree(req.params.itemId);
   if (jobId) return res.redirect(rfpRedirect(jobId, {
     open_rfp: lineItem?.rfp_id,
     open_item: lineItem?.parent_line_item_id || '',
@@ -325,8 +346,7 @@ router.delete('/projects/:id/rfps/:rId', requireAdmin, async (req, res) => {
   res.redirect(`/projects/${req.params.id}/rfp`);
 });
 router.delete('/projects/rfps/items/:itemId', requireAdmin, async (req, res) => {
-  const { error } = await supabase.from('rfp_line_items').delete().eq('id', req.params.itemId);
-  if (error) throw error;
+  await deleteRfpLineItemTree(req.params.itemId);
   res.json({ ok: true });
 });
 

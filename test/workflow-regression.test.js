@@ -95,3 +95,14 @@ test('RFP edits return users to the open category and line item', () => {
   assert.match(view, /params\.get\('open_item'\)/);
   assert.match(view, /params\.get\('show_sub_form'\)/);
 });
+
+test('RFP category and parent line-item deletes remove children', () => {
+  const routes = read('src/routes/rfp.js');
+
+  assert.match(routes, /from\('rfp_line_items'\)\.delete\(\)\.eq\('rfp_id', req\.params\.rId\)/);
+  assert.match(routes, /async function deleteRfpLineItemTree\(itemId, visited = new Set\(\)\)/);
+  assert.match(routes, /\.select\('id'\)\s*\.eq\('parent_line_item_id', itemId\)/);
+  assert.match(routes, /await deleteRfpLineItemTree\(child\.id, visited\)/);
+  assert.match(routes, /\.delete\(\)\s*\.eq\('id', itemId\)/);
+  assert.match(routes, /await deleteRfpLineItemTree\(req\.params\.itemId\)/);
+});
