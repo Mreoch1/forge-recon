@@ -443,7 +443,7 @@ const rfpExport = require('../services/rfp-export');
 async function loadProjectExportData(jobId) {
   const { data: job, error: jobError } = await supabase
     .from('jobs')
-    .select('id, title, name')
+    .select('id, title')
     .eq('id', jobId)
     .maybeSingle();
   if (jobError) throw jobError;

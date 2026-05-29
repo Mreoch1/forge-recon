@@ -44,3 +44,9 @@ test('managers can access customers but cannot delete them', () => {
   assert.match(header, /_isAdminNav \|\| _isManagerNav[\s\S]*href="\/customers"/);
   assert.match(header, /_isAdminMobile \|\| _isManagerMobile[\s\S]*href="\/customers"/);
 });
+
+test('project RFP export loader only selects real project columns', () => {
+  const routes = read('src/routes/rfp.js');
+  assert.match(routes, /\.from\('jobs'\)\s*\.select\('id, title'\)/);
+  assert.doesNotMatch(routes, /\.select\('id, title, name'\)/);
+});
