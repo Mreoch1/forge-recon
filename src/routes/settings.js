@@ -11,6 +11,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const supabase = require('../db/supabase');
 const { setFlash } = require('../middleware/auth');
+const { emptyToNullFormattedPhone } = require('../services/phone');
 
 const router = express.Router();
 
@@ -71,7 +72,6 @@ router.post('/profile', async (req, res) => {
   if (!user) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'User not found.' });
 
   const name = (req.body.name || '').trim();
-  const phone = (req.body.phone || '').trim();
   const email = (req.body.email || '').trim().toLowerCase();
 
   if (!name) { setFlash(req, 'error', 'Name is required.'); return res.redirect('/settings'); }
@@ -92,7 +92,7 @@ router.post('/profile', async (req, res) => {
     .from('users')
     .update({
       name,
-      phone: phone || null,
+      phone: emptyToNullFormattedPhone(req.body.phone),
       email: email || user.email,
       updated_at: new Date().toISOString(),
     })

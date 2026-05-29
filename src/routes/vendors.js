@@ -16,6 +16,7 @@ const express = require('express');
 const supabase = require('../db/supabase');
 const { setFlash } = require('../middleware/auth');
 const { sanitizePostgrestSearch } = require('../services/sanitize');
+const { emptyToNullFormattedPhone } = require('../services/phone');
 
 const router = express.Router();
 const PAGE_SIZE = 25;
@@ -36,7 +37,7 @@ function validate(body) {
     data: {
       name,
       email: emptyToNull(body.email),
-      phone: emptyToNull(body.phone),
+      phone: emptyToNullFormattedPhone(body.phone),
       address: emptyToNull(body.address),
       city: emptyToNull(body.city),
       state: emptyToNull(body.state),

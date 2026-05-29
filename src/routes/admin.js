@@ -6,6 +6,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const supabase = require('../db/supabase');
 const { setFlash } = require('../middleware/auth');
+const { emptyToNullFormattedPhone } = require('../services/phone');
 
 const router = express.Router();
 const VALID_ROLES = ['admin', 'manager', 'worker'];
@@ -60,12 +61,12 @@ router.post('/users', async (req, res) => {
     if (pwErrors.length) errors.password = 'Password needs: ' + pwErrors.join(', ') + '.';
   }
   if (Object.keys(errors).length) {
-    return res.status(400).render('admin/users/new', { title: 'New user', activeNav: 'admin', user: { id: null, email, name, role, active: 1 }, errors, roles: VALID_ROLES });
+    return res.status(400).render('admin/users/new', { title: 'New user', activeNav: 'admin', user: { id: null, email, name, role, phone: emptyToNullFormattedPhone(req.body.phone) || '', active: 1 }, errors, roles: VALID_ROLES });
   }
   const hash = await bcrypt.hash(password, 10);
   const { error: insertErr } = await supabase
     .from('users')
-    .insert({ email, password_hash: hash, name, role, phone: req.body.phone || null, active: 1, email_verified: true });
+    .insert({ email, password_hash: hash, name, role, phone: emptyToNullFormattedPhone(req.body.phone), active: 1, email_verified: true });
   if (insertErr) throw insertErr;
   // D-031: auto-send invite email
   try {
@@ -80,7 +81,7 @@ router.post('/users', async (req, res) => {
 });
 
 router.get('/users/:id/edit', async (req, res) => {
-  const { data: user, error } = await supabase.from('users').select('id, email, name, role, active').eq('id', req.params.id).maybeSingle();
+  const { data: user, error } = await supabase.from('users').select('id, email, name, role, active, phone').eq('id', req.params.id).maybeSingle();
   if (error) throw error;
   if (!user) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'User not found.' });
   res.render('admin/users/edit', { title: `Edit ${user.name}`, activeNav: 'admin', user, errors: {}, roles: VALID_ROLES, isSelf: req.session.userId === user.id });
@@ -116,9 +117,9 @@ router.post('/users/:id', async (req, res) => {
   if (wasAdmin && !willBeAdmin) { if ((await adminCount(target.id)) === 0) errors.role = 'Cannot demote or deactivate the last active admin.'; }
   if (req.session.userId === target.id && !willBeAdmin && wasAdmin) errors.role = 'You cannot demote or deactivate yourself while logged in.';
   if (Object.keys(errors).length) {
-    return res.status(400).render('admin/users/edit', { title: `Edit ${target.name}`, activeNav: 'admin', user: { ...target, email, name, role, active }, errors, roles: VALID_ROLES, isSelf: req.session.userId === target.id });
+    return res.status(400).render('admin/users/edit', { title: `Edit ${target.name}`, activeNav: 'admin', user: { ...target, email, name, role, phone: emptyToNullFormattedPhone(req.body.phone) || '', active }, errors, roles: VALID_ROLES, isSelf: req.session.userId === target.id });
   }
-  const { error: updateError } = await supabase.from('users').update({ name, email, role, active, phone: req.body.phone || null, updated_at: new Date().toISOString() }).eq('id', targetId);
+  const { error: updateError } = await supabase.from('users').update({ name, email, role, active, phone: emptyToNullFormattedPhone(req.body.phone), updated_at: new Date().toISOString() }).eq('id', targetId);
   if (updateError) throw updateError;
   setFlash(req, 'success', `User "${name}" updated.`);
   res.redirect('/admin/users');
@@ -180,11 +181,11 @@ router.post('/settings', async (req, res) => {
   const default_payment_terms = req.body.default_payment_terms === '__custom'
     ? (emptyToNull(req.body.default_payment_terms_custom) || 'Net 30')
     : (validTerms.includes(req.body.default_payment_terms) ? req.body.default_payment_terms : 'Net 30');
-  if (Object.keys(errors).length) return res.status(400).render('admin/settings', { title: 'Company settings', activeNav: 'admin', settings: { company_name, address: emptyToNull(req.body.address), city: emptyToNull(req.body.city), state: emptyToNull(req.body.state), zip: emptyToNull(req.body.zip), phone: emptyToNull(req.body.phone), email: emptyToNull(req.body.email), ein: emptyToNull(req.body.ein), default_tax_rate: taxRateNum, default_bill_markup_pct: billMarkupNum, default_payment_terms }, errors });
+  if (Object.keys(errors).length) return res.status(400).render('admin/settings', { title: 'Company settings', activeNav: 'admin', settings: { company_name, address: emptyToNull(req.body.address), city: emptyToNull(req.body.city), state: emptyToNull(req.body.state), zip: emptyToNull(req.body.zip), phone: emptyToNullFormattedPhone(req.body.phone), email: emptyToNull(req.body.email), ein: emptyToNull(req.body.ein), default_tax_rate: taxRateNum, default_bill_markup_pct: billMarkupNum, default_payment_terms }, errors });
   const { error: updateError } = await supabase.from('company_settings').update({
     company_name, address: emptyToNull(req.body.address), city: emptyToNull(req.body.city),
     state: emptyToNull(req.body.state), zip: emptyToNull(req.body.zip),
-    phone: emptyToNull(req.body.phone), email: emptyToNull(req.body.email),
+    phone: emptyToNullFormattedPhone(req.body.phone), email: emptyToNull(req.body.email),
     ein: emptyToNull(req.body.ein), default_tax_rate: taxRateNum,
     default_bill_markup_pct: billMarkupNum,
     default_payment_terms,
