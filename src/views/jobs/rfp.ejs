@@ -111,7 +111,6 @@
           <tr>
             <th>Category</th>
             <th>Status</th>
-            <th class="text-right">Items</th>
             <th class="text-right">Approved Total</th>
             <th></th>
           </tr>
@@ -153,7 +152,6 @@
                   </select>
                 </form>
               </td>
-              <td class="text-right"><%= (rfpItemsMap && rfpItemsMap[rfp.id] ? rfpItemsMap[rfp.id].length : 0) %></td>
               <td class="text-right font-semibold <%= rfp.status === 'awarded' ? 'text-green-700' : '' %>">$<%= rfpTotals[rfp.id].toFixed(2) %></td>
               <td class="text-right">
                 <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/delete" method="POST" onclick="event.stopPropagation()"
@@ -163,7 +161,7 @@
               </td>
             </tr>
             <tr id="rfp-items-<%= rfp.id %>" class="hidden">
-              <td colspan="5" class="p-0">
+              <td colspan="4" class="p-0">
 
     <!-- D-104: Line-item content for each RFP (inside summary table rows) -->
       <div>
