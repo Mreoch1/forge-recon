@@ -440,6 +440,79 @@ router.post('/projects/rfps/items/:itemId/approve', requireAdmin, async (req, re
 // ── F-006: RFP export routes (PDF, CSV, XLSX) ──────────────────────────
 const rfpExport = require('../services/rfp-export');
 
+async function loadProjectExportData(jobId) {
+  const { data: job, error: jobError } = await supabase
+    .from('jobs')
+    .select('id, title, name')
+    .eq('id', jobId)
+    .maybeSingle();
+  if (jobError) throw jobError;
+  if (!job) return null;
+
+  const { data: rfps, error: rfpsError } = await supabase
+    .from('project_rfps')
+    .select('*')
+    .eq('job_id', jobId)
+    .order('created_at', { ascending: false });
+  if (rfpsError) throw rfpsError;
+
+  const rows = rfps || [];
+  const itemsByRfp = {};
+  rows.forEach(rfp => {
+    itemsByRfp[rfp.id] = { items: [], subItemsMap: {} };
+  });
+
+  if (rows.length) {
+    const { data: allItems, error: itemsError } = await supabase
+      .from('rfp_line_items')
+      .select('*')
+      .in('rfp_id', rows.map(rfp => rfp.id))
+      .order('sort_order', { ascending: true })
+      .order('id', { ascending: true });
+    if (itemsError) throw itemsError;
+
+    (allItems || []).forEach(item => {
+      const bucket = itemsByRfp[item.rfp_id];
+      if (!bucket) return;
+      if (item.parent_line_item_id) {
+        (bucket.subItemsMap[item.parent_line_item_id] = bucket.subItemsMap[item.parent_line_item_id] || []).push(item);
+      } else {
+        bucket.items.push(item);
+      }
+    });
+  }
+
+  return { job, rfps: rows, itemsByRfp };
+}
+
+router.get('/projects/:id/rfp/export.pdf', requireAdmin, async (req, res) => {
+  const data = await loadProjectExportData(req.params.id);
+  if (!data) return res.status(404).send('Project not found');
+  const user = res.locals.currentUser;
+  const buf = await rfpExport.renderProjectPdf(data.job, data.rfps, data.itemsByRfp, { createdBy: user?.name || '' });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="project-${req.params.id}-rfp.pdf"`);
+  res.send(buf);
+});
+
+router.get('/projects/:id/rfp/export.csv', requireAdmin, async (req, res) => {
+  const data = await loadProjectExportData(req.params.id);
+  if (!data) return res.status(404).send('Project not found');
+  const csv = rfpExport.renderProjectCsv(data.job, data.rfps, data.itemsByRfp);
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="project-${req.params.id}-rfp.csv"`);
+  res.send(csv);
+});
+
+router.get('/projects/:id/rfp/export.xlsx', requireAdmin, async (req, res) => {
+  const data = await loadProjectExportData(req.params.id);
+  if (!data) return res.status(404).send('Project not found');
+  const buf = await rfpExport.renderProjectXlsx(data.job, data.rfps, data.itemsByRfp);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="project-${req.params.id}-rfp.xlsx"`);
+  res.send(buf);
+});
+
 router.get('/projects/:id/rfps/:rId/export.pdf', requireAdmin, async (req, res) => {
   const { data: rfp, error: rfpErr } = await supabase.from('project_rfps').select('*, jobs!left(title)').eq('id', req.params.rId).maybeSingle();
   if (rfpErr) throw rfpErr;

@@ -155,6 +155,28 @@ function computeGrandTotal(items, subItemsMap) {
   return total;
 }
 
+function buildProjectExportRows(rfps, itemsByRfp) {
+  const rows = [];
+  (rfps || []).forEach(rfp => {
+    const group = itemsByRfp && itemsByRfp[rfp.id] ? itemsByRfp[rfp.id] : { items: [], subItemsMap: {} };
+    buildExportRows(group.items, group.subItemsMap).forEach(row => {
+      rows.push({
+        ...row,
+        category: rfp.contractor_name || '',
+        category_status: rfp.status || 'pending',
+      });
+    });
+  });
+  return rows;
+}
+
+function computeProjectGrandTotal(rfps, itemsByRfp) {
+  return (rfps || []).reduce((sum, rfp) => {
+    const group = itemsByRfp && itemsByRfp[rfp.id] ? itemsByRfp[rfp.id] : { items: [], subItemsMap: {} };
+    return sum + computeGrandTotal(group.items, group.subItemsMap);
+  }, 0);
+}
+
 // ════════════════════════════════════════════════════════════════════════
 //  PDF
 // ════════════════════════════════════════════════════════════════════════
@@ -367,6 +389,132 @@ function renderPdf(rfp, items, subItemsMap, extra) {
   });
 }
 
+function renderProjectPdf(project, rfps, itemsByRfp, extra) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({
+      size: 'LETTER',
+      margin: 50,
+      info: {
+        Title: `RFP — ${project.title || project.name || ''}`,
+        Subject: `RFP bid comparison for ${project.title || project.name || ''}`,
+        Author: 'Recon Enterprises',
+      },
+    });
+
+    const chunks = [];
+    const { Writable } = require('stream');
+    const sink = new Writable({
+      write(chunk, _enc, cb) { chunks.push(chunk); cb(); },
+    });
+    sink.on('finish', () => resolve(Buffer.concat(chunks)));
+    sink.on('error', reject);
+    doc.pipe(sink);
+
+    const left = doc.page.margins.left;
+    const right = doc.page.width - doc.page.margins.right;
+    const tableWidth = right - left;
+    const top = doc.page.margins.top;
+
+    doc.fillColor(COLOR.charcoal).fontSize(22).font('Helvetica-Bold')
+      .text('RFP / BID COMPARISON', left, top);
+    doc.fontSize(12).font('Helvetica').fillColor(COLOR.ash)
+      .text(project.title || project.name || '', left, doc.y + 4);
+    doc.fillColor(COLOR.fog).fontSize(10)
+      .text(`Categories: ${(rfps || []).length}`, left, doc.y + 2)
+      .text(`Date: ${new Date().toISOString().slice(0, 10)}`, left, doc.y + 2)
+      .text(`Prepared by: ${extra?.createdBy || '—'}`, left, doc.y + 2);
+
+    let y = doc.y + 12;
+    doc.strokeColor(COLOR.red).lineWidth(2).moveTo(left, y).lineTo(right, y).stroke();
+    doc.y = y + 12;
+
+    const rows = buildProjectExportRows(rfps, itemsByRfp);
+    const grandTotal = computeProjectGrandTotal(rfps, itemsByRfp);
+    const cols = [
+      { key: 'category', label: 'CATEGORY', width: 90, align: 'left' },
+      { key: 'description', label: 'DESCRIPTION', width: tableWidth - 90 - 38 - 58 - 38 - 38 - 68, align: 'left' },
+      { key: 'qty', label: 'QTY', width: 38, align: 'right' },
+      { key: 'total_cost', label: 'COST', width: 58, align: 'right' },
+      { key: 'markup_pct', label: 'MU%', width: 38, align: 'right' },
+      { key: 'gr_pct', label: 'GR%', width: 38, align: 'right' },
+      { key: 'total_w_mu', label: 'TOTAL', width: 68, align: 'right' },
+    ];
+    const headerHeight = 22;
+    const rowHeight = 18;
+
+    function drawHeader(yPos) {
+      doc.fillColor(COLOR.cloud).rect(left, yPos, tableWidth, headerHeight).fill();
+      doc.fillColor(COLOR.fog).fontSize(7).font('Helvetica-Bold');
+      let cx = left;
+      cols.forEach(c => {
+        doc.text(c.label, cx + 4, yPos + 7, { width: c.width - 8, align: c.align });
+        cx += c.width;
+      });
+      return yPos + headerHeight;
+    }
+
+    y = drawHeader(doc.y);
+    let pageBottom = doc.page.height - doc.page.margins.bottom - 60;
+    rows.forEach(r => {
+      const isParent = r.level === 'parent';
+      const displayDesc = (isParent ? '' : '    ') + (r.description || '');
+      const categoryH = doc.heightOfString(r.category || '', { width: cols[0].width - 8, align: 'left' });
+      const descH = doc.heightOfString(displayDesc, { width: cols[1].width - 8, align: 'left' });
+      const actualRowHeight = Math.max(rowHeight, categoryH + 8, descH + 8);
+      if (y + actualRowHeight > pageBottom) {
+        doc.addPage();
+        y = drawHeader(doc.page.margins.top);
+        pageBottom = doc.page.height - doc.page.margins.bottom - 60;
+      }
+      if (isParent) doc.fillColor(COLOR.cloud).opacity(0.5).rect(left, y, tableWidth, actualRowHeight).fill().opacity(1);
+
+      let cx = left;
+      doc.font(isParent ? 'Helvetica-Bold' : 'Helvetica').fontSize(8).fillColor(COLOR.charcoal)
+        .text(r.category || '', cx + 4, y + 4, { width: cols[0].width - 8, align: cols[0].align });
+      cx += cols[0].width;
+      doc.font(isParent ? 'Helvetica-Bold' : 'Helvetica').fontSize(8).fillColor(COLOR.charcoal)
+        .text(displayDesc, cx + 4, y + 4, { width: cols[1].width - 8, align: cols[1].align });
+      cx += cols[1].width;
+
+      [
+        r.qty,
+        fmtMoney(r.total_cost),
+        r.markup_pct != null ? `${Number(r.markup_pct)}%` : '—',
+        r.general_requirements_pct != null ? `${Number(r.general_requirements_pct)}%` : '—',
+        fmtMoney(r.total_with_markup),
+      ].forEach((val, idx) => {
+        const c = cols[idx + 2];
+        doc.font('Helvetica').fontSize(8).fillColor(isParent ? COLOR.charcoal : COLOR.ash)
+          .text(String(val), cx + 4, y + 4, { width: c.width - 8, align: c.align });
+        cx += c.width;
+      });
+
+      doc.strokeColor(COLOR.mist).lineWidth(0.5)
+        .moveTo(left, y + actualRowHeight).lineTo(left + tableWidth, y + actualRowHeight).stroke();
+      y += actualRowHeight;
+    });
+
+    doc.y = y + 10;
+    if (doc.y > doc.page.height - doc.page.margins.bottom - 30) {
+      doc.addPage();
+      doc.y = doc.page.margins.top;
+    }
+    doc.strokeColor(COLOR.charcoal).lineWidth(1).moveTo(left, doc.y).lineTo(right, doc.y).stroke();
+    doc.moveDown(0.5);
+    const totalLabelW = tableWidth * 0.7;
+    doc.fontSize(11).font('Helvetica-Bold').fillColor(COLOR.charcoal)
+      .text('GRAND TOTAL (Approved)', left, doc.y, { width: totalLabelW, align: 'right' });
+    doc.fillColor(COLOR.red).font('Helvetica-Bold').fontSize(13)
+      .text(fmtMoney(grandTotal), left + totalLabelW, doc.y - 13, { width: tableWidth - totalLabelW, align: 'right' });
+
+    const footerY = doc.page.height - doc.page.margins.bottom - 18;
+    doc.fontSize(7).fillColor(COLOR.fog).font('Helvetica')
+      .text('Recon Enterprises', left, footerY, { width: tableWidth, align: 'center' });
+
+    doc.end();
+  });
+}
+
 // ════════════════════════════════════════════════════════════════════════
 //  CSV
 // ════════════════════════════════════════════════════════════════════════
@@ -419,6 +567,30 @@ function renderCsv(rfp, items, subItemsMap) {
     ].join(','));
   });
 
+  return lines.join('\r\n') + '\r\n';
+}
+
+function renderProjectCsv(project, rfps, itemsByRfp) {
+  const headers = ['category', 'category_status', ...CSV_HEADERS];
+  const lines = [headers.map(escCsv).join(',')];
+  buildProjectExportRows(rfps, itemsByRfp).forEach(r => {
+    lines.push([
+      escCsv(r.category),
+      escCsv(r.category_status),
+      r.parent_id != null ? String(r.parent_id) : '',
+      r.level,
+      escCsv(r.vendor),
+      escCsv(r.description),
+      fmt(r.qty),
+      fmt(r.unit_cost),
+      fmt(r.total_cost),
+      r.markup_pct != null ? String(r.markup_pct) : '',
+      r.general_requirements_pct != null ? String(r.general_requirements_pct) : '',
+      fmt(r.total_with_markup),
+      fmt(r.final_unit_cost),
+      r.approved ? '1' : '0',
+    ].join(','));
+  });
   return lines.join('\r\n') + '\r\n';
 }
 
@@ -510,10 +682,78 @@ async function renderXlsx(rfp, items, subItemsMap) {
   return Buffer.from(buffer);
 }
 
+async function renderProjectXlsx(project, rfps, itemsByRfp) {
+  const rows = buildProjectExportRows(rfps, itemsByRfp);
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('RFP');
+  sheet.columns = [
+    { header: 'category', key: 'category', width: 24 },
+    { header: 'category_status', key: 'category_status', width: 16 },
+    { header: 'parent_id', key: 'parent_id', width: 12 },
+    { header: 'level', key: 'level', width: 10 },
+    { header: 'vendor', key: 'vendor', width: 24 },
+    { header: 'description', key: 'description', width: 44 },
+    { header: 'qty', key: 'qty', width: 10 },
+    { header: 'unit_cost', key: 'unit_cost', width: 14 },
+    { header: 'total_cost', key: 'total_cost', width: 14 },
+    { header: 'markup_pct', key: 'markup_pct', width: 10 },
+    { header: 'general_requirements_pct', key: 'general_requirements_pct', width: 12 },
+    { header: 'total_with_markup', key: 'total_with_markup', width: 18 },
+    { header: 'final_unit_cost', key: 'final_unit_cost', width: 15 },
+    { header: 'approved', key: 'approved', width: 10 },
+  ];
+
+  const headerRow = sheet.getRow(1);
+  headerRow.font = { bold: true, size: 11, name: 'Calibri', color: { argb: 'FFFFFFFF' } };
+  headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC0202B' } };
+  headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+  sheet.views = [{ state: 'frozen', ySplit: 1 }];
+
+  const moneyFmt = '$#,##0.00';
+  rows.forEach((r, idx) => {
+    const row = sheet.getRow(idx + 2);
+    row.values = [
+      null,
+      r.category,
+      r.category_status,
+      r.parent_id != null ? r.parent_id : null,
+      r.level,
+      r.vendor,
+      r.description,
+      r.qty,
+      r.unit_cost,
+      r.total_cost,
+      r.markup_pct != null ? Number(r.markup_pct) : null,
+      r.general_requirements_pct != null ? Number(r.general_requirements_pct) : null,
+      r.total_with_markup,
+      r.final_unit_cost,
+      r.approved ? 'Yes' : 'No',
+    ];
+    [8, 9, 12, 13].forEach(cellNum => { row.getCell(cellNum).numFmt = moneyFmt; });
+    if (r.level === 'parent') {
+      row.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } };
+      });
+    }
+  });
+
+  const totalRow = sheet.getRow(rows.length + 3);
+  totalRow.getCell(11).value = 'Grand Total (Approved)';
+  totalRow.getCell(12).value = computeProjectGrandTotal(rfps, itemsByRfp);
+  totalRow.getCell(12).numFmt = moneyFmt;
+  totalRow.font = { bold: true };
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  return Buffer.from(buffer);
+}
+
 // ════════════════════════════════════════════════════════════════════════
 
 module.exports = {
   renderPdf,
   renderCsv,
   renderXlsx,
+  renderProjectPdf,
+  renderProjectCsv,
+  renderProjectXlsx,
 };

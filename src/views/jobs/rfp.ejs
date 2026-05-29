@@ -1,10 +1,15 @@
 <%- include('../layouts/header', { title: 'RFP — ' + (job.title || job.name), currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
 
 <div class="ops-shell">
-  <div class="mb-4 flex items-center justify-between">
+  <div class="mb-4 flex items-center justify-between gap-3 flex-wrap">
     <a href="/projects/<%= job.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; Back to <%= job.title || job.name %></a>
-    <button onclick="document.getElementById('rfp-new-form').classList.toggle('hidden')"
-            class="btn btn-primary text-sm">+ New RFP</button>
+    <div class="flex items-center gap-2 flex-wrap">
+      <a href="/projects/<%= job.id %>/rfp/export.pdf" class="btn btn-secondary text-sm" download>PDF</a>
+      <a href="/projects/<%= job.id %>/rfp/export.csv" class="btn btn-secondary text-sm" download>CSV</a>
+      <a href="/projects/<%= job.id %>/rfp/export.xlsx" class="btn btn-secondary text-sm" download>XLSX</a>
+      <button onclick="document.getElementById('rfp-new-form').classList.toggle('hidden')"
+              class="btn btn-primary text-sm">+ New RFP</button>
+    </div>
   </div>
 
   <div class="mb-6">
@@ -165,9 +170,6 @@
         <div class="px-5 py-2 border-b border-recon-mist bg-recon-deeper/10 flex items-center justify-between">
           <span class="text-xs font-medium text-recon-fog">Line items</span>
           <div class="flex items-center gap-2">
-            <a href="/projects/<%= job.id %>/rfps/<%= rfp.id %>/export.pdf" class="btn btn-secondary text-xs" style="padding:.3rem .7rem;" download>PDF</a>
-            <a href="/projects/<%= job.id %>/rfps/<%= rfp.id %>/export.csv" class="btn btn-secondary text-xs" style="padding:.3rem .7rem;" download>CSV</a>
-            <a href="/projects/<%= job.id %>/rfps/<%= rfp.id %>/export.xlsx" class="btn btn-secondary text-xs" style="padding:.3rem .7rem;" download>XLSX</a>
             <button onclick="document.getElementById('rfp-item-form-<%= rfp.id %>').classList.toggle('hidden')"
                     class="btn btn-primary text-xs" style="padding:.3rem .7rem;">+ Add line item</button>
           </div>
