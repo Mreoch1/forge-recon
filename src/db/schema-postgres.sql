@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS job_members (
   id BIGSERIAL PRIMARY KEY,
   job_id BIGINT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
   user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  role TEXT NOT NULL CHECK(role IN ('superintendent','accountant','admin')),
+  role TEXT NOT NULL CHECK(role IN ('superintendent','pre_construction','accountant','admin')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(job_id, user_id)
 );
