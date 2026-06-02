@@ -137,5 +137,8 @@ test('project file upload supports browser-selected folder trees', () => {
   assert.match(routes, /folder_id: targetFolderId/);
   assert.match(routes, /MAX_UPLOAD_BATCH_SIZE/);
   assert.match(folderView, /webkitdirectory/);
+  assert.match(folderView, /Choose folder/);
   assert.match(folderView, /Upload folder/);
+  assert.match(folderView, /Upload zipped folder/);
+  assert.doesNotMatch(folderView, /Folder \(\.zip\)/);
 });
