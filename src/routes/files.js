@@ -21,15 +21,37 @@ const mime = require('mime-types');
 const storage = require('../services/storage');
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
 const MAX_ZIP_SIZE = 200 * 1024 * 1024; // 200MB
-const MAX_FILES = 6;
-const ALLOWED_MIMES = ['image/jpeg','image/png','image/webp','application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','text/plain'];
+const MAX_FILES = 250;
+const MAX_UPLOAD_BATCH_SIZE = 200 * 1024 * 1024; // 200MB total per upload request
+const BLOCKED_EXTENSIONS = new Set(['.app', '.bat', '.cmd', '.com', '.dll', '.dmg', '.exe', '.js', '.msi', '.ps1', '.scr', '.sh']);
+
+function isAllowedUploadName(filename) {
+  const ext = path.extname(filename || '').toLowerCase();
+  return !BLOCKED_EXTENSIONS.has(ext);
+}
+
+function normalizeRelativeUploadPath(filename) {
+  const normalized = String(filename || '')
+    .replace(/\\/g, '/')
+    .split('/')
+    .filter(Boolean);
+  const safeParts = [];
+  for (const part of normalized) {
+    const trimmed = part.trim();
+    if (!trimmed || trimmed === '.' || trimmed === '..') continue;
+    if (trimmed === '__MACOSX' || trimmed === '.DS_Store') continue;
+    safeParts.push(trimmed.replace(/[<>:"|?*\x00-\x1F]/g, '_').slice(0, 180));
+  }
+  return safeParts;
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
+  preservePath: true,
   limits: { fileSize: MAX_FILE_SIZE, files: MAX_FILES },
   fileFilter: (req, file, cb) => {
-    if (ALLOWED_MIMES.includes(file.mimetype)) cb(null, true);
-    else cb(new Error('File type not allowed: ' + file.mimetype));
+    if (isAllowedUploadName(file.originalname)) cb(null, true);
+    else cb(new Error('File type not allowed: ' + path.extname(file.originalname)));
   }
 });
 
@@ -88,6 +110,43 @@ function assertFileRouteRead(result, label) {
 
 async function checkedFileRouteRead(query, label) {
   return assertFileRouteRead(await query, label);
+}
+
+async function ensureUploadSubfolder(parentFolder, folderParts, userId) {
+  let parentId = parentFolder.id;
+
+  for (const rawName of folderParts) {
+    const name = rawName.trim();
+    if (!name) continue;
+
+    const { data: existingFolder, error: existingError } = await supabase
+      .from('folders')
+      .select('id')
+      .eq('parent_folder_id', parentId)
+      .eq('name', name)
+      .maybeSingle();
+    if (existingError) throw existingError;
+    if (existingFolder) {
+      parentId = existingFolder.id;
+      continue;
+    }
+
+    const { data: newFolder, error: folderError } = await supabase
+      .from('folders')
+      .insert({
+        parent_folder_id: parentId,
+        name,
+        entity_type: parentFolder.entity_type,
+        entity_id: parentFolder.entity_id,
+        created_by_user_id: userId,
+      })
+      .select('id')
+      .single();
+    if (folderError) throw folderError;
+    parentId = newFolder.id;
+  }
+
+  return parentId;
 }
 
 // ── ROUTES ────────────────────────────────────────────────────────────────────
@@ -163,7 +222,7 @@ router.get('/folders/:folderId', requireAuth, async (req, res) => {
   });
 });
 
-// POST /folders/:folderId/upload — upload files
+// POST /folders/:folderId/upload — upload files or a browser-selected folder tree
 router.post('/folders/:folderId/upload', requireAuth, requireManager, upload.array('files', MAX_FILES), async (req, res, next) => {
   const { data: folder } = await checkedFileRouteRead(supabase.from('folders').select('*').eq('id', req.params.folderId).maybeSingle(), 'file upload folder read failed');
   if (!folder) return res.status(404).json({ error: 'Folder not found.' });
@@ -171,23 +230,38 @@ router.post('/folders/:folderId/upload', requireAuth, requireManager, upload.arr
     setFlash(req, 'error', 'No files selected.');
     return res.redirect('/files/folders/' + folder.id);
   }
+  const totalBytes = req.files.reduce((sum, file) => sum + Number(file.size || 0), 0);
+  if (totalBytes > MAX_UPLOAD_BATCH_SIZE) {
+    setFlash(req, 'error', 'Upload is too large. Keep a folder upload under 200MB.');
+    return res.redirect('/files/folders/' + folder.id);
+  }
+
+  let createdFiles = 0;
+  const uploadedNames = [];
   for (const file of req.files) {
-    const originalName = file.originalname;
-    const ext = path.extname(file.originalname) || '';
+    const parts = normalizeRelativeUploadPath(file.originalname);
+    if (parts.length === 0) continue;
+    const originalName = parts[parts.length - 1];
+    const folderParts = parts.slice(0, -1);
+    const targetFolderId = await ensureUploadSubfolder(folder, folderParts, req.session.userId || null);
+    const ext = path.extname(originalName) || '';
     const key = `${folder.entity_type}/${folder.entity_id}/${crypto.randomUUID()}${ext}`;
-    await storage.uploadBuffer('entity-files', key, file.buffer, file.mimetype);
+    const contentType = file.mimetype || mime.lookup(originalName) || 'application/octet-stream';
+    await storage.uploadBuffer('entity-files', key, file.buffer, contentType);
     const { error: fileInsertErr } = await supabase.from('files').insert({
-      folder_id: folder.id, name: originalName, original_filename: originalName,
-      storage_path: key, mime_type: file.mimetype, size_bytes: file.size,
+      folder_id: targetFolderId, name: originalName, original_filename: originalName,
+      storage_path: key, mime_type: contentType, size_bytes: file.size,
       uploaded_by_user_id: req.session.userId || null,
     });
     if (fileInsertErr) throw fileInsertErr;
+    createdFiles++;
+    uploadedNames.push(parts.join('/'));
   }
   try {
     const { writeAudit } = require('../services/audit');
-    writeAudit({ entityType: 'file', entityId: folder.id, action: 'uploaded', before: null, after: { filename: req.files.map(f => f.originalname).join(', ') }, source: 'user', userId: req.session.userId });
+    writeAudit({ entityType: 'file', entityId: folder.id, action: 'uploaded', before: null, after: { filename: uploadedNames.join(', ') }, source: 'user', userId: req.session.userId });
   } catch(e) { /* audit best effort */ }
-  setFlash(req, 'success', req.files.length + ' file(s) uploaded.');
+  setFlash(req, 'success', createdFiles + ' file(s) uploaded.');
   res.redirect('/files/folders/' + folder.id);
 });
 

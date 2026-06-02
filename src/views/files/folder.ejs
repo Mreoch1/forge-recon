@@ -20,7 +20,11 @@
         </form>
         <form method="post" action="/files/folders/<%= folder.id %>/upload" enctype="multipart/form-data" class="inline-flex gap-1 items-center">
           <input type="file" name="files" multiple class="text-sm" required>
-          <button type="submit" class="btn btn-primary text-sm">Upload</button>
+          <button type="submit" class="btn btn-primary text-sm">Upload files</button>
+        </form>
+        <form method="post" action="/files/folders/<%= folder.id %>/upload" enctype="multipart/form-data" class="inline-flex gap-1 items-center">
+          <input type="file" name="files" multiple webkitdirectory directory class="text-sm" required>
+          <button type="submit" class="btn btn-secondary text-sm">Upload folder</button>
         </form>
         <form method="post" action="/files/folders/<%= folder.id %>/upload-zip" enctype="multipart/form-data" class="inline-flex gap-1 items-center">
           <input type="file" name="archive" accept=".zip" class="text-sm" required>

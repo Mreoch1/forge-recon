@@ -124,3 +124,18 @@ test('new project insert persists all validated project form fields', () => {
   assert.match(routes, /contract_value: data\.contract_value \?\? 0/);
   assert.match(routes, /total_paid: data\.total_paid \?\? 0/);
 });
+
+test('project file upload supports browser-selected folder trees', () => {
+  const routes = read('src/routes/files.js');
+  const folderView = read('src/views/files/folder.ejs');
+
+  assert.match(routes, /preservePath: true/);
+  assert.match(routes, /function normalizeRelativeUploadPath\(filename\)/);
+  assert.match(routes, /async function ensureUploadSubfolder\(parentFolder, folderParts, userId\)/);
+  assert.match(routes, /const folderParts = parts\.slice\(0, -1\)/);
+  assert.match(routes, /const targetFolderId = await ensureUploadSubfolder\(folder, folderParts, req\.session\.userId \|\| null\)/);
+  assert.match(routes, /folder_id: targetFolderId/);
+  assert.match(routes, /MAX_UPLOAD_BATCH_SIZE/);
+  assert.match(folderView, /webkitdirectory/);
+  assert.match(folderView, /Upload folder/);
+});
