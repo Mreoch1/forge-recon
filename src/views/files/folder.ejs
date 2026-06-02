@@ -180,18 +180,13 @@ async function uploadZip() {
 
     // Step 3: Process the zip on the server
     if (zipStatusLabel) zipStatusLabel.textContent = 'Processing folders and files...';
-    var formData = new FormData();
-    formData.append('storage_key', urlData.storageKey);
     var processRes = await fetch('/files/folders/' + currentFolderId + '/process-zip', {
       method: 'POST',
-      body: formData,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'storage_key=' + encodeURIComponent(urlData.storageKey),
     });
-
-    if (processRes.redirected) {
-      window.location.href = processRes.url;
-    } else {
-      window.location.reload();
-    }
+    // Fetch auto-follows the redirect. Reload to show new folders/files.
+    window.location.reload();
   } catch (e) {
     if (zipStatusLabel) zipStatusLabel.textContent = 'Error: ' + e.message;
     if (zipUploadBtn) zipUploadBtn.disabled = false;
