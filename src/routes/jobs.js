@@ -1144,6 +1144,36 @@ router.post('/:id/decisions/:dId/answer', async (req, res) => {
   res.redirect('/projects/' + req.params.id);
 });
 
+// ── Project Chat ────────────────────────────────────────────────────────
+
+router.post('/:id/chat', async (req, res) => {
+  const id = req.params.id;
+  const message = (req.body.message || '').trim();
+  if (!message) return res.status(400).json({ error: 'Message is required.' });
+  const { data: msg, error } = await supabase.from('project_chat_messages').insert({
+    job_id: parseInt(id, 10),
+    user_id: req.session.userId,
+    message,
+  }).select('id, message, created_at, users!inner(name, email)').single();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true, message: msg });
+});
+
+router.get('/:id/chat', async (req, res) => {
+  const id = req.params.id;
+  const before = req.query.before ? parseInt(req.query.before, 10) : null;
+  let query = supabase
+    .from('project_chat_messages')
+    .select('id, message, created_at, users!inner(id, name, email)')
+    .eq('job_id', id)
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (before) query = query.lt('id', before);
+  const { data: messages, error } = await query;
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ messages: (messages || []).reverse() });
+});
+
 // ---------- Excel export (D-024d) ----------
 
 router.get('/:id/export.xlsx', async (req, res) => {

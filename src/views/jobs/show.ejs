@@ -9,7 +9,10 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
 %>
 
 <div class="ops-shell">
-  <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+  <div class="flex gap-6">
+    <!-- Main content -->
+    <div class="flex-1 min-w-0">
+      <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
     <a href="/projects" class="text-sm text-recon-fog hover:text-recon-red">&larr; Projects</a>
     <a href="/projects/<%= job.id %>/export.xlsx" class="btn btn-secondary text-sm">Export Excel</a>
   </div>
@@ -136,7 +139,167 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
     </div>
   </details>
   <% } %>
-</div>
+</div>  <%-- closes main content --%>
+
+<!-- Project Chat side panel -->
+<details class="w-80 flex-shrink-0 sticky top-4 self-start chat-panel" <%= (typeof chatOpen !== 'undefined' && chatOpen) ? 'open' : '' %> style="max-height:calc(100vh - 6rem)">
+  <summary class="cursor-pointer text-sm font-medium text-recon-fog mb-2 hover:text-recon-red flex items-center gap-2 p-2 rounded hover:bg-recon-cloud/50">
+    <span>💬 Project Chat</span>
+    <span id="chat-unread" class="text-xs text-recon-fog hidden">· new</span>
+  </summary>
+  <div class="card flex flex-col overflow-hidden" style="height:calc(100vh - 10rem)">
+    <!-- Messages area -->
+    <div id="chat-messages" class="flex-1 overflow-y-auto p-3 space-y-2 text-sm" style="min-height:200px">
+      <div class="text-center text-recon-fog text-xs py-4">Loading messages...</div>
+    </div>
+    <!-- Input area -->
+    <div class="border-t border-recon-mist p-3">
+      <form id="chat-form" class="flex gap-2">
+        <input type="text" id="chat-input" class="input flex-1 text-sm" placeholder="Type a message..." required autocomplete="off">
+        <button type="submit" class="btn btn-primary text-sm">Send</button>
+      </form>
+    </div>
+  </div>
+</details>
+
+<script>
+(function(){
+  var projectId = <%= job.id %>;
+  var userId = <%= typeof currentUser !== 'undefined' && currentUser ? currentUser.id : 'null' %>;
+  var messagesEl = document.getElementById('chat-messages');
+  var chatForm = document.getElementById('chat-form');
+  var chatInput = document.getElementById('chat-input');
+  var chatPanel = document.querySelector('.chat-panel');
+  var unreadEl = document.getElementById('chat-unread');
+  var lastMessageId = null;
+  var isLoading = false;
+  var panelOpen = chatPanel && chatPanel.hasAttribute('open');
+  var scrollPos = 'bottom';
+
+  function scrollToBottom() {
+    if (messagesEl) messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function formatTime(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  }
+
+  function appendMessage(msg, prepend) {
+    if (!messagesEl) return;
+    var existing = messagesEl.querySelector('[data-msg-id="' + msg.id + '"]');
+    if (existing) return;
+    var div = document.createElement('div');
+    div.className = 'chat-msg' + (msg.user_id === userId ? ' chat-msg-self' : '');
+    div.setAttribute('data-msg-id', msg.id);
+    div.innerHTML = '<div class="flex items-baseline gap-2 mb-0.5">' +
+      '<span class="font-medium text-xs ' + (msg.user_id === userId ? 'text-recon-red' : 'text-recon-charcoal') + '">' + escapeHtml(msg.users?.name || 'Unknown') + '</span>' +
+      '<span class="text-xs text-recon-fog">' + formatTime(msg.created_at) + '</span>' +
+      '</div>' +
+      '<p class="text-sm m-0 whitespace-pre-wrap">' + escapeHtml(msg.message) + '</p>';
+    if (prepend && messagesEl.firstChild) {
+      messagesEl.insertBefore(div, messagesEl.firstChild);
+    } else {
+      messagesEl.appendChild(div);
+    }
+    if (!prepend) scrollToBottom();
+  }
+
+  function escapeHtml(s) {
+    if (typeof s !== 'string') return '';
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  async function loadMessages() {
+    if (isLoading) return;
+    isLoading = true;
+    try {
+      var url = '/projects/' + projectId + '/chat';
+      if (lastMessageId && messagesEl && messagesEl.children.length > 0) {
+        url += '?before=' + lastMessageId;
+      }
+      var res = await fetch(url);
+      var data = await res.json();
+      if (data.messages && data.messages.length > 0) {
+        data.messages.forEach(function(m) { appendMessage(m, true); });
+        lastMessageId = data.messages[0].id;
+        if (!panelOpen && data.messages.length > 0 && unreadEl) {
+          unreadEl.classList.remove('hidden');
+        }
+      }
+    } catch(e) { /* silent */ }
+    isLoading = false;
+  }
+
+  // Initial load
+  loadMessages().then(function(){
+    // Clear loading placeholder
+    var loading = messagesEl && messagesEl.querySelector('.text-center');
+    if (loading) loading.remove();
+    scrollToBottom();
+  });
+
+  // Auto-refresh every 10 seconds
+  setInterval(loadMessages, 10000);
+
+  // Post message
+  if (chatForm) {
+    chatForm.addEventListener('submit', async function(e){
+      e.preventDefault();
+      var text = chatInput.value.trim();
+      if (!text) return;
+      chatInput.disabled = true;
+      try {
+        var res = await fetch('/projects/' + projectId + '/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'message=' + encodeURIComponent(text),
+        });
+        var data = await res.json();
+        if (data.ok && data.message) {
+          appendMessage(data.message);
+          chatInput.value = '';
+        } else if (data.error) {
+          alert(data.error);
+        }
+      } catch(e) { alert('Failed to send message.'); }
+      chatInput.disabled = false;
+      chatInput.focus();
+    });
+  }
+
+  // Track panel open/close for unread count
+  if (chatPanel) {
+    chatPanel.addEventListener('toggle', function(){
+      panelOpen = chatPanel.hasAttribute('open');
+      if (panelOpen && unreadEl) unreadEl.classList.add('hidden');
+    });
+  }
+
+  // Scroll to bottom when messages update
+  if (messagesEl) {
+    messagesEl.addEventListener('DOMNodeInserted', function(){
+      if (scrollPos === 'bottom') scrollToBottom();
+    });
+  }
+})();
+</script>
+
+<style>
+.chat-msg { padding: 6px 10px; border-radius: 8px; background: #f5f5f5; }
+.chat-msg-self { background: #fef2f2; }
+.chat-panel .card { border: 1px solid #e5e5e5; }
+#chat-messages::-webkit-scrollbar { width: 4px; }
+#chat-messages::-webkit-scrollbar-thumb { background: #d0d0d0; border-radius: 2px; }
+@media (max-width: 1024px) {
+  .chat-panel { width: 100%; max-height: none; position: static; }
+  .ops-shell .flex { flex-direction: column; }
+}
+</style>
+
+</div>  <%-- closes flex --%>
+</div>  <%-- closes ops-shell --%>
 
 <script>
 // Contractor row click-to-expand
