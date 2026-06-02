@@ -173,3 +173,20 @@ test('Supabase public API access is locked down in migrations', () => {
   assert.match(migration, /alter view if exists public\.v_job_financials set \(security_invoker = true\)/);
   assert.match(migration, /alter function public\.set_updated_at_column\(\) set search_path = public/);
 });
+
+test('project chat stays inside the project content shell', () => {
+  const show = read('src/views/jobs/show.ejs');
+
+  const opsShellStart = show.indexOf('<div class="ops-shell">');
+  const chatStart = show.indexOf('<details class="chat-panel card mb-6 overflow-hidden"');
+  const opsShellEnd = show.indexOf('</div>  <%# closes ops-shell %>');
+  const chatPanelMarkup = show.match(/<details class="chat-panel[\s\S]*?<\/details>/);
+
+  assert.ok(opsShellStart >= 0, 'project show should use the ops shell');
+  assert.ok(chatStart > opsShellStart, 'project chat should render inside the ops shell');
+  assert.ok(chatStart < opsShellEnd, 'project chat should not render after the ops shell closes');
+  assert.ok(chatPanelMarkup, 'project chat panel markup should exist');
+  assert.doesNotMatch(chatPanelMarkup[0], /position\s*:\s*fixed/);
+  assert.doesNotMatch(chatPanelMarkup[0], /top\s*:\s*4rem/);
+  assert.match(show, /Project communication and internal updates/);
+});

@@ -27,6 +27,34 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
     </div>
   <% } %>
 
+  <% if (access.canSeeOperations) { %>
+  <details class="chat-panel card mb-6 overflow-hidden" <%= (typeof chatOpen !== 'undefined' && chatOpen) ? 'open' : '' %>>
+    <summary class="cursor-pointer px-5 py-4 hover:bg-recon-deeper/10 transition">
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <h3 class="font-semibold m-0 flex items-center gap-2">
+            <span>Project Chat</span>
+            <span id="chat-unread" class="text-xs text-recon-fog hidden">new</span>
+          </h3>
+          <p class="text-xs text-recon-fog m-0 mt-0.5">Project communication and internal updates.</p>
+        </div>
+        <span class="text-recon-red text-sm font-medium">Open chat</span>
+      </div>
+    </summary>
+    <div class="border-t border-recon-mist">
+      <div id="chat-messages" class="overflow-y-auto p-4 space-y-2 text-sm" style="min-height:200px;max-height:320px">
+        <div class="text-center text-recon-fog text-xs py-4">Loading messages...</div>
+      </div>
+      <div class="border-t border-recon-mist p-4">
+        <form id="chat-form" class="flex gap-2">
+          <input type="text" id="chat-input" class="input flex-1 text-sm" placeholder="Type a message..." required autocomplete="off">
+          <button type="submit" class="btn btn-primary text-sm">Send</button>
+        </form>
+      </div>
+    </div>
+  </details>
+  <% } %>
+
   <!-- D-007a: Financial Command Panel (replaces legacy Financial Overview) -->
   <% if (access.canSeeBilling) { %>
     <%- include('_financial_panel', { financials: projectFinancials, financialsError: projectFinancialsError }) %>
@@ -136,28 +164,7 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
     </div>
   </details>
   <% } %>
-</div>  <%# closes main content %>
-
-<!-- Project Chat side panel — fixed overlay, takes no space when collapsed -->
-<details class="chat-panel" style="position:fixed;top:4rem;right:0;z-index:50;width:320px;max-height:calc(100vh - 6rem)" <%= (typeof chatOpen !== 'undefined' && chatOpen) ? 'open' : '' %>>
-  <summary class="cursor-pointer text-sm font-medium text-recon-fog mb-2 hover:text-recon-red flex items-center gap-2 p-2 rounded hover:bg-recon-cloud/50">
-    <span>💬 Project Chat</span>
-    <span id="chat-unread" class="text-xs text-recon-fog hidden">· new</span>
-  </summary>
-  <div class="card flex flex-col overflow-hidden" style="height:calc(100vh - 10rem)">
-    <!-- Messages area -->
-    <div id="chat-messages" class="flex-1 overflow-y-auto p-3 space-y-2 text-sm" style="min-height:200px">
-      <div class="text-center text-recon-fog text-xs py-4">Loading messages...</div>
-    </div>
-    <!-- Input area -->
-    <div class="border-t border-recon-mist p-3">
-      <form id="chat-form" class="flex gap-2">
-        <input type="text" id="chat-input" class="input flex-1 text-sm" placeholder="Type a message..." required autocomplete="off">
-        <button type="submit" class="btn btn-primary text-sm">Send</button>
-      </form>
-    </div>
-  </div>
-</details>
+</div>  <%# closes ops-shell %>
 
 <script>
 (function(){
@@ -286,15 +293,14 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
 <style>
 .chat-msg { padding: 6px 10px; border-radius: 8px; background: #f5f5f5; }
 .chat-msg-self { background: #fef2f2; }
-.chat-panel .card { border: 1px solid #e5e5e5; }
+.chat-panel summary::-webkit-details-marker { display: none; }
+.chat-panel[open] summary { border-bottom: 1px solid #e5e5e5; }
 #chat-messages::-webkit-scrollbar { width: 4px; }
 #chat-messages::-webkit-scrollbar-thumb { background: #d0d0d0; border-radius: 2px; }
 @media (max-width: 1024px) {
-  .chat-panel { width: 100% !important; position: fixed !important; top: auto !important; bottom: 0 !important; max-height: 60vh !important; right: 0 !important; }
+  .chat-panel form { flex-direction: column; }
 }
 </style>
-
-</div>  <%# closes ops-shell %>
 
 <script>
 // Contractor row click-to-expand
