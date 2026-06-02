@@ -56,7 +56,12 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
   <% } %>
 
   <!-- D-024c: RFI / Decision log -->
-  <%- include('_decisions_log', { jobId: job.id, decisions: decisions, users: typeof users !== 'undefined' ? users : [] }) %>
+  <details class="mb-6" open>
+    <summary class="cursor-pointer text-sm font-medium text-recon-fog mb-2 hover:text-recon-red">RFI &amp; Decision log (<%= (decisions || []).length %>)</summary>
+    <div class="mt-3">
+      <%- include('_decisions_log', { jobId: job.id, decisions: decisions, users: typeof users !== 'undefined' ? users : [] }) %>
+    </div>
+  </details>
 
   <!-- F-011: Contractors & Vendors rollup -->
   <% if (access.canSeeBilling && typeof contractorRollup !== 'undefined' && contractorRollup.length > 0) { %>
