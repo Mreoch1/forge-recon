@@ -124,6 +124,23 @@
   </div>
 
   <!-- Month grid -->
+  <!-- Meetings strip -->
+  <% if (typeof meetingsByDate !== 'undefined' && Object.keys(meetingsByDate).length > 0) { %>
+  <div style="padding:.35rem 1rem;border-bottom:1px solid #e0e0e0;font-size:.72rem;background:#fafbfe;display:flex;flex-wrap:wrap;gap:.25rem 1rem;align-items:center">
+    <span style="font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.08em;margin-right:.25rem">📅 Meetings</span>
+    <% days.forEach(function(day){ %>
+      <% var dayMeetings = (meetingsByDate[day.date] || []); %>
+      <% if (dayMeetings.length > 0) { %>
+        <span style="color:#888;white-space:nowrap"><%= day.label %> <%= day.num %>:
+          <% dayMeetings.forEach(function(m, i){ %>
+            <a href="/projects/<%= m.job_id %>/schedule" style="color:#c0202b;text-decoration:none;font-weight:500" title="<%= m.title %><%= m.location ? ' · ' + m.location : '' %>"><%= m.title %></a><%= i < dayMeetings.length - 1 ? ',' : '' %>
+          <% }); %>
+        </span>
+      <% } %>
+    <% }); %>
+  </div>
+  <% } %>
+
   <div class="sc-grid-wrap">
     <div class="sc-month-grid">
       <%

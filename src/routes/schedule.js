@@ -267,6 +267,23 @@ router.get('/', async (req, res) => {
     .or(`date_end.gte.${weekStart},date_end.is.null`);
   if (closuresError) throw closuresError;
 
+  // Query meetings in the visible range
+  const { data: meetings, error: meetingsError } = await supabase
+    .from('project_meetings')
+    .select('id, job_id, title, start_time, duration_minutes, location, meeting_link')
+    .gte('start_time', weekStart + 'T00:00:00Z')
+    .lte('start_time', weekEnd + 'T23:59:59Z')
+    .order('start_time', { ascending: true });
+  if (meetingsError) throw meetingsError;
+
+  // Build date->meetings map
+  const meetingsByDate = {};
+  (meetings || []).forEach(function(m) {
+    const dateKey = (m.start_time || '').slice(0, 10);
+    if (!meetingsByDate[dateKey]) meetingsByDate[dateKey] = [];
+    meetingsByDate[dateKey].push(m);
+  });
+
   // Build date->name map (expands multi-day closures)
   const closureByDate = {};
   (closures || []).forEach(function(c) {
@@ -345,6 +362,7 @@ router.get('/', async (req, res) => {
     assigneeFilter, users: users || [], colorForStatus, getInitials, fmtDate, fmtMonth,
     HOURS_START, HOURS_END, HOUR_COUNT, TOTAL_MINUTES,
     rawDate, woOverlaps, unscheduled: unschedMapped, closures: closures || [], closureByDate,
+    meetingsByDate,
   });
 });
 
