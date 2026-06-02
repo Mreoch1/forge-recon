@@ -65,12 +65,14 @@
             <span class="badge <%= d.decision_type === 'rfi' ? 'badge-info' : d.decision_type === 'submittal' ? 'badge-warning' : 'badge-secondary' %> text-xs">
               <%= {rfi:'RFI',submittal:'Submittal',field_decision:'Field decision'}[d.decision_type] || d.decision_type %>
             </span>
-            <span class="badge <%= d.status === 'open' ? 'badge-danger' : d.status === 'answered' ? 'badge-success' : d.status === 'approved' ? 'badge-success' : 'badge-secondary' %> text-xs"><%= d.status %></span>
+            <span class="badge <%= d.status === 'pending' ? 'badge-warning' : d.status === 'open' ? 'badge-danger' : d.status === 'answered' ? 'badge-success' : d.status === 'approved' ? 'badge-success' : 'badge-secondary' %> text-xs"><%= d.status %></span>
             <% if (d.due_date) { %><span class="text-xs text-recon-fog">Due: <%= String(d.due_date).slice(0,10) %></span><% } %>
             <div class="flex-1 text-right">
               <form action="/projects/<%= jobId %>/decisions/<%= d.id %>/answer" method="post" class="inline-flex gap-1 items-center">
                 <input type="text" name="answer" class="input text-xs" style="width:120px;padding:.2rem .4rem" placeholder="Answer..." value="<%= d.answer || '' %>">
                 <select name="status" class="input text-xs" style="width:90px;padding:.2rem .4rem">
+                  <option value="pending" <%= d.status === 'pending' ? 'selected' : '' %>>Pending</option>
+                  <option value="open" <%= d.status === 'open' ? 'selected' : '' %>>Open</option>
                   <option value="answered" <%= d.status === 'answered' ? 'selected' : '' %>>Answered</option>
                   <option value="approved" <%= d.status === 'approved' ? 'selected' : '' %>>Approved</option>
                   <option value="rejected" <%= d.status === 'rejected' ? 'selected' : '' %>>Rejected</option>

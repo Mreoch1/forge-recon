@@ -1106,6 +1106,7 @@ router.post('/:id/decisions', async (req, res) => {
     job_id: parseInt(id, 10),
     decision_type: decisionType,
     question,
+    status: 'pending',
     due_date: req.body.due_date || null,
     assigned_to_user_id: firstAssignee,
     created_by_user_id: req.session.userId || null,
@@ -1127,7 +1128,7 @@ router.post('/:id/decisions', async (req, res) => {
 router.post('/:id/decisions/:dId/answer', async (req, res) => {
   const allowed = await requireProjectAccess(req, res, req.params.id, 'operations');
   if (!allowed) return;
-  const statuses = new Set(['open', 'answered', 'approved', 'rejected', 'closed']);
+  const statuses = new Set(['pending', 'open', 'answered', 'approved', 'rejected', 'closed']);
   const nextStatus = statuses.has(req.body.status) ? req.body.status : 'answered';
   const { error, count } = await supabase.from('project_decisions').update({
     answer: String(req.body.answer || '').trim() || null,
