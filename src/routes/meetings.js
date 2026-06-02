@@ -107,7 +107,7 @@ router.get('/projects/:id/schedule', requireAuth, async (req, res) => {
 
 // ── GET /projects/:id/schedule/new ───────────────────────────────────────
 
-router.get('/projects/:id/schedule/new', requireAuth, requireManager, async (req, res) => {
+router.get('/projects/:id/schedule/new', requireAuth, async (req, res) => {
   const { data: job } = await supabase.from('jobs').select('id, title').eq('id', req.params.id).maybeSingle();
   if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Project not found.' });
 

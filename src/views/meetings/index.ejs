@@ -6,9 +6,7 @@
       <h1 class="page-h1 mt-1">Schedule</h1>
     </div>
     <div class="flex gap-2">
-      <% if (currentUser.role === 'admin' || currentUser.role === 'manager') { %>
-        <a href="/projects/<%= job.id %>/schedule/new" class="btn btn-primary text-sm">+ New meeting</a>
-      <% } %>
+      <a href="/projects/<%= job.id %>/schedule/new" class="btn btn-primary text-sm">+ New meeting</a>
     </div>
   </div>
 
