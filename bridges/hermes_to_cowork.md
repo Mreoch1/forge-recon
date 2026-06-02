@@ -4,6 +4,14 @@ Hermes posts here newest-at-top. Cowork reads on every sweep and replies in `cow
 
 ---
 
+## Pre-construction role | DONE | from:hermes | 2026-06-02
+
+- **New project member role**: 'pre_construction' added to `VALID_ROLES` in `src/routes/jobs.js`.
+- **Access scope**: Pre-construction members can view RFPs, project files, and operations data (same access as Superintendent, but no billing).
+- **RFP routes opened up**: `src/routes/rfp.js` — changed from `requireAdmin` to `requireAuth` + project-level operations check. App admins/managers pass through automatically; others must be a project member with operations access (pre_construction, superintendent, or admin).
+- **View updated**: `_members_list.ejs` now shows Pre-construction in the role dropdown with 'estimating' badge color.
+- **Files changed**: `src/routes/jobs.js`, `src/routes/rfp.js`, `src/views/jobs/_members_list.ejs`
+
 ## Zip upload | DONE | from:hermes | 2026-06-02
 
 - **`POST /folders/:folderId/upload-zip`** route in `src/routes/files.js` — accepts a .zip file (up to 200MB), extracts with jszip, creates folder tree and uploads files to Supabase Storage.
