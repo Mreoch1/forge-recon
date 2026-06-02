@@ -161,3 +161,15 @@ test('transactional email defaults to Forge-Recon sender name', () => {
   assert.match(emailService, /const FROM = process\.env\.EMAIL_FROM \|\| DEFAULT_FROM/);
   assert.doesNotMatch(emailService, /"Recon Office" <support@reconenterprises\.net>/);
 });
+
+test('Supabase public API access is locked down in migrations', () => {
+  const migration = read('supabase/migrations/20260602144235_lock_down_public_api_access.sql');
+
+  assert.match(migration, /revoke all privileges on all tables in schema public from anon, authenticated/);
+  assert.match(migration, /revoke usage on schema public from anon, authenticated/);
+  assert.match(migration, /revoke all privileges on all functions in schema public from public/);
+  assert.match(migration, /grant all privileges on all tables in schema public to service_role/);
+  assert.match(migration, /alter table '\s*\|\|\s*rec\.fqtn\s*\|\|\s*' enable row level security/);
+  assert.match(migration, /alter view if exists public\.v_job_financials set \(security_invoker = true\)/);
+  assert.match(migration, /alter function public\.set_updated_at_column\(\) set search_path = public/);
+});
