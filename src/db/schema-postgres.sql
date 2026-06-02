@@ -526,6 +526,38 @@ CREATE INDEX IF NOT EXISTS idx_jobs_scheduled ON jobs(scheduled_date);
 CREATE INDEX IF NOT EXISTS idx_job_members_job ON job_members(job_id);
 CREATE INDEX IF NOT EXISTS idx_job_members_user ON job_members(user_id);
 
+-- ========== PROJECT MEETINGS ==========
+CREATE TABLE IF NOT EXISTS project_meetings (
+  id BIGSERIAL PRIMARY KEY,
+  job_id BIGINT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+  created_by_user_id BIGINT REFERENCES users(id),
+  title TEXT NOT NULL,
+  description TEXT,
+  location TEXT,
+  meeting_link TEXT,
+  start_time TIMESTAMPTZ NOT NULL,
+  duration_minutes INTEGER NOT NULL DEFAULT 60,
+  reminder_setting TEXT NOT NULL DEFAULT '1d' CHECK(reminder_setting IN ('none','1d','12h','6h','1h')),
+  reminder_sent_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS meeting_attendees (
+  id BIGSERIAL PRIMARY KEY,
+  meeting_id BIGINT NOT NULL REFERENCES project_meetings(id) ON DELETE CASCADE,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  rsvp_token TEXT NOT NULL UNIQUE,
+  response TEXT NOT NULL DEFAULT 'pending' CHECK(response IN ('pending','accept','decline','maybe')),
+  responded_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(meeting_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_meetings_job ON project_meetings(job_id);
+CREATE INDEX IF NOT EXISTS idx_project_meetings_start ON project_meetings(start_time);
+CREATE INDEX IF NOT EXISTS idx_meeting_attendees_token ON meeting_attendees(rsvp_token);
+
 CREATE INDEX IF NOT EXISTS idx_wo_job ON work_orders(job_id);
 CREATE INDEX IF NOT EXISTS idx_wo_status ON work_orders(status);
 CREATE INDEX IF NOT EXISTS idx_wo_parent ON work_orders(parent_wo_id);

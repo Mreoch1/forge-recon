@@ -34,6 +34,7 @@ const accountingRoutes = require('./routes/accounting');
 const vendorsRoutes = require('./routes/vendors');
 const contractorsRoutes = require('./routes/contractors');
 const filesRoutes = require('./routes/files');
+const meetingsRoutes = require('./routes/meetings');
 const aiChatRoutes = require('./routes/ai-chat');
 const closuresRoutes = require('./routes/closures');
 const settingsRoutes = require('./routes/settings');
@@ -241,6 +242,7 @@ app.use('/accounting', requireAuth, requireAdmin, accountingRoutes);
 app.use('/vendors', requireAuth, requireManager, vendorsRoutes);
 app.use('/contractors', requireAuth, requireManager, contractorsRoutes);
 app.use('/files', requireAuth, filesRoutes);
+app.use('/', meetingsRoutes);
 app.get('/ai/chat/health', (req, res) => {
   const ai = require('./services/ai');
   const enabled = process.env.AI_CHAT_ENABLED === undefined

@@ -1,0 +1,94 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<div class="ops-shell">
+  <div class="mb-4">
+    <a href="/projects/<%= job.id %>/schedule" class="text-sm text-recon-fog hover:text-recon-red">&larr; Schedule</a>
+  </div>
+  <h1 class="page-h1 mb-6">New meeting</h1>
+
+  <div class="card p-6 max-w-3xl">
+    <form method="post" action="/projects/<%= job.id %>/schedule" class="space-y-4">
+      <!-- Title -->
+      <div>
+        <label class="label">Title <span class="text-recon-red">*</span></label>
+        <input type="text" name="title" value="<%= form.title || '' %>" class="input w-full <%= errors.title ? 'border-red-500' : '' %>" required placeholder="e.g. Project kickoff, Weekly sync, Site walkthrough">
+        <% if (errors.title) { %><p class="text-xs text-red-600 mt-1"><%= errors.title %></p><% } %>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Start time -->
+        <div>
+          <label class="label">Start time <span class="text-recon-red">*</span></label>
+          <input type="datetime-local" name="start_time" value="<%= form.start_time || '' %>" class="input w-full <%= errors.start_time ? 'border-red-500' : '' %>" required>
+          <% if (errors.start_time) { %><p class="text-xs text-red-600 mt-1"><%= errors.start_time %></p><% } %>
+        </div>
+        <!-- Duration -->
+        <div>
+          <label class="label">Duration (minutes)</label>
+          <select name="duration_minutes" class="input w-full">
+            <% [15,30,45,60,90,120,180,240,360,480].forEach(function(d){ %>
+              <option value="<%= d %>" <%= (form.duration_minutes || 60) === d ? 'selected' : '' %>><%= d >= 60 ? (d/60).toFixed(0) + ' hour' + (d >= 120 ? 's' : '') : d + ' min' %></option>
+            <% }); %>
+          </select>
+          <% if (errors.duration_minutes) { %><p class="text-xs text-red-600 mt-1"><%= errors.duration_minutes %></p><% } %>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Location -->
+        <div>
+          <label class="label">Location</label>
+          <input type="text" name="location" value="<%= form.location || '' %>" class="input w-full" placeholder="e.g. Main office, Site trailer, Conference room B">
+        </div>
+        <!-- Meeting link -->
+        <div>
+          <label class="label">Online meeting link</label>
+          <input type="url" name="meeting_link" value="<%= form.meeting_link || '' %>" class="input w-full" placeholder="e.g. https://teams.microsoft.com/...">
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div>
+        <label class="label">Description</label>
+        <textarea name="description" class="input w-full" rows="3" placeholder="Agenda, topics, prep materials…"><%= form.description || '' %></textarea>
+      </div>
+
+      <!-- Reminder setting -->
+      <div>
+        <label class="label">Send reminder</label>
+        <select name="reminder_setting" class="input" style="max-width:200px">
+          <option value="1d" <%= (form.reminder_setting || '1d') === '1d' ? 'selected' : '' %>>1 day before</option>
+          <option value="12h" <%= form.reminder_setting === '12h' ? 'selected' : '' %>>12 hours before</option>
+          <option value="6h" <%= form.reminder_setting === '6h' ? 'selected' : '' %>>6 hours before</option>
+          <option value="1h" <%= form.reminder_setting === '1h' ? 'selected' : '' %>>1 hour before</option>
+          <option value="none" <%= form.reminder_setting === 'none' ? 'selected' : '' %>>No reminder</option>
+        </select>
+      </div>
+
+      <!-- Attendees -->
+      <div>
+        <label class="label">Invite team members <span class="text-recon-fog font-normal text-xs">(select all that apply)</span></label>
+        <div class="border border-recon-mist rounded max-h-48 overflow-y-auto p-2 space-y-1 bg-white">
+          <% if (!users || users.length === 0) { %>
+            <p class="text-xs text-recon-fog p-2">No active users found.</p>
+          <% } else { %>
+            <% users.forEach(function(u){ %>
+              <label class="flex items-center gap-2 cursor-pointer hover:bg-recon-cloud px-2 py-1 rounded text-sm">
+                <input type="checkbox" name="attendee_ids[]" value="<%= u.id %>" class="accent-recon-red"
+                  <%= (form.attendee_ids || []).includes(u.id) ? 'checked' : '' %>>
+                <span><%= u.name %></span>
+                <% if (u.isMember) { %><span class="badge badge-info text-xs">project member</span><% } %>
+                <span class="text-xs text-recon-fog ml-auto"><%= u.email %></span>
+              </label>
+            <% }); %>
+          <% } %>
+        </div>
+      </div>
+
+      <div class="flex gap-3 pt-2">
+        <button type="submit" class="btn btn-primary">Create meeting &amp; send invites</button>
+        <a href="/projects/<%= job.id %>/schedule" class="btn btn-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+<%- include('../layouts/footer') %>
