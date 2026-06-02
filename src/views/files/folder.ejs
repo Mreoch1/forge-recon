@@ -174,11 +174,7 @@ async function uploadZip() {
     var uploadRes = await fetch(urlData.uploadUrl, {
       method: 'PUT',
       body: file,
-      headers: {
-        'Content-Type': 'application/zip',
-        'apikey': urlData.anonKey || '',
-        'Authorization': 'Bearer ' + (urlData.anonKey || ''),
-      },
+      headers: { 'Content-Type': 'application/zip' },
     });
     if (!uploadRes.ok) throw new Error('Upload failed: ' + uploadRes.status);
 

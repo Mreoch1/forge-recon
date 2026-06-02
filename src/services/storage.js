@@ -48,20 +48,31 @@ async function remove(bucket, key) {
 }
 
 /**
- * Generate parameters for direct browser-to-Supabase upload.
- * Returns the storage key and the Supabase upload URL + public anon key
- * so the client can upload large files directly without going through Vercel.
+ * Generate a presigned upload URL so the client can upload large files
+ * directly to Supabase Storage without going through the serverless function.
+ * Uses the service role key to generate a publicly-uploadable URL.
  * @param {string} bucket - Storage bucket name
  * @param {string} key - Storage key/path
- * @returns {Promise<{storageKey: string, uploadUrl: string, anonKey: string}>}
+ * @returns {Promise<{storageKey: string, uploadUrl: string}>}
  */
 async function getUploadUrl(bucket, key) {
   if (!SUPA_URL) throw new Error('SUPABASE_URL not configured');
-  const anonKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!anonKey) throw new Error('SUPABASE_ANON_KEY required for direct uploads');
-  // Direct upload URL to Supabase Storage REST API
-  const uploadUrl = `${SUPA_URL}/storage/v1/object/${bucket}/${key}`;
-  return { storageKey: key, uploadUrl, anonKey };
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+  if (!serviceKey) throw new Error('SUPABASE_SERVICE_ROLE_KEY required for presigned upload URLs');
+
+  // Use Supabase Storage REST API with service role key to sign an upload URL
+  const signUrl = `${SUPA_URL}/storage/v1/object/upload/sign/${bucket}/${key}`;
+  const res = await fetch(signUrl, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${serviceKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ upsert: true }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(()=>'');
+    throw new Error(`Presigned URL failed: ${res.status} ${text}`);
+  }
+  const result = await res.json();
+  return { storageKey: key, uploadUrl: result.url || result.signedUrl || result.data?.url };
 }
 
 module.exports = { uploadBuffer, getPublicUrl, getSignedUrl, downloadBuffer, remove, getUploadUrl };

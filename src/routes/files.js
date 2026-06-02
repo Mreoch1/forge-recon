@@ -338,7 +338,7 @@ router.get('/folders/:folderId/upload-zip-url', requireAuth, requireManager, asy
   const storageKey = `zip_uploads/${folder.entity_type}/${folder.entity_id}/${crypto.randomUUID()}.zip`;
   try {
     const result = await storage.getUploadUrl('entity-files', storageKey);
-    res.json({ ok: true, uploadUrl: result.uploadUrl, storageKey: result.storageKey, anonKey: result.anonKey, folderId: folder.id });
+    res.json({ ok: true, uploadUrl: result.uploadUrl, storageKey: result.storageKey, folderId: folder.id });
   } catch (e) {
     res.status(500).json({ error: 'Failed to generate upload URL: ' + e.message });
   }
