@@ -265,6 +265,9 @@
         %>
         <!-- Desktop nav (lg+) -->
         <div class="hidden lg:flex items-center gap-0" id="desktop-nav">
+          <% if (_isAdminNav) { %>
+            <a href="/" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'dashboard' ? ' active' : '' %>">Dashboard</a>
+          <% } %>
           <a href="/work-orders" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'work-orders' ? ' active' : '' %>">Work Orders</a>
           <% if (_isAdminNav || _isManagerNav) { %>
             <a href="/estimates" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'estimates' ? ' active' : '' %>">Estimates</a>
@@ -272,7 +275,6 @@
           <% } %>
           <a href="/schedule" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'schedule' ? ' active' : '' %>">Schedule</a>
           <% if (_isAdminNav) { %>
-            <a href="/" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'dashboard' ? ' active' : '' %>">Dashboard</a>
             <a href="/projects" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'projects' ? ' active' : '' %>">Projects</a>
             <a href="/accounting" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'accounting' ? ' active' : '' %>">Accounting</a>
           <% } %>
@@ -350,6 +352,9 @@
         %>
         <%# Ask FORGE is paused while the AI assistant is rebuilt. %>
         <div class="mobile-menu-heading">Work</div>
+        <% if (_isAdminMobile) { %>
+          <a href="/" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'dashboard' ? ' active' : '' %>">Dashboard</a>
+        <% } %>
         <a href="/work-orders" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'work-orders' ? ' active' : '' %>">Work Orders</a>
         <% if (_isAdminMobile || _isManagerMobile) { %>
           <a href="/estimates" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'estimates' ? ' active' : '' %>">Estimates</a>
@@ -357,7 +362,6 @@
         <% } %>
         <a href="/schedule" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'schedule' ? ' active' : '' %>">Schedule</a>
         <% if (_isAdminMobile) { %>
-          <a href="/" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'dashboard' ? ' active' : '' %>">Dashboard</a>
           <a href="/projects" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'projects' ? ' active' : '' %>">Projects</a>
           <div class="mobile-menu-heading">Sales</div>
           <a href="/invoices" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'invoices' ? ' active' : '' %>">Invoices</a>

@@ -45,6 +45,17 @@ test('managers can access customers but cannot delete them', () => {
   assert.match(header, /_isAdminMobile \|\| _isManagerMobile[\s\S]*href="\/customers"/);
 });
 
+test('admin navigation starts with dashboard before work orders', () => {
+  const header = read('src/views/layouts/header.ejs');
+  const desktopNav = header.match(/<div class="hidden lg:flex items-center gap-0" id="desktop-nav">([\s\S]*?)<!-- More dropdown -->/);
+  const mobileNav = header.match(/<div class="mobile-menu-heading">Work<\/div>([\s\S]*?)<% if \(_isAdminMobile\) \{ %>\s*<a href="\/projects"/);
+
+  assert.ok(desktopNav, 'desktop nav block should exist');
+  assert.ok(mobileNav, 'mobile work nav block should exist');
+  assert.ok(desktopNav[1].indexOf('>Dashboard</a>') < desktopNav[1].indexOf('>Work Orders</a>'));
+  assert.ok(mobileNav[1].indexOf('>Dashboard</a>') < mobileNav[1].indexOf('>Work Orders</a>'));
+});
+
 test('managers can manage vendor and contractor records but cannot delete them', () => {
   const app = read('src/app.js');
   const vendors = read('src/routes/vendors.js');
