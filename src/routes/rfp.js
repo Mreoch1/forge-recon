@@ -205,14 +205,14 @@ router.get('/projects/:id/rfps/:rId/items', requireAdmin, async (req, res) => {
   res.json(items || []);
 });
 
-// ── POST /projects/:id/rfps — create a new RFP ──
+// ── POST /projects/:id/rfps — create a new RFP category ──
 router.post('/projects/:id/rfps', requireAdmin, async (req, res) => {
   const { contractor_name, notes } = req.body;
   const { data, error } = await supabase
     .from('project_rfps')
     .insert({
       job_id: req.params.id,
-      contractor_name: contractor_name || 'New Contractor',
+      contractor_name: contractor_name || 'New Category',
       notes: notes || null,
       created_by_user_id: req.session.userId || req.user?.id || null,
     })

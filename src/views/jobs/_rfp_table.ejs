@@ -9,29 +9,29 @@ const fmt = typeof rfpFmt !== 'undefined' ? rfpFmt : function(n) {
 
 <div class="card overflow-hidden mb-6">
   <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
-    <h3 class="font-semibold">RFP / Bid Comparison (<%= (rfps || []).length %>)</h3>
+    <h3 class="font-semibold">RFP Categories (<%= (rfps || []).length %>)</h3>
     <button onclick="document.getElementById('rfp-new-form').classList.toggle('hidden')"
-            class="text-sm text-recon-red hover:underline">+ New RFP</button>
+            class="text-sm text-recon-red hover:underline">+ Add category</button>
   </div>
 
-  <!-- New RFP form (hidden by default) -->
+  <!-- New category form (hidden by default) -->
   <div id="rfp-new-form" class="hidden p-4 bg-recon-deeper border-b border-recon-mist">
     <form action="/projects/<%= job.id %>/rfps" method="POST" class="flex gap-3 items-end">
       <div>
-        <label class="block text-xs text-recon-fog mb-1">Contractor name</label>
-        <input name="contractor_name" required class="input" placeholder="e.g. Esrepairpros">
+        <label class="block text-xs text-recon-fog mb-1">Category name</label>
+        <input name="contractor_name" required class="input" placeholder="e.g. Plumbing & Fixtures">
       </div>
       <div>
         <label class="block text-xs text-recon-fog mb-1">Notes (optional)</label>
         <input name="notes" class="input" placeholder="Scope notes">
       </div>
-      <button type="submit" class="btn btn-primary text-sm">Add RFP</button>
+      <button type="submit" class="btn btn-primary text-sm">Add category</button>
     </form>
   </div>
 
   <% if (!rfps || rfps.length === 0) { %>
     <div class="p-8 text-center text-recon-fog text-sm">
-      No RFPs yet. Click <strong>+ New RFP</strong> above to add a contractor bid.
+      No categories yet. Click <strong>+ Add category</strong> above to add a scope area.
     </div>
   <% } else { %>
     <% rfps.forEach(function(rfp){ %>
@@ -46,7 +46,7 @@ const fmt = typeof rfpFmt !== 'undefined' ? rfpFmt : function(n) {
             <button onclick="document.getElementById('rfp-item-form-<%= rfp.id %>').classList.toggle('hidden')"
                     class="text-recon-red hover:underline">+ Add item</button>
             <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/delete" method="POST"
-                  onsubmit="return confirm('Delete this RFP and all its items?')">
+                  onsubmit="return confirm('Delete this category and all its line items?')">
               <button class="text-recon-fog hover:text-recon-red">Delete</button>
             </form>
           </div>

@@ -8,7 +8,7 @@
       <a href="/projects/<%= job.id %>/rfp/export.csv" class="btn btn-secondary text-sm" download>CSV</a>
       <a href="/projects/<%= job.id %>/rfp/export.xlsx" class="btn btn-secondary text-sm" download>XLSX</a>
       <button onclick="document.getElementById('rfp-new-form').classList.toggle('hidden')"
-              class="btn btn-primary text-sm">+ New RFP</button>
+              class="btn btn-primary text-sm">+ Add category</button>
     </div>
   </div>
 
@@ -18,15 +18,15 @@
   </div>
 
 
-  <!-- New RFP "Tab" / scope area — user-defined names like "Cabinet", "Painting", "1st floor"
+  <!-- New category / scope area — user-defined names like "Cabinet", "Painting", "1st floor"
        per D-078 spec (matches Michael's Excel template). Contractor/vendor bids go INSIDE
        each tab as line items (see line-item form below). -->
   <div id="rfp-new-form" class="hidden card p-4 mb-6 bg-recon-deeper border-recon-mist">
-    <h3 class="text-sm font-semibold mb-3">New RFP Tab</h3>
+    <h3 class="text-sm font-semibold mb-3">Add category</h3>
     <p class="text-xs text-recon-fog mb-3">Add a scope area (e.g. "Cabinet", "Painting", "1st floor"). Click into it to add line items per contractor/vendor.</p>
     <form action="/projects/<%= job.id %>/rfps" method="POST" class="flex gap-3 items-end flex-wrap">
       <div>
-        <label class="block text-xs text-recon-fog mb-1">Category / Tab name</label>
+        <label class="block text-xs text-recon-fog mb-1">Category name</label>
         <input name="contractor_name" required class="input" placeholder="Pick from list or type custom" style="min-width:240px" maxlength="80" autocomplete="off" list="rfp-tab-presets">
         <datalist id="rfp-tab-presets">
           <option value="Cabinets">
@@ -52,7 +52,7 @@
         </datalist>
         <p class="text-xs text-recon-fog mt-1">Type any custom name (e.g. "1st floor", "Activities bldg") — picker is just a suggestion list.</p>
       </div>
-      <button type="submit" class="btn btn-primary text-sm">Add Tab</button>
+      <button type="submit" class="btn btn-primary text-sm">Add category</button>
     </form>
   </div>
 
@@ -69,7 +69,7 @@
   <!-- RFP list -->
   <% if (!rfps || rfps.length === 0) { %>
     <div class="card p-12 text-center text-recon-fog text-sm">
-      No RFPs yet. Click <strong>+ New RFP</strong> to add a contractor bid.
+      No categories yet. Click <strong>+ Add category</strong> to add a scope area.
     </div>
   <% } else { %>
     <% 
@@ -104,7 +104,7 @@
     <!-- D-104: RFP summary table (FORGE format — single card, table layout) -->
     <div class="card overflow-hidden mb-6">
       <div class="px-5 py-3 border-b border-recon-mist">
-        <h3 class="font-semibold text-sm">RFP / Bid Summary</h3>
+        <h3 class="font-semibold text-sm">Category / Bid Summary</h3>
       </div>
       <table class="data">
         <thead>
@@ -155,7 +155,7 @@
               <td class="text-right font-semibold <%= rfp.status === 'awarded' ? 'text-green-700' : '' %>">$<%= rfpTotals[rfp.id].toFixed(2) %></td>
               <td class="text-right">
                 <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/delete" method="POST" onclick="event.stopPropagation()"
-                      onsubmit="return confirm('Delete this RFP and all its items?')" class="inline">
+                      onsubmit="return confirm('Delete this category and all its line items?')" class="inline">
                   <button class="text-recon-fog hover:text-recon-red text-xs">&times;</button>
                 </form>
               </td>
