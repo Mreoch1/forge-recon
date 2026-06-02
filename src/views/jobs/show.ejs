@@ -139,7 +139,7 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
     </div>
   </details>
   <% } %>
-</div>  <%-- closes main content --%>
+</div>  <%# closes main content %>
 
 <!-- Project Chat side panel -->
 <details class="w-80 flex-shrink-0 sticky top-4 self-start chat-panel" <%= (typeof chatOpen !== 'undefined' && chatOpen) ? 'open' : '' %> style="max-height:calc(100vh - 6rem)">
@@ -298,8 +298,8 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
 }
 </style>
 
-</div>  <%-- closes flex --%>
-</div>  <%-- closes ops-shell --%>
+</div>  <%# closes flex %>
+</div>  <%# closes ops-shell %>
 
 <script>
 // Contractor row click-to-expand
