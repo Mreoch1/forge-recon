@@ -216,8 +216,8 @@ router.post('/', async (req, res) => {
       description: data.description, status: data.status,
       scheduled_date: data.scheduled_date, scheduled_time: data.scheduled_time,
       assigned_to_user_id: data.assigned_to_user_id,
-      contract_value: data.contract_value,
-      total_paid: data.total_paid
+      contract_value: data.contract_value ?? 0,
+      total_paid: data.total_paid ?? 0
     })
     .select()
     .single();

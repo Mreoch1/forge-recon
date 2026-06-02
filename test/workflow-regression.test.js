@@ -121,6 +121,6 @@ test('customer detail exposes customer projects and project creation path', () =
 test('new project insert persists all validated project form fields', () => {
   const routes = read('src/routes/jobs.js');
 
-  assert.match(routes, /contract_value: data\.contract_value/);
-  assert.match(routes, /total_paid: data\.total_paid/);
+  assert.match(routes, /contract_value: data\.contract_value \?\? 0/);
+  assert.match(routes, /total_paid: data\.total_paid \?\? 0/);
 });
