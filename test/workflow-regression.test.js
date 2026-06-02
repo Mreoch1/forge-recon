@@ -181,11 +181,13 @@ test('project chat stays inside the project content shell', () => {
   const chatStart = show.indexOf('<details class="chat-panel card mb-6 overflow-hidden"');
   const opsShellEnd = show.indexOf('</div>  <%# closes ops-shell %>');
   const chatPanelMarkup = show.match(/<details class="chat-panel[\s\S]*?<\/details>/);
+  const chatPrefix = show.slice(Math.max(0, chatStart - 80), chatStart);
 
   assert.ok(opsShellStart >= 0, 'project show should use the ops shell');
   assert.ok(chatStart > opsShellStart, 'project chat should render inside the ops shell');
   assert.ok(chatStart < opsShellEnd, 'project chat should not render after the ops shell closes');
   assert.ok(chatPanelMarkup, 'project chat panel markup should exist');
+  assert.doesNotMatch(chatPrefix, /canSeeOperations|canSeeBilling/);
   assert.doesNotMatch(chatPanelMarkup[0], /position\s*:\s*fixed/);
   assert.doesNotMatch(chatPanelMarkup[0], /top\s*:\s*4rem/);
   assert.match(show, /Project communication and internal updates/);

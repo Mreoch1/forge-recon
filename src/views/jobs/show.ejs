@@ -27,7 +27,6 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
     </div>
   <% } %>
 
-  <% if (access.canSeeOperations) { %>
   <details class="chat-panel card mb-6 overflow-hidden" <%= (typeof chatOpen !== 'undefined' && chatOpen) ? 'open' : '' %>>
     <summary class="cursor-pointer px-5 py-4 hover:bg-recon-deeper/10 transition">
       <div class="flex items-center justify-between gap-4">
@@ -53,7 +52,6 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
       </div>
     </div>
   </details>
-  <% } %>
 
   <!-- D-007a: Financial Command Panel (replaces legacy Financial Overview) -->
   <% if (access.canSeeBilling) { %>
