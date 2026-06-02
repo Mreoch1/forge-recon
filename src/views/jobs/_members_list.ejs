@@ -74,16 +74,31 @@ var selectedRole = memberForm.role || 'superintendent';
             <% if (m.user_email) { %><p class="text-xs text-recon-fog"><%= m.user_email %></p><% } %>
           </div>
           <div class="flex items-center gap-3">
-            <span class="badge badge-<%= roleBadges[m.role] || 'draft' %>"><%= roleLabels[m.role] || m.role %></span>
             <% if (canManage) { %>
             <form method="post"
+                  action="/projects/<%= job.id %>/members"
+                  hx-post="/projects/<%= job.id %>/members"
+                  hx-target="#members-section" hx-swap="outerHTML"
+                  class="inline-flex items-center gap-1 m-0">
+              <input type="hidden" name="user_id" value="<%= m.user_id %>">
+              <select name="role" onchange="this.form.querySelector('[type=submit]').click()"
+                      class="text-xs rounded border border-recon-mist px-1 py-0.5"
+                      style="font-size:0.7rem;padding:0.1rem 0.3rem;">
+                <% roles.forEach(function(r){ %>
+                  <option value="<%= r.value %>" <%= r.value === m.role ? 'selected' : '' %>><%= r.label %></option>
+                <% }); %>
+              </select>
+              <button type="submit" class="hidden">Save</button>
+              <button type="button" class="text-xs text-red-700 hover:underline ml-1"
+                      onclick="if(confirm('Remove <%= m.user_name %> from this project?')){var f=this.closest('li').querySelector('[data-delete-form]');if(f)f.submit();}">Remove</button>
+            </form>
+            <form method="post" data-delete-form
                   action="/projects/<%= job.id %>/members/<%= m.id %>/delete"
                   hx-delete="/projects/<%= job.id %>/members/<%= m.id %>"
                   hx-target="#members-section" hx-swap="outerHTML"
-                  hx-confirm="Remove <%= m.user_name %> from this project?"
-                  class="inline m-0">
-              <button type="submit" class="text-xs text-red-700 hover:underline">Remove</button>
-            </form>
+                  class="hidden"></form>
+            <% } else { %>
+            <span class="badge badge-<%= roleBadges[m.role] || 'draft' %>"><%= roleLabels[m.role] || m.role %></span>
             <% } %>
           </div>
         </li>
