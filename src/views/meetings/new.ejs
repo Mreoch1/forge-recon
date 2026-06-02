@@ -34,10 +34,13 @@
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- Location -->
+        <!-- Location (with address autocomplete) -->
         <div>
           <label class="label">Location</label>
-          <input type="text" name="location" value="<%= form.location || '' %>" class="input w-full" placeholder="e.g. Main office, Site trailer, Conference room B">
+          <input type="text" name="address" value="<%= form.address || form.location || '' %>" class="input w-full" placeholder="e.g. 3100 Fox Cir, Flint MI 48507">
+          <input type="hidden" name="city" value="<%= form.city || '' %>">
+          <input type="hidden" name="state" value="<%= form.state || '' %>">
+          <input type="hidden" name="zip" value="<%= form.zip || '' %>">
         </div>
         <!-- Meeting link -->
         <div>

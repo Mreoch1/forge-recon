@@ -150,7 +150,10 @@ router.post('/projects/:id/schedule', requireAuth, requireManager, async (req, r
   const form = {
     title: (req.body.title || '').trim(),
     description: (req.body.description || '').trim(),
-    location: (req.body.location || '').trim(),
+    location: (function(){
+      const parts = [(req.body.address || '').trim(), (req.body.city || '').trim(), (req.body.state || '').trim(), (req.body.zip || '').trim()].filter(Boolean);
+      return parts.length ? parts.join(', ') : (req.body.location || '').trim();
+    })(),
     meeting_link: (req.body.meeting_link || '').trim(),
     start_time: req.body.start_time || '',
     duration_minutes: parseInt(req.body.duration_minutes, 10) || 60,
@@ -228,7 +231,12 @@ router.post('/meetings/:id/edit', requireAuth, requireManager, async (req, res) 
   const updates = {};
   if (req.body.title) updates.title = req.body.title.trim();
   if (req.body.description !== undefined) updates.description = req.body.description.trim() || null;
-  if (req.body.location !== undefined) updates.location = req.body.location.trim() || null;
+  if (req.body.address !== undefined) {
+    const parts = [(req.body.address || '').trim(), (req.body.city || '').trim(), (req.body.state || '').trim(), (req.body.zip || '').trim()].filter(Boolean);
+    updates.location = parts.length ? parts.join(', ') : null;
+  } else if (req.body.location !== undefined) {
+    updates.location = req.body.location.trim() || null;
+  }
   if (req.body.meeting_link !== undefined) updates.meeting_link = req.body.meeting_link.trim() || null;
   if (req.body.start_time) updates.start_time = req.body.start_time;
   if (req.body.duration_minutes) updates.duration_minutes = parseInt(req.body.duration_minutes, 10);
