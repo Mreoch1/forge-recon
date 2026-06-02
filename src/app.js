@@ -225,7 +225,6 @@ app.use('/customers', requireAuth, requireManager, customersRoutes);
 // D-007: Projects layer — Jobs renamed Projects in UI. /projects is canonical;
 // /jobs preserved as a redirect so older links keep working.
 app.use('/projects', requireAuth, requireAdmin, jobsRoutes);
-app.use('/', requireAuth, rfpRoutes);
 app.use('/jobs', requireAuth, requireAdmin, (req, res) => {
   const tail = req.url === '/' ? '' : req.url;
   res.redirect(302, '/projects' + tail);
@@ -243,6 +242,7 @@ app.use('/vendors', requireAuth, requireManager, vendorsRoutes);
 app.use('/contractors', requireAuth, requireManager, contractorsRoutes);
 app.use('/files', requireAuth, filesRoutes);
 app.use('/', meetingsRoutes);
+app.use('/', requireAuth, rfpRoutes);
 app.get('/ai/chat/health', (req, res) => {
   const ai = require('./services/ai');
   const enabled = process.env.AI_CHAT_ENABLED === undefined
