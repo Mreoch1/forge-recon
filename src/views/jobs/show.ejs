@@ -9,10 +9,7 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
 %>
 
 <div class="ops-shell">
-  <div class="flex gap-6">
-    <!-- Main content -->
-    <div class="flex-1 min-w-0">
-      <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+  <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
     <a href="/projects" class="text-sm text-recon-fog hover:text-recon-red">&larr; Projects</a>
     <a href="/projects/<%= job.id %>/export.xlsx" class="btn btn-secondary text-sm">Export Excel</a>
   </div>
@@ -141,8 +138,8 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
   <% } %>
 </div>  <%# closes main content %>
 
-<!-- Project Chat side panel -->
-<details class="w-80 flex-shrink-0 sticky top-4 self-start chat-panel" <%= (typeof chatOpen !== 'undefined' && chatOpen) ? 'open' : '' %> style="max-height:calc(100vh - 6rem)">
+<!-- Project Chat side panel — fixed overlay, takes no space when collapsed -->
+<details class="chat-panel" style="position:fixed;top:4rem;right:0;z-index:50;width:320px;max-height:calc(100vh - 6rem)" <%= (typeof chatOpen !== 'undefined' && chatOpen) ? 'open' : '' %>>
   <summary class="cursor-pointer text-sm font-medium text-recon-fog mb-2 hover:text-recon-red flex items-center gap-2 p-2 rounded hover:bg-recon-cloud/50">
     <span>💬 Project Chat</span>
     <span id="chat-unread" class="text-xs text-recon-fog hidden">· new</span>
@@ -293,12 +290,10 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
 #chat-messages::-webkit-scrollbar { width: 4px; }
 #chat-messages::-webkit-scrollbar-thumb { background: #d0d0d0; border-radius: 2px; }
 @media (max-width: 1024px) {
-  .chat-panel { width: 100%; max-height: none; position: static; }
-  .ops-shell .flex { flex-direction: column; }
+  .chat-panel { width: 100% !important; position: fixed !important; top: auto !important; bottom: 0 !important; max-height: 60vh !important; right: 0 !important; }
 }
 </style>
 
-</div>  <%# closes flex %>
 </div>  <%# closes ops-shell %>
 
 <script>
