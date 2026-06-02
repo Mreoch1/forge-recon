@@ -12,6 +12,9 @@
     </div>
     <div class="flex gap-2">
       <a href="/customers/<%= customer.id %>/edit" class="btn btn-secondary">Edit</a>
+      <% if (currentUser && currentUser.role === 'admin') { %>
+        <a href="/projects/new?customer_id=<%= customer.id %>" class="btn btn-secondary">+ Project</a>
+      <% } %>
       <a href="/work-orders/new?customer_id=<%= customer.id %>" class="btn btn-primary">+ Work order</a>
     </div>
   </div>
@@ -55,6 +58,39 @@
     </div>
 
     <div class="lg:col-span-2">
+      <div class="card overflow-hidden mb-6">
+        <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between flex-wrap gap-2">
+          <h3 class="font-semibold">Projects <span class="text-recon-fog font-normal text-sm">(<%= (projects || []).length %> total)</span></h3>
+          <% if (currentUser && currentUser.role === 'admin') { %>
+            <a href="/projects/new?customer_id=<%= customer.id %>" class="text-sm text-recon-red hover:underline">+ Add project</a>
+          <% } %>
+        </div>
+        <% if (!projects || projects.length === 0) { %>
+          <div class="p-8 text-center text-recon-fog text-sm">
+            No projects for this customer yet.
+            <% if (currentUser && currentUser.role === 'admin') { %>
+              <a href="/projects/new?customer_id=<%= customer.id %>" class="text-recon-red underline">Create a project</a>.
+            <% } %>
+          </div>
+        <% } else { %>
+          <table class="data">
+            <thead>
+              <tr><th>Project</th><th>Location</th><th>Status</th><th>Created</th></tr>
+            </thead>
+            <tbody>
+              <% projects.forEach(function(project){ %>
+                <tr class="row-link" data-href="/projects/<%= project.id %>">
+                  <td class="font-medium"><a href="/projects/<%= project.id %>" class="text-recon-red hover:underline"><%= project.title %></a></td>
+                  <td><%= [project.address, project.city, project.state].filter(Boolean).join(', ') || '—' %></td>
+                  <td><span class="badge badge-<%= project.status %>"><%= (project.status || '').replace('_',' ') %></span></td>
+                  <td><%= (project.created_at || '').slice(0,10) %></td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        <% } %>
+      </div>
+
       <div class="card overflow-hidden">
         <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between flex-wrap gap-2">
           <h3 class="font-semibold">Work orders <% if (woTotal !== undefined) { %><span class="text-recon-fog font-normal text-sm">(<%= woTotal %> total)</span><% } %></h3>

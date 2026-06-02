@@ -168,6 +168,13 @@ router.get('/:id', async (req, res) => {
   if (woError) throw woError;
   if (woCountError) throw woCountError;
 
+  const { data: projects, error: projectsError } = await supabase
+    .from('jobs')
+    .select('id, title, status, address, city, state, created_at')
+    .eq('customer_id', id)
+    .order('created_at', { ascending: false });
+  if (projectsError) throw projectsError;
+
   // D-072: Customer file workspace — fetch root folder + first-level contents
   // P0 fix: if root folder doesn't exist (failed on create), create it now.
   let rootFolder = null;
@@ -195,6 +202,7 @@ router.get('/:id', async (req, res) => {
   res.render('customers/show', {
     title: customer.name, activeNav: 'customers',
     customer, workOrders: workOrders || [], fileCount,
+    projects: projects || [],
     woPage, woPages, woTotal, woQ, woStatus, WO_PAGE_SIZE,
     rootFolder, folders, files
   });

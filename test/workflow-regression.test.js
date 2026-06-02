@@ -106,3 +106,21 @@ test('RFP category and parent line-item deletes remove children', () => {
   assert.match(routes, /\.delete\(\)\s*\.eq\('id', itemId\)/);
   assert.match(routes, /await deleteRfpLineItemTree\(req\.params\.itemId\)/);
 });
+
+test('customer detail exposes customer projects and project creation path', () => {
+  const routes = read('src/routes/customers.js');
+  const show = read('src/views/customers/show.ejs');
+
+  assert.match(routes, /\.from\('jobs'\)[\s\S]*\.eq\('customer_id', id\)/);
+  assert.match(routes, /projects: projects \|\| \[\]/);
+  assert.match(show, /Projects <span[\s\S]*\(projects \|\| \[\]\)\.length/);
+  assert.match(show, /href="\/projects\/new\?customer_id=<%= customer\.id %>"/);
+  assert.match(show, /data-href="\/projects\/<%= project\.id %>"/);
+});
+
+test('new project insert persists all validated project form fields', () => {
+  const routes = read('src/routes/jobs.js');
+
+  assert.match(routes, /contract_value: data\.contract_value/);
+  assert.match(routes, /total_paid: data\.total_paid/);
+});

@@ -215,7 +215,9 @@ router.post('/', async (req, res) => {
       address: data.address, city: data.city, state: data.state, zip: data.zip,
       description: data.description, status: data.status,
       scheduled_date: data.scheduled_date, scheduled_time: data.scheduled_time,
-      assigned_to_user_id: data.assigned_to_user_id
+      assigned_to_user_id: data.assigned_to_user_id,
+      contract_value: data.contract_value,
+      total_paid: data.total_paid
     })
     .select()
     .single();
