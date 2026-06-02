@@ -7,7 +7,8 @@
  */
 const express = require('express');
 const supabase = require('../db/supabase');
-const { requireAdmin } = require('../middleware/auth');
+const { requireAdmin, requireAuth } = require('../middleware/auth');
+const { loadProjectAccess, denyProjectAccess } = require('./jobs');
 
 const router = express.Router();
 
@@ -109,8 +110,27 @@ async function deleteRfpLineItemTree(itemId, visited = new Set()) {
   if (error) throw error;
 }
 
+// ── Project-level access middleware for RFP routes ──
+// Allows access if user is app admin/manager, or has project-level
+// operations access (superintendent, pre_construction, admin member role).
+async function requireRfpAccess(req, res, next) {
+  const appRole = req.session?.role;
+  if (appRole === 'admin' || appRole === 'manager') return next();
+  const jobId = req.params.id;
+  if (!jobId) return denyProjectAccess(res, 'Project ID required.');
+  try {
+    const { data: job } = await supabase.from('jobs').select('id, project_manager_user_id, assigned_to_user_id').eq('id', jobId).maybeSingle();
+    if (!job) return denyProjectAccess(res, 'Project not found.');
+    const access = await loadProjectAccess(req, job);
+    if (access.canSeeOperations) return next();
+    denyProjectAccess(res, 'You do not have access to RFP data for this project.');
+  } catch (e) {
+    denyProjectAccess(res, 'Could not verify project access.');
+  }
+}
+
 // ── GET /projects/:id/rfp — dedicated RFP management page for a project ──
-router.get('/projects/:id/rfp', requireAdmin, async (req, res) => {
+router.get('/projects/:id/rfp', requireAuth, requireRfpAccess, async (req, res) => {
   const jobId = req.params.id;
 
   const [{ data: job, error: jobError }, { data: rfps, error: rfpsError }, { data: vendors, error: vendorsError }, { data: contractors, error: contractorsError }] = await Promise.all([

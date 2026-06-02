@@ -638,12 +638,11 @@ router.post('/:id/delete', async (req, res) => {
 // ============================================================
 
 const VALID_CO_STATUSES = ['pending', 'approved', 'rejected', 'invoiced'];
-const VALID_ROLES = ['superintendent', 'accountant', 'admin'];
+const VALID_ROLES = ['superintendent', 'accountant', 'admin', 'pre_construction'];
 const LEGACY_PROJECT_ROLE_MAP = {
   owner: 'admin',
   manager: 'admin',
   member: 'superintendent',
-  contractor: 'superintendent',
 };
 
 function normalizeProjectRole(role) {
@@ -663,7 +662,7 @@ function projectAccess({ req, job, members }) {
   const projectFull = isProjectManager || normalizeProjectRole(member?.role) === 'admin';
   const full = appFull || projectFull;
   const billing = full || projectRole === 'accountant';
-  const operations = full || projectRole === 'superintendent';
+  const operations = full || projectRole === 'superintendent' || projectRole === 'pre_construction';
   return {
     projectRole,
     isProjectManager: !!isProjectManager,
@@ -1280,3 +1279,6 @@ router.post('/:id/members/:memberId/delete', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.loadProjectAccess = loadProjectAccess;
+module.exports.requireProjectAccess = requireProjectAccess;
+module.exports.denyProjectAccess = denyProjectAccess;

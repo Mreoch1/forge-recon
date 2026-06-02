@@ -3,11 +3,12 @@
 // Inputs: members[] (with user_name, user_email, role), job, users[] (avail users).
 var roles = [
   { value: 'superintendent', label: 'Superintendent', hint: 'Operations only. No billing or cost visibility.' },
+  { value: 'pre_construction', label: 'Pre-construction', hint: 'Can view RFPs, project files, and operations data. No billing.' },
   { value: 'accountant', label: 'Accountant', hint: 'Billing and cost visibility only.' },
   { value: 'admin', label: 'Admin', hint: 'Full project access.' },
 ];
-var roleLabels = { superintendent: 'Superintendent', accountant: 'Accountant', admin: 'Admin' };
-var roleBadges = { superintendent: 'scheduled', accountant: 'info', admin: 'accepted' };
+var roleLabels = { superintendent: 'Superintendent', pre_construction: 'Pre-construction', accountant: 'Accountant', admin: 'Admin' };
+var roleBadges = { superintendent: 'scheduled', pre_construction: 'estimating', accountant: 'info', admin: 'accepted' };
 var canManage = typeof projectAccess === 'undefined' || projectAccess.canManageMembers;
 var memberForm = typeof memberForm !== 'undefined' ? memberForm : {};
 var memberError = typeof memberError !== 'undefined' ? memberError : null;
