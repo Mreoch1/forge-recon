@@ -142,3 +142,11 @@ test('project file upload supports browser-selected folder trees', () => {
   assert.match(folderView, /Upload zipped folder/);
   assert.doesNotMatch(folderView, /Folder \(\.zip\)/);
 });
+
+test('transactional email defaults to Forge-Recon sender name', () => {
+  const emailService = read('src/services/email.js');
+
+  assert.match(emailService, /const DEFAULT_FROM = '"Forge-Recon" <support@reconenterprises\.net>'/);
+  assert.match(emailService, /const FROM = process\.env\.EMAIL_FROM \|\| DEFAULT_FROM/);
+  assert.doesNotMatch(emailService, /"Recon Office" <support@reconenterprises\.net>/);
+});
