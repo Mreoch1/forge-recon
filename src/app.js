@@ -370,9 +370,11 @@ app.post('/report-error', async (req, res) => {
       userEmail: user_email || req.currentUser?.email || 'unknown',
       errorCtx: ctx,
     });
+    setFlash(req, 'success', 'Error reported. Our team will review it &mdash; if you have more details, send them to support@reconenterprises.net.');
     res.redirect(url || '/');
   } catch (e) {
     console.error('[report-error] save failed:', e.message);
+    setFlash(req, 'error', 'Could not save error report. Please email support@reconenterprises.net directly.');
     res.redirect(url || '/');
   }
 });

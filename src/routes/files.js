@@ -18,6 +18,7 @@ const path = require('path');
 const crypto = require('crypto');
 const storage = require('../services/storage');
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+const MAX_ZIP_SIZE = 200 * 1024 * 1024; // 200MB
 const MAX_FILES = 6;
 const ALLOWED_MIMES = ['image/jpeg','image/png','image/webp','application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','text/plain'];
 
@@ -27,6 +28,18 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     if (ALLOWED_MIMES.includes(file.mimetype)) cb(null, true);
     else cb(new Error('File type not allowed: ' + file.mimetype));
+  }
+});
+
+const uploadZip = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_ZIP_SIZE, files: 1 },
+  fileFilter: (req, file, cb) => {
+    const zipMimes = ['application/zip', 'application/x-zip-compressed', 'application/octet-stream'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (ext === '.zip' && zipMimes.includes(file.mimetype)) cb(null, true);
+    else if (ext === '.zip') cb(null, true); // accept zip even if mime is unknown
+    else cb(new Error('Only .zip files allowed.'));
   }
 });
 
