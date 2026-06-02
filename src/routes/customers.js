@@ -118,7 +118,7 @@ router.post('/', async (req, res) => {
     const filesSvc = require('../services/files');
     await filesSvc.ensureRootFolder('customer', newCustomer.id, req.session.userId).catch(e => console.warn('[files] ensureRootFolder:', e.message));
   } catch(e) { /* folder creation best effort */ }
-  setFlash(req, 'success', `Customer "${data.name}" created.`);
+  setFlash(req, 'success', `Customer "${data.name}" created. Next: <a href="/projects/new?customer_id=${newCustomer.id}" class="underline">create a project for this customer</a>.`);
   res.redirect(`/customers/${newCustomer.id}`);
 });
 
@@ -199,12 +199,26 @@ router.get('/:id', async (req, res) => {
   }
   const woPages = Math.ceil((woTotal || 0) / WO_PAGE_SIZE);
 
+  // F-013: Load projects (jobs) for this customer
+  let customerProjects = [];
+  try {
+    const { data: projData } = await supabase
+      .from('jobs')
+      .select('id, title, address, city, state, status, created_at')
+      .eq('customer_id', id)
+      .order('created_at', { ascending: false });
+    customerProjects = projData || [];
+  } catch (e) {
+    console.warn('[customers] projects load failed:', e.message);
+  }
+
   res.render('customers/show', {
     title: customer.name, activeNav: 'customers',
     customer, workOrders: workOrders || [], fileCount,
     projects: projects || [],
     woPage, woPages, woTotal, woQ, woStatus, WO_PAGE_SIZE,
-    rootFolder, folders, files
+    rootFolder, folders, files,
+    customerProjects
   });
 });
 

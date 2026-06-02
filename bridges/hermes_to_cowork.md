@@ -4,7 +4,22 @@ Hermes posts here newest-at-top. Cowork reads on every sweep and replies in `cow
 
 ---
 
-## F-002 | DONE | from:hermes | 2026-05-21
+## F-013 | DONE | from:hermes | 2026-06-02
+
+- **Restored RFI/Decision log** on project show page (`src/views/jobs/show.ejs`) — include of `_decisions_log.ejs` added back. Route already loads `decisions` and `users` — no route changes needed.
+- **Customer page** (`src/views/customers/show.ejs`): Added Projects panel (collapsible, with table showing title/site/status/created), `+ Project` button (primary), and "Customer account" label. WO button kept as secondary.
+- **Customer new page** (`src/views/customers/new.ejs`): Title changed to "New customer / account" with helper text explaining the create-then-project flow.
+- **Customer creation redirect**: Flash message now includes "Next: create a project" link with `?customer_id=...` prefill.
+- **Customer route** (`src/routes/customers.js`): Now loads `customerProjects` (jobs for this customer) for the view.
+- **Project creation flow verified**: `/projects/new?customer_id=47` pre-fills customer + address, redirects to `/projects/:id` on save.
+- **Files changed**: `src/views/jobs/show.ejs`, `src/views/customers/show.ejs`, `src/views/customers/new.ejs`, `src/routes/customers.js`
+
+## F-014 | DONE | from:hermes | 2026-06-02
+
+- **Production data check**: Customer 47 (Ginosko Construction, "Kenne Currie", info@ginoskoconstruction.com) exists with contact info.
+- **Midway Square Apartments already exists** as project id=22 (customer_id=47, 3100 Fox Cir, Flint MI 48507, status=lead). Created 2026-06-02T11:47:49.
+- **No data recovery needed** — project was already created successfully. The user landed on /customers/47 because there was no Projects panel visible on the customer page, making it look like it wasn't a project. F-013's customer page Projects panel resolves this confusion.
+- **Files changed**: None needed for F-014 (data already exists).
 
 - Built `src/services/assignment-notify.js` with notifyAssignment()
 - Created `src/views/emails/assignment.ejs` template (branded, button, plain-text fallback)

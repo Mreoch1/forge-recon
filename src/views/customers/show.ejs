@@ -8,14 +8,12 @@
   <div class="flex items-baseline justify-between mb-6 flex-wrap gap-2">
     <div>
       <h1 class="page-h1"><%= customer.name %></h1>
-      <p class="page-sub">Customer #<%= customer.id %> &middot; created <%= customer.created_at %></p>
+      <p class="page-sub">Customer account #<%= customer.id %> &middot; created <%= customer.created_at %></p>
     </div>
     <div class="flex gap-2">
       <a href="/customers/<%= customer.id %>/edit" class="btn btn-secondary">Edit</a>
-      <% if (currentUser && currentUser.role === 'admin') { %>
-        <a href="/projects/new?customer_id=<%= customer.id %>" class="btn btn-secondary">+ Project</a>
-      <% } %>
-      <a href="/work-orders/new?customer_id=<%= customer.id %>" class="btn btn-primary">+ Work order</a>
+      <a href="/projects/new?customer_id=<%= customer.id %>" class="btn btn-primary">+ Project</a>
+      <a href="/work-orders/new?customer_id=<%= customer.id %>" class="btn btn-secondary">+ Work order</a>
     </div>
   </div>
 
@@ -165,9 +163,37 @@
           <% } %>
         <% } %>
       </div>
-    </div>
+    </div>  <%-- closes lg:col-span-2 --%>
+  </div>  <%-- closes grid --%>
+</div>  <%-- closes max-w --%>
+
+  <!-- F-013: Projects (jobs) for this customer -->
+  <div class="max-w-7xl mx-auto px-4 mt-6">
+    <details open>
+      <summary class="cursor-pointer text-sm font-medium text-recon-fog mb-2 hover:text-recon-red">Projects <% if (typeof customerProjects !== 'undefined') { %><span class="text-xs text-recon-fog">(<%= customerProjects.length %>)</span><% } %></summary>
+      <div class="card overflow-hidden mt-2">
+        <% if (typeof customerProjects === 'undefined' || customerProjects.length === 0) { %>
+          <div class="p-6 text-center text-recon-fog text-sm italic">No projects for this customer yet. <a href="/projects/new?customer_id=<%= customer.id %>" class="text-recon-red underline">Create a project</a>.</div>
+        <% } else { %>
+          <table class="data">
+            <thead>
+              <tr><th>Project</th><th>Site address</th><th>Status</th><th>Created</th></tr>
+            </thead>
+            <tbody>
+              <% customerProjects.forEach(function(p){ %>
+                <tr>
+                  <td class="font-medium"><a href="/projects/<%= p.id %>" class="text-recon-red hover:underline"><%= p.title %></a></td>
+                  <td><%= [p.address, p.city, p.state].filter(Boolean).join(', ') || '—' %></td>
+                  <td><span class="badge badge-<%= p.status %>"><%= (p.status || '').replace('_',' ') %></span></td>
+                  <td class="text-xs text-recon-fog"><%= (p.created_at || '').slice(0,10) %></td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        <% } %>
+      </div>
+    </details>
   </div>
-</div>
 
 <!-- D-072: Customer file workspace (parallel to vendor file workspace) -->
 <details class="ops-shell pt-0" <%= ((typeof folders !== 'undefined' && folders.length > 0) || (typeof files !== 'undefined' && files.length > 0)) ? 'open' : '' %>>

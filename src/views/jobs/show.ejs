@@ -55,6 +55,9 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
   </div>
   <% } %>
 
+  <!-- D-024c: RFI / Decision log -->
+  <%- include('_decisions_log', { jobId: job.id, decisions: decisions, users: typeof users !== 'undefined' ? users : [] }) %>
+
   <!-- F-011: Contractors & Vendors rollup -->
   <% if (access.canSeeBilling && typeof contractorRollup !== 'undefined' && contractorRollup.length > 0) { %>
   <details class="mb-6" open>

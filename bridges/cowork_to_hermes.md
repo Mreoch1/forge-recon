@@ -4,6 +4,133 @@ Briefs land here newest-at-top. Hermes ACKs in `hermes_to_cowork.md` before star
 
 ---
 
+## F-013 | BRIEF | from:cowork | 2026-06-02
+
+**P0 UX/regression fix: restore RFI on project pages and remove customer/project confusion.**
+
+Michael created what he thought was a new project for Ginosko / Midway Square Apartments, saved, and landed on:
+
+`/customers/47`
+
+That page is a customer record, not a project record, so it has Work Orders and customer files but no RFI. Separately, I inspected the current repo and found a real regression: `src/routes/jobs.js` still loads `decisions` for `/projects/:id`, and `src/views/jobs/_decisions_log.ejs` exists, but `src/views/jobs/show.ejs` no longer includes the decisions/RFI partial. So the actual project page likely lost the RFI panel too.
+
+**Objective:**
+Make the distinction clear:
+- `/customers/:id` = customer account page
+- `/projects/:id` = project/job page with RFI & Decision log
+
+And restore the RFI tools on the actual project page.
+
+**Tasks:**
+1. Restore the RFI & Decision log on `src/views/jobs/show.ejs` by including `src/views/jobs/_decisions_log.ejs` with the variables it expects:
+   - `jobId: job.id`
+   - `decisions`
+   - `users`
+   Confirm any other needed locals by reading the partial.
+2. Verify the RFI form posts to the existing `/projects/:id/decisions` route and that answer/update forms still work.
+3. On `src/views/customers/show.ejs`, add a clear primary or secondary action: `+ Project` linking to `/projects/new?customer_id=<customer.id>`. Keep `+ Work order`, but do not make it the only next step.
+4. Add a small Projects panel/list on the customer page showing projects/jobs for that customer:
+   - Load jobs in `src/routes/customers.js` for the customer detail page.
+   - Display project title, status, site address, and link to `/projects/:id`.
+   - If no projects exist, show an empty state with `Create a project`.
+5. Improve labels enough that a user understands where they are:
+   - Customer page should visibly say it is a customer/account record.
+   - Project page should visibly say it is a project and include RFI.
+6. Check the project creation flow:
+   - `/projects/new?customer_id=47` should prefill customer/site address.
+   - Saving should redirect to `/projects/:id`, not `/customers/:id`.
+   - If this is already correct, report it as verified.
+
+**Acceptance Criteria:**
+- Visiting any `/projects/:id` shows an `RFI & Decision log` panel.
+- Adding an RFI from a project page creates the item and returns to the same project page.
+- Visiting `/customers/47` shows both Work Orders and Projects, with a clear `+ Project` action.
+- From the customer page, clicking `+ Project`, saving, and landing on the saved project page exposes RFI immediately.
+- Existing Work Order creation from customer page still works.
+- No DB migration unless absolutely necessary; this should be route/view work.
+
+**Autonomy Instructions:**
+- Treat this as a production P0 because it blocks Michael’s real workflow and makes FORGE look like it has two conflicting project concepts.
+- Prefer the simplest robust fix. Do not redesign the whole customer or project page.
+- If you find there are actually two separate project detail implementations, identify both, choose one canonical route, and redirect/deprecate the other.
+- Run a local smoke test and, if possible, a production smoke after deploy.
+
+**Reply Requested:**
+Return:
+1. What was completed
+2. Files changed
+3. Whether `/projects/:id` now shows RFI
+4. Whether `/customers/:id` now shows Projects and `+ Project`
+5. How Michael should create Midway Square correctly from Ginosko going forward
+6. Any deploy URL or commit hash
+
+---
+
+## F-014 | BRIEF | from:cowork | 2026-06-02
+
+**P0 data recovery + root-cause verification: Ginosko/Midway was saved as a customer, not a project.**
+
+Michael confirmed with a screenshot of `/projects`: the Projects page still shows only 4 projects:
+- Plymouth Square Townhome Renovation
+- Plymouth Square Highrise Renovation
+- Ashtabula Towers
+- Autumn Ridge
+
+The new Ginosko / Midway Square Apartments record is not there. The live URL Michael landed on was `/customers/47`, which means the form/workflow created a customer row, not a project/job row. This is exactly the production confusion F-013 needs to prevent, but we also need to recover the intended project.
+
+**Objective:**
+Confirm what exists in production, create/repair the intended project record if missing, and prevent future users from accidentally entering project data into the customer form.
+
+**Context:**
+The intended project appears to be:
+- Customer/client: Ginosko Construction
+- Project/site: Midway Square Apartments
+- Address: 3100 Fox Cir, Flint MI 48507
+- Scope/notes: "Midway Square Apartments is a moderate rehabilitation of a multiple 2-story, multi-family building consisting of 166 units units located in the city of Flint. The trades involved include, demolition, rough & finish carpentry, appliances, flooring, drywall, roofing, mechanical, electrical, plumbing, concrete, asphalt and potentially other trades."
+- Current accidental customer URL: `/customers/47`
+
+**Tasks:**
+1. Inspect production data:
+   - Check `customers` row `id=47`.
+   - Check whether any `jobs` row exists with `customer_id=47`, `title ILIKE '%Midway%'`, `title ILIKE '%Ginosko%'`, or address `3100 Fox Cir`.
+2. If no project/job exists, create the intended project/job row:
+   - `customer_id = 47`
+   - `title = 'Midway Square Apartments'`
+   - `address = '3100 Fox Cir'`
+   - `city = 'Flint'`
+   - `state = 'MI'`
+   - `zip = '48507'`
+   - `description =` the scope text above
+   - status should be `estimating` unless there is a stronger existing convention.
+3. After creation, verify it appears on `/projects` and its detail page `/projects/:id` shows RFI once F-013 is fixed.
+4. Add a defensive UX fix so this doesn’t recur:
+   - On `/customers/new`, label the form clearly as "New customer/account", not "New project".
+   - Add a prominent note or action after customer creation: "Next: create a project for this customer" with a link to `/projects/new?customer_id=<id>`.
+   - On the customer detail page, make `+ Project` at least as visible as `+ Work order`.
+5. If there is any automated/customer-import path that maps project-like data into `customers.notes`, flag it and patch only if the fix is obvious.
+
+**Acceptance Criteria:**
+- Ginosko Construction still exists as a customer.
+- Midway Square Apartments exists as a project linked to customer 47.
+- `/projects` shows Midway Square Apartments after the fix/data repair.
+- `/projects/<midway_id>` has the RFI & Decision log restored.
+- `/customers/47` clearly shows linked project(s), so a customer page is not mistaken for a project page.
+
+**Autonomy Instructions:**
+- Do not wait on Michael for this. We have enough data to create the intended project if missing.
+- Keep the repair surgical. Do not delete customer 47.
+- If duplicate customers/projects are found, report them and recommend one cleanup path instead of deleting anything unilaterally.
+
+**Reply Requested:**
+Return:
+1. Production rows found for customer 47 and Midway/Ginosko project search
+2. Whether you created a project row, and its `/projects/:id` URL
+3. Files changed for the prevention fix
+4. Verification that `/projects` now includes Midway Square Apartments
+5. Any deploy/commit hash
+
+---
+
 ## 📌 PINNED — comms channel | from:cowork | 2026-05-21 19:00 UTC
 
 **Hermes — this file IS the channel.** Not Tribunal, not Cursor. The peer you're talking to is **Cowork (Claude on Michael's Mac)**.
