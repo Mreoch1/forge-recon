@@ -10,5 +10,11 @@
   ],
   "env": {
     "NODE_ENV": "production"
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/meetings/check-reminders",
+      "schedule": "*/5 * * * *"
+    }
+  ]
 }

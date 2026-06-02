@@ -334,7 +334,8 @@ router.get('/meetings/rsvp', async (req, res) => {
 
 router.get('/api/meetings/check-reminders', async (req, res) => {
   const secret = req.query.secret;
-  if (secret !== process.env.CRON_SECRET && process.env.NODE_ENV === 'production') {
+  const isVercelCron = req.headers['x-vercel-cron'];
+  if (!isVercelCron && secret !== process.env.CRON_SECRET && process.env.NODE_ENV === 'production') {
     return res.status(403).json({ error: 'Unauthorized' });
   }
 
