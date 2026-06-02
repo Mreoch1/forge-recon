@@ -72,7 +72,13 @@ async function getUploadUrl(bucket, key) {
     throw new Error(`Presigned URL failed: ${res.status} ${text}`);
   }
   const result = await res.json();
-  return { storageKey: key, uploadUrl: result.url || result.signedUrl || result.data?.url };
+  const signedPath = result.url || result.signedUrl || result.data?.url;
+  if (!signedPath) throw new Error('No upload URL in response');
+  // The API returns a relative path like /object/upload/sign/...?token=...
+  // The upload endpoint is under /storage/v1/
+  const basePath = signedPath.startsWith('/storage/') ? '' : '/storage/v1';
+  const uploadUrl = signedPath.startsWith('http') ? signedPath : `${SUPA_URL}${basePath}${signedPath}`;
+  return { storageKey: key, uploadUrl };
 }
 
 module.exports = { uploadBuffer, getPublicUrl, getSignedUrl, downloadBuffer, remove, getUploadUrl };
