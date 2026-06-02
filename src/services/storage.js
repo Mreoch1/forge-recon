@@ -47,4 +47,19 @@ async function remove(bucket, key) {
   if (error) throw error;
 }
 
-module.exports = { uploadBuffer, getPublicUrl, getSignedUrl, downloadBuffer, remove };
+/**
+ * Generate a presigned upload URL so the client can upload large files
+ * directly to Supabase Storage without going through the serverless function.
+ * @param {string} bucket - Storage bucket name
+ * @param {string} key - Storage key/path
+ * @param {number} [ttlSeconds=3600] - URL validity in seconds
+ * @returns {Promise<string>} Presigned upload URL
+ */
+async function getUploadUrl(bucket, key, ttlSeconds = 3600) {
+  if (!supa) throw new Error('Supabase not configured');
+  const { data, error } = await supa.storage.from(bucket).createSignedUploadUrl(key, { upsert: true });
+  if (error) throw error;
+  return data.url;
+}
+
+module.exports = { uploadBuffer, getPublicUrl, getSignedUrl, downloadBuffer, remove, getUploadUrl };

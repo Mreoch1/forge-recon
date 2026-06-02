@@ -60,18 +60,18 @@
           <p id="file-upload-label" class="text-xs text-recon-fog">No files selected.</p>
         </form>
 
-        <form method="post" action="/files/folders/<%= folder.id %>/upload-zip" enctype="multipart/form-data" class="space-y-3">
+        <div class="space-y-3">
           <div>
             <h2 class="text-sm font-semibold text-recon-charcoal mb-1">Upload zipped folder</h2>
-            <p class="text-sm text-recon-fog">Use this only when the folder has already been compressed as a .zip file.</p>
+            <p class="text-sm text-recon-fog">Upload a .zip file to recreate its folder structure here.</p>
           </div>
-          <input id="zip-upload-input" type="file" name="archive" accept=".zip" class="sr-only" required data-file-picker data-file-picker-label="zip-upload-label" data-file-picker-button="zip-upload-submit">
+          <input id="zip-file-input" type="file" accept=".zip" class="sr-only" data-zip-picker data-zip-label="zip-status-label">
           <div class="flex flex-wrap gap-2 items-center">
-            <label for="zip-upload-input" class="btn btn-secondary text-sm cursor-pointer">Choose .zip</label>
-            <button id="zip-upload-submit" type="submit" class="btn btn-primary text-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled>Upload .zip</button>
+            <label for="zip-file-input" class="btn btn-secondary text-sm cursor-pointer">Choose .zip</label>
+            <button id="zip-upload-btn" type="button" class="btn btn-primary text-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled onclick="uploadZip()">Upload .zip</button>
           </div>
-          <p id="zip-upload-label" class="text-xs text-recon-fog">No .zip selected.</p>
-        </form>
+          <p id="zip-status-label" class="text-xs text-recon-fog">No .zip selected.</p>
+        </div>
       </div>
     </div>
   <% } %>
@@ -141,5 +141,61 @@
     });
   });
 })();
+
+// Zip upload: presigned URL → direct-to-storage → process
+var zipFileInput = document.getElementById('zip-file-input');
+var zipStatusLabel = document.getElementById('zip-status-label');
+var zipUploadBtn = document.getElementById('zip-upload-btn');
+var currentFolderId = '<%= folder.id %>';
+
+if (zipFileInput) {
+  zipFileInput.addEventListener('change', function(){
+    var hasFile = zipFileInput.files && zipFileInput.files.length > 0;
+    if (zipUploadBtn) zipUploadBtn.disabled = !hasFile;
+    if (zipStatusLabel) zipStatusLabel.textContent = hasFile ? zipFileInput.files[0].name + ' selected.' : 'No .zip selected.';
+  });
+}
+
+async function uploadZip() {
+  if (!zipFileInput || !zipFileInput.files || !zipFileInput.files[0]) return;
+  var file = zipFileInput.files[0];
+  if (zipUploadBtn) { zipUploadBtn.disabled = true; }
+  if (zipStatusLabel) zipStatusLabel.textContent = 'Requesting upload URL...';
+
+  try {
+    // Step 1: Get presigned upload URL
+    var urlRes = await fetch('/files/folders/' + currentFolderId + '/upload-zip-url');
+    if (!urlRes.ok) throw new Error('Failed to get upload URL');
+    var urlData = await urlRes.json();
+    if (!urlData.ok) throw new Error(urlData.error || 'Upload URL failed');
+
+    // Step 2: Upload zip directly to Supabase Storage
+    if (zipStatusLabel) zipStatusLabel.textContent = 'Uploading ' + file.name + ' (' + (file.size / 1024 / 1024).toFixed(1) + ' MB)...';
+    var uploadRes = await fetch(urlData.uploadUrl, {
+      method: 'PUT',
+      body: file,
+      headers: { 'Content-Type': 'application/zip' },
+    });
+    if (!uploadRes.ok) throw new Error('Upload failed: ' + uploadRes.status);
+
+    // Step 3: Process the zip on the server
+    if (zipStatusLabel) zipStatusLabel.textContent = 'Processing folders and files...';
+    var formData = new FormData();
+    formData.append('storage_key', urlData.storageKey);
+    var processRes = await fetch('/files/folders/' + currentFolderId + '/process-zip', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (processRes.redirected) {
+      window.location.href = processRes.url;
+    } else {
+      window.location.reload();
+    }
+  } catch (e) {
+    if (zipStatusLabel) zipStatusLabel.textContent = 'Error: ' + e.message;
+    if (zipUploadBtn) zipUploadBtn.disabled = false;
+  }
+}
 </script>
 <%- include('../layouts/footer') %>
