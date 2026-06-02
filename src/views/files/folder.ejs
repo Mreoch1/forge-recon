@@ -22,6 +22,10 @@
           <input type="file" name="files" multiple class="text-sm" required>
           <button type="submit" class="btn btn-primary text-sm">Upload</button>
         </form>
+        <form method="post" action="/files/folders/<%= folder.id %>/upload-zip" enctype="multipart/form-data" class="inline-flex gap-1 items-center">
+          <input type="file" name="archive" accept=".zip" class="text-sm" required>
+          <button type="submit" class="btn btn-secondary text-sm">📦 Folder (.zip)</button>
+        </form>
       <% } %>
       <% if (currentUser.role === 'admin') { %>
         <form method="post" action="/files/folders/<%= folder.id %>/rename" class="inline-flex gap-1 items-center">

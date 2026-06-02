@@ -16,6 +16,8 @@ const filesService = require('../services/files');
 const multer = require('multer');
 const path = require('path');
 const crypto = require('crypto');
+const JSZip = require('jszip');
+const mime = require('mime-types');
 const storage = require('../services/storage');
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
 const MAX_ZIP_SIZE = 200 * 1024 * 1024; // 200MB
@@ -186,6 +188,123 @@ router.post('/folders/:folderId/upload', requireAuth, requireManager, upload.arr
     writeAudit({ entityType: 'file', entityId: folder.id, action: 'uploaded', before: null, after: { filename: req.files.map(f => f.originalname).join(', ') }, source: 'user', userId: req.session.userId });
   } catch(e) { /* audit best effort */ }
   setFlash(req, 'success', req.files.length + ' file(s) uploaded.');
+  res.redirect('/files/folders/' + folder.id);
+});
+
+// ── Zip-based folder structure upload ─────────────────────────────────────────
+
+router.post('/folders/:folderId/upload-zip', requireAuth, requireManager, uploadZip.single('archive'), async (req, res, next) => {
+  const { data: folder } = await checkedFileRouteRead(
+    supabase.from('folders').select('*').eq('id', req.params.folderId).maybeSingle(),
+    'zip upload folder read failed'
+  );
+  if (!folder) return res.status(404).json({ error: 'Folder not found.' });
+  if (!req.file) {
+    setFlash(req, 'error', 'No .zip file selected.');
+    return res.redirect('/files/folders/' + folder.id);
+  }
+
+  const entityType = folder.entity_type;
+  const entityId = folder.entity_id;
+  const userId = req.session.userId || null;
+  const uploaded = { folders: 0, files: 0, errors: [] };
+  const pathToFolderId = {}; // maps normalized path => folder id
+
+  try {
+    const zip = await JSZip.loadAsync(req.file.buffer);
+
+    // Collect entries, sort so directories come before their contents
+    const entries = [];
+    zip.forEach((relPath, zipEntry) => {
+      // Skip macOS junk, hidden files, and root-level __MACOSX
+      const parts = relPath.split('/').filter(Boolean);
+      if (parts.some(p => p === '__MACOSX' || p.startsWith('.'))) return;
+      if (relPath.endsWith('/')) return; // directories handled by creating folders from file paths
+      entries.push({ relPath, parts, zipEntry });
+    });
+
+    // Collect all unique folder paths from file paths
+    const allFolderPaths = new Set();
+    for (const e of entries) {
+      for (let i = 1; i < e.parts.length; i++) {
+        allFolderPaths.add(e.parts.slice(0, i).join('/'));
+      }
+    }
+
+    // Create folders bottom-up (parent first), skip root (.)
+    const sortedFolders = [...allFolderPaths].sort((a, b) => a.split('/').length - b.split('/').length);
+    for (const fp of sortedFolders) {
+      const parent = fp.split('/').slice(0, -1).join('/');
+      const name = fp.split('/').pop();
+      const parentId = parent ? pathToFolderId[parent] : folder.id;
+      if (!parentId) {
+        uploaded.errors.push(`Parent folder not found for "${fp}"`);
+        continue;
+      }
+      const { data: existingFolder } = await supabase
+        .from('folders')
+        .select('id')
+        .eq('parent_folder_id', parentId)
+        .eq('name', name)
+        .maybeSingle();
+      if (existingFolder) {
+        pathToFolderId[fp] = existingFolder.id;
+        continue;
+      }
+      const { data: newFolder, error: fErr } = await supabase
+        .from('folders')
+        .insert({ parent_folder_id: parentId, name, entity_type: entityType, entity_id: entityId, created_by_user_id: userId })
+        .select('id')
+        .single();
+      if (fErr) {
+        uploaded.errors.push(`Folder "${fp}": ${fErr.message}`);
+        continue;
+      }
+      pathToFolderId[fp] = newFolder.id;
+      uploaded.folders++;
+    }
+
+    // Upload files
+    for (const e of entries) {
+      const parentPath = e.parts.slice(0, -1).join('/');
+      const targetFolderId = parentPath ? pathToFolderId[parentPath] : folder.id;
+      if (!targetFolderId) {
+        uploaded.errors.push(`Target folder not found for "${e.relPath}"`);
+        continue;
+      }
+      const fileData = await e.zipEntry.async('nodebuffer');
+      const ext = path.extname(e.relPath) || '';
+      const key = `${entityType}/${entityId}/${crypto.randomUUID()}${ext}`;
+      const contentType = mime.lookup(e.relPath) || 'application/octet-stream';
+      try {
+        await storage.uploadBuffer('entity-files', key, fileData, contentType);
+        const { error: fiErr } = await supabase.from('files').insert({
+          folder_id: targetFolderId,
+          name: e.parts[e.parts.length - 1],
+          original_filename: e.parts[e.parts.length - 1],
+          storage_path: key,
+          mime_type: contentType,
+          size_bytes: fileData.length,
+          uploaded_by_user_id: userId,
+        });
+        if (fiErr) { uploaded.errors.push(`File "${e.relPath}": ${fiErr.message}`); continue; }
+        uploaded.files++;
+      } catch (upErr) {
+        uploaded.errors.push(`File "${e.relPath}": ${upErr.message}`);
+      }
+    }
+  } catch (zipErr) {
+    setFlash(req, 'error', 'Failed to process .zip file: ' + zipErr.message);
+    return res.redirect('/files/folders/' + folder.id);
+  }
+
+  const summary = `📦 Uploaded ${uploaded.folders} folder(s) and ${uploaded.files} file(s).`;
+  const errSummary = uploaded.errors.length ? ` ${uploaded.errors.length} error(s).` : '';
+  setFlash(req, 'success', summary + errSummary);
+  try {
+    const { writeAudit } = require('../services/audit');
+    writeAudit({ entityType: 'file', entityId: folder.id, action: 'zip_uploaded', before: null, after: { folders: uploaded.folders, files: uploaded.files, errors: uploaded.errors.length }, source: 'user', userId });
+  } catch(e) { /* audit best effort */ }
   res.redirect('/files/folders/' + folder.id);
 });
 
