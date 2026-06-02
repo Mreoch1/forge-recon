@@ -19,9 +19,9 @@ const crypto = require('crypto');
 const JSZip = require('jszip');
 const mime = require('mime-types');
 const storage = require('../services/storage');
-const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB per file (multer limit — edge will still block batches >4.5MB)
 const MAX_FILES = 250;
-const MAX_UPLOAD_BATCH_SIZE = 200 * 1024 * 1024; // 200MB total per upload request
+const MAX_UPLOAD_BATCH_SIZE = 4 * 1024 * 1024; // 4MB total — Vercel serverless body limit is 4.5MB
 const BLOCKED_EXTENSIONS = new Set(['.app', '.bat', '.cmd', '.com', '.dll', '.dmg', '.exe', '.js', '.msi', '.ps1', '.scr', '.sh']);
 
 function isAllowedUploadName(filename) {
@@ -219,7 +219,7 @@ router.post('/folders/:folderId/upload', requireAuth, requireManager, upload.arr
   }
   const totalBytes = req.files.reduce((sum, file) => sum + Number(file.size || 0), 0);
   if (totalBytes > MAX_UPLOAD_BATCH_SIZE) {
-    setFlash(req, 'error', 'Upload is too large. Keep a folder upload under 200MB.');
+    setFlash(req, 'error', 'Upload too large (max 4MB total). Use the "Upload zipped folder" option for larger folders.');
     return res.redirect('/files/folders/' + folder.id);
   }
 

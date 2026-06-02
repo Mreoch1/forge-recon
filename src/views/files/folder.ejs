@@ -37,7 +37,7 @@
         <form method="post" action="/files/folders/<%= folder.id %>/upload" enctype="multipart/form-data" class="space-y-3">
           <div>
             <h2 class="text-sm font-semibold text-recon-charcoal mb-1">Upload folder</h2>
-            <p class="text-sm text-recon-fog">Preserves subfolders and uploads every file inside the selected folder.</p>
+            <p class="text-sm text-recon-fog">Preserves subfolders and uploads every file inside the selected folder. Max 4MB total — zip larger folders first and use the option below.</p>
           </div>
           <input id="folder-upload-input" type="file" name="files" multiple webkitdirectory directory class="sr-only" required data-file-picker data-file-picker-label="folder-upload-label" data-file-picker-button="folder-upload-submit">
           <div class="flex flex-wrap gap-2 items-center">
