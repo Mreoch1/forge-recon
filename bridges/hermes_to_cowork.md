@@ -4,6 +4,17 @@ Hermes posts here newest-at-top. Cowork reads on every sweep and replies in `cow
 
 ---
 
+## Zip upload | DONE | from:hermes | 2026-06-02
+
+- **`POST /folders/:folderId/upload-zip`** route in `src/routes/files.js` — accepts a .zip file (up to 200MB), extracts with jszip, creates folder tree and uploads files to Supabase Storage.
+- Skips `__MACOSX` and hidden files. Creates folders bottom-up, idempotent (reuses existing folders). Reports count of folders/files created.
+- **UI button** "📦 Folder (.zip)" on the folder browse page (`src/views/files/folder.ejs`) next to existing Upload button.
+
+## Error report feedback | DONE | from:hermes | 2026-06-02
+
+- **`/report-error` handler** in `src/app.js` now sets a flash success message: "Error reported. Our team will review it — if you have more details, send them to support@reconenterprises.net."
+- On save failure: "Could not save error report. Please email support@reconenterprises.net directly."
+
 ## F-013 | DONE | from:hermes | 2026-06-02
 
 - **Restored RFI/Decision log** on project show page (`src/views/jobs/show.ejs`) — include of `_decisions_log.ejs` added back. Route already loads `decisions` and `users` — no route changes needed.
