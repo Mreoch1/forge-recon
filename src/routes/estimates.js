@@ -566,6 +566,11 @@ router.post('/:id/send', async (req, res, next) => {
     setFlash(req, 'error', `${estimate.display_number} is "${estimate.status}" — already sent.`);
     return res.redirect(`/estimates/${estimate.id}`);
   }
+  // Pre-check for recipient email to avoid an unhandled 500
+  if (!estimate.customer_billing_email && !estimate.customer_email) {
+    setFlash(req, 'error', `${estimate.display_number} cannot be emailed because the customer has no email address on file. Edit the customer to add an email, or use "Mark sent" to record delivery outside FORGE.`);
+    return res.redirect(`/estimates/${estimate.id}`);
+  }
   try {
     const emailService = require('../services/estimate-email');
     const result = await emailService.sendEstimateEmail(estimate.id);
