@@ -19,7 +19,7 @@
 
 const express = require('express');
 const supabase = require('../db/supabase');
-const { setFlash } = require('../middleware/auth');
+const { requireAdmin, setFlash } = require('../middleware/auth');
 const calc = require('../services/calculations');
 const pdf = require('../services/pdf');
 const email = require('../services/email');
@@ -538,7 +538,7 @@ router.post('/:id/send', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/:id/mark-paid', async (req, res) => {
+router.post('/:id/mark-paid', requireAdmin, async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const { data: invoice, error: findErr } = await supabase
     .from('invoices')
@@ -586,7 +586,7 @@ router.post('/:id/mark-paid', async (req, res) => {
   res.redirect(`/invoices/${invoice.id}`);
 });
 
-router.post('/:id/billing-complete', async (req, res) => {
+router.post('/:id/billing-complete', requireAdmin, async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const { data: invoice, error: findErr } = await supabase
     .from('invoices')
@@ -622,7 +622,7 @@ router.post('/:id/billing-complete', async (req, res) => {
   res.redirect(`/invoices/${invoice.id}`);
 });
 
-router.post('/:id/reopen-billing', async (req, res) => {
+router.post('/:id/reopen-billing', requireAdmin, async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const { data: invoice, error: findErr } = await supabase
     .from('invoices')
@@ -658,7 +658,7 @@ router.post('/:id/reopen-billing', async (req, res) => {
   res.redirect(`/invoices/${invoice.id}`);
 });
 
-router.post('/:id/void', async (req, res) => {
+router.post('/:id/void', requireAdmin, async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const { data: invoice, error: findErr } = await supabase
     .from('invoices')
@@ -709,7 +709,7 @@ router.get('/:id/pdf', async (req, res) => {
   }
 });
 
-router.post('/:id/delete', async (req, res) => {
+router.post('/:id/delete', requireAdmin, async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const { data: invoice, error: findErr } = await supabase
     .from('invoices')

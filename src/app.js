@@ -230,7 +230,7 @@ app.use('/jobs', requireAuth, requireAdmin, (req, res) => {
   res.redirect(302, '/projects' + tail);
 });
 app.use('/estimates', requireAuth, requireManager, estimatesRoutes);
-app.use('/invoices', requireAuth, requireAdmin, invoicesRoutes);
+app.use('/invoices', requireAuth, requireManager, invoicesRoutes);
 app.use('/bills', requireAuth, requireAdmin, billsRoutes);
 app.use('/admin', requireAuth, requireAdmin, adminRoutes);
 app.use('/admin/closures', requireAuth, requireAdmin, closuresRoutes);

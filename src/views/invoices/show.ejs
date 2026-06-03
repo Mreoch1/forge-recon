@@ -9,6 +9,7 @@ const subtotal = Number(invoice.subtotal) || 0;
 const margin = subtotal - costTotal;
 const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '—';
 const invoiceStatusLabel = (displayStatus || invoice.status || '').replace(/_/g, ' ');
+const isAdmin = currentUser && currentUser.role === 'admin';
 %>
 
 <div class="document-shell">
@@ -39,17 +40,17 @@ const invoiceStatusLabel = (displayStatus || invoice.status || '').replace(/_/g,
         <form action="/invoices/<%= invoice.id %>/send" method="post" class="m-0 inline">
           <button class="btn btn-secondary" title="Email this invoice to the customer billing email with the PDF attached."><%= invoice.sent_at ? 'Send again' : 'Send invoice email' %></button>
         </form>
-        <% if (invoice.status === 'sent' || invoice.status === 'overdue') { %>
+        <% if (isAdmin && (invoice.status === 'sent' || invoice.status === 'overdue')) { %>
           <button type="button" onclick="document.getElementById('mark-paid-form').classList.toggle('hidden')" class="btn btn-primary"
                   title="Record a customer payment against this invoice. Supports full or partial payments.">Mark paid</button>
         <% } %>
-        <% if (invoice.status === 'sent' || invoice.status === 'overdue' || invoice.status === 'paid') { %>
+        <% if (isAdmin && (invoice.status === 'sent' || invoice.status === 'overdue' || invoice.status === 'paid')) { %>
           <form action="/invoices/<%= invoice.id %>/billing-complete" method="post" class="m-0 inline"
                 onsubmit="return confirm('Mark <%= invoice.display_number %> billing complete after QuickBooks sync?');">
             <button class="btn btn-primary" title="Use after the invoice has been sent and synced to QuickBooks.">Billing complete</button>
           </form>
         <% } %>
-      <% } else if (invoice.status === 'billing_complete') { %>
+      <% } else if (isAdmin && invoice.status === 'billing_complete') { %>
         <form action="/invoices/<%= invoice.id %>/reopen-billing" method="post" class="m-0 inline"
               onsubmit="return confirm('Reopen billing for <%= invoice.display_number %>?');">
           <button class="btn btn-secondary" title="Move this invoice back to sent if billing was completed by mistake.">Reopen billing</button>
@@ -72,7 +73,7 @@ const invoiceStatusLabel = (displayStatus || invoice.status || '').replace(/_/g,
     }
   }) %>
 
-  <% if (invoice.status === 'sent' || invoice.status === 'overdue') { %>
+  <% if (isAdmin && (invoice.status === 'sent' || invoice.status === 'overdue')) { %>
     <div id="mark-paid-form" class="card p-5 mb-6 hidden bg-green-50 border-green-200">
       <form action="/invoices/<%= invoice.id %>/mark-paid" method="post" class="flex items-end gap-3">
         <div class="flex-1">
@@ -219,7 +220,7 @@ const invoiceStatusLabel = (displayStatus || invoice.status || '').replace(/_/g,
     activityNoteAction: '/invoices/' + invoice.id + '/activity-note'
   }) %>
 
-  <% if (invoice.status !== 'paid' && invoice.status !== 'billing_complete') { %>
+  <% if (isAdmin && invoice.status !== 'paid' && invoice.status !== 'billing_complete') { %>
     <details class="document-danger">
       <summary>Danger zone</summary>
       <div class="document-danger-body">

@@ -19,6 +19,7 @@ const EST_STATUS_HINTS = {
 };
 const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
 const isAdmin = currentUser && currentUser.role === 'admin';
+const canManageInvoices = currentUser && ['admin', 'manager'].includes(currentUser.role);
 const customerLabel = estimate.customer_name || 'Customer';
 %>
 
@@ -76,7 +77,7 @@ const customerLabel = estimate.customer_name || 'Customer';
 
         <%# Create invoice — POSTs directly to /generate-invoice (skips the review/preview page).
             Creates the invoice immediately from approved lines and redirects to the invoice EDIT page. %>
-        <% if (isAdmin && !invoice && estimate.lines.length > 0) { %>
+        <% if (canManageInvoices && !invoice && estimate.lines.length > 0) { %>
           <button form="line-approvals-form"
                   formaction="/estimates/<%= estimate.id %>/generate-invoice"
                   formmethod="post"
@@ -117,7 +118,7 @@ const customerLabel = estimate.customer_name || 'Customer';
       woStatus: 'Field scope',
       estimateId: estimate.id,
       estimateStatus: estimate.status,
-      invoiceId: isAdmin && invoice && invoice.id,
+      invoiceId: canManageInvoices && invoice && invoice.id,
       invoiceStatus: invoice && invoice.status
     }
   }) %>
@@ -145,7 +146,7 @@ const customerLabel = estimate.customer_name || 'Customer';
     </div>
   <% } %>
 
-  <% if (isAdmin && invoice) { %>
+  <% if (canManageInvoices && invoice) { %>
     <div class="card p-4 mb-6 bg-green-50 border-green-200">
       <p class="text-sm">
         Invoice generated: <a href="/invoices/<%= invoice.id %>" class="font-medium text-recon-red hover:underline">INV-<%= estimate.wo_display_number %></a>

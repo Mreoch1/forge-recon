@@ -288,12 +288,10 @@
             %>
             <button class="navlink more-toggle<%= moreActive ? ' active' : '' %>">More ▾</button>
             <div class="more-menu hidden absolute top-full right-0 mt-1 bg-recon-steel border border-recon-ash rounded-lg shadow-xl py-1 min-w-[210px] z-50">
-              <% if (_isAdminNav) { %>
-                <div class="more-menu-section">
-                  <div class="more-menu-heading">Sales</div>
-                  <a href="/invoices" class="more-menu-link<%= typeof activeNav !== 'undefined' && activeNav === 'invoices' ? ' active' : '' %>">Invoices</a>
-                </div>
-              <% } %>
+              <div class="more-menu-section">
+                <div class="more-menu-heading">Sales</div>
+                <a href="/invoices" class="more-menu-link<%= typeof activeNav !== 'undefined' && activeNav === 'invoices' ? ' active' : '' %>">Invoices</a>
+              </div>
               <div class="more-menu-section">
                 <div class="more-menu-heading">Costs</div>
                 <% if (_isAdminNav) { %>
@@ -363,6 +361,8 @@
         <a href="/schedule" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'schedule' ? ' active' : '' %>">Schedule</a>
         <% if (_isAdminMobile) { %>
           <a href="/projects" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'projects' ? ' active' : '' %>">Projects</a>
+        <% } %>
+        <% if (_isAdminMobile || _isManagerMobile) { %>
           <div class="mobile-menu-heading">Sales</div>
           <a href="/invoices" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'invoices' ? ' active' : '' %>">Invoices</a>
         <% } %>

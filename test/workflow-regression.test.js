@@ -72,6 +72,32 @@ test('managers can manage vendor and contractor records but cannot delete them',
   assert.match(header, /_isAdminMobile \|\| _isManagerMobile[\s\S]*href="\/contractors"/);
 });
 
+test('managers can create and send invoices while admin keeps accounting controls', () => {
+  const app = read('src/app.js');
+  const estimates = read('src/routes/estimates.js');
+  const invoices = read('src/routes/invoices.js');
+  const estimateShow = read('src/views/estimates/show.ejs');
+  const invoiceShow = read('src/views/invoices/show.ejs');
+  const header = read('src/views/layouts/header.ejs');
+
+  assert.match(app, /app\.use\('\/invoices', requireAuth, requireManager, invoicesRoutes\)/);
+  assert.match(estimates, /router\.post\('\/:id\/create-invoice', requireManager,/);
+  assert.match(estimates, /router\.get\('\/:id\/create-invoice', requireManager,/);
+  assert.match(estimates, /router\.post\('\/:id\/generate-invoice', requireManager,/);
+  assert.match(estimateShow, /const canManageInvoices = currentUser && \['admin', 'manager'\]\.includes\(currentUser\.role\)/);
+  assert.match(estimateShow, /canManageInvoices && !invoice && estimate\.lines\.length > 0/);
+  assert.match(invoiceShow, /const isAdmin = currentUser && currentUser\.role === 'admin'/);
+  assert.match(invoiceShow, /isAdmin && \(invoice\.status === 'sent' \|\| invoice\.status === 'overdue'\)/);
+  assert.match(invoiceShow, /isAdmin && invoice\.status !== 'paid' && invoice\.status !== 'billing_complete'/);
+  assert.match(invoices, /router\.post\('\/:id\/mark-paid', requireAdmin,/);
+  assert.match(invoices, /router\.post\('\/:id\/billing-complete', requireAdmin,/);
+  assert.match(invoices, /router\.post\('\/:id\/reopen-billing', requireAdmin,/);
+  assert.match(invoices, /router\.post\('\/:id\/void', requireAdmin,/);
+  assert.match(invoices, /router\.post\('\/:id\/delete', requireAdmin,/);
+  assert.match(header, /_isAdminNav \|\| _isManagerNav[\s\S]*href="\/invoices"/);
+  assert.match(header, /_isAdminMobile \|\| _isManagerMobile[\s\S]*href="\/invoices"/);
+});
+
 test('project RFP export loader only selects real project columns', () => {
   const routes = read('src/routes/rfp.js');
   assert.match(routes, /\.from\('jobs'\)\s*\.select\('id, title'\)/);
