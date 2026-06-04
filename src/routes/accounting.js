@@ -704,7 +704,8 @@ async function loadARAging() {
     const wo = inv.work_orders || {};
     const cust = wo.customers || {};
     const due = inv.due_date ? String(inv.due_date).slice(0,10) : null;
-    const ageDays = due ? Math.floor((new Date() - new Date(due)) / (1000*60*60*24)) : 0;
+    const issued = inv.created_at ? String(inv.created_at).slice(0,10) : null;
+    const ageDays = issued ? Math.max(0, Math.floor((new Date() - new Date(issued)) / (1000*60*60*24))) : 0;
     const balance = Number(inv.total || 0) - Number(inv.amount_paid || 0);
     return {
       id: inv.id,
