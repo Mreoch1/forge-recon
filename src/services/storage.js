@@ -4,7 +4,7 @@
  * Uploads files to Supabase Storage buckets, returns public or signed URLs.
  *
  * Buckets:
- *   wo-photos    — public read (WO show page gallery)
+ *   wo-photos    — public read + signed URLs (WO photos & files gallery)
  *   entity-files — private, signed URLs (/files/:id/view)
  *   bills        — private, signed URLs (bill attachments)
  */

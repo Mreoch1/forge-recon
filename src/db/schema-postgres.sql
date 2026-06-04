@@ -237,7 +237,10 @@ CREATE TABLE IF NOT EXISTS wo_photos (
   id BIGSERIAL PRIMARY KEY,
   work_order_id BIGINT NOT NULL REFERENCES work_orders(id) ON DELETE CASCADE,
   user_id BIGINT REFERENCES users(id),
-  filename TEXT NOT NULL,         -- relative path under uploads/wo/<wo_id>/
+  filename TEXT NOT NULL,         -- storage key under wo-photos bucket
+  original_filename TEXT,          -- user's original filename
+  mime_type TEXT,                  -- MIME type for non-image files
+  size_bytes BIGINT,               -- file size in bytes
   caption TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

@@ -38,16 +38,17 @@ const PAGE_SIZE = 25;
 const VALID_STATUSES = ['open', 'scheduled', 'in_progress', 'closed', 'complete', 'cancelled'];
 const VALID_UNITS = ['ea', 'hr', 'sqft', 'lf', 'ton', 'lot'];
 
-// Photo upload: multer memory storage, validation
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
-const MAX_SIZE = 10 * 1024 * 1024;
-const MAX_FILES = 6;
+// File upload: multer memory storage, validation — accept any non-executable file type
+const WO_BLOCKED_EXTENSIONS = new Set(['.app', '.bat', '.cmd', '.com', '.dll', '.dmg', '.exe', '.js', '.msi', '.ps1', '.scr', '.sh']);
+const MAX_SIZE = 25 * 1024 * 1024;
+const MAX_FILES = 20;
 const woUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_SIZE, files: MAX_FILES },
   fileFilter: (req, file, cb) => {
-    if (ALLOWED_TYPES.includes(file.mimetype)) cb(null, true);
-    else cb(new Error('Only jpg/png/webp/heic allowed.'));
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    if (WO_BLOCKED_EXTENSIONS.has(ext)) cb(new Error('File type not allowed: ' + ext));
+    else cb(null, true);
   }
 });
 
@@ -955,12 +956,12 @@ router.get('/:id', async (req, res) => {
     // wo_notes may be missing on very old DBs
   }
 
-  // Photos (+ public URLs from Supabase Storage)
+  // Photos / files (attached to WO)
   let photos = [];
   try {
     const { data: photoRows } = await supabase
       .from('wo_photos')
-      .select('id, work_order_id, user_id, filename, caption, created_at')
+      .select('id, work_order_id, user_id, filename, original_filename, mime_type, size_bytes, caption, created_at')
       .eq('work_order_id', wo.id)
       .order('created_at', { ascending: false });
     photos = photoRows || [];
@@ -974,10 +975,17 @@ router.get('/:id', async (req, res) => {
       (photoUsers || []).forEach(u => { nameById[u.id] = u.name; });
     }
     photos = await Promise.all(photos.map(async (p) => {
+      const mime = (p.mime_type || '').toLowerCase();
+      const isImage = mime.startsWith('image/');
       let url = '#';
-      try { url = await storage.getPublicUrl('wo-photos', p.filename); }
-      catch (e) { console.warn('[wo-photos] failed to resolve public URL for', p.filename); }
-      return { ...p, url, user_name: nameById[p.user_id] || null };
+      try {
+        if (isImage) {
+          url = await storage.getPublicUrl('wo-photos', p.filename);
+        } else {
+          url = await storage.getSignedUrl('wo-photos', p.filename, 3600);
+        }
+      } catch (e) { console.warn('[wo-files] failed to resolve URL for', p.filename); }
+      return { ...p, url, is_image: isImage, user_name: nameById[p.user_id] || null };
     }));
   } catch (e) {
     // wo_photos may be missing on very old DBs
@@ -1297,9 +1305,9 @@ router.post('/:id/notes', async (req, res) => {
   res.redirect(`/work-orders/${wo.id}`);
 });
 
-// --- photos: upload ---
+// --- files: upload ---
 
-router.post('/:id/photos', async (req, res) => {
+router.post('/:id/files', async (req, res) => {
   const { data: wo, error: findErr } = await supabase
     .from('work_orders')
     .select('id, assigned_to_user_id, assigned_to, work_order_assignees(user_id)')
@@ -1311,11 +1319,11 @@ router.post('/:id/photos', async (req, res) => {
     return res.redirect('/work-orders');
   }
   if (!isAssignedToCurrentUser(req, wo)) {
-    setFlash(req, 'error', 'You can only upload photos to assigned WOs.');
+    setFlash(req, 'error', 'You can only upload files to assigned WOs.');
     return res.redirect(`/work-orders/${wo.id}`);
   }
 
-  woUpload.array('photos', MAX_FILES)(req, res, async (err) => {
+  woUpload.array('files', MAX_FILES)(req, res, async (err) => {
     if (err) {
       setFlash(req, 'error', err.message);
       return res.redirect(`/work-orders/${wo.id}`);
@@ -1340,6 +1348,9 @@ router.post('/:id/photos', async (req, res) => {
             work_order_id: wo.id,
             user_id: req.session.userId,
             filename: key,
+            original_filename: f.originalname,
+            mime_type: f.mimetype,
+            size_bytes: f.size,
             caption: caption || null,
           });
         if (insErr) throw insErr;
@@ -1348,31 +1359,31 @@ router.post('/:id/photos', async (req, res) => {
       // Single audit row for the batch
       try {
         await supabase.from('audit_logs').insert({
-          entity_type: 'work_order', entity_id: wo.id, action: 'photo_uploaded',
+          entity_type: 'work_order', entity_id: wo.id, action: 'file_uploaded',
           before_json: null,
           after_json: { count: files.length, filenames: uploadedKeys },
           source: 'user', user_id: req.session.userId,
         });
       } catch (e) { /* best-effort */ }
     } catch (e) {
-      console.error('photo upload failed:', e);
+      console.error('file upload failed:', e);
       // Best-effort cleanup of any Storage uploads
       for (const k of uploadedKeys) {
         try { await storage.remove('wo-photos', k); } catch (_) {}
       }
-      setFlash(req, 'error', 'Failed to save photos: ' + e.message);
+      setFlash(req, 'error', 'Failed to save files: ' + e.message);
       return res.redirect(`/work-orders/${wo.id}`);
     }
 
-    const msg = files.length === 1 ? '1 photo uploaded.' : `${files.length} photos uploaded.`;
+    const msg = files.length === 1 ? '1 file uploaded.' : `${files.length} files uploaded.`;
     setFlash(req, 'success', msg);
     res.redirect(`/work-orders/${wo.id}`);
   });
 });
 
-// --- photos: delete ---
+// --- files: delete ---
 
-router.post('/:id/photos/:photoId/delete', async (req, res) => {
+router.post('/:id/files/:fileId/delete', async (req, res) => {
   const { data: wo, error: woErr } = await supabase
     .from('work_orders')
     .select('id')
@@ -1384,42 +1395,42 @@ router.post('/:id/photos/:photoId/delete', async (req, res) => {
     return res.redirect('/work-orders');
   }
 
-  const { data: photo, error: phErr } = await supabase
+  const { data: file, error: phErr } = await supabase
     .from('wo_photos')
     .select('*')
-    .eq('id', req.params.photoId)
+    .eq('id', req.params.fileId)
     .eq('work_order_id', wo.id)
     .maybeSingle();
   if (phErr) throw phErr;
-  if (!photo) {
-    setFlash(req, 'error', 'Photo not found.');
+  if (!file) {
+    setFlash(req, 'error', 'File not found.');
     return res.redirect(`/work-orders/${wo.id}`);
   }
 
   // Permission: uploader or manager+
-  const isOwner = photo.user_id === req.session.userId;
+  const isOwner = file.user_id === req.session.userId;
   const isManager = req.session.role !== 'worker';
   if (!isOwner && !isManager) {
-    setFlash(req, 'error', 'You can only delete your own photos.');
+    setFlash(req, 'error', 'You can only delete your own files.');
     return res.redirect(`/work-orders/${wo.id}`);
   }
 
   // Best-effort Storage removal
-  try { await storage.remove('wo-photos', photo.filename); } catch (e) { /* best-effort */ }
+  try { await storage.remove('wo-photos', file.filename); } catch (e) { /* best-effort */ }
 
-  const { error: delErr } = await supabase.from('wo_photos').delete().eq('id', photo.id);
+  const { error: delErr } = await supabase.from('wo_photos').delete().eq('id', file.id);
   if (delErr) throw delErr;
 
   try {
     await supabase.from('audit_logs').insert({
-      entity_type: 'work_order', entity_id: wo.id, action: 'photo_deleted',
-      before_json: { filename: photo.filename, caption: photo.caption },
+      entity_type: 'work_order', entity_id: wo.id, action: 'file_deleted',
+      before_json: { filename: file.filename, caption: file.caption },
       after_json: null,
       source: 'user', user_id: req.session.userId,
     });
   } catch (e) { /* best-effort */ }
 
-  setFlash(req, 'success', 'Photo deleted.');
+  setFlash(req, 'success', 'File deleted.');
   res.redirect(`/work-orders/${wo.id}`);
 });
 

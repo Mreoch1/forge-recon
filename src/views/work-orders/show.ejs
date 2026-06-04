@@ -29,6 +29,23 @@ function fmtTime(t) {
   return h12 + ':' + (mm || '00') + ' ' + ampm;
 }
 const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(', ');
+function fmtSize(b) {
+  if (!b || b === 0) return '';
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+  return (b / 1048576).toFixed(1) + ' MB';
+}
+function fileIcon(mime) {
+  mime = (mime || '').toLowerCase();
+  if (mime.startsWith('image/')) return '🖼';
+  if (mime.includes('pdf')) return '📄';
+  if (mime.includes('spreadsheet') || mime.includes('excel') || mime.includes('csv')) return '📊';
+  if (mime.includes('document') || mime.includes('word') || mime.includes('text')) return '📝';
+  if (mime.includes('zip') || mime.includes('rar') || mime.includes('tar') || mime.includes('gzip') || mime.includes('compress')) return '🗜';
+  if (mime.startsWith('video/')) return '🎬';
+  if (mime.startsWith('audio/')) return '🎧';
+  return '📎';
+}
 %>
 
 <style>
@@ -302,38 +319,75 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
         <% } %>
       <% } %>
 
-      <!-- Photo gallery -->
-      <h2 class="ws-h-secondary mt-8">Photos</h2>
-      <form action="/work-orders/<%= wo.id %>/photos" method="post" enctype="multipart/form-data" class="mb-4">
+      <!-- Photos & Files -->
+      <h2 class="ws-h-secondary mt-8">Photos &amp; Files</h2>
+      <form action="/work-orders/<%= wo.id %>/files" method="post" enctype="multipart/form-data" class="mb-4">
         <div class="flex flex-col sm:flex-row sm:items-start gap-3">
-          <input type="file" name="photos" multiple accept="image/jpeg,image/png,image/webp,image/heic"
+          <input type="file" name="files" multiple
                  class="text-sm flex-1 min-h-[44px]" style="padding-top:.35rem;">
           <input type="text" name="caption" placeholder="Caption (optional)" class="input text-sm flex-1" maxlength="200">
           <button type="submit" class="btn btn-sm btn-primary whitespace-nowrap">Upload</button>
         </div>
       </form>
       <% if (typeof photos !== 'undefined' && photos && photos.length) { %>
-        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
-          <% photos.forEach(function(p){ %>
-            <div class="relative group">
-              <a href="<%= p.url %>" target="_blank">
-                <img src="<%= p.url %>"
-                     class="w-full h-24 object-cover rounded border"
-                     loading="lazy"
-                     title="<%= (p.user_name || 'Unknown') %> · <%= (p.created_at || '').slice(0,16).replace('T',' ') %><%= p.caption ? ' — ' + p.caption : '' %>">
-              </a>
-              <% if (p.user_id === currentUser.id || currentUser.role !== 'worker') { %>
-                <form method="post" action="/work-orders/<%= wo.id %>/photos/<%= p.id %>/delete"
-                      class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onsubmit="return confirm('Delete this photo?');">
-                  <button class="bg-red-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center hover:bg-red-700">&times;</button>
-                </form>
-              <% } %>
-            </div>
-          <% }); %>
-        </div>
+        <% var hasImages = photos.some(function(p){ return p.is_image; }); %>
+        <% var hasFiles = photos.some(function(p){ return !p.is_image; }); %>
+        <% if (hasImages) { %>
+          <h3 class="text-xs font-semibold text-recon-fog uppercase tracking-wider mb-2">Images</h3>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+            <% photos.filter(function(p){ return p.is_image; }).forEach(function(p){ %>
+              <div class="relative group">
+                <a href="<%= p.url %>" target="_blank">
+                  <img src="<%= p.url %>"
+                       class="w-full h-24 object-cover rounded border"
+                       loading="lazy"
+                       title="<%= (p.user_name || 'Unknown') %> · <%= (p.created_at || '').slice(0,16).replace('T',' ') %><%= p.caption ? ' — ' + p.caption : '' %>">
+                </a>
+                <% if (p.user_id === currentUser.id || currentUser.role !== 'worker') { %>
+                  <form method="post" action="/work-orders/<%= wo.id %>/files/<%= p.id %>/delete"
+                        class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onsubmit="return confirm('Delete this file?');">
+                    <button class="bg-red-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center hover:bg-red-700">&times;</button>
+                  </form>
+                <% } %>
+              </div>
+            <% }); %>
+          </div>
+        <% } %>
+        <% if (hasFiles) { %>
+          <h3 class="text-xs font-semibold text-recon-fog uppercase tracking-wider mb-2">Files</h3>
+          <div class="space-y-1 mb-4">
+            <% photos.filter(function(p){ return !p.is_image; }).forEach(function(p){ %>
+              <div class="flex items-center justify-between py-2 px-2 -mx-2 rounded hover:bg-gray-50 group">
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="text-base flex-shrink-0"><%= fileIcon(p.mime_type) %></span>
+                  <a href="<%= p.url %>" target="_blank" class="text-sm font-medium text-recon-charcoal hover:text-recon-red truncate"
+                     title="<%= p.original_filename || p.filename %>">
+                    <%= p.original_filename || p.filename.split('/').pop() %>
+                  </a>
+                  <% if (p.size_bytes) { %>
+                    <span class="text-xs text-recon-fog flex-shrink-0">(<%= fmtSize(p.size_bytes) %>)</span>
+                  <% } %>
+                  <% if (p.caption) { %>
+                    <span class="text-xs text-recon-fog truncate hidden sm:inline">— <%= p.caption %></span>
+                  <% } %>
+                </div>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                  <span class="text-xs text-recon-fog hidden sm:inline"><%= p.user_name || '' %></span>
+                  <% if (p.user_id === currentUser.id || currentUser.role !== 'worker') { %>
+                    <form method="post" action="/work-orders/<%= wo.id %>/files/<%= p.id %>/delete"
+                          class="opacity-0 group-hover:opacity-100 transition-opacity m-0"
+                          onsubmit="return confirm('Delete this file?');">
+                      <button class="text-red-500 hover:text-red-700 text-xs">&times;</button>
+                    </form>
+                  <% } %>
+                </div>
+              </div>
+            <% }); %>
+          </div>
+        <% } %>
       <% } else { %>
-        <p class="text-sm text-recon-fog mb-4">No photos yet.</p>
+        <p class="text-sm text-recon-fog mb-4">No files yet.</p>
       <% } %>
     </div>
 

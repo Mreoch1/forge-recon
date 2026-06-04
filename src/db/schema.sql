@@ -241,6 +241,9 @@ CREATE TABLE IF NOT EXISTS wo_photos (
   work_order_id INTEGER NOT NULL REFERENCES work_orders(id) ON DELETE CASCADE,
   user_id INTEGER REFERENCES users(id),
   filename TEXT NOT NULL,
+  original_filename TEXT,
+  mime_type TEXT,
+  size_bytes INTEGER,
   caption TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
