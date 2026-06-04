@@ -1,0 +1,66 @@
+<%- include('../layouts/header', { title: title, currentUser: typeof currentUser !== 'undefined' ? currentUser : null, flash: typeof flash !== 'undefined' ? flash : {} }) %>
+
+<div class="max-w-3xl mx-auto px-4 py-10">
+  <h1 class="page-h1 mb-6">Terms of Service</h1>
+  <p class="text-xs text-recon-fog mb-8">Last updated: June 4, 2026</p>
+
+  <div class="space-y-6 text-sm leading-relaxed text-recon-charcoal">
+
+    <section>
+      <h2 class="font-semibold text-base mb-2">1. Acceptance of Terms</h2>
+      <p>By accessing or using Forge-Recon ("the Platform"), you agree to be bound by these Terms of Service. If you do not agree, do not use the Platform.</p>
+    </section>
+
+    <section>
+      <h2 class="font-semibold text-base mb-2">2. Description of Service</h2>
+      <p>Forge-Recon is a project management and accounting platform provided by Recon Enterprises Inc. for internal business operations, including work orders, estimates, invoices, file management, and financial reporting.</p>
+    </section>
+
+    <section>
+      <h2 class="font-semibold text-base mb-2">3. Access & Security</h2>
+      <p>Access is granted to authorized personnel only. You are responsible for maintaining the confidentiality of your login credentials and for all activity under your account. Notify Recon Enterprises immediately of any unauthorized use.</p>
+    </section>
+
+    <section>
+      <h2 class="font-semibold text-base mb-2">4. Acceptable Use</h2>
+      <p>You agree to use the Platform only for lawful business purposes. You may not:</p>
+      <ul class="list-disc pl-5 mt-2 space-y-1">
+        <li>Attempt to bypass authentication or access data you are not authorized to view</li>
+        <li>Use the Platform to transmit malware or harmful code</li>
+        <li>Interfere with the operation or security of the Platform</li>
+        <li>Reverse engineer or extract the source code of the Platform</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 class="font-semibold text-base mb-2">5. Data & Privacy</h2>
+      <p>Recon Enterprises owns all data entered into the Platform. We do not sell or share your data with third parties except as necessary to operate the service (e.g., cloud hosting, email delivery). See our Privacy Policy for details.</p>
+    </section>
+
+    <section>
+      <h2 class="font-semibold text-base mb-2">6. Limitation of Liability</h2>
+      <p>The Platform is provided "as is" without warranty of any kind. Recon Enterprises shall not be liable for any indirect, incidental, or consequential damages arising from your use of the Platform, including but not limited to data loss or business interruption.</p>
+    </section>
+
+    <section>
+      <h2 class="font-semibold text-base mb-2">7. Termination</h2>
+      <p>Recon Enterprises may suspend or terminate access to the Platform at any time for violation of these terms or for operational reasons.</p>
+    </section>
+
+    <section>
+      <h2 class="font-semibold text-base mb-2">8. Changes to Terms</h2>
+      <p>We reserve the right to update these terms at any time. Continued use of the Platform after changes constitutes acceptance of the new terms.</p>
+    </section>
+
+    <section>
+      <h2 class="font-semibold text-base mb-2">9. Contact</h2>
+      <p>For questions about these terms, contact:<br>
+      Recon Enterprises Inc.<br>
+      36761 Amrhein Rd, Livonia, MI 48170<br>
+      <a href="mailto:support@reconenterprises.net" class="text-recon-red hover:underline">support@reconenterprises.net</a></p>
+    </section>
+
+  </div>
+</div>
+
+<%- include('../layouts/footer') %>

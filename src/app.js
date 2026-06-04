@@ -221,6 +221,15 @@ app.use('/reset-password', lowLimiter);
 
 app.use('/', authRoutes);
 app.use('/', signupRoutes);
+
+// Public legal pages
+app.get('/terms', (req, res) => {
+  res.render('terms', { title: 'Terms of Service' });
+});
+app.get('/privacy', (req, res) => {
+  res.render('privacy', { title: 'Privacy Policy' });
+});
+
 app.use('/customers', requireAuth, requireManager, customersRoutes);
 // D-007: Projects layer — Jobs renamed Projects in UI. /projects is canonical;
 // /jobs preserved as a redirect so older links keep working.
