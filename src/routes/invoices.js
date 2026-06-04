@@ -343,7 +343,8 @@ router.get('/', async (req, res) => {
 
 // POST /batch-push-to-qb — push multiple invoices to QuickBooks
 router.post('/batch-push-to-qb', async (req, res) => {
-  const ids = (req.body.invoice_ids || []).map(Number).filter(Boolean);
+  const raw = req.body.invoice_ids;
+  const ids = (Array.isArray(raw) ? raw : [raw]).map(Number).filter(Boolean);
   if (!ids.length) {
     setFlash(req, 'error', 'No invoices selected.');
     return res.redirect('/invoices');
@@ -368,7 +369,8 @@ router.post('/batch-push-to-qb', async (req, res) => {
 
 // POST /batch-csv — download selected invoices as a single CSV
 router.post('/batch-csv', async (req, res) => {
-  const ids = (req.body.invoice_ids || []).map(Number).filter(Boolean);
+  const raw = req.body.invoice_ids;
+  const ids = (Array.isArray(raw) ? raw : [raw]).map(Number).filter(Boolean);
   if (!ids.length) {
     setFlash(req, 'error', 'No invoices selected.');
     return res.redirect('/invoices');
