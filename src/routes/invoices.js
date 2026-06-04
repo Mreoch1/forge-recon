@@ -400,8 +400,9 @@ router.post('/batch-csv', async (req, res) => {
     } catch (e) { /* skip failed */ }
   }
 
+  const dateStr = new Date().toISOString().slice(0, 10);
   res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', 'attachment; filename="forge-invoices.csv"');
+  res.setHeader('Content-Disposition', `attachment; filename="forge-invoices-${dateStr}.csv"`);
   res.send(csv);
 });
 
@@ -692,8 +693,9 @@ router.get('/:id/csv', async (req, res) => {
     csv += `"${invNum}","${custName}","${invDate}","${dueDate}","${terms}","${email}","${poNum}","${item}","${desc}",${li.quantity || 1},${li.unit_price || 0},${li.line_total || 0}\n`;
   });
 
+  const dateStr = new Date().toISOString().slice(0, 10);
   res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', `attachment; filename="${invNum}.csv"`);
+  res.setHeader('Content-Disposition', `attachment; filename="${invNum}-${dateStr}.csv"`);
   res.send(csv);
 });
 
