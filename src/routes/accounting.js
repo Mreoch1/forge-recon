@@ -20,7 +20,11 @@ const qbImportSummary = require('../services/quickbooks-import-summary');
 
 const router = express.Router();
 
-function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
+function fmt(n) {
+  const num = Number(n);
+  if (!isFinite(num)) return '0.00';
+  return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
 function logAccountingSetupWarning(route, error) {
   console.warn(`[accounting] ${route} unavailable; rendering empty state: ${error.message || error.code || error}`);
@@ -704,7 +708,7 @@ async function loadARAging() {
     const balance = Number(inv.total || 0) - Number(inv.amount_paid || 0);
     return {
       customer: cust.name || '—',
-      invoiceNumber: inv.display_number || `INV-${inv.id}`,
+      invoiceNumber: wo.display_number ? `INV-${wo.display_number}` : `INV-${inv.id}`,
       issueDate: String(inv.created_at || '').slice(0,10),
       dueDate: due || '—',
       ageDays: Math.max(0, ageDays),
