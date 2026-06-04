@@ -81,7 +81,9 @@ router.get('/callback', async (req, res) => {
 
   try {
     const tokens = await qb.exchangeCode(code);
-    await qb.saveTokens(tokens);
+    // Intuit sends realmId in both the callback query string and the token response
+    tokens.realmId = tokens.realmId || realmIdParam || null;
+    const saved = await qb.saveTokens(tokens);
 
     await qb.logSync('oauth', 'connect', 'QuickBooks connected successfully', {
       realmId: tokens.realmId || realmIdParam || null,
