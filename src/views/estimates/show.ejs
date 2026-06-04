@@ -251,6 +251,9 @@ const customerLabel = estimate.customer_name || 'Customer';
       <dl class="space-y-1 text-sm">
         <div><dt class="text-recon-fog text-xs inline">Created:</dt> <dd class="inline"><%= (estimate.created_at || '—').slice(0,10) %></dd></div>
         <div><dt class="text-recon-fog text-xs inline">Terms:</dt> <dd class="inline"><%= estimate.payment_terms || 'Net 30' %></dd></div>
+        <% if (estimate.po_number) { %>
+          <div><dt class="text-recon-fog text-xs inline">PO #:</dt> <dd class="inline"><%= estimate.po_number %></dd></div>
+        <% } %>
         <% if (estimate.valid_until) { %>
           <div><dt class="text-recon-fog text-xs inline">Valid until:</dt> <dd class="inline"><%= String(estimate.valid_until).slice(0,10) %></dd></div>
         <% } %>

@@ -193,6 +193,9 @@ const invoiceStatusLabel = (displayStatus || invoice.status || '').replace(/_/g,
     <dl class="space-y-1 text-sm">
       <div><dt class="text-recon-fog text-xs inline">Created:</dt> <dd class="inline"><%= (invoice.created_at || '—').slice(0,10) %></dd></div>
       <div><dt class="text-recon-fog text-xs inline">Terms:</dt> <dd class="inline"><%= invoice.payment_terms %></dd></div>
+      <% if (invoice.po_number) { %>
+        <div><dt class="text-recon-fog text-xs inline">PO #:</dt> <dd class="inline"><%= invoice.po_number %></dd></div>
+      <% } %>
       <% if (invoice.due_date) { %>
         <div><dt class="text-recon-fog text-xs inline">Due:</dt> <dd class="inline"><%= String(invoice.due_date).slice(0,10) %></dd></div>
       <% } %>

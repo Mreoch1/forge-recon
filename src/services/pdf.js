@@ -424,6 +424,7 @@ function generateEstimatePDF(estimate, company, stream) {
 
   const footerLines = [];
   if (estimate.created_at) footerLines.push(`Created: ${String(estimate.created_at).slice(0,10)}`);
+  if (estimate.po_number) footerLines.push(`PO #: ${estimate.po_number}`);
   if (estimate.valid_until) footerLines.push(`Valid until: ${String(estimate.valid_until).slice(0,10)}`);
   if (estimate.sent_at) footerLines.push(`Sent: ${String(estimate.sent_at).slice(0,10)}`);
   // D-124: badge on PDF if edited after acceptance
@@ -580,7 +581,7 @@ function drawInvoiceMeta(doc, invoice) {
   cell(0, 'Issued', invoice.created_at ? String(invoice.created_at).slice(0,10) : '—');
   cell(1, 'Due', invoice.due_date ? String(invoice.due_date).slice(0,10) : '—');
   cell(2, 'Terms', invoice.payment_terms || '—');
-  cell(3, 'Balance due', fmtMoney((Number(invoice.total)||0) - (Number(invoice.amount_paid)||0)));
+  cell(3, 'PO #', invoice.po_number || '—');
 
   doc.y = y + 36 + 12;
 }
@@ -669,6 +670,7 @@ function generateInvoicePDF(invoice, company, stream) {
 
   const footerLines = [];
   if (invoice.created_at) footerLines.push(`Issued: ${String(invoice.created_at).slice(0,10)}`);
+  if (invoice.po_number) footerLines.push(`PO #: ${invoice.po_number}`);
   if (invoice.due_date)  footerLines.push(`Due: ${String(invoice.due_date).slice(0,10)}`);
   if (invoice.sent_at)   footerLines.push(`Sent: ${String(invoice.sent_at).slice(0,10)}`);
   if (invoice.paid_at)   footerLines.push(`Paid: ${String(invoice.paid_at).slice(0,10)}`);

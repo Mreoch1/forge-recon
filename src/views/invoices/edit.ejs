@@ -24,7 +24,7 @@ function numberInputValue(n) {
   <form action="/invoices/<%= invoice.id %>" method="post" class="space-y-6">
     <div class="card p-5">
       <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Header</h3>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div>
           <label class="label" for="payment_terms">Payment terms
             <span class="ml-1 text-recon-fog cursor-help" title="When the customer is expected to pay this invoice. Prints on the invoice PDF.">ⓘ</span>
@@ -54,6 +54,13 @@ function numberInputValue(n) {
           </label>
           <input type="number" step="0.001" min="0" name="tax_rate" id="tax_rate"
                  value="<%= invoice.tax_rate || 0 %>" class="input" data-totals="tax_rate">
+        </div>
+        <div>
+          <label class="label" for="po_number">PO #
+            <span class="ml-1 text-recon-fog cursor-help" title="Customer purchase order number. Carries from the estimate or enter manually.">ⓘ</span>
+          </label>
+          <input type="text" name="po_number" id="po_number" value="<%= invoice.po_number || '' %>"
+                 class="input" placeholder="e.g. PO-84617194">
         </div>
       </div>
     </div>

@@ -56,6 +56,13 @@ function numberInputValue(n) {
         </label>
         <p class="input bg-recon-cloud text-recon-fog"><%= estimate.display_number || '—' %></p>
       </div>
+      <div>
+        <label class="label" for="po_number">PO #
+          <span class="ml-1 text-recon-fog cursor-help" title="Customer purchase order number. Carries over to the invoice when this estimate is converted.">ⓘ</span>
+        </label>
+        <input type="text" name="po_number" id="po_number" value="<%= estimate.po_number || '' %>"
+               class="input" placeholder="e.g. PO-84617194">
+      </div>
     </div>
   </div>
 

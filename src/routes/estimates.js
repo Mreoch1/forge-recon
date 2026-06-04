@@ -172,6 +172,8 @@ function validateEstimate(body) {
   const paymentTerms = paymentTermsFromBody(body);
   const notes = emptyToNull(body.notes);
 
+  const poNumber = emptyToNull(body.po_number);
+
   const rawItems = asArray(body.lines);
   const items = [];
   rawItems.forEach((li) => {
@@ -180,7 +182,7 @@ function validateEstimate(body) {
   });
   if (items.length === 0) errors.lines = 'At least one line item is required.';
 
-  return { errors, data: { valid_until: validUntil, tax_rate: taxRateNum, payment_terms: paymentTerms, notes, lines: items } };
+  return { errors, data: { valid_until: validUntil, tax_rate: taxRateNum, payment_terms: paymentTerms, notes, po_number: poNumber, lines: items } };
 }
 
 async function loadEstimate(id) {
@@ -528,6 +530,13 @@ router.post('/:id', async (req, res) => {
     console.warn('[estimates] D-112 line-item cost backfill failed:', e.message);
   }
 
+  // Persist po_number (not part of RPC payload)
+  const { error: poError } = await supabase
+    .from('estimates')
+    .update({ po_number: data.po_number || null })
+    .eq('id', existing.id);
+  if (poError && poError.code !== '42703') throw poError;
+
   setFlash(req, 'success', `${existing.display_number} updated.`);
   res.redirect(`/estimates/${existing.id}`);
 });
@@ -829,6 +838,7 @@ router.post('/:id/generate-invoice', requireAdmin, async (req, res) => {
     payment_terms: terms,
     due_date: dueDate,
     notes: estimate.notes || null,
+    po_number: estimate.po_number || null,
     conditions: conditions,
     created_at: now,
     updated_at: now,

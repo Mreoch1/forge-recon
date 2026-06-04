@@ -122,6 +122,7 @@ CREATE TABLE IF NOT EXISTS estimates (
   cost_total REAL NOT NULL DEFAULT 0,    -- internal sum of cost column
   valid_until TEXT,
   notes TEXT,
+  po_number TEXT,
   sent_at TEXT,
   accepted_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -164,6 +165,8 @@ CREATE TABLE IF NOT EXISTS invoices (
   sent_at TEXT,
   paid_at TEXT,
   notes TEXT,
+  po_number TEXT,
+  conditions TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

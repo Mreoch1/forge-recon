@@ -146,6 +146,7 @@ CREATE TABLE IF NOT EXISTS estimates (
   payment_terms TEXT NOT NULL DEFAULT 'Net 30',
   valid_until DATE,
   notes TEXT,
+  po_number TEXT,
   sent_at TIMESTAMPTZ,
   accepted_at TIMESTAMPTZ,
   mock BOOLEAN NOT NULL DEFAULT FALSE,
@@ -186,6 +187,8 @@ CREATE TABLE IF NOT EXISTS invoices (
   sent_at TIMESTAMPTZ,
   paid_at TIMESTAMPTZ,
   notes TEXT,
+  po_number TEXT,
+  conditions TEXT,
   mock BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()

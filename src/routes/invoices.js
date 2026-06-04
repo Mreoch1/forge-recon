@@ -180,6 +180,9 @@ function validateInvoice(body) {
   const taxRate = parseFloat(body.tax_rate);
   const taxRateNum = isFinite(taxRate) && taxRate >= 0 ? taxRate : 0;
   const paymentTerms = paymentTermsFromBody(body);
+  const notes = emptyToNull(body.notes);
+  const conditions = emptyToNull(body.conditions);
+  const poNumber = emptyToNull(body.po_number);
 
   const rawItems = asArray(body.lines);
   const items = [];
@@ -191,7 +194,7 @@ function validateInvoice(body) {
 
   return {
     errors,
-    data: { due_date: dueDate, tax_rate: taxRateNum, payment_terms: paymentTerms, notes: emptyToNull(body.notes), conditions: emptyToNull(body.conditions), lines: items }
+    data: { due_date: dueDate, tax_rate: taxRateNum, payment_terms: paymentTerms, notes, conditions, po_number: poNumber, lines: items }
   };
 }
 
@@ -467,6 +470,15 @@ router.post('/:id', async (req, res) => {
     .eq('id', existing.id);
   if (condError && condError.code !== '42703' && !String(condError.message || '').includes('conditions')) {
     console.warn('[invoices] conditions column update failed:', condError.message);
+  }
+
+  // Persist po_number (not part of RPC payload)
+  const { error: poError } = await supabase
+    .from('invoices')
+    .update({ po_number: data.po_number || null })
+    .eq('id', existing.id);
+  if (poError && poError.code !== '42703') {
+    console.warn('[invoices] po_number column update failed:', poError.message);
   }
 
   // RPC does not audit updates — write a separate audit row.
