@@ -41,10 +41,18 @@ const paidCount = invoices.filter(function(i){ return i.status === 'paid' || i.s
       <a href="/invoices" class="list-clear">Clear</a>
     <% } %>
   </form>
+
+  <form id="batch-form" action="/invoices/batch-push-to-qb" method="post">
   <div class="ops-panel ops-table">
     <div class="ops-panel-head">
       <div class="ops-panel-title">Invoice register</div>
-      <div class="text-xs text-recon-fog"><%= invoices.length %> shown</div>
+      <div class="flex items-center gap-2">
+        <% if (qbConnected && invoices.length > 0) { %>
+          <button type="submit" class="btn btn-secondary text-sm" id="batch-sync-btn" disabled
+                  title="Select invoices to push to QuickBooks">Sync to QuickBooks</button>
+        <% } %>
+        <span class="text-xs text-recon-fog"><span id="selected-count">0</span> selected &middot; <%= invoices.length %> shown</span>
+      </div>
     </div>
     <div class="ops-panel-body">
     <% if (invoices.length === 0) { %>
@@ -58,7 +66,18 @@ const paidCount = invoices.filter(function(i){ return i.status === 'paid' || i.s
     <% } else { %>
       <table class="data">
         <thead>
-          <tr><th>Number</th><th>Work order</th><th>Customer</th><th>Status</th><th class="text-right">Total</th><th class="text-right">Paid</th><th class="text-right">Balance</th><th>Due</th></tr>
+          <tr>
+            <th class="w-10"><input type="checkbox" id="select-all" class="cursor-pointer"></th>
+            <th>Number</th>
+            <th>Work order</th>
+            <th>Customer</th>
+            <th>Status</th>
+            <th class="text-right">Total</th>
+            <th class="text-right">Paid</th>
+            <th class="text-right">Balance</th>
+            <th>Due</th>
+            <th>QuickBooks</th>
+          </tr>
         </thead>
         <tbody>
           <% invoices.forEach(function(i){ %>
@@ -71,7 +90,9 @@ const paidCount = invoices.filter(function(i){ return i.status === 'paid' || i.s
                                   : showStatus === 'overdue' ? 'Past due date and not paid. Send a reminder.'
                                   : showStatus; %>
             <% const showStatusLabel = String(showStatus).replace(/_/g, ' '); %>
+            <% const qbSynced = i.qb_synced_at ? true : false; %>
             <tr class="row-link" data-href="/invoices/<%= i.id %>">
+              <td class="w-10"><input type="checkbox" name="invoice_ids" value="<%= i.id %>" class="row-checkbox cursor-pointer"></td>
               <td class="font-medium">INV-<%= i.wo_display_number %></td>
               <td>WO-<%= i.wo_display_number %></td>
               <td><%= i.customer_name %></td>
@@ -80,6 +101,13 @@ const paidCount = invoices.filter(function(i){ return i.status === 'paid' || i.s
               <td class="text-right">$<%= fmt(i.amount_paid) %></td>
               <td class="text-right font-medium <%= balance > 0 ? 'text-recon-red' : 'text-recon-fog' %>">$<%= fmt(balance) %></td>
               <td><%= (i.due_date || '—').slice(0,10) %></td>
+              <td>
+                <% if (qbSynced) { %>
+                  <span class="text-xs text-green-700 font-medium">✓ Synced</span>
+                <% } else { %>
+                  <span class="text-xs text-recon-fog">—</span>
+                <% } %>
+              </td>
             </tr>
           <% }); %>
         </tbody>
@@ -87,6 +115,7 @@ const paidCount = invoices.filter(function(i){ return i.status === 'paid' || i.s
     <% } %>
     </div>
   </div>
+  </form>
 
   <% if (totalPages > 1) { %>
     <div class="flex items-center justify-center gap-2 mt-4">
@@ -98,5 +127,31 @@ const paidCount = invoices.filter(function(i){ return i.status === 'paid' || i.s
     </div>
   <% } %>
 </div>
+
+<script>
+(function(){
+  var selectAll = document.getElementById('select-all');
+  var checkboxes = document.querySelectorAll('.row-checkbox');
+  var syncBtn = document.getElementById('batch-sync-btn');
+  var countEl = document.getElementById('selected-count');
+
+  if (!selectAll || !checkboxes.length) return;
+
+  selectAll.addEventListener('change', function(){
+    checkboxes.forEach(function(cb){ cb.checked = selectAll.checked; });
+    updateSyncBtn();
+  });
+
+  checkboxes.forEach(function(cb){
+    cb.addEventListener('change', updateSyncBtn);
+  });
+
+  function updateSyncBtn() {
+    var checked = Array.from(checkboxes).filter(function(cb){ return cb.checked; }).length;
+    countEl.textContent = checked;
+    if (syncBtn) syncBtn.disabled = checked === 0;
+  }
+})();
+</script>
 
 <%- include('../layouts/footer') %>

@@ -190,6 +190,7 @@ CREATE TABLE IF NOT EXISTS invoices (
   sent_to_name TEXT,
   notes TEXT,
   po_number TEXT,
+  qb_synced_at TIMESTAMPTZ,
   conditions TEXT,
   mock BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

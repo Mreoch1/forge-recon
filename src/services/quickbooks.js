@@ -318,6 +318,12 @@ async function pushInvoice(invoice) {
     body: JSON.stringify(qbInvoice),
   });
 
+  // Mark invoice as synced
+  await supabase
+    .from('invoices')
+    .update({ qb_synced_at: new Date().toISOString() })
+    .eq('id', invoice.id);
+
   await logSync('Invoice', 'push', `Created invoice ${invoice.display_number} in QuickBooks`, {
     qbId: result?.Invoice?.Id || null,
     forgeId: invoice.id,

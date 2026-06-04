@@ -280,7 +280,7 @@ router.get('/', async (req, res) => {
   let query = supabase
     .from('invoices')
     .select(`
-      id, status, total, amount_paid, due_date, created_at, payment_terms,
+      id, status, total, amount_paid, due_date, created_at, payment_terms, qb_synced_at,
       work_orders!left(
         id, display_number, customer_id,
         customers!left(id, name),
@@ -316,6 +316,7 @@ router.get('/', async (req, res) => {
   const invoices = filtered.map(r => ({
     id: r.id, status: r.status, total: r.total, amount_paid: r.amount_paid,
     due_date: r.due_date, created_at: r.created_at, payment_terms: r.payment_terms,
+    qb_synced_at: r.qb_synced_at,
     wo_id: r.work_orders?.id,
     wo_display_number: r.work_orders?.display_number,
     job_id: r.work_orders?.jobs?.id,
@@ -324,12 +325,45 @@ router.get('/', async (req, res) => {
     customer_name: r.work_orders?.customers?.name || r.work_orders?.jobs?.customers?.name,
   }));
 
+  // Check QuickBooks connection status
+  let qbConnected = false;
+  try {
+    const qb = require('../services/quickbooks');
+    qbConnected = await qb.isConnected();
+  } catch (e) { /* best-effort */ }
+
   res.render('invoices/index', {
     title: 'Invoices', activeNav: 'invoices',
     invoices, q, status, page,
     totalPages: Math.max(1, Math.ceil((total || 0) / PAGE_SIZE)),
-    total: total || 0, statuses: VALID_STATUSES
+    total: total || 0, statuses: VALID_STATUSES,
+    qbConnected,
   });
+});
+
+// POST /batch-push-to-qb — push multiple invoices to QuickBooks
+router.post('/batch-push-to-qb', async (req, res) => {
+  const ids = (req.body.invoice_ids || []).map(Number).filter(Boolean);
+  if (!ids.length) {
+    setFlash(req, 'error', 'No invoices selected.');
+    return res.redirect('/invoices');
+  }
+
+  let success = 0, fail = 0;
+  for (const id of ids) {
+    try {
+      const invoice = await loadInvoice(id);
+      if (!invoice) { fail++; continue; }
+      const qb = require('../services/quickbooks');
+      await qb.pushInvoice(invoice);
+      success++;
+    } catch (e) {
+      console.warn(`[quickbooks] batch push failed for invoice ${id}:`, e.message);
+      fail++;
+    }
+  }
+  setFlash(req, 'success', `Pushed ${success} invoice(s) to QuickBooks${fail ? `, ${fail} failed.` : '.'}`);
+  res.redirect('/invoices');
 });
 
 // D-100: stop-gap for /invoices/new — was returning HTTP 500 because Express
