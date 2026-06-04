@@ -51,6 +51,8 @@ const paidCount = invoices.filter(function(i){ return i.status === 'paid' || i.s
           <button type="submit" class="btn btn-secondary text-sm" id="batch-sync-btn" disabled
                   title="Select invoices to push to QuickBooks">Sync to QuickBooks</button>
         <% } %>
+        <button type="submit" formaction="/invoices/batch-csv" class="btn btn-ghost text-sm" id="batch-csv-btn" disabled
+                title="Download selected invoices as CSV for QuickBooks import">Download CSV</button>
         <span class="text-xs text-recon-fog"><span id="selected-count">0</span> selected &middot; <%= invoices.length %> shown</span>
       </div>
     </div>
@@ -133,6 +135,7 @@ const paidCount = invoices.filter(function(i){ return i.status === 'paid' || i.s
   var selectAll = document.getElementById('select-all');
   var checkboxes = document.querySelectorAll('.row-checkbox');
   var syncBtn = document.getElementById('batch-sync-btn');
+  var csvBtn = document.getElementById('batch-csv-btn');
   var countEl = document.getElementById('selected-count');
 
   if (!selectAll || !checkboxes.length) return;
@@ -150,6 +153,7 @@ const paidCount = invoices.filter(function(i){ return i.status === 'paid' || i.s
     var checked = Array.from(checkboxes).filter(function(cb){ return cb.checked; }).length;
     countEl.textContent = checked;
     if (syncBtn) syncBtn.disabled = checked === 0;
+    if (csvBtn) csvBtn.disabled = checked === 0;
   }
 })();
 </script>

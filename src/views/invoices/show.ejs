@@ -42,6 +42,7 @@ const invoiceStatusLabel = (displayStatus || invoice.status || '').replace(/_/g,
         <form action="/invoices/<%= invoice.id %>/push-to-qb" method="post" class="m-0 inline">
           <button class="btn btn-ghost text-sm" title="Push or re-push this invoice to QuickBooks without sending an email.">Push to QuickBooks</button>
         </form>
+        <a href="/invoices/<%= invoice.id %>/csv" class="btn btn-ghost text-sm" title="Download CSV for QuickBooks import">CSV</a>
         <% if (invoice.status === 'sent' || invoice.status === 'overdue') { %>
           <button type="button" onclick="document.getElementById('mark-paid-form').classList.toggle('hidden')" class="btn btn-primary"
                   title="Record a customer payment against this invoice. Supports full or partial payments.">Mark paid</button>

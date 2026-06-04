@@ -629,6 +629,69 @@ router.post('/:id/push-to-qb', async (req, res) => {
   res.redirect(`/invoices/${invoice.id}`);
 });
 
+// GET /:id/csv — download invoice as QuickBooks-compatible CSV
+router.get('/:id/csv', async (req, res) => {
+  const invoice = await loadInvoice(req.params.id);
+  if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
+
+  const invNum = invoice.display_number;
+  const custName = invoice.customer_name || 'Unknown';
+  const invDate = invoice.created_at ? String(invoice.created_at).slice(0, 10) : '';
+  const dueDate = invoice.due_date ? String(invoice.due_date).slice(0, 10) : '';
+  const terms = invoice.payment_terms || '';
+  const email = invoice.customer_billing_email || invoice.customer_email || '';
+  const poNum = invoice.po_number || '';
+
+  // Build CSV rows — one header row + one data row per line item
+  const lines = (invoice.lines || []).length > 0 ? invoice.lines : [{ description: invoice.description || 'Invoice', quantity: 1, unit_price: invoice.total, line_total: invoice.total }];
+
+  let csv = 'Invoice Number,Customer Name,Invoice Date,Due Date,Terms,Email,PO Number,Line Description,Line Quantity,Line Rate,Line Amount\n';
+
+  lines.forEach(li => {
+    const desc = (li.description || '').replace(/"/g, '""');
+    csv += `"${invNum}","${custName}","${invDate}","${dueDate}","${terms}","${email}","${poNum}","${desc}",${li.quantity || 1},${li.unit_price || 0},${li.line_total || 0}\n`;
+  });
+
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="${invNum}.csv"`);
+  res.send(csv);
+});
+
+// POST /batch-csv — download selected invoices as a single CSV
+router.post('/batch-csv', async (req, res) => {
+  const ids = (req.body.invoice_ids || []).map(Number).filter(Boolean);
+  if (!ids.length) {
+    setFlash(req, 'error', 'No invoices selected.');
+    return res.redirect('/invoices');
+  }
+
+  let csv = 'Invoice Number,Customer Name,Invoice Date,Due Date,Terms,Email,PO Number,Line Description,Line Quantity,Line Rate,Line Amount\n';
+
+  for (const id of ids) {
+    try {
+      const invoice = await loadInvoice(id);
+      if (!invoice) continue;
+      const invNum = invoice.display_number;
+      const custName = invoice.customer_name || 'Unknown';
+      const invDate = invoice.created_at ? String(invoice.created_at).slice(0, 10) : '';
+      const dueDate = invoice.due_date ? String(invoice.due_date).slice(0, 10) : '';
+      const terms = invoice.payment_terms || '';
+      const email = invoice.customer_billing_email || invoice.customer_email || '';
+      const poNum = invoice.po_number || '';
+      const lines = (invoice.lines || []).length > 0 ? invoice.lines : [{ description: 'Invoice', quantity: 1, unit_price: invoice.total, line_total: invoice.total }];
+
+      lines.forEach(li => {
+        const desc = (li.description || '').replace(/"/g, '""');
+        csv += `"${invNum}","${custName}","${invDate}","${dueDate}","${terms}","${email}","${poNum}","${desc}",${li.quantity || 1},${li.unit_price || 0},${li.line_total || 0}\n`;
+      });
+    } catch (e) { /* skip failed */ }
+  }
+
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename="forge-invoices.csv"');
+  res.send(csv);
+});
+
 router.post('/:id/mark-paid', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const { data: invoice, error: findErr } = await supabase
