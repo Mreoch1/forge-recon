@@ -376,7 +376,7 @@ router.post('/batch-csv', async (req, res) => {
     return res.redirect('/invoices');
   }
 
-  let csv = 'Invoice No,Customer Name,Invoice Date,Due Date,Terms,Email,PO Number,Item,Line Description,Line Quantity,Line Rate,Item Amount,Taxable,Tax Code\n';
+  let csv = 'Invoice No,Customer Name,Invoice Date,Due Date,Terms,Service Date,Item,Item Description,Item Quantity,Item Rate,Item Amount,Taxable,Item Tax Code,Memo,Email,PO Number\n';
 
   for (const id of ids) {
     try {
@@ -400,7 +400,8 @@ router.post('/batch-csv', async (req, res) => {
       lines.forEach(li => {
         const desc = (li.description || '').replace(/"/g, '""');
         const item = desc.split(/[,\n]/)[0].trim().substring(0, 100).replace(/"/g, '""') || 'Services';
-        csv += `"${invNum}","${custName}","${invDate}","${dueDate}","${terms}","${email}","${poNum}","${item}","${desc}",${li.quantity || 1},${li.unit_price || 0},${li.line_total || 0},"${taxable}","${taxCode}"\n`;
+        const memo = (invoice.notes || '').replace(/"/g, '""');
+        csv += `"${invNum}","${custName}","${invDate}","${dueDate}","${terms}","","${item}","${desc}",${li.quantity || 1},${li.unit_price || 0},${li.line_total || 0},"${taxable}","${taxCode}","${memo}","${email}","${poNum}"\n`;
       });
     } catch (e) { /* skip failed */ }
   }
@@ -696,12 +697,13 @@ router.get('/:id/csv', async (req, res) => {
   // Build CSV rows
   const lines = (invoice.lines || []).length > 0 ? invoice.lines : [{ description: invoice.description || 'Invoice', quantity: 1, unit_price: invoice.total, line_total: invoice.total }];
 
-  let csv = 'Invoice No,Customer Name,Invoice Date,Due Date,Terms,Email,PO Number,Item,Line Description,Line Quantity,Line Rate,Item Amount,Taxable,Tax Code\n';
+  let csv = 'Invoice No,Customer Name,Invoice Date,Due Date,Terms,Service Date,Item,Item Description,Item Quantity,Item Rate,Item Amount,Taxable,Item Tax Code,Memo,Email,PO Number\n';
 
   lines.forEach(li => {
     const desc = (li.description || '').replace(/"/g, '""');
     const item = desc.split(/[,\n]/)[0].trim().substring(0, 100).replace(/"/g, '""') || 'Services';
-    csv += `"${invNum}","${custName}","${invDate}","${dueDate}","${terms}","${email}","${poNum}","${item}","${desc}",${li.quantity || 1},${li.unit_price || 0},${li.line_total || 0},"${taxable}","${taxCode}"\n`;
+    const memo = (invoice.notes || '').replace(/"/g, '""');
+    csv += `"${invNum}","${custName}","${invDate}","${dueDate}","${terms}","","${item}","${desc}",${li.quantity || 1},${li.unit_price || 0},${li.line_total || 0},"${taxable}","${taxCode}","${memo}","${email}","${poNum}"\n`;
   });
 
   const dateStr = new Date().toISOString().slice(0, 10);
