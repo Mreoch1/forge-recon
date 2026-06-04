@@ -570,6 +570,27 @@ router.post('/:id/send', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /:id/push-to-qb — manually push invoice to QuickBooks (no email)
+router.post('/:id/push-to-qb', async (req, res) => {
+  const invoice = await loadInvoice(req.params.id);
+  if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
+
+  try {
+    const qb = require('../services/quickbooks');
+    if (!(await qb.isConnected())) {
+      setFlash(req, 'error', 'QuickBooks is not connected. Go to Accounting > QuickBooks import staging to connect.');
+      return res.redirect(`/invoices/${invoice.id}`);
+    }
+    await qb.pushInvoice(invoice);
+    await qb.logSync('Invoice', 'push', `Manually pushed invoice ${invoice.display_number} to QuickBooks`, { forgeId: invoice.id });
+    setFlash(req, 'success', `${invoice.display_number} pushed to QuickBooks successfully.`);
+  } catch (e) {
+    console.error('[quickbooks] manual push failed:', e);
+    setFlash(req, 'error', `Failed to push to QuickBooks: ${e.message}`);
+  }
+  res.redirect(`/invoices/${invoice.id}`);
+});
+
 router.post('/:id/mark-paid', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const { data: invoice, error: findErr } = await supabase
