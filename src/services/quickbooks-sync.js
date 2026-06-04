@@ -7,6 +7,7 @@ function db() {
 
 const API_BASE = process.env.QUICKBOOKS_API_BASE || 'https://quickbooks.api.intuit.com';
 const OAUTH_TOKEN_URL = process.env.QUICKBOOKS_OAUTH_TOKEN_URL || 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer';
+const OAUTH_AUTHORIZE_URL = process.env.QUICKBOOKS_OAUTH_AUTHORIZE_URL || 'https://appcenter.intuit.com/connect/oauth2';
 const MINOR_VERSION = process.env.QUICKBOOKS_MINOR_VERSION || '75';
 
 const PO_FIELD_CANDIDATES = [
@@ -33,6 +34,25 @@ function integrationStatus() {
     configured: true,
     connected: false,
     message: 'QuickBooks credentials are configured. Connect a company or provide tokens before syncing.',
+  };
+}
+
+function configuredStatus(connection = null) {
+  const configured = isConfigured();
+  const connected = !!(connection?.realm_id && (connection.refresh_token || connection.access_token));
+  const defaultItemId = connection?.default_item_id || process.env.QUICKBOOKS_DEFAULT_ITEM_ID || null;
+  return {
+    configured,
+    connected,
+    defaultItemConfigured: !!defaultItemId,
+    realmId: connection?.realm_id || process.env.QUICKBOOKS_REALM_ID || null,
+    defaultItemId,
+    defaultItemName: connection?.default_item_name || (process.env.QUICKBOOKS_DEFAULT_ITEM_ID ? 'Environment default' : null),
+    message: !configured
+      ? 'QuickBooks client credentials are not configured.'
+      : connected
+        ? 'QuickBooks company is connected.'
+        : 'QuickBooks credentials are configured. Connect a company before syncing.',
   };
 }
 
@@ -92,6 +112,8 @@ async function loadConnection() {
     refresh_token: refreshToken || null,
     access_token: accessToken || null,
     access_token_expires_at: process.env.QUICKBOOKS_ACCESS_TOKEN_EXPIRES_AT || null,
+    default_item_id: process.env.QUICKBOOKS_DEFAULT_ITEM_ID || null,
+    default_item_name: process.env.QUICKBOOKS_DEFAULT_ITEM_ID ? 'Environment default' : null,
   };
 }
 
@@ -108,6 +130,11 @@ async function saveConnectionToken(connection, tokenJson) {
     access_token_expires_at: new Date(now + Math.max(0, expiresIn - 60) * 1000).toISOString(),
     refresh_token_expires_at: refreshExpiresIn ? new Date(now + refreshExpiresIn * 1000).toISOString() : connection.refresh_token_expires_at || null,
     updated_at: new Date().toISOString(),
+    default_item_id: connection.default_item_id || null,
+    default_item_name: connection.default_item_name || null,
+    default_income_account_id: connection.default_income_account_id || null,
+    default_income_account_name: connection.default_income_account_name || null,
+    settings_updated_at: connection.settings_updated_at || null,
   };
 
   try {
@@ -117,6 +144,54 @@ async function saveConnectionToken(connection, tokenJson) {
     // finish with the in-memory token returned by Intuit.
   }
   return { ...connection, ...row };
+}
+
+function authorizationUrl({ redirectUri, state }) {
+  if (!isConfigured()) throw new Error('QuickBooks client credentials are not configured.');
+  const params = new URLSearchParams({
+    client_id: process.env.QUICKBOOKS_CLIENT_ID,
+    response_type: 'code',
+    scope: 'com.intuit.quickbooks.accounting',
+    redirect_uri: redirectUri,
+    state,
+  });
+  return `${OAUTH_AUTHORIZE_URL}?${params.toString()}`;
+}
+
+async function exchangeAuthorizationCode({ code, realmId, redirectUri, userId }) {
+  if (!isConfigured()) throw new Error('QuickBooks client credentials are not configured.');
+  if (!code || !realmId) throw new Error('QuickBooks did not return an authorization code and company id.');
+  const body = new URLSearchParams({
+    grant_type: 'authorization_code',
+    code,
+    redirect_uri: redirectUri,
+  });
+  const response = await fetch(OAUTH_TOKEN_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: authHeader(),
+      Accept: 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body,
+  });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(`QuickBooks authorization failed: ${json.error_description || json.error || response.status}`);
+  }
+  const existingConnection = await loadConnection();
+  const connection = {
+    ...(existingConnection || {}),
+    id: 1,
+    realm_id: realmId,
+    connected_by_user_id: userId || null,
+    connected_at: new Date().toISOString(),
+  };
+  return saveConnectionToken(connection, json);
+}
+
+async function disconnect() {
+  await db().from('quickbooks_connections').delete().eq('id', 1);
 }
 
 function tokenIsFresh(connection) {
@@ -179,6 +254,32 @@ async function qboRequest(connection, path, options = {}) {
 async function qboQuery(connection, query) {
   const encoded = encodeURIComponent(query);
   return qboRequest(connection, `/v3/company/${connection.realm_id}/query?query=${encoded}`, { method: 'GET' });
+}
+
+async function listItems(connection) {
+  const response = await qboQuery(connection, 'select * from Item where Active = true maxresults 1000');
+  return response.QueryResponse?.Item || [];
+}
+
+async function listIncomeAccounts(connection) {
+  const response = await qboQuery(connection, "select * from Account where AccountType = 'Income' and Active = true maxresults 1000");
+  return response.QueryResponse?.Account || [];
+}
+
+async function setDefaultItem({ itemId, itemName, incomeAccountId, incomeAccountName }) {
+  if (!itemId) throw new Error('Choose a QuickBooks product/service item.');
+  const row = {
+    id: 1,
+    default_item_id: String(itemId),
+    default_item_name: itemName ? String(itemName) : null,
+    default_income_account_id: incomeAccountId ? String(incomeAccountId) : null,
+    default_income_account_name: incomeAccountName ? String(incomeAccountName) : null,
+    settings_updated_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = await db().from('quickbooks_connections').upsert(row, { onConflict: 'id' });
+  if (error) throw error;
+  return row;
 }
 
 function customerDisplayName(invoice) {
@@ -297,10 +398,10 @@ function lineItemPayload(line, defaultItemId) {
   };
 }
 
-function buildInvoicePayload(invoice, quickbooksCustomerId) {
-  const defaultItemId = process.env.QUICKBOOKS_DEFAULT_ITEM_ID;
+function buildInvoicePayload(invoice, quickbooksCustomerId, options = {}) {
+  const defaultItemId = options.defaultItemId || process.env.QUICKBOOKS_DEFAULT_ITEM_ID;
   if (!defaultItemId) {
-    throw new Error('QUICKBOOKS_DEFAULT_ITEM_ID is required so Forge can map invoice lines to a QuickBooks product/service.');
+    throw new Error('QuickBooks default product/service item is required so Forge can map invoice lines to QuickBooks.');
   }
   if (!invoice.lines || invoice.lines.length === 0) {
     throw new Error('Invoice has no line items to sync.');
@@ -409,7 +510,7 @@ async function syncInvoice(invoice, { userId } = {}) {
 
   const connection = await getAccessConnection();
   const quickbooksCustomerId = await findOrCreateCustomer(connection, invoice, userId);
-  const payload = buildInvoicePayload(invoice, quickbooksCustomerId);
+  const payload = buildInvoicePayload(invoice, quickbooksCustomerId, { defaultItemId: connection.default_item_id });
 
   try {
     await db().from('invoices').update({
@@ -473,6 +574,15 @@ async function syncInvoice(invoice, { userId } = {}) {
 module.exports = {
   isConfigured,
   integrationStatus,
+  configuredStatus,
+  authorizationUrl,
+  exchangeAuthorizationCode,
+  loadConnection,
+  getAccessConnection,
+  listItems,
+  listIncomeAccounts,
+  setDefaultItem,
+  disconnect,
   invoicePoNumber,
   buildInvoicePayload,
   syncInvoice,

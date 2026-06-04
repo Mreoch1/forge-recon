@@ -110,6 +110,24 @@ test('QuickBooks webhook uses raw body parsing before global JSON parser', () =>
   assert.ok(rawMount < jsonParser, 'QuickBooks webhook raw parser must run before JSON parser');
 });
 
+test('QuickBooks accounting setup supports OAuth and item mapping', () => {
+  const accountingRoutes = read('src/routes/accounting.js');
+  const accountingIndex = read('src/views/accounting/index.ejs');
+  const quickbooksView = read('src/views/accounting/quickbooks.ejs');
+  const quickbooksSync = read('src/services/quickbooks-sync.js');
+
+  assert.match(accountingIndex, /href: '\/accounting\/quickbooks'/);
+  assert.match(accountingRoutes, /router\.get\('\/quickbooks'/);
+  assert.match(accountingRoutes, /router\.get\('\/quickbooks\/connect'/);
+  assert.match(accountingRoutes, /req\.session\.quickbooksOAuthState/);
+  assert.match(accountingRoutes, /req\.query\.state !== expectedState/);
+  assert.match(accountingRoutes, /router\.post\('\/quickbooks\/default-item'/);
+  assert.match(quickbooksView, /Default product\/service/);
+  assert.match(quickbooksView, /name="default_item_id"/);
+  assert.match(quickbooksSync, /options\.defaultItemId \|\| process\.env\.QUICKBOOKS_DEFAULT_ITEM_ID/);
+  assert.match(quickbooksSync, /buildInvoicePayload\(invoice, quickbooksCustomerId, \{ defaultItemId: connection\.default_item_id \}\)/);
+});
+
 test('project RFP export loader only selects real project columns', () => {
   const routes = read('src/routes/rfp.js');
   assert.match(routes, /\.from\('jobs'\)\s*\.select\('id, title'\)/);

@@ -13,10 +13,12 @@
  */
 
 const express = require('express');
+const crypto = require('crypto');
 const supabase = require('../db/supabase');
 const { setFlash } = require('../middleware/auth');
 const reportPdf = require('../services/accounting-report-pdf');
 const qbImportSummary = require('../services/quickbooks-import-summary');
+const quickbooksSync = require('../services/quickbooks-sync');
 
 const router = express.Router();
 
@@ -36,6 +38,17 @@ function sendPdf(res, filename, report) {
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   reportPdf.generateReportPDF(report, res);
+}
+
+function requestBaseUrl(req) {
+  if (process.env.PUBLIC_BASE_URL) return process.env.PUBLIC_BASE_URL.replace(/\/+$/, '');
+  const proto = req.get('x-forwarded-proto') || req.protocol;
+  const host = req.get('x-forwarded-host') || req.get('host');
+  return `${proto}://${host}`;
+}
+
+function quickBooksRedirectUri(req) {
+  return `${requestBaseUrl(req)}/accounting/quickbooks/callback`;
 }
 
 // Helper: sum debit for a JE id by fetching its lines and reducing in JS.
@@ -114,6 +127,114 @@ router.get('/quickbooks-import', async (req, res) => {
     staging,
     money: qbImportSummary.money,
   });
+});
+
+async function loadQuickBooksAdminState(req) {
+  const redirectUri = quickBooksRedirectUri(req);
+  const connection = await quickbooksSync.loadConnection();
+  const status = quickbooksSync.configuredStatus(connection);
+  const state = {
+    redirectUri,
+    connection,
+    status,
+    items: [],
+    itemError: null,
+    logs: [],
+    webhookEvents: [],
+  };
+
+  if (status.connected) {
+    try {
+      const accessConnection = await quickbooksSync.getAccessConnection();
+      state.connection = accessConnection;
+      state.status = quickbooksSync.configuredStatus(accessConnection);
+      state.items = await quickbooksSync.listItems(accessConnection);
+    } catch (error) {
+      state.itemError = error.message || String(error);
+    }
+  }
+
+  const [logsResult, webhookResult] = await Promise.all([
+    supabase
+      .from('quickbooks_sync_logs')
+      .select('entity_type, entity_id, action, status, quickbooks_id, message, created_at')
+      .order('created_at', { ascending: false })
+      .limit(10),
+    supabase
+      .from('quickbooks_webhook_events')
+      .select('entity_name, entity_id, operation, processed_status, created_at')
+      .order('created_at', { ascending: false })
+      .limit(10),
+  ]);
+
+  state.logs = logsResult.data || [];
+  state.webhookEvents = webhookResult.data || [];
+  return state;
+}
+
+router.get('/quickbooks', async (req, res) => {
+  const quickbooks = await loadQuickBooksAdminState(req);
+  res.render('accounting/quickbooks', {
+    title: 'QuickBooks',
+    activeNav: 'accounting',
+    quickbooks,
+  });
+});
+
+router.get('/quickbooks/connect', (req, res) => {
+  try {
+    const state = crypto.randomBytes(24).toString('hex');
+    req.session.quickbooksOAuthState = state;
+    const redirectUri = quickBooksRedirectUri(req);
+    res.redirect(quickbooksSync.authorizationUrl({ redirectUri, state }));
+  } catch (error) {
+    setFlash(req, 'error', error.message || 'QuickBooks connection could not start.');
+    res.redirect('/accounting/quickbooks');
+  }
+});
+
+router.get('/quickbooks/callback', async (req, res) => {
+  const expectedState = req.session.quickbooksOAuthState;
+  delete req.session.quickbooksOAuthState;
+  if (!expectedState || req.query.state !== expectedState) {
+    setFlash(req, 'error', 'QuickBooks connection could not be verified. Start the connection again from Forge.');
+    return res.redirect('/accounting/quickbooks');
+  }
+
+  try {
+    await quickbooksSync.exchangeAuthorizationCode({
+      code: req.query.code,
+      realmId: req.query.realmId,
+      redirectUri: quickBooksRedirectUri(req),
+      userId: req.session.userId,
+    });
+    setFlash(req, 'success', 'QuickBooks company connected.');
+  } catch (error) {
+    setFlash(req, 'error', error.message || 'QuickBooks connection failed.');
+  }
+  res.redirect('/accounting/quickbooks');
+});
+
+router.post('/quickbooks/default-item', async (req, res) => {
+  try {
+    const itemId = String(req.body.default_item_id || '').trim();
+    const itemName = String(req.body.default_item_name || '').trim();
+    await quickbooksSync.setDefaultItem({ itemId, itemName });
+    setFlash(req, 'success', `QuickBooks default product/service set${itemName ? ` to ${itemName}` : ''}.`);
+  } catch (error) {
+    setFlash(req, 'error', error.message || 'QuickBooks default product/service could not be saved.');
+  }
+  res.redirect('/accounting/quickbooks');
+});
+
+router.post('/quickbooks/disconnect', async (req, res) => {
+  try {
+    await quickbooksSync.disconnect();
+    setFlash(req, 'success', 'QuickBooks disconnected from Forge.');
+  } catch (error) {
+    setFlash(req, 'error', error.message || 'QuickBooks could not be disconnected.');
+  }
+  res.redirect('/accounting/quickbooks');
 });
 
 async function loadPayrollOverview() {

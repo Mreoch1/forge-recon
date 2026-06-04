@@ -1,0 +1,223 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<%
+const qb = quickbooks || {};
+const status = qb.status || {};
+const connection = qb.connection || {};
+const selectedItemId = status.defaultItemId || '';
+function shortDate(value) {
+  return value ? String(value).replace('T', ' ').slice(0, 16) : '—';
+}
+function mask(value) {
+  if (!value) return '—';
+  const text = String(value);
+  return text.length > 8 ? `${text.slice(0, 4)}…${text.slice(-4)}` : text;
+}
+%>
+
+<style>
+  .qb-table {
+    table-layout: fixed;
+    min-width: 56rem;
+  }
+  .qb-table .qb-type-col { width: 14%; }
+  .qb-table .qb-main-col { width: 30%; }
+  .qb-table .qb-message-col { width: 36%; }
+  .qb-table .qb-date-col { width: 20%; }
+  .qb-code {
+    display: inline-block;
+    max-width: 100%;
+    padding: .45rem .6rem;
+    border: 1px solid #ddd;
+    border-radius: .35rem;
+    background: #fff;
+    color: #333;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: .8rem;
+    overflow-wrap: anywhere;
+  }
+</style>
+
+<div class="ops-shell">
+  <div class="ops-header">
+    <div class="ops-title-block">
+      <a href="/accounting" class="text-sm text-recon-fog hover:text-recon-red">← Accounting</a>
+      <h1 class="page-h1 mt-2">QuickBooks</h1>
+      <p class="page-sub mt-1">Connect the QuickBooks company, map Forge invoice lines, and monitor sync activity.</p>
+    </div>
+    <div class="ops-actions">
+      <% if (status.configured) { %>
+        <a href="/accounting/quickbooks/connect" class="btn btn-primary"><%= status.connected ? 'Reconnect QuickBooks' : 'Connect QuickBooks' %></a>
+      <% } %>
+    </div>
+  </div>
+
+  <div class="ops-summary">
+    <div class="ops-summary-item">
+      <div class="ops-summary-label">Credentials</div>
+      <div class="ops-summary-value"><%= status.configured ? 'Ready' : 'Missing' %></div>
+      <div class="ops-summary-meta"><%= status.configured ? 'client id/secret set' : 'set Vercel env vars' %></div>
+    </div>
+    <div class="ops-summary-item">
+      <div class="ops-summary-label">Company</div>
+      <div class="ops-summary-value"><%= status.connected ? 'Connected' : 'Not connected' %></div>
+      <div class="ops-summary-meta">realm <%= mask(status.realmId) %></div>
+    </div>
+    <div class="ops-summary-item">
+      <div class="ops-summary-label">Default item</div>
+      <div class="ops-summary-value"><%= status.defaultItemConfigured ? 'Mapped' : 'Needed' %></div>
+      <div class="ops-summary-meta"><%= status.defaultItemName || 'product/service item' %></div>
+    </div>
+    <div class="ops-summary-item">
+      <div class="ops-summary-label">Webhook</div>
+      <div class="ops-summary-value">Live</div>
+      <div class="ops-summary-meta">/quickbooks/webhook</div>
+    </div>
+  </div>
+
+  <div class="ops-panel mb-4">
+    <div class="ops-panel-head">
+      <div class="ops-panel-title">Connection setup</div>
+      <% if (status.connected) { %>
+        <span class="badge badge-accepted">Connected</span>
+      <% } else { %>
+        <span class="badge badge-draft">Setup needed</span>
+      <% } %>
+    </div>
+    <div class="ops-panel-body p-4">
+      <% if (!status.configured) { %>
+        <div class="alert alert-error">QuickBooks client credentials are missing. Add <strong>QUICKBOOKS_CLIENT_ID</strong> and <strong>QUICKBOOKS_CLIENT_SECRET</strong> in Vercel before connecting.</div>
+      <% } else { %>
+        <p class="text-sm text-recon-fog mb-3"><%= status.message %></p>
+      <% } %>
+      <div class="grid gap-3 md:grid-cols-2">
+        <div>
+          <div class="text-xs uppercase tracking-wide text-recon-fog font-semibold mb-1">Intuit redirect URI</div>
+          <div class="qb-code"><%= qb.redirectUri %></div>
+        </div>
+        <div>
+          <div class="text-xs uppercase tracking-wide text-recon-fog font-semibold mb-1">Connected details</div>
+          <div class="text-sm">
+            <div>Company realm: <strong><%= mask(connection.realm_id) %></strong></div>
+            <div>Token expires: <strong><%= shortDate(connection.access_token_expires_at) %></strong></div>
+            <div>Connected: <strong><%= shortDate(connection.connected_at) %></strong></div>
+          </div>
+        </div>
+      </div>
+      <% if (status.connected) { %>
+        <form action="/accounting/quickbooks/disconnect" method="post" class="mt-4"
+              onsubmit="return confirm('Disconnect QuickBooks from Forge? Invoice sync will stop until reconnected.');">
+          <button class="btn btn-danger">Disconnect</button>
+        </form>
+      <% } %>
+    </div>
+  </div>
+
+  <div class="ops-panel mb-4">
+    <div class="ops-panel-head">
+      <div class="ops-panel-title">Invoice item mapping</div>
+      <div class="text-xs text-recon-fog">Required before syncing invoices</div>
+    </div>
+    <div class="ops-panel-body p-4">
+      <% if (qb.itemError) { %>
+        <div class="alert alert-error mb-3"><%= qb.itemError %></div>
+      <% } %>
+      <% if (!status.connected) { %>
+        <p class="text-sm text-recon-fog">Connect QuickBooks first, then choose the product/service item Forge should use for invoice lines.</p>
+      <% } else if (!qb.items || qb.items.length === 0) { %>
+        <p class="text-sm text-recon-fog">No active QuickBooks product/service items were returned. Create one in QuickBooks, then reconnect or reload this page.</p>
+      <% } else { %>
+        <form action="/accounting/quickbooks/default-item" method="post" class="grid gap-3 md:grid-cols-[1fr_auto] items-end">
+          <label>
+            <span>Default product/service</span>
+            <select name="default_item_id" id="qb-default-item" required>
+              <option value="">— Choose QuickBooks item —</option>
+              <% qb.items.forEach(function(item){ %>
+                <option value="<%= item.Id %>" data-name="<%= item.Name %>" <%= String(item.Id) === String(selectedItemId) ? 'selected' : '' %>>
+                  <%= item.Name %><% if (item.Type) { %> (<%= item.Type %>)<% } %>
+                </option>
+              <% }); %>
+            </select>
+          </label>
+          <input type="hidden" name="default_item_name" id="qb-default-item-name" value="<%= status.defaultItemName || '' %>">
+          <button class="btn btn-primary">Save mapping</button>
+        </form>
+        <p class="text-xs text-recon-fog mt-2">Forge keeps the invoice description, quantity, rate, PO number, customer, and due date. This mapping tells QuickBooks what product/service bucket the sales line belongs to.</p>
+      <% } %>
+    </div>
+  </div>
+
+  <div class="ops-panel ops-table mb-4">
+    <div class="ops-panel-head">
+      <div class="ops-panel-title">Recent sync log</div>
+      <div class="text-xs text-recon-fog"><%= (qb.logs || []).length %> rows</div>
+    </div>
+    <div class="ops-panel-body">
+      <table class="data qb-table">
+        <colgroup>
+          <col class="qb-type-col"><col class="qb-main-col"><col class="qb-message-col"><col class="qb-date-col">
+        </colgroup>
+        <thead>
+          <tr><th>Entity</th><th>Action</th><th>Message</th><th>Created</th></tr>
+        </thead>
+        <tbody>
+          <% if (!qb.logs || qb.logs.length === 0) { %>
+            <tr><td colspan="4" class="empty">No QuickBooks sync activity yet.</td></tr>
+          <% } else { qb.logs.forEach(function(log){ %>
+            <tr>
+              <td><%= log.entity_type %> #<%= log.entity_id %></td>
+              <td><span class="badge <%= log.status === 'success' ? 'badge-accepted' : 'badge-draft' %>"><%= log.action %></span> <%= log.quickbooks_id || '' %></td>
+              <td class="text-recon-fog"><%= log.message || '—' %></td>
+              <td><%= shortDate(log.created_at) %></td>
+            </tr>
+          <% }); } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="ops-panel ops-table">
+    <div class="ops-panel-head">
+      <div class="ops-panel-title">Recent webhook events</div>
+      <div class="text-xs text-recon-fog"><%= (qb.webhookEvents || []).length %> rows</div>
+    </div>
+    <div class="ops-panel-body">
+      <table class="data qb-table">
+        <colgroup>
+          <col class="qb-type-col"><col class="qb-main-col"><col class="qb-message-col"><col class="qb-date-col">
+        </colgroup>
+        <thead>
+          <tr><th>Entity</th><th>Operation</th><th>Status</th><th>Received</th></tr>
+        </thead>
+        <tbody>
+          <% if (!qb.webhookEvents || qb.webhookEvents.length === 0) { %>
+            <tr><td colspan="4" class="empty">No QuickBooks webhook events received yet.</td></tr>
+          <% } else { qb.webhookEvents.forEach(function(event){ %>
+            <tr>
+              <td><%= event.entity_name || '—' %> <%= event.entity_id || '' %></td>
+              <td><%= event.operation || '—' %></td>
+              <td><span class="badge badge-draft"><%= event.processed_status || 'received' %></span></td>
+              <td><%= shortDate(event.created_at) %></td>
+            </tr>
+          <% }); } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function(){
+    const select = document.getElementById('qb-default-item');
+    const nameInput = document.getElementById('qb-default-item-name');
+    if (!select || !nameInput) return;
+    function syncName() {
+      const option = select.options[select.selectedIndex];
+      nameInput.value = option ? (option.dataset.name || option.textContent.trim()) : '';
+    }
+    select.addEventListener('change', syncName);
+    syncName();
+  })();
+</script>
+
+<%- include('../layouts/footer') %>

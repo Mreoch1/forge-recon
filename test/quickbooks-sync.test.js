@@ -45,6 +45,20 @@ test('QuickBooks invoice payload preserves Forge number, PO, customer, and lines
   assert.equal(payload.Line[0].Amount, 1595);
 });
 
+test('QuickBooks invoice payload can use database-backed default item mapping', () => {
+  const previous = process.env.QUICKBOOKS_DEFAULT_ITEM_ID;
+  delete process.env.QUICKBOOKS_DEFAULT_ITEM_ID;
+  const payload = quickbooks.buildInvoicePayload({
+    id: 2,
+    display_number: 'INV-0002-0000',
+    tax_amount: 0,
+    lines: [{ description: 'Labor', quantity: 2, unit_price: 50, line_total: 100 }],
+  }, '9', { defaultItemId: 'db-item-7' });
+
+  assert.equal(payload.Line[0].SalesItemLineDetail.ItemRef.value, 'db-item-7');
+  if (previous) process.env.QUICKBOOKS_DEFAULT_ITEM_ID = previous;
+});
+
 test('QuickBooks invoice payload refuses unmapped product/service item', () => {
   const previous = process.env.QUICKBOOKS_DEFAULT_ITEM_ID;
   delete process.env.QUICKBOOKS_DEFAULT_ITEM_ID;
@@ -53,6 +67,6 @@ test('QuickBooks invoice payload refuses unmapped product/service item', () => {
     display_number: 'INV-0001-0000',
     tax_amount: 0,
     lines: [{ description: 'Labor', quantity: 1, unit_price: 10, line_total: 10 }],
-  }, '9'), /QUICKBOOKS_DEFAULT_ITEM_ID/);
+  }, '9'), /default product\/service item/);
   if (previous) process.env.QUICKBOOKS_DEFAULT_ITEM_ID = previous;
 });

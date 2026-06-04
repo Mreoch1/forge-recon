@@ -466,7 +466,12 @@ CREATE TABLE IF NOT EXISTS quickbooks_connections (
   refresh_token_expires_at TIMESTAMPTZ,
   connected_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
   connected_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  default_item_id TEXT,
+  default_item_name TEXT,
+  default_income_account_id TEXT,
+  default_income_account_name TEXT,
+  settings_updated_at TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS quickbooks_sync_logs (
@@ -680,6 +685,7 @@ CREATE INDEX IF NOT EXISTS idx_customers_quickbooks_id ON customers(quickbooks_i
 CREATE INDEX IF NOT EXISTS idx_invoices_quickbooks_id ON invoices(quickbooks_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_qb_sync_status ON invoices(quickbooks_sync_status);
 CREATE INDEX IF NOT EXISTS idx_qb_sync_logs_entity ON quickbooks_sync_logs(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_qb_connections_realm ON quickbooks_connections(realm_id);
 CREATE INDEX IF NOT EXISTS idx_qb_webhook_events_status ON quickbooks_webhook_events(processed_status, created_at);
 CREATE INDEX IF NOT EXISTS idx_qb_webhook_events_entity ON quickbooks_webhook_events(entity_name, entity_id);
 
