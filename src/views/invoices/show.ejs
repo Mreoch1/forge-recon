@@ -10,6 +10,8 @@ const margin = subtotal - costTotal;
 const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '—';
 const invoiceStatusLabel = (displayStatus || invoice.status || '').replace(/_/g, ' ');
 const isAdmin = currentUser && currentUser.role === 'admin';
+const qbStatus = typeof quickbooksStatus !== 'undefined' ? quickbooksStatus : { configured: false, connected: false, message: 'QuickBooks status unavailable.' };
+const canSyncQuickBooks = isAdmin && ['sent', 'overdue', 'paid', 'billing_complete'].includes(invoice.status);
 %>
 
 <div class="document-shell">
@@ -45,6 +47,14 @@ const isAdmin = currentUser && currentUser.role === 'admin';
                   title="Record a customer payment against this invoice. Supports full or partial payments.">Mark paid</button>
         <% } %>
         <% if (isAdmin && (invoice.status === 'sent' || invoice.status === 'overdue' || invoice.status === 'paid')) { %>
+          <% if (invoice.quickbooks_id) { %>
+            <span class="badge badge-billing_complete" title="QuickBooks invoice id <%= invoice.quickbooks_id %>">QB synced</span>
+          <% } else { %>
+            <form action="/invoices/<%= invoice.id %>/sync-quickbooks" method="post" class="m-0 inline"
+                  onsubmit="return confirm('Sync <%= invoice.display_number %> to QuickBooks now?');">
+              <button class="btn btn-primary" title="<%= qbStatus.configured ? 'Create or update this invoice in QuickBooks.' : qbStatus.message %>">Sync QuickBooks</button>
+            </form>
+          <% } %>
           <form action="/invoices/<%= invoice.id %>/billing-complete" method="post" class="m-0 inline"
                 onsubmit="return confirm('Mark <%= invoice.display_number %> billing complete after QuickBooks sync?');">
             <button class="btn btn-primary" title="Use after the invoice has been sent and synced to QuickBooks.">Billing complete</button>
@@ -72,6 +82,29 @@ const isAdmin = currentUser && currentUser.role === 'admin';
       invoiceStatus: displayStatus || invoice.status
     }
   }) %>
+
+  <% if (isAdmin && (invoice.quickbooks_id || invoice.quickbooks_sync_status === 'failed' || canSyncQuickBooks)) { %>
+    <div class="card p-4 mb-6 <%= invoice.quickbooks_sync_status === 'failed' ? 'bg-red-50 border-red-200' : 'bg-recon-cloud' %>">
+      <div class="flex flex-wrap items-center justify-between gap-3 text-sm">
+        <div>
+          <div class="font-semibold">QuickBooks</div>
+          <% if (invoice.quickbooks_id) { %>
+            <p class="text-recon-fog mt-1">Synced as <strong><%= invoice.quickbooks_doc_number || invoice.quickbooks_id %></strong><% if (invoice.quickbooks_synced_at) { %> on <%= String(invoice.quickbooks_synced_at).slice(0, 10) %><% } %>.</p>
+          <% } else if (invoice.quickbooks_sync_status === 'failed') { %>
+            <p class="text-recon-red mt-1"><%= invoice.quickbooks_sync_error || 'Last QuickBooks sync failed.' %></p>
+          <% } else { %>
+            <p class="text-recon-fog mt-1"><%= qbStatus.configured ? 'Ready to sync after QuickBooks is connected and mapped.' : qbStatus.message %></p>
+          <% } %>
+        </div>
+        <% if (canSyncQuickBooks) { %>
+          <form action="/invoices/<%= invoice.id %>/sync-quickbooks" method="post" class="m-0"
+                onsubmit="return confirm('Sync <%= invoice.display_number %> to QuickBooks now?');">
+            <button class="btn btn-secondary"><%= invoice.quickbooks_id ? 'Sync again' : 'Sync QuickBooks' %></button>
+          </form>
+        <% } %>
+      </div>
+    </div>
+  <% } %>
 
   <% if (isAdmin && (invoice.status === 'sent' || invoice.status === 'overdue')) { %>
     <div id="mark-paid-form" class="card p-5 mb-6 hidden bg-green-50 border-green-200">

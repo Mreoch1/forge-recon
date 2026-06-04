@@ -24,6 +24,7 @@ const calc = require('../services/calculations');
 const pdf = require('../services/pdf');
 const email = require('../services/email');
 const posting = require('../services/accounting-posting');
+const quickbooksSync = require('../services/quickbooks-sync');
 const { writeAudit } = require('../services/audit');
 const { sanitizePostgrestSearch } = require('../services/sanitize');
 const { listEntityActivity } = require('../services/activity');
@@ -197,9 +198,9 @@ async function loadInvoice(id) {
     .select(`
       *,
       work_orders!left(id, display_number, customer_id, unit_number,
-        customers!left(id, name, email, billing_email, phone, address, city, state, zip),
+        customers!left(id, name, email, billing_email, phone, address, city, state, zip, quickbooks_id),
         jobs!left(id, title, address, city, state, zip,
-        customers!left(id, name, email, billing_email, phone, address, city, state, zip)))
+        customers!left(id, name, email, billing_email, phone, address, city, state, zip, quickbooks_id)))
     `)
     .eq('id', id)
     .maybeSingle();
@@ -224,6 +225,7 @@ async function loadInvoice(id) {
   inv.customer_email = c?.email;
   inv.customer_billing_email = c?.billing_email;
   inv.customer_phone = c?.phone;
+  inv.customer_quickbooks_id = c?.quickbooks_id;
   inv.customer_address = c?.address;
   inv.customer_city = c?.city;
   inv.customer_state = c?.state;
@@ -367,6 +369,7 @@ router.get('/:id(\\d+)', async (req, res) => {
     title: invoice.display_number, activeNav: 'invoices',
     invoice, displayStatus,
     actualCost, activity,
+    quickbooksStatus: quickbooksSync.integrationStatus(),
   });
 });
 
@@ -619,6 +622,49 @@ router.post('/:id/billing-complete', requireAdmin, async (req, res) => {
   } catch (e) { /* best-effort */ }
 
   setFlash(req, 'success', `Invoice marked billing complete.`);
+  res.redirect(`/invoices/${invoice.id}`);
+});
+
+router.post('/:id/sync-quickbooks', requireAdmin, async (req, res) => {
+  const invoice = await loadInvoice(req.params.id);
+  if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
+  if (!['sent', 'overdue', 'paid', 'billing_complete'].includes(invoice.status)) {
+    setFlash(req, 'error', `Send ${invoice.display_number} before syncing it to QuickBooks.`);
+    return res.redirect(`/invoices/${invoice.id}`);
+  }
+
+  try {
+    const qboInvoice = await quickbooksSync.syncInvoice(invoice, { userId: req.session.userId });
+    try {
+      await writeAudit({
+        entityType: 'invoice',
+        entityId: invoice.id,
+        action: 'quickbooks_sync',
+        before: { status: invoice.status, quickbooks_id: invoice.quickbooks_id || null },
+        after: { status: 'billing_complete', quickbooks_id: qboInvoice.Id, quickbooks_doc_number: qboInvoice.DocNumber || invoice.display_number },
+        source: 'user',
+        userId: req.session.userId,
+      });
+    } catch (e) { /* best-effort */ }
+    setFlash(req, 'success', `${invoice.display_number} synced to QuickBooks as ${qboInvoice.DocNumber || qboInvoice.Id}.`);
+  } catch (error) {
+    try {
+      await supabase.from('invoices').update({
+        quickbooks_sync_status: 'failed',
+        quickbooks_sync_error: error.message,
+        updated_at: new Date().toISOString(),
+      }).eq('id', invoice.id);
+      await supabase.from('quickbooks_sync_logs').insert({
+        entity_type: 'invoice',
+        entity_id: invoice.id,
+        action: 'sync',
+        status: 'failed',
+        message: error.message,
+        user_id: req.session.userId,
+      });
+    } catch (e) { /* migration may not be deployed yet */ }
+    setFlash(req, 'error', `QuickBooks sync failed: ${error.message}`);
+  }
   res.redirect(`/invoices/${invoice.id}`);
 });
 

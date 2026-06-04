@@ -88,9 +88,11 @@ test('managers can create and send invoices while admin keeps accounting control
   assert.match(estimateShow, /canManageInvoices && !invoice && estimate\.lines\.length > 0/);
   assert.match(invoiceShow, /const isAdmin = currentUser && currentUser\.role === 'admin'/);
   assert.match(invoiceShow, /isAdmin && \(invoice\.status === 'sent' \|\| invoice\.status === 'overdue'\)/);
+  assert.match(invoiceShow, /action="\/invoices\/<%= invoice\.id %>\/sync-quickbooks"/);
   assert.match(invoiceShow, /isAdmin && invoice\.status !== 'paid' && invoice\.status !== 'billing_complete'/);
   assert.match(invoices, /router\.post\('\/:id\/mark-paid', requireAdmin,/);
   assert.match(invoices, /router\.post\('\/:id\/billing-complete', requireAdmin,/);
+  assert.match(invoices, /router\.post\('\/:id\/sync-quickbooks', requireAdmin,/);
   assert.match(invoices, /router\.post\('\/:id\/reopen-billing', requireAdmin,/);
   assert.match(invoices, /router\.post\('\/:id\/void', requireAdmin,/);
   assert.match(invoices, /router\.post\('\/:id\/delete', requireAdmin,/);
