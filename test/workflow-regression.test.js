@@ -115,6 +115,16 @@ test('work order row links do not depend on the More menu', () => {
   assert.match(workOrderIndex, /<a href="\/work-orders\/<%= w\.id %>" class="wol-customer/);
 });
 
+test('managers can edit open work orders and access WO files from show page', () => {
+  const show = read('src/views/work-orders/show.ejs');
+
+  assert.match(show, /currentUser && currentUser\.role !== 'worker' && !\['closed', 'complete', 'cancelled'\]\.includes\(wo\.status\)/);
+  assert.match(show, /href="\/work-orders\/<%= wo\.id %>\/edit"/);
+  assert.match(show, /href="\/files\/work_order\/<%= wo\.id %>"/);
+  assert.match(show, /Work order files/);
+  assert.match(show, /Open files/);
+});
+
 test('RFP edits return users to the open category and line item', () => {
   const routes = read('src/routes/rfp.js');
   const view = read('src/views/jobs/rfp.ejs');

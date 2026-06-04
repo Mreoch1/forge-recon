@@ -170,8 +170,11 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
           <button class="btn btn-primary text-sm" title="Email this WO and PDF to the assigned person or crew.">Send to assigned</button>
         </form>
       <% } %>
-      <% if (currentUser && currentUser.role !== 'worker' && (wo.status === 'scheduled' || wo.status === 'in_progress')) { %>
+      <% if (currentUser && currentUser.role !== 'worker' && !['closed', 'complete', 'cancelled'].includes(wo.status)) { %>
         <a href="/work-orders/<%= wo.id %>/edit" class="btn btn-secondary text-sm">Edit</a>
+      <% } %>
+      <% if (currentUser && currentUser.role !== 'worker') { %>
+        <a href="/files/work_order/<%= wo.id %>" class="btn btn-secondary text-sm">Files<%= fileCount ? ' (' + fileCount + ')' : '' %></a>
       <% } %>
       <% if (currentUser && currentUser.role !== 'worker' && wo.status !== 'cancelled' && !estimate) { %>
         <form action="/work-orders/<%= wo.id %>/create-estimate" method="post" class="m-0 inline">
@@ -279,7 +282,21 @@ const addr = [wo.job_address, wo.job_city, wo.job_state].filter(Boolean).join(',
         <% }); %>
       <% } %>
 
-      <!-- Files removed per user request -->
+      <% if (currentUser && currentUser.role !== 'worker') { %>
+        <h2 class="ws-h-secondary mt-8">Files</h2>
+        <div class="ws-cust mb-4">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <div class="ws-cust-name">Work order files</div>
+              <div class="ws-cust-line">
+                Upload photos, PDFs, signed notices, and other WO documents.
+                <%= fileCount ? fileCount + ' file' + (fileCount === 1 ? '' : 's') + ' attached.' : 'No files attached yet.' %>
+              </div>
+            </div>
+            <a href="/files/work_order/<%= wo.id %>" class="btn btn-secondary text-sm whitespace-nowrap">Open files &rarr;</a>
+          </div>
+        </div>
+      <% } %>
 
       <% if (isAdmin) { %>
         <!-- F-010: Vendor Billing -->
