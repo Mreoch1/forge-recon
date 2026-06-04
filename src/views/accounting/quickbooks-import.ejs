@@ -7,6 +7,34 @@
       <h1 class="page-h1 mt-3">QuickBooks import staging</h1>
       <p class="page-sub mt-1">Review exports and staged rows before anything touches live Forge records.</p>
     </div>
+    <div class="flex gap-2 flex-wrap">
+      <% if (qbConnected) { %>
+        <form action="/accounting/quickbooks/sync" method="post" class="m-0 inline">
+          <input type="hidden" name="entity" value="customers">
+          <button class="btn btn-secondary text-sm" title="Pull customers from QuickBooks">Sync Customers</button>
+        </form>
+        <form action="/accounting/quickbooks/sync" method="post" class="m-0 inline">
+          <input type="hidden" name="entity" value="invoices">
+          <button class="btn btn-secondary text-sm" title="Pull invoices from QuickBooks">Sync Invoices</button>
+        </form>
+        <form action="/accounting/quickbooks/sync" method="post" class="m-0 inline">
+          <input type="hidden" name="entity" value="bills">
+          <button class="btn btn-secondary text-sm" title="Pull bills from QuickBooks">Sync Bills</button>
+        </form>
+        <form action="/accounting/quickbooks/disconnect" method="post" class="m-0 inline"
+              onsubmit="return confirm('Disconnect QuickBooks?');">
+          <button class="btn btn-ghost text-sm text-recon-red">Disconnect</button>
+        </form>
+        <span class="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-1 rounded">
+          ✓ Connected
+        </span>
+      <% } else { %>
+        <a href="/accounting/quickbooks/connect" class="btn btn-primary text-sm">Connect to QuickBooks</a>
+        <span class="inline-flex items-center gap-1 text-xs text-recon-fog px-2 py-1 rounded">
+          Not connected
+        </span>
+      <% } %>
+    </div>
   </div>
 
   <div class="ops-summary">

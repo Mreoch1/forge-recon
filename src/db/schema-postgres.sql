@@ -456,6 +456,30 @@ CREATE TABLE IF NOT EXISTS quickbooks_import_rows (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- QuickBooks OAuth tokens and sync log
+CREATE TABLE IF NOT EXISTS quickbooks_tokens (
+  id BIGSERIAL PRIMARY KEY,
+  realm_id TEXT,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT NOT NULL,
+  token_type TEXT NOT NULL DEFAULT 'Bearer',
+  expires_at TIMESTAMPTZ NOT NULL,
+  refresh_token_expires_at TIMESTAMPTZ,
+  connected_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  disconnected_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS quickbooks_sync_log (
+  id BIGSERIAL PRIMARY KEY,
+  entity_type TEXT NOT NULL,
+  action TEXT NOT NULL,
+  summary TEXT,
+  details JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- ========== PAYROLL ==========
 -- QuickBooks Payroll remains the payroll source of truth. Forge stores/imports
 -- payroll data for admin review, labor costing, and project profitability.

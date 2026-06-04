@@ -110,6 +110,11 @@ async function loadQuickBooksStaging() {
 router.get('/quickbooks-import', async (req, res) => {
   const summary = qbImportSummary.readDiscoverySummary();
   const staging = await loadQuickBooksStaging();
+  let qbConnected = false;
+  try {
+    const qb = require('../services/quickbooks');
+    qbConnected = await qb.isConnected();
+  } catch (e) { /* best-effort */ }
   res.render('accounting/quickbooks-import', {
     title: 'QuickBooks import staging',
     activeNav: 'accounting',
@@ -117,6 +122,7 @@ router.get('/quickbooks-import', async (req, res) => {
     exportCards: qbImportSummary.exportCards(summary),
     staging,
     money: qbImportSummary.money,
+    qbConnected,
   });
 });
 

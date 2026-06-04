@@ -230,6 +230,10 @@ app.get('/privacy', (req, res) => {
   res.render('privacy', { title: 'Privacy Policy' });
 });
 
+// QuickBooks OAuth integration (admin-only, mounted under accounting)
+const quickbooksRoutes = require('./routes/quickbooks');
+app.use('/accounting/quickbooks', requireAuth, requireAdmin, quickbooksRoutes);
+
 app.use('/customers', requireAuth, requireManager, customersRoutes);
 // D-007: Projects layer — Jobs renamed Projects in UI. /projects is canonical;
 // /jobs preserved as a redirect so older links keep working.
