@@ -372,7 +372,7 @@ app.post('/report-error', async (req, res) => {
       userEmail: user_email || req.currentUser?.email || 'unknown',
       errorCtx: ctx,
     });
-    setFlash(req, 'success', 'Error reported. I can see the details — describe what you were doing and I\'ll fix it.');
+    setFlash(req, 'success', 'Error reported automatically. We\'ll look into it.');
     res.redirect(url || '/');
   } catch (e) {
     console.error('[report-error] save failed:', e.message);

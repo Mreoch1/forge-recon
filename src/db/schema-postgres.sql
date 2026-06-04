@@ -186,6 +186,8 @@ CREATE TABLE IF NOT EXISTS invoices (
   due_date DATE,
   sent_at TIMESTAMPTZ,
   paid_at TIMESTAMPTZ,
+  sent_to_email TEXT,
+  sent_to_name TEXT,
   notes TEXT,
   po_number TEXT,
   conditions TEXT,
