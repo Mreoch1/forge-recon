@@ -303,10 +303,10 @@ const customerLabel = estimate.customer_name || 'Customer';
       </form>
     <% } %>
 
-    <% if ((estimate.status === 'new' || estimate.status === 'draft') && !invoice) { %>
+    <% if (!invoice) { %>
       <form action="/estimates/<%= estimate.id %>/delete" method="post"
-            onsubmit="return confirm('Delete <%= estimate.display_number %>?');">
-        <button type="submit" class="btn btn-danger" title="Permanently delete this draft estimate. Only possible while in Draft status with no invoice.">Delete estimate</button>
+            onsubmit="return confirm('Permanently delete <%= estimate.display_number %>? This cannot be undone.');">
+        <button type="submit" class="btn btn-danger" title="Permanently delete this estimate. Only possible when no invoice references it.">Delete estimate</button>
       </form>
     <% } %>
     </div>
