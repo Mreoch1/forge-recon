@@ -775,6 +775,7 @@ async function loadAPAging() {
     const ageDays = billDate ? Math.max(0, Math.floor((new Date() - new Date(billDate)) / (1000*60*60*24))) : 0;
     const balance = Number(b.total || 0) - Number(b.amount_paid || 0);
     return {
+      id: b.id,
       vendor: b.vendors?.name || '—',
       source: 'Bill',
       ref: b.bill_number || `BL-${b.id}`,
@@ -798,6 +799,7 @@ async function loadAPAging() {
   const viRows = (vinvs || []).map(v => {
     const due = null; // vendor_invoices have no due_date
     return {
+      id: v.id,
       vendor: v.vendors?.name || '—',
       source: 'Vendor Invoice',
       ref: v.invoice_number || `VI-${v.id}`,

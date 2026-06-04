@@ -55,7 +55,13 @@
               <tr data-bucket="<%= r.bucket %>">
                 <td><%= r.vendor %></td>
                 <td><span class="badge badge-info"><%= r.source %></span></td>
-                <td class="font-mono text-xs"><%= r.ref %></td>
+                <td class="font-mono text-xs">
+                  <% if (r.source === 'Bill') { %>
+                    <a href="/bills/<%= r.id %>" class="hover:text-recon-red"><%= r.ref %></a>
+                  <% } else { %>
+                    <%= r.ref %>
+                  <% } %>
+                </td>
                 <td class="text-xs"><%= r.dueDate %></td>
                 <td class="text-right"><%= r.ageDays %></td>
                 <td class="text-right">$<%= fmt(r.total) %></td>
