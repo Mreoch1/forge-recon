@@ -119,6 +119,7 @@ test('QuickBooks accounting setup supports OAuth and item mapping', () => {
   assert.match(accountingIndex, /href: '\/accounting\/quickbooks'/);
   assert.match(accountingRoutes, /router\.get\('\/quickbooks'/);
   assert.match(accountingRoutes, /router\.get\('\/quickbooks\/connect'/);
+  assert.match(accountingRoutes, /process\.env\.QUICKBOOKS_REDIRECT_URI/);
   assert.match(accountingRoutes, /req\.session\.quickbooksOAuthState/);
   assert.match(accountingRoutes, /req\.query\.state !== expectedState/);
   assert.match(accountingRoutes, /router\.post\('\/quickbooks\/default-item'/);

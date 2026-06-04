@@ -48,6 +48,7 @@ function requestBaseUrl(req) {
 }
 
 function quickBooksRedirectUri(req) {
+  if (process.env.QUICKBOOKS_REDIRECT_URI) return process.env.QUICKBOOKS_REDIRECT_URI.trim();
   return `${requestBaseUrl(req)}/accounting/quickbooks/callback`;
 }
 
