@@ -553,6 +553,17 @@ router.post('/:id/send', async (req, res, next) => {
       }
     }
 
+    // Best-effort: push invoice to QuickBooks if connected
+    try {
+      const qb = require('../services/quickbooks');
+      if (await qb.isConnected()) {
+        await qb.pushInvoice(invoice);
+        console.log(`[quickbooks] Invoice ${invoice.display_number} pushed to QuickBooks.`);
+      }
+    } catch (qbErr) {
+      console.warn(`[quickbooks] Failed to push invoice ${invoice.display_number}:`, qbErr.message);
+    }
+
     const note = sent.mode === 'file' ? ` Email saved to ${sent.filepath}.` : '';
     setFlash(req, 'success', `${invoice.display_number} email sent to ${recipient}.${note}`);
     res.redirect(`/invoices/${invoice.id}`);

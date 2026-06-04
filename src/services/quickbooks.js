@@ -257,6 +257,75 @@ async function isConnected() {
   return !!row;
 }
 
+// ── Push to QuickBooks ─────────────────────────────────────────────────────────
+
+/**
+ * Push a Forge invoice to QuickBooks as a new Invoice.
+ * Called after the invoice email is sent.
+ */
+async function pushInvoice(invoice) {
+  // Map line items to QuickBooks Line format
+  const lines = (invoice.lines || []).map(li => ({
+    DetailType: 'SalesItemLineDetail',
+    Amount: Number(li.line_total || 0),
+    Description: li.description || '',
+    SalesItemLineDetail: {
+      UnitPrice: Number(li.unit_price || 0),
+      Qty: Number(li.quantity || 1),
+    },
+  }));
+
+  // Build the QuickBooks Invoice object
+  const qbInvoice = {
+    DocNumber: invoice.display_number,
+    TxnDate: String(invoice.created_at || new Date().toISOString()).slice(0, 10),
+    Line: lines,
+    CustomerRef: {
+      name: invoice.customer_name || 'Unknown',
+    },
+    BillEmail: {
+      Address: invoice.customer_billing_email || invoice.customer_email || '',
+    },
+    DueDate: invoice.due_date ? String(invoice.due_date).slice(0, 10) : undefined,
+    TotalAmt: Number(invoice.total || 0),
+  };
+
+  if (invoice.customer_billing_email || invoice.customer_email) {
+    qbInvoice.BillEmail = { Address: invoice.customer_billing_email || invoice.customer_email };
+  }
+
+  // Add tax if applicable
+  const taxRate = Number(invoice.tax_rate || 0);
+  const taxAmount = Number(invoice.tax_amount || 0);
+  if (taxRate > 0 && taxAmount > 0) {
+    qbInvoice.TxnTaxDetail = {
+      TotalTaxAmt: taxAmount,
+      TaxLine: [{
+        Amount: taxAmount,
+        DetailType: 'TaxLineDetail',
+        TaxLineDetail: {
+          TaxRateRef: { value: String(taxRate) },
+          PercentBased: true,
+          TaxPercent: taxRate,
+          NetAmountTaxable: Number(invoice.subtotal || 0),
+        },
+      }],
+    };
+  }
+
+  const result = await api('/invoice', {
+    method: 'POST',
+    body: JSON.stringify(qbInvoice),
+  });
+
+  await logSync('Invoice', 'push', `Created invoice ${invoice.display_number} in QuickBooks`, {
+    qbId: result?.Invoice?.Id || null,
+    forgeId: invoice.id,
+  });
+
+  return result;
+}
+
 // ── Entity Sync ────────────────────────────────────────────────────────────────
 
 /**
@@ -296,6 +365,7 @@ module.exports = {
   isConnected,
   getTokenRow,
   logSync,
+  pushInvoice,
   syncCustomers,
   syncInvoices,
   syncBills,
