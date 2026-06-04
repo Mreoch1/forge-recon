@@ -13,54 +13,158 @@
     </div>
   </div>
 
-  <!-- Bucket summary -->
-  <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
+  <!-- Bucket summary — clickable to filter -->
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8" id="bucket-filters">
     <% ['Current','1-30','31-60','61-90','90+'].forEach(function(b){ %>
-      <div class="card p-4 text-center <%= b === '90+' ? 'border-red-200' : '' %>">
+      <a href="#" data-bucket="<%= b %>"
+         class="card p-4 text-center block hover:shadow-md transition-shadow cursor-pointer <%= b === '90+' ? 'border-red-200' : '' %>">
         <div class="text-xs uppercase tracking-wide text-recon-fog"><%= b %></div>
         <div class="text-xl font-bold mt-1 <%= b === '90+' ? 'text-recon-red' : '' %>">$<%= fmt(buckets[b] || 0) %></div>
-      </div>
+      </a>
     <% }); %>
   </div>
 
   <!-- Aging table -->
   <div class="card overflow-hidden">
-    <div class="px-5 py-3 border-b border-recon-mist">
-      <h3 class="font-semibold"><%= rows.length %> invoice<%= rows.length === 1 ? '' : 's' %> outstanding</h3>
+    <div class="px-5 py-3 border-b border-recon-mist flex items-center justify-between">
+      <h3 class="font-semibold"><span id="row-count"><%= rows.length %></span> invoice<%= rows.length === 1 ? '' : 's' %> outstanding</h3>
+      <div id="active-filter" class="hidden flex items-center gap-2">
+        <span class="text-xs text-recon-fog">Filtered: <span id="filter-label"></span></span>
+        <button id="clear-filter" class="text-xs text-recon-red hover:underline">Clear</button>
+      </div>
     </div>
     <% if (rows.length === 0) { %>
       <div class="p-6 text-center text-recon-fog text-sm">No outstanding invoices. Everything is current!</div>
     <% } else { %>
-      <table class="data">
-        <thead>
-          <tr>
-            <th>Customer</th>
-            <th>Invoice</th>
-            <th>Issued</th>
-            <th>Due</th>
-            <th class="text-right">Age (days)</th>
-            <th class="text-right">Total</th>
-            <th class="text-right">Balance</th>
-            <th>Bucket</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% rows.forEach(function(r){ %>
+      <div class="overflow-x-auto">
+        <table class="data" id="ar-table">
+          <thead>
             <tr>
-              <td><%= r.customer %></td>
-              <td class="font-mono text-xs"><a href="/invoices/<%= r.id %>" class="hover:text-recon-red"><%= r.invoiceNumber %></a></td>
-              <td class="text-xs"><%= r.issueDate %></td>
-              <td class="text-xs"><%= r.dueDate %></td>
-              <td class="text-right"><%= r.ageDays %></td>
-              <td class="text-right">$<%= fmt(r.total) %></td>
-              <td class="text-right font-semibold <%= r.balance > 0 ? 'text-recon-red' : '' %>">$<%= fmt(r.balance) %></td>
-              <td><span class="badge <%= r.bucket === '90+' ? 'badge-danger' : 'badge-info' %>"><%= r.bucket %></span></td>
+              <th data-sort="customer" class="cursor-pointer hover:text-recon-red select-none">Customer <span class="sort-arrow"></span></th>
+              <th data-sort="invoiceNumber" class="cursor-pointer hover:text-recon-red select-none">Invoice <span class="sort-arrow"></span></th>
+              <th data-sort="issueDate" class="cursor-pointer hover:text-recon-red select-none">Issued <span class="sort-arrow"></span></th>
+              <th data-sort="dueDate" class="cursor-pointer hover:text-recon-red select-none">Due <span class="sort-arrow"></span></th>
+              <th data-sort="ageDays" class="text-right cursor-pointer hover:text-recon-red select-none">Age (days) <span class="sort-arrow"></span></th>
+              <th data-sort="total" class="text-right cursor-pointer hover:text-recon-red select-none">Total <span class="sort-arrow"></span></th>
+              <th data-sort="balance" class="text-right cursor-pointer hover:text-recon-red select-none">Balance <span class="sort-arrow"></span></th>
+              <th data-sort="bucket" class="cursor-pointer hover:text-recon-red select-none">Bucket <span class="sort-arrow"></span></th>
             </tr>
-          <% }); %>
-        </tbody>
-      </table>
+          </thead>
+          <tbody id="ar-body">
+            <% rows.forEach(function(r){ %>
+              <tr data-bucket="<%= r.bucket %>">
+                <td><%= r.customer %></td>
+                <td class="font-mono text-xs"><a href="/invoices/<%= r.id %>" class="hover:text-recon-red"><%= r.invoiceNumber %></a></td>
+                <td class="text-xs"><%= r.issueDate %></td>
+                <td class="text-xs"><%= r.dueDate %></td>
+                <td class="text-right"><%= r.ageDays %></td>
+                <td class="text-right">$<%= fmt(r.total) %></td>
+                <td class="text-right font-semibold <%= r.balance > 0 ? 'text-recon-red' : '' %>">$<%= fmt(r.balance) %></td>
+                <td><span class="badge <%= r.bucket === '90+' ? 'badge-danger' : 'badge-info' %>"><%= r.bucket %></span></td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
     <% } %>
   </div>
 </div>
+
+<script>
+(function(){
+  var rows = Array.from(document.querySelectorAll('#ar-body tr'));
+  var filterLabel = document.getElementById('filter-label');
+  var activeFilter = document.getElementById('active-filter');
+  var rowCount = document.getElementById('row-count');
+  var currentBucket = null;
+  var sortKey = null;
+  var sortDir = 1;
+
+  // Bucket filter
+  document.querySelectorAll('[data-bucket]').forEach(function(el){
+    el.addEventListener('click', function(e){
+      e.preventDefault();
+      var bucket = el.dataset.bucket;
+      if (currentBucket === bucket) { currentBucket = null; }
+      else { currentBucket = bucket; }
+      applyFilter();
+    });
+  });
+
+  document.getElementById('clear-filter').addEventListener('click', function(){
+    currentBucket = null;
+    applyFilter();
+  });
+
+  function applyFilter() {
+    var visible = 0;
+    rows.forEach(function(row){
+      var match = !currentBucket || row.dataset.bucket === currentBucket;
+      row.style.display = match ? '' : 'none';
+      if (match) visible++;
+    });
+    rowCount.textContent = visible;
+    if (currentBucket) {
+      filterLabel.textContent = currentBucket;
+      activeFilter.classList.remove('hidden');
+    } else {
+      activeFilter.classList.add('hidden');
+    }
+    // Highlight active bucket card
+    document.querySelectorAll('[data-bucket]').forEach(function(card){
+      card.classList.toggle('ring-2', card.dataset.bucket === currentBucket);
+      card.classList.toggle('ring-recon-red', card.dataset.bucket === currentBucket);
+    });
+  }
+
+  // Column sorting
+  document.querySelectorAll('[data-sort]').forEach(function(th){
+    th.addEventListener('click', function(){
+      var key = th.dataset.sort;
+      if (sortKey === key) { sortDir *= -1; }
+      else { sortKey = key; sortDir = 1; }
+      sortTable(key, sortDir);
+      updateSortArrows(th);
+    });
+  });
+
+  function sortTable(key, dir) {
+    var tbody = document.getElementById('ar-body');
+    var sorted = rows.slice().sort(function(a, b){
+      var va = a.querySelector('td:nth-child(' + (getColIndex(key) + 1) + ')').textContent.trim();
+      var vb = b.querySelector('td:nth-child(' + (getColIndex(key) + 1) + ')').textContent.trim();
+      // Numeric sort for age, total, balance
+      if (['ageDays', 'total', 'balance'].includes(key)) {
+        va = parseFloat(va.replace(/[$,]/g, '')) || 0;
+        vb = parseFloat(vb.replace(/[$,]/g, '')) || 0;
+        return (va - vb) * dir;
+      }
+      // Date sort for issueDate, dueDate
+      if (['issueDate', 'dueDate'].includes(key)) {
+        return (va.localeCompare(vb)) * dir;
+      }
+      return va.localeCompare(vb) * dir;
+    });
+    sorted.forEach(function(row){ tbody.appendChild(row); });
+    // Re-apply filter after sort
+    applyFilter();
+  }
+
+  function getColIndex(key) {
+    var map = { customer:0, invoiceNumber:1, issueDate:2, dueDate:3, ageDays:4, total:5, balance:6, bucket:7 };
+    return map[key] || 0;
+  }
+
+  function updateSortArrows(th) {
+    document.querySelectorAll('[data-sort]').forEach(function(h){
+      var arrow = h.querySelector('.sort-arrow');
+      if (!arrow) return;
+      arrow.textContent = '';
+    });
+    var arrow = th.querySelector('.sort-arrow');
+    if (arrow) arrow.textContent = sortDir === 1 ? ' ▲' : ' ▼';
+  }
+})();
+</script>
 
 <%- include('../layouts/footer') %>
