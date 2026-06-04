@@ -20,6 +20,12 @@ const qb = require('../services/quickbooks');
 // Map keyed by session userId. The `state` parameter prevents CSRF on the callback.
 const pendingStates = new Map();
 
+// ── Root (Launch URL) ──────────────────────────────────────────────────────────
+
+router.get('/', requireAuth, requireAdmin, (req, res) => {
+  res.redirect('/accounting/quickbooks-import');
+});
+
 // ── Connect ────────────────────────────────────────────────────────────────────
 
 router.get('/connect', requireAuth, requireAdmin, async (req, res) => {

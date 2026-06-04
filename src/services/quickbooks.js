@@ -292,11 +292,12 @@ async function syncBills() {
 module.exports = {
   getAuthUrl,
   exchangeCode,
+  saveTokens,
   isConnected,
   getTokenRow,
   logSync,
   syncCustomers,
   syncInvoices,
   syncBills,
-  _internal: { getValidAccessToken, api, saveTokens, refreshAccessToken },
+  _internal: { getValidAccessToken, api, refreshAccessToken },
 };
