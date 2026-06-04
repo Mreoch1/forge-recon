@@ -483,6 +483,21 @@ CREATE TABLE IF NOT EXISTS quickbooks_sync_logs (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS quickbooks_webhook_events (
+  id BIGSERIAL PRIMARY KEY,
+  realm_id TEXT,
+  entity_name TEXT,
+  entity_id TEXT,
+  operation TEXT,
+  last_updated_at TIMESTAMPTZ,
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  processed_status TEXT NOT NULL DEFAULT 'received'
+    CHECK (processed_status IN ('received','processed','ignored','failed')),
+  processed_at TIMESTAMPTZ,
+  error_message TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- ========== PAYROLL ==========
 -- QuickBooks Payroll remains the payroll source of truth. Forge stores/imports
 -- payroll data for admin review, labor costing, and project profitability.
@@ -665,6 +680,8 @@ CREATE INDEX IF NOT EXISTS idx_customers_quickbooks_id ON customers(quickbooks_i
 CREATE INDEX IF NOT EXISTS idx_invoices_quickbooks_id ON invoices(quickbooks_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_qb_sync_status ON invoices(quickbooks_sync_status);
 CREATE INDEX IF NOT EXISTS idx_qb_sync_logs_entity ON quickbooks_sync_logs(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_qb_webhook_events_status ON quickbooks_webhook_events(processed_status, created_at);
+CREATE INDEX IF NOT EXISTS idx_qb_webhook_events_entity ON quickbooks_webhook_events(entity_name, entity_id);
 
 CREATE INDEX IF NOT EXISTS idx_payroll_employees_status ON payroll_employees(status);
 CREATE INDEX IF NOT EXISTS idx_payroll_employees_user ON payroll_employees(user_id);

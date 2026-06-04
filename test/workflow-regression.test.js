@@ -100,6 +100,16 @@ test('managers can create and send invoices while admin keeps accounting control
   assert.match(header, /_isAdminMobile \|\| _isManagerMobile[\s\S]*href="\/invoices"/);
 });
 
+test('QuickBooks webhook uses raw body parsing before global JSON parser', () => {
+  const app = read('src/app.js');
+  const rawMount = app.indexOf("app.use('/quickbooks/webhook', express.raw");
+  const jsonParser = app.indexOf("app.use(express.json");
+
+  assert.ok(rawMount > -1, 'QuickBooks webhook route should be mounted');
+  assert.ok(jsonParser > -1, 'global JSON parser should be mounted');
+  assert.ok(rawMount < jsonParser, 'QuickBooks webhook raw parser must run before JSON parser');
+});
+
 test('project RFP export loader only selects real project columns', () => {
   const routes = read('src/routes/rfp.js');
   assert.match(routes, /\.from\('jobs'\)\s*\.select\('id, title'\)/);
