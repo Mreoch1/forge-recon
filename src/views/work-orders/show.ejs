@@ -187,7 +187,7 @@ function fileIcon(mime) {
           <button class="btn btn-primary text-sm" title="Email this WO and PDF to the assigned person or crew.">Send to assigned</button>
         </form>
       <% } %>
-      <% if (currentUser && currentUser.role !== 'worker' && (wo.status === 'scheduled' || wo.status === 'in_progress')) { %>
+      <% if (currentUser && currentUser.role !== 'worker' && (wo.status === 'open' || wo.status === 'scheduled' || wo.status === 'in_progress')) { %>
         <a href="/work-orders/<%= wo.id %>/edit" class="btn btn-secondary text-sm">Edit</a>
       <% } %>
       <% if (currentUser && currentUser.role !== 'worker' && wo.status !== 'cancelled' && !estimate) { %>
