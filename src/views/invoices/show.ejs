@@ -131,7 +131,10 @@ const invoiceStatusLabel = (displayStatus || invoice.status || '').replace(/_/g,
             <th>Description</th>
             <th class="text-right">Qty</th>
             <th>Unit</th>
+            <% if (showCosts) { %><th class="text-right text-recon-fog">Labor</th><% } %>
+            <% if (showCosts) { %><th class="text-right text-recon-fog">Materials</th><% } %>
             <% if (showCosts) { %><th class="text-right text-recon-fog">Cost</th><% } %>
+            <% if (showCosts) { %><th class="text-right text-recon-fog">Mkup</th><% } %>
             <th class="text-right">Rate</th>
             <th class="text-right">Line $</th>
           </tr>
@@ -142,7 +145,10 @@ const invoiceStatusLabel = (displayStatus || invoice.status || '').replace(/_/g,
               <td><%= li.description %></td>
               <td class="text-right"><%= li.quantity %></td>
               <td><%= li.unit %></td>
+              <% if (showCosts) { %><td class="text-right text-recon-fog">$<%= fmt(li.labor_cost || 0) %></td><% } %>
+              <% if (showCosts) { %><td class="text-right text-recon-fog">$<%= fmt(li.material_cost || 0) %></td><% } %>
               <% if (showCosts) { %><td class="text-right text-recon-fog">$<%= fmt(li.cost) %></td><% } %>
+              <% if (showCosts) { %><td class="text-right text-recon-fog"><%= li.markup_pct != null ? li.markup_pct : 25 %>%</td><% } %>
               <td class="text-right">$<%= fmt(li.unit_price) %></td>
               <td class="text-right font-medium">$<%= fmt(li.line_total) %></td>
             </tr>
@@ -150,31 +156,31 @@ const invoiceStatusLabel = (displayStatus || invoice.status || '').replace(/_/g,
         </tbody>
         <tfoot class="bg-recon-cloud">
           <tr>
-            <td colspan="<%= showCosts ? 5 : 4 %>" class="text-right text-sm font-medium">Subtotal</td>
+            <td colspan="<%= showCosts ? 8 : 4 %>" class="text-right text-sm font-medium">Subtotal</td>
             <td class="text-right font-semibold">$<%= fmt(subtotal) %></td>
           </tr>
           <% if (showCosts) { %>
             <tr>
-              <td colspan="5" class="text-right text-sm font-medium text-recon-fog">Cost <span class="text-xs">(internal)</span></td>
+              <td colspan="8" class="text-right text-sm font-medium text-recon-fog">Cost <span class="text-xs">(internal)</span></td>
               <td class="text-right font-semibold text-recon-fog">$<%= fmt(costTotal) %></td>
             </tr>
           <% } %>
           <tr>
-            <td colspan="<%= showCosts ? 5 : 4 %>" class="text-right text-sm font-medium">Tax (<%= fmt(invoice.tax_rate) %>%)</td>
+            <td colspan="<%= showCosts ? 8 : 4 %>" class="text-right text-sm font-medium">Tax (<%= fmt(invoice.tax_rate) %>%)</td>
             <td class="text-right font-semibold">$<%= fmt(invoice.tax_amount) %></td>
           </tr>
           <tr>
-            <td colspan="<%= showCosts ? 5 : 4 %>" class="text-right text-sm font-semibold uppercase">Total</td>
+            <td colspan="<%= showCosts ? 8 : 4 %>" class="text-right text-sm font-semibold uppercase">Total</td>
             <td class="text-right text-lg font-bold text-recon-red">$<%= fmt(invoice.total) %></td>
           </tr>
           <% if (showCosts) { %>
             <tr>
-              <td colspan="5" class="text-right text-sm font-medium text-recon-fog">Margin <span class="text-xs">(internal, <%= marginPct %>%)</span></td>
+              <td colspan="8" class="text-right text-sm font-medium text-recon-fog">Margin <span class="text-xs">(internal, <%= marginPct %>%)</span></td>
               <td class="text-right font-semibold <%= margin >= 0 ? 'text-green-700' : 'text-recon-red' %>">$<%= fmt(margin) %></td>
             </tr>
           <% } %>
           <tr>
-            <td colspan="<%= showCosts ? 5 : 4 %>" class="text-right text-sm font-medium">Balance Due</td>
+            <td colspan="<%= showCosts ? 8 : 4 %>" class="text-right text-sm font-medium">Balance Due</td>
             <td class="text-right font-bold <%= balance > 0 ? 'text-recon-red' : 'text-green-700' %>">$<%= fmt(balance) %></td>
           </tr>
         </tfoot>

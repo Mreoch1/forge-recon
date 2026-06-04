@@ -200,6 +200,9 @@ CREATE TABLE IF NOT EXISTS invoice_line_items (
   unit_price NUMERIC(14,2) NOT NULL DEFAULT 0,
   cost NUMERIC(14,2) NOT NULL DEFAULT 0,
   line_total NUMERIC(14,2) NOT NULL DEFAULT 0,
+  labor_cost NUMERIC(14,2) NOT NULL DEFAULT 0,
+  material_cost NUMERIC(14,2) NOT NULL DEFAULT 0,
+  markup_pct NUMERIC(8,4) NOT NULL DEFAULT 25,
   sort_order INTEGER NOT NULL DEFAULT 0,
   source_bill_id BIGINT,
   source_bill_line_id BIGINT

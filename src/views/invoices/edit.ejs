@@ -2,7 +2,8 @@
 
 <%
 const linesToRender = (invoice.lines && invoice.lines.length) ? invoice.lines : [{
-  description: '', quantity: 1, unit: 'ea', unit_price: 0, cost: 0, line_total: 0
+  description: '', quantity: 1, unit: 'ea', unit_price: 0, cost: 0, line_total: 0,
+  labor_cost: 0, material_cost: 0, markup_pct: 25
 }];
 const termPresets = (typeof paymentTermsPresets !== 'undefined') ? paymentTermsPresets : ['Due on receipt', 'Net 15', 'Net 30', 'Net 45', 'Net 60'];
 const currentTerms = invoice.payment_terms || 'Net 30';
@@ -71,10 +72,22 @@ function numberInputValue(n) {
             <tr>
               <th title="Customer-visible description of this line item. Appears on the invoice PDF.">Description</th>
               <th class="text-right" title="How many units of this item.">Qty</th>
-              <th title="Unit of measure, e.g. ea (each), hr (hour), sf (square foot).">Unit</th>
-              <th class="text-right text-recon-fog" title="Internal cost per unit &mdash; not shown on customer PDFs. Used for margin reporting.">Cost</th>
+              <th title="Unit of measure.">Unit</th>
+              <th colspan="4" class="text-center text-2xs text-recon-fog uppercase tracking-wider border-l border-recon-mist" title="These columns are INTERNAL — not shown on customer PDFs.">INTERNAL</th>
               <th class="text-right" title="Price per unit charged to the customer.">Rate</th>
               <th class="text-right" title="Qty x Rate for this line.">Line $</th>
+              <th></th>
+            </tr>
+            <tr>
+              <th></th>
+              <th></th>
+              <th></th>
+              <th class="text-right text-recon-fog font-normal" title="Internal labor cost per unit.">Labor</th>
+              <th class="text-right text-recon-fog font-normal" title="Internal materials cost per unit.">Materials</th>
+              <th class="text-right text-recon-fog font-normal" title="Computed cost (labor + materials).">Cost</th>
+              <th class="text-right text-recon-fog font-normal" title="Markup percentage applied to cost.">Markup %</th>
+              <th></th>
+              <th></th>
               <th></th>
             </tr>
           </thead>
@@ -94,14 +107,35 @@ function numberInputValue(n) {
                   </select>
                 </td>
                 <td class="text-right">
+                  <input type="number" step="0.01" min="0" name="lines[<%= idx %>][labor_cost]" data-field="labor_cost"
+                         value="<%= numberInputValue(li.labor_cost) %>" placeholder="0" class="input text-right" style="width: 6rem;"
+                         title="Internal labor cost per unit">
+                </td>
+                <td class="text-right">
+                  <input type="number" step="0.01" min="0" name="lines[<%= idx %>][material_cost]" data-field="material_cost"
+                         value="<%= numberInputValue(li.material_cost) %>" placeholder="0" class="input text-right" style="width: 6rem;"
+                         title="Internal materials cost per unit">
+                </td>
+                <td class="text-right">
                   <input type="number" step="0.01" min="0" name="lines[<%= idx %>][cost]" data-field="cost"
-                         value="<%= numberInputValue(li.cost) %>" placeholder="0" class="input text-right text-recon-fog" style="width: 7rem;">
+                         value="<%= moneyFmt(li.cost) %>" class="input text-right bg-recon-cloud text-recon-fog" style="width: 6rem;"
+                         readonly title="Computed cost (labor + materials)">
+                </td>
+                <td class="text-right">
+                  <input type="number" step="0.1" min="0" name="lines[<%= idx %>][markup_pct]" data-field="markup_pct"
+                         value="<%= li.markup_pct !== undefined && li.markup_pct !== null ? li.markup_pct : 25 %>" class="input text-right" style="width: 5rem;"
+                         title="Markup percentage applied to cost">
                 </td>
                 <td class="text-right">
                   <input type="number" step="0.01" min="0" name="lines[<%= idx %>][unit_price]" data-field="unit_price"
-                         value="<%= numberInputValue(li.unit_price) %>" placeholder="0" class="input text-right" style="width: 7rem;">
+                         value="<%= moneyFmt(li.unit_price) %>" class="input text-right bg-recon-cloud text-recon-fog" style="width: 7rem;"
+                         readonly title="Computed rate (cost x markup)">
                 </td>
-                <td class="text-right font-medium" data-field="line_total"><%= moneyFmt(li.line_total) %></td>
+                <td class="text-right font-medium">
+                  <input type="number" step="0.01" min="0" name="lines[<%= idx %>][line_total]" data-field="line_total"
+                         value="<%= moneyFmt(li.line_total) %>" class="input text-right bg-recon-cloud text-recon-fog font-medium" style="width: 7rem;"
+                         readonly title="Computed line total (rate x qty)">
+                </td>
                 <td><button type="button" data-remove-line class="text-recon-fog hover:text-recon-red text-sm">remove</button></td>
               </tr>
             <% }); %>
@@ -119,23 +153,34 @@ function numberInputValue(n) {
                 </select>
               </td>
               <td class="text-right">
-                <input type="number" step="0.01" min="0" name="lines[__IDX__][cost]" data-field="cost" value="" placeholder="0" class="input text-right text-recon-fog" style="width: 7rem;">
+                <input type="number" step="0.01" min="0" name="lines[__IDX__][labor_cost]" data-field="labor_cost" value="" placeholder="0" class="input text-right" style="width: 6rem;">
               </td>
               <td class="text-right">
-                <input type="number" step="0.01" min="0" name="lines[__IDX__][unit_price]" data-field="unit_price" value="" placeholder="0" class="input text-right" style="width: 7rem;">
+                <input type="number" step="0.01" min="0" name="lines[__IDX__][material_cost]" data-field="material_cost" value="" placeholder="0" class="input text-right" style="width: 6rem;">
               </td>
-              <td class="text-right font-medium" data-field="line_total">0.00</td>
+              <td class="text-right">
+                <input type="number" step="0.01" min="0" name="lines[__IDX__][cost]" data-field="cost" value="0.00" class="input text-right bg-recon-cloud text-recon-fog" style="width: 6rem;" readonly>
+              </td>
+              <td class="text-right">
+                <input type="number" step="0.1" min="0" name="lines[__IDX__][markup_pct]" data-field="markup_pct" value="25" class="input text-right" style="width: 5rem;">
+              </td>
+              <td class="text-right">
+                <input type="number" step="0.01" min="0" name="lines[__IDX__][unit_price]" data-field="unit_price" value="0.00" class="input text-right bg-recon-cloud text-recon-fog" style="width: 7rem;" readonly>
+              </td>
+              <td class="text-right">
+                <input type="number" step="0.01" min="0" name="lines[__IDX__][line_total]" data-field="line_total" value="0.00" class="input text-right bg-recon-cloud text-recon-fog font-medium" style="width: 7rem;" readonly>
+              </td>
               <td><button type="button" data-remove-line class="text-recon-fog hover:text-recon-red text-sm">remove</button></td>
             </tr>
           </tbody>
           <tfoot class="bg-recon-cloud">
             <tr>
-              <td colspan="5" class="text-right text-sm font-medium">Subtotal</td>
+              <td colspan="8" class="text-right text-sm font-medium">Subtotal</td>
               <td class="text-right font-semibold">$<span data-totals="subtotal">0.00</span></td>
               <td></td>
             </tr>
             <tr>
-              <td colspan="5" class="text-right text-sm font-medium">Profit / ROI %</td>
+              <td colspan="8" class="text-right text-sm font-medium">Profit / ROI %</td>
               <td class="text-right font-semibold">
                 $<span data-totals="profit">0.00</span>
                 <span class="text-recon-fog">/</span>
@@ -144,12 +189,12 @@ function numberInputValue(n) {
               <td></td>
             </tr>
             <tr>
-              <td colspan="5" class="text-right text-sm font-medium">Tax</td>
+              <td colspan="8" class="text-right text-sm font-medium">Tax</td>
               <td class="text-right font-semibold">$<span data-totals="tax_amount">0.00</span></td>
               <td></td>
             </tr>
             <tr>
-              <td colspan="5" class="text-right text-sm font-medium uppercase">Total</td>
+              <td colspan="8" class="text-right text-sm font-medium uppercase">Total</td>
               <td class="text-right text-lg font-bold text-recon-red">$<span data-totals="total">0.00</span></td>
               <td></td>
             </tr>
@@ -181,16 +226,5 @@ function numberInputValue(n) {
 </div>
 
 <script src="/js/line-items.js"></script>
-<script>
-(function(){
-  document.querySelectorAll('[data-payment-terms-select]').forEach(function(select){
-    var custom = select.parentElement.querySelector('[data-payment-terms-custom]');
-    if (!custom) return;
-    function sync() { custom.classList.toggle('hidden', select.value !== '__custom'); }
-    select.addEventListener('change', sync);
-    sync();
-  });
-})();
-</script>
 
 <%- include('../layouts/footer') %>

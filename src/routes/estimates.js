@@ -844,6 +844,9 @@ router.post('/:id/generate-invoice', requireAdmin, async (req, res) => {
     unit_price: li.unit_price,
     cost: li.cost || 0,
     line_total: li.line_total,
+    labor_cost: li.labor_cost || 0,
+    material_cost: li.material_cost || 0,
+    markup_pct: li.markup_pct != null ? li.markup_pct : 25,
     sort_order: idx,
   })));
   if (lineError) {

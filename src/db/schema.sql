@@ -177,6 +177,9 @@ CREATE TABLE IF NOT EXISTS invoice_line_items (
   unit_price REAL NOT NULL DEFAULT 0,
   cost REAL NOT NULL DEFAULT 0,
   line_total REAL NOT NULL DEFAULT 0,
+  labor_cost REAL NOT NULL DEFAULT 0,
+  material_cost REAL NOT NULL DEFAULT 0,
+  markup_pct REAL NOT NULL DEFAULT 25,
   sort_order INTEGER NOT NULL DEFAULT 0,
   source_bill_id INTEGER,
   source_bill_line_id INTEGER

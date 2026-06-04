@@ -156,6 +156,9 @@ function validateLineItem(li) {
   const quantity = parseFloat(li.quantity);
   const unitPrice = parseFloat(li.unit_price);
   const cost = parseFloat(li.cost);
+  const laborCost = parseFloat(li.labor_cost);
+  const materialCost = parseFloat(li.material_cost);
+  const markupPct = parseFloat(li.markup_pct);
   return {
     data: {
       description,
@@ -163,6 +166,9 @@ function validateLineItem(li) {
       unit: VALID_UNITS.includes(unit) ? unit : 'ea',
       unit_price: isFinite(unitPrice) && unitPrice >= 0 ? unitPrice : 0,
       cost: isFinite(cost) && cost >= 0 ? cost : 0,
+      labor_cost: isFinite(laborCost) && laborCost >= 0 ? laborCost : 0,
+      material_cost: isFinite(materialCost) && materialCost >= 0 ? materialCost : 0,
+      markup_pct: isFinite(markupPct) && markupPct >= 0 ? markupPct : 25,
     }
   };
 }
@@ -430,6 +436,9 @@ router.post('/:id', async (req, res) => {
     unit_price: li.unit_price,
     cost: li.cost,
     line_total: calc.lineTotal(li),
+    labor_cost: li.labor_cost || 0,
+    material_cost: li.material_cost || 0,
+    markup_pct: li.markup_pct != null ? li.markup_pct : 25,
     sort_order: idx,
   }));
   const { error: rpcErr } = await supabase.rpc('update_invoice_with_lines', {
