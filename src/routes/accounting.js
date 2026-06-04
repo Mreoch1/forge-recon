@@ -771,7 +771,8 @@ async function loadAPAging() {
 
   const billRows = (bills || []).map(b => {
     const due = b.due_date ? String(b.due_date).slice(0,10) : null;
-    const ageDays = due ? Math.max(0, Math.floor((new Date() - new Date(due)) / (1000*60*60*24))) : 0;
+    const billDate = b.bill_date ? String(b.bill_date).slice(0,10) : (b.created_at ? String(b.created_at).slice(0,10) : null);
+    const ageDays = billDate ? Math.max(0, Math.floor((new Date() - new Date(billDate)) / (1000*60*60*24))) : 0;
     const balance = Number(b.total || 0) - Number(b.amount_paid || 0);
     return {
       vendor: b.vendors?.name || '—',
