@@ -264,7 +264,30 @@ async function isConnected() {
  * Called after the invoice email is sent.
  */
 async function pushInvoice(invoice) {
-  // Map line items to QuickBooks Line format
+  // ── Dedup check ───────────────────────────────────────────────────────────
+  // 1. Skip if already marked synced in Forge
+  if (invoice.qb_synced_at) {
+    console.log(`[quickbooks] Invoice ${invoice.display_number} already synced (${invoice.qb_synced_at}). Skipping.`);
+    return { skipped: true, reason: 'Already synced' };
+  }
+
+  // 2. Check QuickBooks for existing invoice with same DocNumber
+  try {
+    const docNumber = invoice.display_number;
+    const searchResult = await api(`/query?query=select%20*%20from%20Invoice%20where%20DocNumber%20=%20'${docNumber.replace(/'/g, '%27')}'%20maxResults%201`);
+    const existing = searchResult?.QueryResponse?.Invoice;
+    if (existing && existing.length > 0) {
+      // Found in QB — mark as synced and skip
+      await supabase.from('invoices').update({ qb_synced_at: new Date().toISOString() }).eq('id', invoice.id);
+      console.log(`[quickbooks] Invoice ${invoice.display_number} already exists in QuickBooks (DocNumber: ${docNumber}). Marked synced.`);
+      return { skipped: true, reason: 'Already exists in QuickBooks' };
+    }
+  } catch (searchErr) {
+    // If search fails (e.g. auth issue), still try the create
+    console.warn(`[quickbooks] Dedup search failed for ${invoice.display_number}:`, searchErr.message);
+  }
+
+  // ── Build QuickBooks Invoice ──────────────────────────────────────────────
   const lines = (invoice.lines || []).map(li => ({
     DetailType: 'SalesItemLineDetail',
     Amount: Number(li.line_total || 0),

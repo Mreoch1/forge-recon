@@ -615,9 +615,13 @@ router.post('/:id/push-to-qb', async (req, res) => {
       setFlash(req, 'error', 'QuickBooks is not connected. Go to Accounting > QuickBooks import staging to connect.');
       return res.redirect(`/invoices/${invoice.id}`);
     }
-    await qb.pushInvoice(invoice);
-    await qb.logSync('Invoice', 'push', `Manually pushed invoice ${invoice.display_number} to QuickBooks`, { forgeId: invoice.id });
-    setFlash(req, 'success', `${invoice.display_number} pushed to QuickBooks successfully.`);
+    const result = await qb.pushInvoice(invoice);
+    if (result && result.skipped) {
+      setFlash(req, 'info', `${invoice.display_number}: ${result.reason}.`);
+    } else {
+      await qb.logSync('Invoice', 'push', `Manually pushed invoice ${invoice.display_number} to QuickBooks`, { forgeId: invoice.id });
+      setFlash(req, 'success', `${invoice.display_number} pushed to QuickBooks successfully.`);
+    }
   } catch (e) {
     console.error('[quickbooks] manual push failed:', e);
     setFlash(req, 'error', `Failed to push to QuickBooks: ${e.message}`);
