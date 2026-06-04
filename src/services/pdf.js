@@ -376,7 +376,7 @@ function generateEstimatePDF(estimate, company, stream) {
   doc.pipe(stream);
 
   drawHeader(doc, company);
-  drawTitle(doc, 'Estimate', estimate.estimate_number, estimate.status);
+  drawTitle(doc, 'Estimate', estimate.estimate_number);
 
   drawAddressBlocks(doc, [
     estimate.customer_name,
@@ -418,6 +418,16 @@ function generateEstimatePDF(estimate, company, stream) {
   if (estConditions) drawNotes(doc, 'Conditions: ' + estConditions);
 
   drawPaymentTerms(doc, estimate, company);
+
+  // Customer PO # — blank field for the customer to fill in on the printed PDF
+  const poY = doc.y + 8;
+  doc.fillColor(COLOR.fog).fontSize(9).font('Helvetica-Bold')
+    .text('PO #:', doc.page.margins.left, poY);
+  doc.strokeColor(COLOR.charcoal).lineWidth(0.8)
+    .moveTo(doc.page.margins.left + 40, poY + 14)
+    .lineTo(doc.page.margins.left + 280, poY + 14)
+    .stroke();
+  doc.y = poY + 24;
 
   // Customer signature / acceptance block + return-to instruction
   drawSignatureBlock(doc);
