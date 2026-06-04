@@ -48,7 +48,7 @@
           <% rows.forEach(function(r){ %>
             <tr>
               <td><%= r.customer %></td>
-              <td class="font-mono text-xs"><%= r.invoiceNumber %></td>
+              <td class="font-mono text-xs"><a href="/invoices/<%= r.id %>" class="hover:text-recon-red"><%= r.invoiceNumber %></a></td>
               <td class="text-xs"><%= r.issueDate %></td>
               <td class="text-xs"><%= r.dueDate %></td>
               <td class="text-right"><%= r.ageDays %></td>

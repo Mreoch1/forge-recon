@@ -707,6 +707,7 @@ async function loadARAging() {
     const ageDays = due ? Math.floor((new Date() - new Date(due)) / (1000*60*60*24)) : 0;
     const balance = Number(inv.total || 0) - Number(inv.amount_paid || 0);
     return {
+      id: inv.id,
       customer: cust.name || '—',
       invoiceNumber: wo.display_number ? `INV-${wo.display_number}` : `INV-${inv.id}`,
       issueDate: String(inv.created_at || '').slice(0,10),
