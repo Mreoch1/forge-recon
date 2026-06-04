@@ -376,7 +376,7 @@ router.post('/batch-csv', async (req, res) => {
     return res.redirect('/invoices');
   }
 
-  let csv = 'Invoice Number,Customer Name,Invoice Date,Due Date,Terms,Email,PO Number,Item,Line Description,Line Quantity,Line Rate,Line Amount\n';
+  let csv = 'Invoice Number,Customer Name,Invoice Date,Due Date,Terms,Email,PO Number,Item,Line Description,Line Quantity,Line Rate,Line Amount,Tax Code\n';
 
   for (const id of ids) {
     try {
@@ -389,13 +389,13 @@ router.post('/batch-csv', async (req, res) => {
       const terms = invoice.payment_terms || '';
       const email = invoice.customer_billing_email || invoice.customer_email || '';
       const poNum = invoice.po_number || '';
+      const taxCode = Number(invoice.tax_rate || 0) > 0 ? 'TAX' : 'NON';
       const lines = (invoice.lines || []).length > 0 ? invoice.lines : [{ description: 'Invoice', quantity: 1, unit_price: invoice.total, line_total: invoice.total }];
 
       lines.forEach(li => {
         const desc = (li.description || '').replace(/"/g, '""');
-        // Use first few words of description as item name, fallback to "Services"
         const item = desc.split(/[,\n]/)[0].trim().substring(0, 100).replace(/"/g, '""') || 'Services';
-        csv += `"${invNum}","${custName}","${invDate}","${dueDate}","${terms}","${email}","${poNum}","${item}","${desc}",${li.quantity || 1},${li.unit_price || 0},${li.line_total || 0}\n`;
+        csv += `"${invNum}","${custName}","${invDate}","${dueDate}","${terms}","${email}","${poNum}","${item}","${desc}",${li.quantity || 1},${li.unit_price || 0},${li.line_total || 0},"${taxCode}"\n`;
       });
     } catch (e) { /* skip failed */ }
   }
@@ -681,16 +681,17 @@ router.get('/:id/csv', async (req, res) => {
   const terms = invoice.payment_terms || '';
   const email = invoice.customer_billing_email || invoice.customer_email || '';
   const poNum = invoice.po_number || '';
+  const taxCode = Number(invoice.tax_rate || 0) > 0 ? 'TAX' : 'NON';
 
   // Build CSV rows — one header row + one data row per line item
   const lines = (invoice.lines || []).length > 0 ? invoice.lines : [{ description: invoice.description || 'Invoice', quantity: 1, unit_price: invoice.total, line_total: invoice.total }];
 
-  let csv = 'Invoice Number,Customer Name,Invoice Date,Due Date,Terms,Email,PO Number,Item,Line Description,Line Quantity,Line Rate,Line Amount\n';
+  let csv = 'Invoice Number,Customer Name,Invoice Date,Due Date,Terms,Email,PO Number,Item,Line Description,Line Quantity,Line Rate,Line Amount,Tax Code\n';
 
   lines.forEach(li => {
     const desc = (li.description || '').replace(/"/g, '""');
     const item = desc.split(/[,\n]/)[0].trim().substring(0, 100).replace(/"/g, '""') || 'Services';
-    csv += `"${invNum}","${custName}","${invDate}","${dueDate}","${terms}","${email}","${poNum}","${item}","${desc}",${li.quantity || 1},${li.unit_price || 0},${li.line_total || 0}\n`;
+    csv += `"${invNum}","${custName}","${invDate}","${dueDate}","${terms}","${email}","${poNum}","${item}","${desc}",${li.quantity || 1},${li.unit_price || 0},${li.line_total || 0},"${taxCode}"\n`;
   });
 
   const dateStr = new Date().toISOString().slice(0, 10);
