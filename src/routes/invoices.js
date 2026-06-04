@@ -376,7 +376,7 @@ router.post('/batch-csv', async (req, res) => {
     return res.redirect('/invoices');
   }
 
-  let csv = 'Invoice Number,Customer Name,Invoice Date,Due Date,Terms,Email,PO Number,Line Description,Line Quantity,Line Rate,Line Amount\n';
+  let csv = 'Invoice Number,Customer Name,Invoice Date,Due Date,Terms,Email,PO Number,Item,Line Description,Line Quantity,Line Rate,Line Amount\n';
 
   for (const id of ids) {
     try {
@@ -393,7 +393,9 @@ router.post('/batch-csv', async (req, res) => {
 
       lines.forEach(li => {
         const desc = (li.description || '').replace(/"/g, '""');
-        csv += `"${invNum}","${custName}","${invDate}","${dueDate}","${terms}","${email}","${poNum}","${desc}",${li.quantity || 1},${li.unit_price || 0},${li.line_total || 0}\n`;
+        // Use first few words of description as item name, fallback to "Services"
+        const item = desc.split(/[,\n]/)[0].trim().substring(0, 100).replace(/"/g, '""') || 'Services';
+        csv += `"${invNum}","${custName}","${invDate}","${dueDate}","${terms}","${email}","${poNum}","${item}","${desc}",${li.quantity || 1},${li.unit_price || 0},${li.line_total || 0}\n`;
       });
     } catch (e) { /* skip failed */ }
   }
@@ -682,11 +684,12 @@ router.get('/:id/csv', async (req, res) => {
   // Build CSV rows — one header row + one data row per line item
   const lines = (invoice.lines || []).length > 0 ? invoice.lines : [{ description: invoice.description || 'Invoice', quantity: 1, unit_price: invoice.total, line_total: invoice.total }];
 
-  let csv = 'Invoice Number,Customer Name,Invoice Date,Due Date,Terms,Email,PO Number,Line Description,Line Quantity,Line Rate,Line Amount\n';
+  let csv = 'Invoice Number,Customer Name,Invoice Date,Due Date,Terms,Email,PO Number,Item,Line Description,Line Quantity,Line Rate,Line Amount\n';
 
   lines.forEach(li => {
     const desc = (li.description || '').replace(/"/g, '""');
-    csv += `"${invNum}","${custName}","${invDate}","${dueDate}","${terms}","${email}","${poNum}","${desc}",${li.quantity || 1},${li.unit_price || 0},${li.line_total || 0}\n`;
+    const item = desc.split(/[,\n]/)[0].trim().substring(0, 100).replace(/"/g, '""') || 'Services';
+    csv += `"${invNum}","${custName}","${invDate}","${dueDate}","${terms}","${email}","${poNum}","${item}","${desc}",${li.quantity || 1},${li.unit_price || 0},${li.line_total || 0}\n`;
   });
 
   res.setHeader('Content-Type', 'text/csv');
