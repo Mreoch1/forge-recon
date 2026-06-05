@@ -129,6 +129,23 @@ async function requireRfpAccess(req, res, next) {
   }
 }
 
+async function requireRfpEditAccess(req, res, next) {
+  const appRole = req.session?.role;
+  if (appRole === 'admin' || appRole === 'manager') return next();
+  const jobId = req.params.id;
+  // Some routes use /projects/rfps/items/:itemId — extract job_id from item when needed
+  if (!jobId) return denyProjectAccess(res, 'Project ID required.');
+  try {
+    const { data: job } = await supabase.from('jobs').select('id, project_manager_user_id, assigned_to_user_id').eq('id', jobId).maybeSingle();
+    if (!job) return denyProjectAccess(res, 'Project not found.');
+    const access = await loadProjectAccess(req, job);
+    if (access.canSeeOperations) return next();
+    denyProjectAccess(res, 'You do not have permission to edit RFP data for this project.');
+  } catch (e) {
+    denyProjectAccess(res, 'Could not verify project access.');
+  }
+}
+
 // ── GET /projects/:id/rfp — dedicated RFP management page for a project ──
 router.get('/projects/:id/rfp', requireAuth, requireRfpAccess, async (req, res) => {
   const jobId = req.params.id;
@@ -202,7 +219,7 @@ router.get('/api/rfp-sources', requireAdmin, async (req, res) => {
 });
 
 // ── GET /projects/:id/rfps — list RFPs for a project (JSON endpoint) ──
-router.get('/projects/:id/rfps', requireAdmin, async (req, res) => {
+router.get('/projects/:id/rfps', requireRfpEditAccess, async (req, res) => {
   const jobId = req.params.id;
   const { data: rfps, error } = await supabase
     .from('project_rfps')
@@ -214,7 +231,7 @@ router.get('/projects/:id/rfps', requireAdmin, async (req, res) => {
 });
 
 // ── GET /projects/:id/rfps/:rId/items — line items for an RFP (JSON) ──
-router.get('/projects/:id/rfps/:rId/items', requireAdmin, async (req, res) => {
+router.get('/projects/:id/rfps/:rId/items', requireRfpEditAccess, async (req, res) => {
   const { data: items, error } = await supabase
     .from('rfp_line_items')
     .select('*')
@@ -226,7 +243,7 @@ router.get('/projects/:id/rfps/:rId/items', requireAdmin, async (req, res) => {
 });
 
 // ── POST /projects/:id/rfps — create a new RFP category ──
-router.post('/projects/:id/rfps', requireAdmin, async (req, res) => {
+router.post('/projects/:id/rfps', requireRfpEditAccess, async (req, res) => {
   const { contractor_name, notes } = req.body;
   const { data, error } = await supabase
     .from('project_rfps')
@@ -243,7 +260,7 @@ router.post('/projects/:id/rfps', requireAdmin, async (req, res) => {
 });
 
 // ── POST /projects/:id/rfps/:rId — update RFP status or rename category (D-101) ──
-router.post('/projects/:id/rfps/:rId', requireAdmin, async (req, res) => {
+router.post('/projects/:id/rfps/:rId', requireRfpEditAccess, async (req, res) => {
   const { status, contractor_name } = req.body;
   const updateFields = { updated_at: new Date().toISOString() };
   const validStatuses = ['pending', 'submitted', 'awarded', 'declined'];
@@ -265,7 +282,7 @@ router.post('/projects/:id/rfps/:rId', requireAdmin, async (req, res) => {
 });
 
 // ── POST /projects/:id/rfps/:rId/items — add line item ──
-router.post('/projects/:id/rfps/:rId/items', requireAdmin, async (req, res) => {
+router.post('/projects/:id/rfps/:rId/items', requireRfpEditAccess, async (req, res) => {
   const { vendor, description, quantity, contractor_cost, vendor_cost,
           unit_cost, total_cost, markup_pct, parent_id } = req.body;
 
@@ -328,7 +345,7 @@ router.post('/projects/:id/rfps/:rId/items', requireAdmin, async (req, res) => {
 
 // ── POST /projects/:id/rfps/:rId/delete — remove an RFP (POST + suffix path because
 //    method-override middleware isn't installed; ?_method=DELETE doesn't work) ──
-router.post('/projects/:id/rfps/:rId/delete', requireAdmin, async (req, res) => {
+router.post('/projects/:id/rfps/:rId/delete', requireRfpEditAccess, async (req, res) => {
   const { error: itemsError } = await supabase.from('rfp_line_items').delete().eq('rfp_id', req.params.rId);
   if (itemsError) throw itemsError;
   const { error: rfpError } = await supabase.from('project_rfps').delete().eq('id', req.params.rId).eq('job_id', req.params.id);
@@ -339,7 +356,7 @@ router.post('/projects/:id/rfps/:rId/delete', requireAdmin, async (req, res) => 
 // ── POST /projects/rfps/items/:itemId/delete — remove a line item (D-102 fix:
 //    was DELETE via ?_method=DELETE which silently no-op'd because method-override
 //    isn't installed; clicks on × actually hit the POST update route below) ──
-router.post('/projects/rfps/items/:itemId/delete', requireAdmin, async (req, res) => {
+router.post('/projects/rfps/items/:itemId/delete', requireRfpEditAccess, async (req, res) => {
   // Resolve job_id BEFORE delete so we can redirect back to the right project
   const { data: lineItem, error: lineItemError } = await supabase
     .from('rfp_line_items')
@@ -358,20 +375,20 @@ router.post('/projects/rfps/items/:itemId/delete', requireAdmin, async (req, res
 
 // Keep DELETE handlers for any code paths that DO have method-override active
 // (defensive — does no harm to define both):
-router.delete('/projects/:id/rfps/:rId', requireAdmin, async (req, res) => {
+router.delete('/projects/:id/rfps/:rId', requireRfpEditAccess, async (req, res) => {
   const { error: itemsError } = await supabase.from('rfp_line_items').delete().eq('rfp_id', req.params.rId);
   if (itemsError) throw itemsError;
   const { error: rfpError } = await supabase.from('project_rfps').delete().eq('id', req.params.rId).eq('job_id', req.params.id);
   if (rfpError) throw rfpError;
   res.redirect(`/projects/${req.params.id}/rfp`);
 });
-router.delete('/projects/rfps/items/:itemId', requireAdmin, async (req, res) => {
+router.delete('/projects/rfps/items/:itemId', requireRfpEditAccess, async (req, res) => {
   await deleteRfpLineItemTree(req.params.itemId);
   res.json({ ok: true });
 });
 
 // ── POST /projects/rfps/items/:itemId — update a line item (D-101 inline edit) ──
-router.post('/projects/rfps/items/:itemId', requireAdmin, async (req, res) => {
+router.post('/projects/rfps/items/:itemId', requireRfpEditAccess, async (req, res) => {
   // D-119 fix: when an HTML form has BOTH a hidden input (value="0") AND a
   // checkbox (value="1") sharing the same name, Express's qs body parser
   // returns an ARRAY of values. The previous code did `approved === '1'`
@@ -468,7 +485,7 @@ function computeSubLineTotals(params) {
 }
 
 // ── D-105: POST /projects/rfps/items/reorder — drag-drop save new sort order ──
-router.post('/projects/rfps/items/reorder', requireAdmin, async (req, res) => {
+router.post('/projects/rfps/items/reorder', requireRfpEditAccess, async (req, res) => {
   const { rfp_id } = req.body;
   let itemIds = req.body.item_ids;
   if (typeof itemIds === 'string' && itemIds.trim().startsWith('[')) {
@@ -487,7 +504,7 @@ router.post('/projects/rfps/items/reorder', requireAdmin, async (req, res) => {
 });
 
 // ── F-007: POST /projects/rfps/items/:itemId/approve — AJAX toggle ──
-router.post('/projects/rfps/items/:itemId/approve', requireAdmin, async (req, res) => {
+router.post('/projects/rfps/items/:itemId/approve', requireRfpEditAccess, async (req, res) => {
   const itemId = parseInt(req.params.itemId, 10);
   if (!itemId) return res.status(400).json({ ok: false, error: 'Invalid item id' });
   const approved = req.body.approved === 1 || req.body.approved === '1' || req.body.approved === true;
