@@ -6,7 +6,7 @@
 <% const bucketKey = entityType === 'work_order' ? 'project' : entityType === 'user' ? 'worker' : entityType; %>
         <a href="/files/<%= bucketKey %>s" class="text-sm text-recon-fog hover:text-recon-red">&larr; <%= (bucketKey || '').charAt(0).toUpperCase() + (bucketKey || '').slice(1) %>s</a>
         <% if (folder && folder.parent_folder_id) { %>
-          &middot; <a href="/files/folders/<%= folder.parent_folder_id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; Parent folder</a>
+          &middot; <a href="/files/folders/<%= folder.parent_folder_id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; <%= parentFolderName || 'Parent folder' %></a>
         <% } %>
       </div>
       <h1 class="page-h1 mb-1"><%= entityName %></h1>

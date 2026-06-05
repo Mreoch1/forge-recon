@@ -198,6 +198,16 @@ router.get('/folders/:folderId', requireAuth, async (req, res) => {
   if (!folder) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Folder not found.' });
   if (!workerCanAccessEntity(req, folder.entity_type, folder.entity_id)) return workerForbidden(res);
   const contents = await filesService.getFolderContents(folder.id);
+  // D-130: load parent folder name for breadcrumb
+  let parentFolderName = null;
+  if (folder.parent_folder_id) {
+    const { data: parentFolder } = await supabase
+      .from('folders')
+      .select('name')
+      .eq('id', folder.parent_folder_id)
+      .maybeSingle();
+    if (parentFolder) parentFolderName = parentFolder.name;
+  }
   res.render('files/folder', {
     title: folder.name + ' - Files',
     activeNav: 'files',
@@ -206,6 +216,7 @@ router.get('/folders/:folderId', requireAuth, async (req, res) => {
     entityName: folder.name,
     entityType: folder.entity_type,
     entityId: folder.entity_id,
+    parentFolderName,
   });
 });
 
