@@ -1,4 +1,19 @@
 <%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<%
+function fmtMeetingTime(iso) {
+  if (!iso) return '';
+  var hhmm = iso.slice(11, 16);
+  var h = parseInt(hhmm, 10);
+  var ampm = h >= 12 ? 'PM' : 'AM';
+  var h12 = h % 12 || 12;
+  return h12 + hhmm.slice(2) + ' ' + ampm;
+}
+function fmtHourLabel(h) {
+  var ampm = h >= 12 ? 'PM' : 'AM';
+  var h12 = h % 12 || 12;
+  return h12 + ' ' + ampm;
+}
+%>
 <style>
   /* ── Schedule week view ── */
   .sc-layout { display: flex; flex-direction: column; height: calc(100vh - 3.5rem); }
@@ -191,7 +206,7 @@
       <% if (dayMeetings.length > 0) { %>
         <span style="color:#888;white-space:nowrap"><%= day.label %> <%= day.num %>:
           <% dayMeetings.forEach(function(m, i){ %>
-            <a href="/projects/<%= m.job_id %>/schedule" style="color:#c0202b;text-decoration:none;font-weight:500" title="<%= m.title %><%= m.location ? ' · ' + m.location : '' %>"><%= m.title %></a><%= i < dayMeetings.length - 1 ? ',' : '' %>
+            <a href="/projects/<%= m.job_id %>/schedule" style="color:#c0202b;text-decoration:none;font-weight:500" title="<%= m.title %><%= m.location ? ' · ' + m.location : '' %>"><%= fmtMeetingTime(m.start_time) %><%= fmtMeetingTime(m.start_time) ? ' ' : '' %><%= m.title %></a><%= i < dayMeetings.length - 1 ? ',' : '' %>
           <% }); %>
         </span>
       <% } %>
@@ -205,7 +220,7 @@
       <!-- Gutter (hour labels) -->
       <div class="sc-hour-gutter">
         <% hours.forEach(function(h){ %>
-          <div class="sc-hour-label" style="top:<%= ((h - HOURS_START) / HOUR_COUNT * 100) %>%"><%= h %>:00</div>
+          <div class="sc-hour-label" style="top:<%= ((h - HOURS_START) / HOUR_COUNT * 100) %>%"><%= fmtHourLabel(h) %></div>
           <div class="sc-hour-line<%= (h === 8 || h === 12 || h === 17) ? ' anchor-hour' : '' %>" style="top:<%= ((h - HOURS_START) / HOUR_COUNT * 100) %>%"></div>
         <% }); %>
       </div>
