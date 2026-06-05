@@ -47,6 +47,39 @@
 <script src="/js/address-autocomplete.js?v=20260520" defer></script>
 <script src="/js/phone-format.js?v=20260529" defer></script>
 
+<!-- Supabase Realtime: live updates for watched tables -->
+<% if (typeof currentUser !== 'undefined' && currentUser && typeof watchTables !== 'undefined' && watchTables && watchTables.length > 0) { %>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+  var SUPABASE_URL = '<%= process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL %>';
+  var SUPABASE_ANON_KEY = '<%= process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY %>';
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
+  var _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  var _tables = <%- JSON.stringify(watchTables) %>;
+  var _banner = null;
+
+  function showUpdateBanner() {
+    if (_banner) return;
+    _banner = document.createElement('div');
+    _banner.id = 'realtime-update-banner';
+    _banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:10000;background:#c0202b;color:#fff;text-align:center;padding:6px 12px;font-size:13px;cursor:pointer;transition:opacity .3s;';
+    _banner.textContent = 'New updates available — click to refresh';
+    _banner.onclick = function(){ window.location.reload(); };
+    document.body.prepend(_banner);
+  }
+
+  _tables.forEach(function(table){
+    _supabase.channel('live-' + table)
+      .on('postgres_changes', { event: '*', schema: 'public', table: table }, function(payload) {
+        showUpdateBanner();
+      })
+      .subscribe();
+  });
+})();
+</script>
+<% } %>
+
 <!-- Enable spellcheck on all input/textarea fields -->
 <script>
 (function(){ document.querySelectorAll('input:not([type=password]):not([type=email]):not([type=url]):not([type=search]), textarea').forEach(function(el){ el.spellcheck = true; }); })();

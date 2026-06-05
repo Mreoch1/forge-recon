@@ -363,6 +363,7 @@ router.get('/', async (req, res) => {
     HOURS_START, HOURS_END, HOUR_COUNT, TOTAL_MINUTES,
     rawDate, woOverlaps, unscheduled: unschedMapped, closures: closures || [], closureByDate,
     meetingsByDate,
+    watchTables: ['work_orders'],
   });
 });
 

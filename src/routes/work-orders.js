@@ -548,7 +548,8 @@ router.get('/', async (req, res) => {
     title: 'Work Orders', activeNav: 'work-orders',
     workOrders, q, status, page, users, assigneeFilter,
     totalPages: Math.max(1, Math.ceil((total || 0) / PAGE_SIZE)),
-    total: total || 0, statuses: VALID_STATUSES
+    total: total || 0, statuses: VALID_STATUSES,
+    watchTables: ['work_orders'],
   });
 });
 

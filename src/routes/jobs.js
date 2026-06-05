@@ -169,7 +169,8 @@ router.get('/', async (req, res) => {
     })),
     q, status, page,
     totalPages: Math.max(1, Math.ceil((total || 0) / PAGE_SIZE)),
-    total: total || 0, statuses: VALID_STATUSES
+    total: total || 0, statuses: VALID_STATUSES,
+    watchTables: ['jobs'],
   });
 });
 
@@ -564,6 +565,7 @@ router.get('/:id', async (req, res) => {
     // D-093: RFP / bid comparison
     rfps: rfps || [],
     rfpItemsMap,
+    watchTables: ['jobs', 'work_orders'],
   });
 });
 
