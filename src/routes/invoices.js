@@ -399,7 +399,7 @@ router.post('/batch-csv', async (req, res) => {
 
       lines.forEach(li => {
         const desc = (li.description || '').replace(/"/g, '""');
-        const item = desc.split(/[,\n]/)[0].trim().substring(0, 100).replace(/"/g, '""') || 'Services';
+        const item = 'Recon Services';
         const memo = (invoice.notes || '').replace(/"/g, '""');
         csv += `"${invNum}","${custName}","${invDate}","${dueDate}","${terms}","","${item}","${desc}",${li.quantity || 1},${li.unit_price || 0},${li.line_total || 0},"${taxable}","${taxCode}","${memo}","${email}","${poNum}"\n`;
       });
@@ -701,7 +701,7 @@ router.get('/:id/csv', async (req, res) => {
 
   lines.forEach(li => {
     const desc = (li.description || '').replace(/"/g, '""');
-    const item = desc.split(/[,\n]/)[0].trim().substring(0, 100).replace(/"/g, '""') || 'Services';
+    const item = 'Recon Services';
     const memo = (invoice.notes || '').replace(/"/g, '""');
     csv += `"${invNum}","${custName}","${invDate}","${dueDate}","${terms}","","${item}","${desc}",${li.quantity || 1},${li.unit_price || 0},${li.line_total || 0},"${taxable}","${taxCode}","${memo}","${email}","${poNum}"\n`;
   });
