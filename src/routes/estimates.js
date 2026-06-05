@@ -23,7 +23,7 @@
 
 const express = require('express');
 const supabase = require('../db/supabase');
-const { requireAdmin, setFlash } = require('../middleware/auth');
+const { requireAdmin, requireManager, setFlash } = require('../middleware/auth');
 const calc = require('../services/calculations');
 const pdf = require('../services/pdf');
 const email = require('../services/email');
@@ -575,6 +575,11 @@ router.post('/:id/send', async (req, res, next) => {
     setFlash(req, 'error', `${estimate.display_number} is "${estimate.status}" — already sent.`);
     return res.redirect(`/estimates/${estimate.id}`);
   }
+  // Pre-check for recipient email to avoid an unhandled 500
+  if (!estimate.customer_billing_email && !estimate.customer_email) {
+    setFlash(req, 'error', `${estimate.display_number} cannot be emailed because the customer has no email address on file. Edit the customer to add an email, or use "Mark sent" to record delivery outside FORGE.`);
+    return res.redirect(`/estimates/${estimate.id}`);
+  }
   try {
     const emailService = require('../services/estimate-email');
     const result = await emailService.sendEstimateEmail(estimate.id);
@@ -663,7 +668,7 @@ router.post('/:id/line-approvals', async (req, res) => {
   res.redirect(`/estimates/${estimate.id}`);
 });
 
-router.post('/:id/create-invoice', requireAdmin, async (req, res) => {
+router.post('/:id/create-invoice', requireManager, async (req, res) => {
   const estimate = await loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
   if (!['sent', 'pending', 'approved', 'accepted'].includes(estimate.status)) {
@@ -676,7 +681,7 @@ router.post('/:id/create-invoice', requireAdmin, async (req, res) => {
   return res.redirect(`/estimates/${estimate.id}/create-invoice`);
 });
 
-router.get('/:id/create-invoice', requireAdmin, async (req, res) => {
+router.get('/:id/create-invoice', requireManager, async (req, res) => {
   const estimate = await loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
   if (!['sent', 'pending', 'approved', 'accepted'].includes(estimate.status)) {
@@ -752,7 +757,7 @@ router.post('/:id/unarchive', async (req, res) => {
 });
 
 // Generate invoice from approved estimate items.
-router.post('/:id/generate-invoice', requireAdmin, async (req, res) => {
+router.post('/:id/generate-invoice', requireManager, async (req, res) => {
   const estimate = await loadEstimate(req.params.id);
   if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
   if (!['sent', 'pending', 'approved', 'accepted'].includes(estimate.status)) {

@@ -40,6 +40,7 @@ const closuresRoutes = require('./routes/closures');
 const settingsRoutes = require('./routes/settings');
 const signupRoutes = require('./routes/signup');
 const apiAddressRoutes = require('./routes/api-address');
+const quickbooksWebhookRoutes = require('./routes/quickbooks-webhooks');
 
 // F2: rate limiters for auth endpoints to slow credential stuffing,
 // account enumeration, and password reset spam.
@@ -149,6 +150,7 @@ app.set('view engine', 'ejs');
 app.set('views', VIEWS_DIR);
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(morgan('dev'));
+app.use('/quickbooks/webhook', express.raw({ type: '*/*', limit: '1mb' }), quickbooksWebhookRoutes);
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(PUBLIC_DIR, { maxAge: '1h' }));
@@ -243,7 +245,7 @@ app.use('/jobs', requireAuth, requireAdmin, (req, res) => {
   res.redirect(302, '/projects' + tail);
 });
 app.use('/estimates', requireAuth, requireManager, estimatesRoutes);
-app.use('/invoices', requireAuth, requireAdmin, invoicesRoutes);
+app.use('/invoices', requireAuth, requireManager, invoicesRoutes);
 app.use('/bills', requireAuth, requireAdmin, billsRoutes);
 app.use('/admin', requireAuth, requireAdmin, adminRoutes);
 app.use('/admin/closures', requireAuth, requireAdmin, closuresRoutes);

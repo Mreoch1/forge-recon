@@ -1,5 +1,10 @@
 # TODO for Michael
 
+## Deferred Forge Backlog
+
+- [ ] **Estimate approval link / button.** Add a secure customer approval flow from estimate emails: customer opens a Forge approval page, confirms approval, optionally enters PO#, and Forge records approver, timestamp, IP/user agent, estimate version/PDF snapshot, then emails Recon an approved copy.
+- [ ] **Invoice payment instructions.** Add configurable invoice payment instructions in company settings. Recommended default: show check mailing instructions on invoices, and either include ACH instructions or show "ACH instructions available upon request" depending on security preference.
+
 ## v0.5 IN-PROGRESS — APP IS NOT RUNNABLE RIGHT NOW
 
 Schema + routes have been rewritten for v0.5 (WO-as-root, sub-WOs, unified `0001-0000` numbering, billing_email, cost columns, payment_terms, scheduled date/time, manager+worker roles). Views haven't been rewritten yet.

@@ -61,6 +61,9 @@ CREATE TABLE IF NOT EXISTS customers (
   city TEXT,
   state TEXT,
   zip TEXT,
+  quickbooks_id TEXT,
+  quickbooks_sync_error TEXT,
+  quickbooks_synced_at TIMESTAMPTZ,
   notes TEXT,
   tutorial_session_id UUID REFERENCES tutorial_sessions(id),
   mock BOOLEAN NOT NULL DEFAULT FALSE,
@@ -192,6 +195,14 @@ CREATE TABLE IF NOT EXISTS invoices (
   po_number TEXT,
   qb_synced_at TIMESTAMPTZ,
   conditions TEXT,
+  quickbooks_id TEXT,
+  quickbooks_doc_number TEXT,
+  quickbooks_sync_status TEXT NOT NULL DEFAULT 'not_synced'
+    CHECK (quickbooks_sync_status IN ('not_synced','pending','synced','failed')),
+  quickbooks_synced_at TIMESTAMPTZ,
+  quickbooks_sync_error TEXT,
+  quickbooks_realm_id TEXT,
+  quickbooks_sync_payload JSONB,
   mock BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -457,27 +468,50 @@ CREATE TABLE IF NOT EXISTS quickbooks_import_rows (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- QuickBooks OAuth tokens and sync log
-CREATE TABLE IF NOT EXISTS quickbooks_tokens (
-  id BIGSERIAL PRIMARY KEY,
-  realm_id TEXT,
-  access_token TEXT NOT NULL,
-  refresh_token TEXT NOT NULL,
-  token_type TEXT NOT NULL DEFAULT 'Bearer',
-  expires_at TIMESTAMPTZ NOT NULL,
+CREATE TABLE IF NOT EXISTS quickbooks_connections (
+  id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  realm_id TEXT NOT NULL,
+  access_token TEXT,
+  refresh_token TEXT,
+  token_type TEXT DEFAULT 'bearer',
+  access_token_expires_at TIMESTAMPTZ,
   refresh_token_expires_at TIMESTAMPTZ,
+  connected_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
   connected_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  disconnected_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  default_item_id TEXT,
+  default_item_name TEXT,
+  default_income_account_id TEXT,
+  default_income_account_name TEXT,
+  settings_updated_at TIMESTAMPTZ
 );
 
-CREATE TABLE IF NOT EXISTS quickbooks_sync_log (
+CREATE TABLE IF NOT EXISTS quickbooks_sync_logs (
   id BIGSERIAL PRIMARY KEY,
-  entity_type TEXT NOT NULL,
+  entity_type TEXT NOT NULL CHECK (entity_type IN ('customer','invoice')),
+  entity_id BIGINT NOT NULL,
   action TEXT NOT NULL,
-  summary TEXT,
-  details JSONB,
+  status TEXT NOT NULL CHECK (status IN ('success','failed','skipped')),
+  quickbooks_id TEXT,
+  message TEXT,
+  request_json JSONB,
+  response_json JSONB,
+  user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS quickbooks_webhook_events (
+  id BIGSERIAL PRIMARY KEY,
+  realm_id TEXT,
+  entity_name TEXT,
+  entity_id TEXT,
+  operation TEXT,
+  last_updated_at TIMESTAMPTZ,
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  processed_status TEXT NOT NULL DEFAULT 'received'
+    CHECK (processed_status IN ('received','processed','ignored','failed')),
+  processed_at TIMESTAMPTZ,
+  error_message TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -659,6 +693,13 @@ CREATE INDEX IF NOT EXISTS idx_qb_import_rows_batch ON quickbooks_import_rows(ba
 CREATE INDEX IF NOT EXISTS idx_qb_import_rows_type ON quickbooks_import_rows(row_type);
 CREATE INDEX IF NOT EXISTS idx_qb_import_rows_review ON quickbooks_import_rows(review_status);
 CREATE INDEX IF NOT EXISTS idx_qb_import_rows_external_number ON quickbooks_import_rows(external_number);
+CREATE INDEX IF NOT EXISTS idx_customers_quickbooks_id ON customers(quickbooks_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_quickbooks_id ON invoices(quickbooks_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_qb_sync_status ON invoices(quickbooks_sync_status);
+CREATE INDEX IF NOT EXISTS idx_qb_sync_logs_entity ON quickbooks_sync_logs(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_qb_connections_realm ON quickbooks_connections(realm_id);
+CREATE INDEX IF NOT EXISTS idx_qb_webhook_events_status ON quickbooks_webhook_events(processed_status, created_at);
+CREATE INDEX IF NOT EXISTS idx_qb_webhook_events_entity ON quickbooks_webhook_events(entity_name, entity_id);
 
 CREATE INDEX IF NOT EXISTS idx_payroll_employees_status ON payroll_employees(status);
 CREATE INDEX IF NOT EXISTS idx_payroll_employees_user ON payroll_employees(user_id);

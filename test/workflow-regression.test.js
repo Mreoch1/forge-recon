@@ -72,6 +72,63 @@ test('managers can manage vendor and contractor records but cannot delete them',
   assert.match(header, /_isAdminMobile \|\| _isManagerMobile[\s\S]*href="\/contractors"/);
 });
 
+test('managers can create and send invoices while admin keeps accounting controls', () => {
+  const app = read('src/app.js');
+  const estimates = read('src/routes/estimates.js');
+  const invoices = read('src/routes/invoices.js');
+  const estimateShow = read('src/views/estimates/show.ejs');
+  const invoiceShow = read('src/views/invoices/show.ejs');
+  const header = read('src/views/layouts/header.ejs');
+
+  assert.match(app, /app\.use\('\/invoices', requireAuth, requireManager, invoicesRoutes\)/);
+  assert.match(estimates, /router\.post\('\/:id\/create-invoice', requireManager,/);
+  assert.match(estimates, /router\.get\('\/:id\/create-invoice', requireManager,/);
+  assert.match(estimates, /router\.post\('\/:id\/generate-invoice', requireManager,/);
+  assert.match(estimateShow, /const canManageInvoices = currentUser && \['admin', 'manager'\]\.includes\(currentUser\.role\)/);
+  assert.match(estimateShow, /canManageInvoices && !invoice && estimate\.lines\.length > 0/);
+  assert.match(invoiceShow, /const isAdmin = currentUser && currentUser\.role === 'admin'/);
+  assert.match(invoiceShow, /isAdmin && \(invoice\.status === 'sent' \|\| invoice\.status === 'overdue'\)/);
+  assert.match(invoiceShow, /action="\/invoices\/<%= invoice\.id %>\/sync-quickbooks"/);
+  assert.match(invoiceShow, /isAdmin && invoice\.status !== 'paid' && invoice\.status !== 'billing_complete'/);
+  assert.match(invoices, /router\.post\('\/:id\/mark-paid', requireAdmin,/);
+  assert.match(invoices, /router\.post\('\/:id\/billing-complete', requireAdmin,/);
+  assert.match(invoices, /router\.post\('\/:id\/sync-quickbooks', requireAdmin,/);
+  assert.match(invoices, /router\.post\('\/:id\/reopen-billing', requireAdmin,/);
+  assert.match(invoices, /router\.post\('\/:id\/void', requireAdmin,/);
+  assert.match(invoices, /router\.post\('\/:id\/delete', requireAdmin,/);
+  assert.match(header, /_isAdminNav \|\| _isManagerNav[\s\S]*href="\/invoices"/);
+  assert.match(header, /_isAdminMobile \|\| _isManagerMobile[\s\S]*href="\/invoices"/);
+});
+
+test('QuickBooks webhook uses raw body parsing before global JSON parser', () => {
+  const app = read('src/app.js');
+  const rawMount = app.indexOf("app.use('/quickbooks/webhook', express.raw");
+  const jsonParser = app.indexOf("app.use(express.json");
+
+  assert.ok(rawMount > -1, 'QuickBooks webhook route should be mounted');
+  assert.ok(jsonParser > -1, 'global JSON parser should be mounted');
+  assert.ok(rawMount < jsonParser, 'QuickBooks webhook raw parser must run before JSON parser');
+});
+
+test('QuickBooks accounting setup supports OAuth and item mapping', () => {
+  const accountingRoutes = read('src/routes/accounting.js');
+  const accountingIndex = read('src/views/accounting/index.ejs');
+  const quickbooksView = read('src/views/accounting/quickbooks.ejs');
+  const quickbooksSync = read('src/services/quickbooks-sync.js');
+
+  assert.match(accountingIndex, /href: '\/accounting\/quickbooks'/);
+  assert.match(accountingRoutes, /router\.get\('\/quickbooks'/);
+  assert.match(accountingRoutes, /router\.get\('\/quickbooks\/connect'/);
+  assert.match(accountingRoutes, /process\.env\.QUICKBOOKS_REDIRECT_URI/);
+  assert.match(accountingRoutes, /req\.session\.quickbooksOAuthState/);
+  assert.match(accountingRoutes, /req\.query\.state !== expectedState/);
+  assert.match(accountingRoutes, /router\.post\('\/quickbooks\/default-item'/);
+  assert.match(quickbooksView, /Default product\/service/);
+  assert.match(quickbooksView, /name="default_item_id"/);
+  assert.match(quickbooksSync, /options\.defaultItemId \|\| process\.env\.QUICKBOOKS_DEFAULT_ITEM_ID/);
+  assert.match(quickbooksSync, /buildInvoicePayload\(invoice, quickbooksCustomerId, \{ defaultItemId: connection\.default_item_id \}\)/);
+});
+
 test('project RFP export loader only selects real project columns', () => {
   const routes = read('src/routes/rfp.js');
   assert.match(routes, /\.from\('jobs'\)\s*\.select\('id, title'\)/);
@@ -87,6 +144,16 @@ test('work order row links do not depend on the More menu', () => {
   assert.doesNotMatch(rowLinkScript[0], /moreBtn|moreMenu/);
   assert.match(workOrderIndex, /<a href="\/work-orders\/<%= w\.id %>" class="wol-num/);
   assert.match(workOrderIndex, /<a href="\/work-orders\/<%= w\.id %>" class="wol-customer/);
+});
+
+test('managers can edit open work orders and access WO files from show page', () => {
+  const show = read('src/views/work-orders/show.ejs');
+
+  assert.match(show, /currentUser && currentUser\.role !== 'worker' && !\['closed', 'complete', 'cancelled'\]\.includes\(wo\.status\)/);
+  assert.match(show, /href="\/work-orders\/<%= wo\.id %>\/edit"/);
+  assert.match(show, /href="\/files\/work_order\/<%= wo\.id %>"/);
+  assert.match(show, /Work order files/);
+  assert.match(show, /Open files/);
 });
 
 test('RFP edits return users to the open category and line item', () => {
@@ -172,4 +239,23 @@ test('Supabase public API access is locked down in migrations', () => {
   assert.match(migration, /alter table '\s*\|\|\s*rec\.fqtn\s*\|\|\s*' enable row level security/);
   assert.match(migration, /alter view if exists public\.v_job_financials set \(security_invoker = true\)/);
   assert.match(migration, /alter function public\.set_updated_at_column\(\) set search_path = public/);
+});
+
+test('project chat stays inside the project content shell', () => {
+  const show = read('src/views/jobs/show.ejs');
+
+  const opsShellStart = show.indexOf('<div class="ops-shell">');
+  const chatStart = show.indexOf('<details class="chat-panel card mb-6 overflow-hidden"');
+  const opsShellEnd = show.indexOf('</div>  <%# closes ops-shell %>');
+  const chatPanelMarkup = show.match(/<details class="chat-panel[\s\S]*?<\/details>/);
+  const chatPrefix = show.slice(Math.max(0, chatStart - 80), chatStart);
+
+  assert.ok(opsShellStart >= 0, 'project show should use the ops shell');
+  assert.ok(chatStart > opsShellStart, 'project chat should render inside the ops shell');
+  assert.ok(chatStart < opsShellEnd, 'project chat should not render after the ops shell closes');
+  assert.ok(chatPanelMarkup, 'project chat panel markup should exist');
+  assert.doesNotMatch(chatPrefix, /canSeeOperations|canSeeBilling/);
+  assert.doesNotMatch(chatPanelMarkup[0], /position\s*:\s*fixed/);
+  assert.doesNotMatch(chatPanelMarkup[0], /top\s*:\s*4rem/);
+  assert.match(show, /Project communication and internal updates/);
 });
