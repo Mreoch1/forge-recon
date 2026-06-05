@@ -7,134 +7,144 @@
   <div class="flex items-baseline justify-between mb-4 flex-wrap gap-2">
     <div>
       <h1 class="page-h1">Materials</h1>
-      <p class="page-sub">Track and order materials for this project.</p>
+      <p class="page-sub">Track and order materials — grouped by vendor, then category.</p>
     </div>
-    <div class="flex flex-wrap gap-2">
-      <button type="button" class="btn btn-primary text-sm" onclick="showNewCategoryForm()">+ Category</button>
-    </div>
+    <button type="button" class="btn btn-primary text-sm" onclick="showNewVendorForm()">+ Vendor</button>
   </div>
 
-  <!-- New category form (hidden) -->
-  <div id="new-cat-form" class="card p-4 mb-6 hidden">
-    <form onsubmit="return createCategory(event)" class="flex gap-2 items-end">
+  <!-- New vendor form (hidden) -->
+  <div id="new-vendor-form" class="card p-4 mb-6 hidden">
+    <form onsubmit="return createVendor(event)" class="flex gap-2 items-end">
       <div class="flex-1">
-        <label class="label" for="cat-name">Category name</label>
-        <input type="text" id="cat-name" class="input" placeholder="e.g. Framing, Electrical, Plumbing" required>
+        <label class="label" for="vendor-name">Vendor name</label>
+        <input type="text" id="vendor-name" class="input" placeholder="e.g. Home Depot, ABC Supply" required>
       </div>
       <button type="submit" class="btn btn-primary text-sm">Create</button>
-      <button type="button" class="btn btn-ghost text-sm" onclick="document.getElementById('new-cat-form').classList.add('hidden')">Cancel</button>
+      <button type="button" class="btn btn-ghost text-sm" onclick="document.getElementById('new-vendor-form').classList.add('hidden')">Cancel</button>
     </form>
   </div>
 
   <!-- Empty state -->
-  <% var vendorKeys = Object.keys(itemsByVendorCat); %>
-  <% if (vendorKeys.length === 0) { %>
+  <% if (vendors.length === 0) { %>
     <div class="card p-8 text-center text-recon-fog text-sm">
-      No material categories yet. Click "+ Category" to get started.
+      No vendors yet. Click "+ Vendor" to get started.
     </div>
   <% } %>
 
   <!-- Grand totals bar -->
-  <% if (vendorKeys.length > 0) { %>
-    <% var allItemsAll = []; vendorKeys.forEach(function(vk){ Object.keys(itemsByVendorCat[vk]).forEach(function(ck){ allItemsAll = allItemsAll.concat(itemsByVendorCat[vk][ck].items); }); }); %>
-    <% var approvedTotal = allItemsAll.reduce(function(s, it){ return s + (it.approved ? (Number(it.quantity)||0)*(Number(it.unit_price)||0) : 0); }, 0); %>
-    <% var totalAll = allItemsAll.reduce(function(s, it){ return s + (Number(it.quantity)||0)*(Number(it.unit_price)||0); }, 0); %>
+  <% if (vendors.length > 0) { %>
+    <% var allItems = []; vendors.forEach(function(v){ (catsByVendor[v.id]||[]).forEach(function(c){ allItems = allItems.concat(c.items||[]); }); }); %>
+    <% var approvedTotal = allItems.reduce(function(s, it){ return s + (it.approved ? (Number(it.quantity)||0)*(Number(it.unit_price)||0) : 0); }, 0); %>
     <div class="card p-4 mb-6 flex items-center justify-between">
       <div>
         <span class="font-semibold">Approved total</span>
-        <span class="ml-2 text-recon-fog text-xs">(<%= allItemsAll.filter(function(it){ return it.approved; }).length %> of <%= allItemsAll.length %> items approved)</span>
+        <span class="ml-2 text-recon-fog text-xs">(<%= allItems.filter(function(it){ return it.approved; }).length %> of <%= allItems.length %> items approved)</span>
       </div>
       <span class="text-xl font-bold text-recon-red">$<%= approvedTotal.toFixed(2) %></span>
     </div>
   <% } %>
 
-  <!-- Vendor > Category hierarchy -->
-  <% vendorKeys.sort().forEach(function(vendor){ %>
-    <% var catKeys = Object.keys(itemsByVendorCat[vendor]); %>
-    <% var vItems = []; catKeys.forEach(function(ck){ vItems = vItems.concat(itemsByVendorCat[vendor][ck].items); }); %>
+  <!-- Vendor list -->
+  <% vendors.forEach(function(v){ %>
+    <% var cats = catsByVendor[v.id] || []; %>
+    <% var vItems = []; cats.forEach(function(c){ vItems = vItems.concat(c.items||[]); }); %>
     <% var vApproved = vItems.reduce(function(s, it){ return s + (it.approved ? (Number(it.quantity)||0)*(Number(it.unit_price)||0) : 0); }, 0); %>
     <details class="card mb-4 overflow-hidden" open>
-      <summary class="cursor-pointer px-5 py-3 bg-recon-cloud hover:bg-gray-100 flex items-center justify-between gap-2 font-semibold text-sm">
-        <span><%= vendor %> <span class="text-xs text-recon-fog font-normal">(<%= vItems.length %> item<%= vItems.length === 1 ? '' : 's' %>, approved $<%= vApproved.toFixed(2) %>)</span></span>
+      <summary class="cursor-pointer px-5 py-3 bg-recon-cloud hover:bg-gray-100 flex items-center justify-between gap-2 text-sm font-semibold">
+        <span><%= v.name %> <span class="text-xs text-recon-fog font-normal">(<%= vItems.length %> item<%= vItems.length === 1 ? '' : 's' %>, approved $<%= vApproved.toFixed(2) %>)</span></span>
+        <span class="flex gap-1">
+          <button type="button" class="text-xs text-recon-fog hover:text-recon-red px-1" onclick="event.stopPropagation();renameVendor(<%= v.id %>, '<%= v.name.replace(/'/g, "\\'") %>')" title="Rename">✎</button>
+          <button type="button" class="text-xs text-recon-fog hover:text-recon-red px-1" onclick="event.stopPropagation();if(confirm('Delete vendor &quot;<%= v.name %>&quot; and all its categories and items?'))deleteVendor(<%= v.id %>)" title="Delete">✕</button>
+        </span>
       </summary>
       <div class="p-4">
 
-        <% catKeys.sort(function(a,b){ return (itemsByVendorCat[vendor][a].catName || '').localeCompare(itemsByVendorCat[vendor][b].catName || ''); }).forEach(function(ck){ %>
-          <% var group = itemsByVendorCat[vendor][ck]; %>
-          <% var catApproved = group.items.reduce(function(s, it){ return s + (it.approved ? (Number(it.quantity)||0)*(Number(it.unit_price)||0) : 0); }, 0); %>
-          <details class="mb-3" open>
-            <summary class="cursor-pointer text-xs font-semibold text-recon-fog hover:text-recon-charcoal mb-1 flex items-center gap-2">
-              <span><%= group.catName %></span>
-              <span class="text-recon-mist">(<%= group.items.length %> item<%= group.items.length === 1 ? '' : 's' %>)</span>
-              <span class="text-recon-red">$<%= catApproved.toFixed(2) %></span>
+        <!-- Create category form for this vendor -->
+        <form onsubmit="return createCategory(event, <%= v.id %>)" class="flex gap-2 items-end mb-4">
+          <div class="flex-1">
+            <input type="text" class="input text-sm" style="padding:.3rem .5rem" placeholder="New category name (e.g. Framing, Electrical)" required>
+          </div>
+          <button type="submit" class="btn btn-secondary text-sm">+ Category</button>
+        </form>
+
+        <% if (cats.length === 0) { %>
+          <p class="text-xs text-recon-fog">No categories yet. Add one above.</p>
+        <% } %>
+
+        <!-- Categories under this vendor -->
+        <% cats.forEach(function(cat){ %>
+          <% var items = cat.items || []; %>
+          <% var catApproved = items.reduce(function(s, it){ return s + (it.approved ? (Number(it.quantity)||0)*(Number(it.unit_price)||0) : 0); }, 0); %>
+          <details class="mb-3 border border-recon-mist rounded" open>
+            <summary class="cursor-pointer px-3 py-2 bg-gray-50 hover:bg-gray-100 flex items-center justify-between gap-2 text-xs font-semibold">
+              <span><%= cat.name %> <span class="text-recon-fog font-normal">(<%= items.length %> item<%= items.length === 1 ? '' : 's' %>, approved $<%= catApproved.toFixed(2) %>)</span></span>
+              <span class="flex gap-1">
+                <button type="button" class="text-recon-fog hover:text-recon-red" style="font-size:.65rem;background:none;border:none;cursor:pointer" onclick="event.stopPropagation();renameCategory(<%= cat.id %>, '<%= cat.name.replace(/'/g, "\\'") %>')" title="Rename">✎</button>
+                <button type="button" class="text-recon-fog hover:text-recon-red" style="font-size:.65rem;background:none;border:none;cursor:pointer" onclick="event.stopPropagation();if(confirm('Delete this category and all its items?'))deleteCategory(<%= cat.id %>)" title="Delete">✕</button>
+              </span>
             </summary>
+            <div class="p-3">
 
-            <!-- Add item form for this category -->
-            <form onsubmit="return addItem(event, <%= ck %>)" class="flex gap-2 items-end mb-3 flex-wrap text-xs">
-              <div>
-                <label class="label" style="font-size:.65rem">Item name</label>
-                <input type="text" name="item_name" class="input" style="width:160px;padding:.25rem .4rem;font-size:.78rem" placeholder="e.g. 2x4 Lumber" required>
-              </div>
-              <div>
-                <label class="label" style="font-size:.65rem">Model #</label>
-                <input type="text" name="model_number" class="input" style="width:110px;padding:.25rem .4rem;font-size:.78rem" placeholder="e.g. S4S-2x4-8">
-              </div>
-              <div>
-                <label class="label" style="font-size:.65rem">Vendor</label>
-                <input type="text" name="vendor" class="input" style="width:120px;padding:.25rem .4rem;font-size:.78rem" placeholder="e.g. Home Depot" value="<%= vendor === '(Unassigned)' ? '' : vendor %>">
-              </div>
-              <div>
-                <label class="label" style="font-size:.65rem">Qty</label>
-                <input type="number" name="quantity" class="input" style="width:60px;padding:.25rem .4rem;font-size:.78rem" value="1" min="0" step="1">
-              </div>
-              <div>
-                <label class="label" style="font-size:.65rem">Price ea</label>
-                <input type="number" name="unit_price" class="input" style="width:75px;padding:.25rem .4rem;font-size:.78rem" value="0" min="0" step="0.01">
-              </div>
-              <button type="submit" class="btn btn-primary" style="font-size:.78rem;padding:.25rem .6rem">Add</button>
-            </form>
+              <!-- Add item form -->
+              <form onsubmit="return addItem(event, <%= cat.id %>)" class="flex gap-2 items-end mb-3 flex-wrap text-xs">
+                <div>
+                  <label style="font-size:.65rem;color:#888">Item name</label>
+                  <input type="text" name="item_name" class="input" style="width:150px;padding:.25rem .4rem;font-size:.78rem" placeholder="e.g. 2x4 Lumber" required>
+                </div>
+                <div>
+                  <label style="font-size:.65rem;color:#888">Model #</label>
+                  <input type="text" name="model_number" class="input" style="width:100px;padding:.25rem .4rem;font-size:.78rem" placeholder="e.g. S4S-2x4-8">
+                </div>
+                <div>
+                  <label style="font-size:.65rem;color:#888">Qty</label>
+                  <input type="number" name="quantity" class="input" style="width:60px;padding:.25rem .4rem;font-size:.78rem" value="1" min="0" step="1">
+                </div>
+                <div>
+                  <label style="font-size:.65rem;color:#888">Price ea</label>
+                  <input type="number" name="unit_price" class="input" style="width:75px;padding:.25rem .4rem;font-size:.78rem" value="0" min="0" step="0.01">
+                </div>
+                <button type="submit" class="btn btn-primary" style="font-size:.78rem;padding:.25rem .6rem">Add</button>
+              </form>
 
-            <!-- Items table -->
-            <table class="data w-full" style="font-size:.78rem">
-              <thead>
-                <tr>
-                  <th style="width:28px"></th>
-                  <th class="text-left">Item</th>
-                  <th class="text-left">Model #</th>
-                  <th class="text-right">Qty</th>
-                  <th class="text-right">Price ea</th>
-                  <th class="text-right">Total</th>
-                  <th style="width:60px"></th>
-                </tr>
-              </thead>
-              <tbody>
-                <% group.items.forEach(function(it){ %>
-                <% var lineTotal = (Number(it.quantity)||0) * (Number(it.unit_price)||0); %>
-                <tr class="<%= it.approved ? '' : 'opacity-60' %>">
-                  <td>
-                    <input type="checkbox" <%= it.approved ? 'checked' : '' %> onchange="toggleApprove(<%= it.id %>, this.checked)" class="accent-recon-red">
-                  </td>
-                  <td><%= it.item_name %></td>
-                  <td class="text-recon-fog"><%= it.model_number || '—' %></td>
-                  <td class="text-right"><%= Number(it.quantity) %></td>
-                  <td class="text-right">$<%= (Number(it.unit_price)||0).toFixed(2) %></td>
-                  <td class="text-right font-medium">$<%= lineTotal.toFixed(2) %></td>
-                  <td class="text-right">
-                    <button type="button" class="text-recon-fog hover:text-recon-red" style="font-size:.7rem;background:none;border:none;cursor:pointer" onclick="editItem(<%= it.id %>, '<%= it.item_name.replace(/'/g, "\\'") %>', '<%= (it.model_number||'').replace(/'/g, "\\'") %>', '<%= (it.vendor||'').replace(/'/g, "\\'") %>', <%= it.quantity %>, <%= Number(it.unit_price)||0 %>, <%= it.approved %>)" title="Edit">✎</button>
-                    <button type="button" class="text-recon-fog hover:text-recon-red" style="font-size:.7rem;background:none;border:none;cursor:pointer" onclick="if(confirm('Delete this item?'))deleteItem(<%= it.id %>)" title="Delete">✕</button>
-                  </td>
-                </tr>
-                <% }); %>
-              </tbody>
-              <tfoot class="bg-recon-cloud">
-                <tr>
-                  <td></td>
-                  <td colspan="4" class="text-right text-sm font-medium">Category approved total</td>
-                  <td class="text-right font-semibold">$<%= catApproved.toFixed(2) %></td>
-                  <td></td>
-                </tr>
-              </tfoot>
-            </table>
+              <!-- Items table -->
+              <% if (items.length === 0) { %>
+                <p class="text-xs text-recon-fog">No items in this category.</p>
+              <% } else { %>
+              <table class="data w-full" style="font-size:.78rem">
+                <thead>
+                  <tr>
+                    <th style="width:28px"></th>
+                    <th class="text-left">Item</th>
+                    <th class="text-left">Model #</th>
+                    <th class="text-right">Qty</th>
+                    <th class="text-right">Price ea</th>
+                    <th class="text-right">Total</th>
+                    <th style="width:55px"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% items.forEach(function(it){ %>
+                  <% var lt = (Number(it.quantity)||0)*(Number(it.unit_price)||0); %>
+                  <tr class="<%= it.approved ? '' : 'opacity-60' %>">
+                    <td><input type="checkbox" <%= it.approved ? 'checked' : '' %> onchange="toggleApprove(<%= it.id %>, this.checked)" class="accent-recon-red"></td>
+                    <td><%= it.item_name %></td>
+                    <td class="text-recon-fog"><%= it.model_number || '—' %></td>
+                    <td class="text-right"><%= Number(it.quantity) %></td>
+                    <td class="text-right">$<%= (Number(it.unit_price)||0).toFixed(2) %></td>
+                    <td class="text-right font-medium">$<%= lt.toFixed(2) %></td>
+                    <td class="text-right">
+                      <button type="button" class="text-recon-fog hover:text-recon-red" style="font-size:.7rem;background:none;border:none;cursor:pointer" onclick="editItem(<%= it.id %>, '<%= it.item_name.replace(/'/g, "\\'") %>', '<%= (it.model_number||'').replace(/'/g, "\\'") %>', <%= it.quantity %>, <%= Number(it.unit_price)||0 %>, <%= it.approved %>)" title="Edit">✎</button>
+                      <button type="button" class="text-recon-fog hover:text-recon-red" style="font-size:.7rem;background:none;border:none;cursor:pointer" onclick="if(confirm('Delete this item?'))deleteItem(<%= it.id %>)" title="Delete">✕</button>
+                    </td>
+                  </tr>
+                  <% }); %>
+                </tbody>
+                <tfoot class="bg-recon-cloud">
+                  <tr><td></td><td colspan="4" class="text-right text-sm font-medium">Category approved</td><td class="text-right font-semibold">$<%= catApproved.toFixed(2) %></td><td></td></tr>
+                </tfoot>
+              </table>
+              <% } %>
+            </div>
           </details>
         <% }); %>
 
@@ -149,32 +159,11 @@
     <h3 class="font-semibold mb-4">Edit item</h3>
     <form onsubmit="return saveEdit(event)">
       <input type="hidden" id="edit-item-id">
-      <div class="mb-3">
-        <label class="label" for="edit-name">Item name</label>
-        <input type="text" id="edit-name" class="input" required>
-      </div>
-      <div class="mb-3">
-        <label class="label" for="edit-model">Model #</label>
-        <input type="text" id="edit-model" class="input">
-      </div>
-      <div class="mb-3">
-        <label class="label" for="edit-vendor">Vendor</label>
-        <input type="text" id="edit-vendor" class="input">
-      </div>
-      <div class="mb-3">
-        <label class="label" for="edit-qty">Quantity</label>
-        <input type="number" id="edit-qty" class="input" min="0" step="1" required>
-      </div>
-      <div class="mb-3">
-        <label class="label" for="edit-price">Price ea</label>
-        <input type="number" id="edit-price" class="input" min="0" step="0.01" value="0">
-      </div>
-      <div class="mb-4">
-        <label class="label flex items-center gap-2">
-          <input type="checkbox" id="edit-approved" class="accent-recon-red">
-          <span>Approved</span>
-        </label>
-      </div>
+      <div class="mb-3"><label class="label" for="edit-name">Item name</label><input type="text" id="edit-name" class="input" required></div>
+      <div class="mb-3"><label class="label" for="edit-model">Model #</label><input type="text" id="edit-model" class="input"></div>
+      <div class="mb-3"><label class="label" for="edit-qty">Quantity</label><input type="number" id="edit-qty" class="input" min="0" step="1" required></div>
+      <div class="mb-3"><label class="label" for="edit-price">Price ea</label><input type="number" id="edit-price" class="input" min="0" step="0.01" value="0"></div>
+      <div class="mb-4"><label class="label flex items-center gap-2"><input type="checkbox" id="edit-approved" class="accent-recon-red"> <span>Approved</span></label></div>
       <div class="flex gap-2 justify-end">
         <button type="button" class="btn btn-ghost text-sm" onclick="closeEdit()">Cancel</button>
         <button type="submit" class="btn btn-primary text-sm">Save</button>
@@ -184,24 +173,80 @@
 </div>
 
 <script>
-function showNewCategoryForm() {
-  document.getElementById('new-cat-form').classList.remove('hidden');
-  document.getElementById('cat-name').focus();
+function showNewVendorForm() {
+  document.getElementById('new-vendor-form').classList.remove('hidden');
+  document.getElementById('vendor-name').focus();
 }
 
-async function createCategory(e) {
+async function createVendor(e) {
   e.preventDefault();
-  var name = document.getElementById('cat-name').value.trim();
+  var name = document.getElementById('vendor-name').value.trim();
   if (!name) return false;
-  var res = await fetch('/projects/<%= job.id %>/materials/categories', {
+  var res = await fetch('/projects/<%= job.id %>/materials/vendors', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: 'name=' + encodeURIComponent(name),
   });
   var data = await res.json();
   if (data.ok) window.location.reload();
-  else alert(data.error || 'Failed to create category.');
+  else alert(data.error || 'Failed.');
   return false;
+}
+
+async function renameVendor(id, current) {
+  var name = prompt('Rename vendor:', current);
+  if (!name || name === current) return;
+  var res = await fetch('/projects/<%= job.id %>/materials/vendors/' + id + '/rename', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'name=' + encodeURIComponent(name.trim()),
+  });
+  var data = await res.json();
+  if (data.ok) window.location.reload();
+  else alert(data.error || 'Failed.');
+}
+
+async function deleteVendor(id) {
+  var res = await fetch('/projects/<%= job.id %>/materials/vendors/' + id + '/delete', { method: 'POST' });
+  var data = await res.json();
+  if (data.ok) window.location.reload();
+  else alert(data.error || 'Failed.');
+}
+
+async function createCategory(e, vId) {
+  e.preventDefault();
+  var input = e.target.querySelector('input');
+  var name = input.value.trim();
+  if (!name) return false;
+  var res = await fetch('/projects/<%= job.id %>/materials/vendors/' + vId + '/categories', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'name=' + encodeURIComponent(name),
+  });
+  var data = await res.json();
+  if (data.ok) window.location.reload();
+  else alert(data.error || 'Failed.');
+  return false;
+}
+
+async function renameCategory(id, current) {
+  var name = prompt('Rename category:', current);
+  if (!name || name === current) return;
+  var res = await fetch('/projects/<%= job.id %>/materials/categories/' + id + '/rename', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'name=' + encodeURIComponent(name.trim()),
+  });
+  var data = await res.json();
+  if (data.ok) window.location.reload();
+  else alert(data.error || 'Failed.');
+}
+
+async function deleteCategory(id) {
+  var res = await fetch('/projects/<%= job.id %>/materials/categories/' + id + '/delete', { method: 'POST' });
+  var data = await res.json();
+  if (data.ok) window.location.reload();
+  else alert(data.error || 'Failed.');
 }
 
 async function toggleApprove(itemId, checked) {
@@ -212,12 +257,9 @@ async function toggleApprove(itemId, checked) {
   });
   var data = await res.json();
   if (data.ok) {
-    // Optimistic: toggle row opacity without full reload
-    var row = document.querySelector('tr[data-item-id="' + itemId + '"]') || event.target.closest('tr');
+    var row = event.target.closest('tr');
     if (row) row.style.opacity = checked ? '1' : '0.6';
-  } else {
-    alert(data.error || 'Failed to update approval.');
-  }
+  } else alert(data.error || 'Failed.');
 }
 
 async function addItem(e, catId) {
@@ -233,27 +275,67 @@ async function addItem(e, catId) {
   if (data.ok && data.item) {
     var it = data.item;
     var tbody = form.closest('details').querySelector('table.data tbody');
-    var row = document.createElement('tr');
-    var lineTotal = (Number(it.quantity)||0) * (Number(it.unit_price)||0);
-    row.innerHTML =
-      '<td><input type="checkbox" onchange="toggleApprove(' + it.id + ', this.checked)" class="accent-recon-red"></td>' +
-      '<td>' + escHtml(it.item_name) + '</td>' +
-      '<td class="text-recon-fog">' + (it.model_number || '—') + '</td>' +
-      '<td class="text-right">' + Number(it.quantity) + '</td>' +
-      '<td class="text-right">$' + (Number(it.unit_price)||0).toFixed(2) + '</td>' +
-      '<td class="text-right font-medium">$' + lineTotal.toFixed(2) + '</td>' +
-      '<td class="text-right">' +
-        '<button type="button" class="text-recon-fog hover:text-recon-red" style="font-size:.7rem;background:none;border:none;cursor:pointer" onclick="editItem(' + it.id + ',\'' + escAttr(it.item_name) + '\',\'' + escAttr(it.model_number||'') + '\',\'' + escAttr(it.vendor||'') + '\',' + (Number(it.quantity)||0) + ',' + (Number(it.unit_price)||0) + ',' + (it.approved) + ')" title="Edit">✎</button>' +
-        '<button type="button" class="text-recon-fog hover:text-recon-red" style="font-size:.7rem;background:none;border:none;cursor:pointer" onclick="if(confirm(\'Delete this item?\'))deleteItem(' + it.id + ')" title="Delete">✕</button>' +
-      '</td>';
-    if (tbody) tbody.appendChild(row);
+    if (tbody) {
+      var lt = (Number(it.quantity)||0)*(Number(it.unit_price)||0);
+      var row = document.createElement('tr');
+      row.innerHTML =
+        '<td><input type="checkbox" onchange="toggleApprove(' + it.id + ', this.checked)" class="accent-recon-red"></td>' +
+        '<td>' + escHtml(it.item_name) + '</td>' +
+        '<td class="text-recon-fog">' + (it.model_number || '—') + '</td>' +
+        '<td class="text-right">' + Number(it.quantity) + '</td>' +
+        '<td class="text-right">$' + (Number(it.unit_price)||0).toFixed(2) + '</td>' +
+        '<td class="text-right font-medium">$' + lt.toFixed(2) + '</td>' +
+        '<td class="text-right">' +
+          '<button type="button" class="text-recon-fog hover:text-recon-red" style="font-size:.7rem;background:none;border:none;cursor:pointer" onclick="editItem(' + it.id + ',\\'' + escAttr(it.item_name) + '\\',\\'' + escAttr(it.model_number||'') + '\\',' + (Number(it.quantity)||0) + ',' + (Number(it.unit_price)||0) + ',' + (it.approved) + ')" title="Edit">✎</button>' +
+          '<button type="button" class="text-recon-fog hover:text-recon-red" style="font-size:.7rem;background:none;border:none;cursor:pointer" onclick="if(confirm(\\'Delete this item?\\'))deleteItem(' + it.id + ')" title="Delete">✕</button>' +
+        '</td>';
+      tbody.appendChild(row);
+    }
     form.reset();
     form.querySelector('[name=quantity]').value = '1';
     form.querySelector('[name=unit_price]').value = '0';
-  } else {
-    alert(data.error || 'Failed to add item.');
-  }
+  } else alert(data.error || 'Failed.');
   return false;
+}
+
+function editItem(id, name, model, qty, price, approved) {
+  document.getElementById('edit-item-id').value = id;
+  document.getElementById('edit-name').value = name;
+  document.getElementById('edit-model').value = model;
+  document.getElementById('edit-qty').value = qty;
+  document.getElementById('edit-price').value = price || 0;
+  document.getElementById('edit-approved').checked = !!approved;
+  document.getElementById('edit-modal').classList.remove('hidden');
+}
+
+function closeEdit() { document.getElementById('edit-modal').classList.add('hidden'); }
+
+async function saveEdit(e) {
+  e.preventDefault();
+  var id = document.getElementById('edit-item-id').value;
+  var body = 'item_name=' + encodeURIComponent(document.getElementById('edit-name').value.trim()) +
+    '&model_number=' + encodeURIComponent(document.getElementById('edit-model').value.trim()) +
+    '&quantity=' + encodeURIComponent(document.getElementById('edit-qty').value) +
+    '&unit_price=' + encodeURIComponent(document.getElementById('edit-price').value) +
+    '&approved=' + (document.getElementById('edit-approved').checked ? 'true' : 'false');
+  if (!document.getElementById('edit-name').value.trim()) return false;
+  var res = await fetch('/projects/materials/items/' + id, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body,
+  });
+  var data = await res.json();
+  if (data.ok) window.location.reload();
+  else alert(data.error || 'Failed.');
+  closeEdit();
+  return false;
+}
+
+async function deleteItem(itemId) {
+  var res = await fetch('/projects/<%= job.id %>/materials/items/' + itemId + '/delete', { method: 'POST' });
+  var data = await res.json();
+  if (data.ok) window.location.reload();
+  else alert(data.error || 'Failed.');
 }
 
 function escHtml(s) {
@@ -263,55 +345,6 @@ function escHtml(s) {
 function escAttr(s) {
   if (typeof s !== 'string') return String(s || '');
   return s.replace(/'/g,"\\'").replace(/"/g,'&quot;');
-}
-
-function editItem(id, name, model, vendor, qty, price, approved) {
-  document.getElementById('edit-item-id').value = id;
-  document.getElementById('edit-name').value = name;
-  document.getElementById('edit-model').value = model;
-  document.getElementById('edit-vendor').value = vendor;
-  document.getElementById('edit-qty').value = qty;
-  document.getElementById('edit-price').value = price || 0;
-  document.getElementById('edit-approved').checked = !!approved;
-  document.getElementById('edit-modal').classList.remove('hidden');
-}
-
-function closeEdit() {
-  document.getElementById('edit-modal').classList.add('hidden');
-}
-
-async function saveEdit(e) {
-  e.preventDefault();
-  var id = document.getElementById('edit-item-id').value;
-  var name = document.getElementById('edit-name').value.trim();
-  var model = document.getElementById('edit-model').value.trim();
-  var vendor = document.getElementById('edit-vendor').value.trim();
-  var qty = document.getElementById('edit-qty').value;
-  var price = document.getElementById('edit-price').value;
-  var approved = document.getElementById('edit-approved').checked;
-  if (!name) return false;
-  var res = await fetch('/projects/materials/items/' + id, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: 'item_name=' + encodeURIComponent(name) +
-      '&model_number=' + encodeURIComponent(model) +
-      '&vendor=' + encodeURIComponent(vendor) +
-      '&quantity=' + encodeURIComponent(qty) +
-      '&unit_price=' + encodeURIComponent(price) +
-      '&approved=' + (approved ? 'true' : 'false'),
-  });
-  var data = await res.json();
-  if (data.ok) window.location.reload();
-  else alert(data.error || 'Failed to save.');
-  closeEdit();
-  return false;
-}
-
-async function deleteItem(itemId) {
-  var res = await fetch('/projects/<%= job.id %>/materials/items/' + itemId + '/delete', { method: 'POST' });
-  var data = await res.json();
-  if (data.ok) window.location.reload();
-  else alert(data.error || 'Failed to delete.');
 }
 </script>
 

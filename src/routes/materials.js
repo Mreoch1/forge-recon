@@ -1,11 +1,8 @@
 /**
  * Project Materials — track and order materials per project.
  *
- * Routes use URLs under /projects/:id/materials to match the RFP pattern.
- * Mount at the app root so /projects/:id/materials works alongside other
- * project routes.
- *
- * Simple two-level hierarchy: categories > items (no sub-items).
+ * Hierarchy: Vendor > Category > Items
+ * Routes under /projects/:id/materials, mounted at app root.
  */
 
 const express = require('express');
@@ -32,93 +29,142 @@ async function requireMaterialsAccess(req, res, next) {
   }
 }
 
-// ── GET /projects/:id/materials — materials management page ──
+// ── GET /projects/:id/materials — materials page ──
 
 router.get('/projects/:id/materials', requireMaterialsAccess, async (req, res) => {
   const jobId = req.params.id;
 
-  const [{ data: job, error: jobError }, { data: categories, error: catsError }] = await Promise.all([
+  const [{ data: job, error: jobError }, { data: vendors, error: vError }] = await Promise.all([
     supabase.from('jobs').select('*, customers!inner(name)').eq('id', jobId).maybeSingle(),
-    supabase.from('project_material_categories').select('*').eq('job_id', jobId).order('created_at', { ascending: false }),
+    supabase.from('project_material_vendors').select('*').eq('job_id', jobId).order('name', { ascending: true }),
   ]);
 
   if (jobError) throw jobError;
-  if (catsError) throw catsError;
+  if (vError) throw vError;
   if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Project not found.' });
 
-  // Load items sorted by vendor then category
-  let itemsByVendorCat = {};
-  if (categories && categories.length) {
-    const catIds = categories.map(c => c.id);
-    const { data: allItems, error: itemsError } = await supabase
-      .from('project_material_items')
+  // Load categories per vendor
+  let catsByVendor = {};
+
+  // Also load categories with no vendor (pre-vendor migration) as "Unassigned"
+  const { data: orphanCats, error: ocError } = await supabase
+    .from('project_material_categories')
+    .select('*')
+    .eq('job_id', jobId)
+    .is('vendor_id', null)
+    .order('name', { ascending: true });
+  if (ocError) throw ocError;
+
+  let vendorsList = vendors || [];
+  if (orphanCats && orphanCats.length) {
+    vendorsList = [{ id: -1, name: '(Unassigned)', job_id: parseInt(jobId, 10) }, ...vendorsList];
+    catsByVendor[-1] = orphanCats;
+  }
+
+  if (vendorsList.length) {
+    const vIds = vendorsList.map(v => v.id);
+    const { data: cats, error: cError } = await supabase
+      .from('project_material_categories')
       .select('*')
-      .in('category_id', catIds)
-      .order('vendor', { ascending: true, nullsFirst: false })
-      .order('created_at', { ascending: true });
-    if (itemsError) throw itemsError;
+      .or(`vendor_id.in.(${vIds.filter(id => id > 0).join(',')}),vendor_id.is.null`)
+      .order('name', { ascending: true });
+    if (cError) throw cError;
 
-    // Build lookup: category_id -> category name
-    const catMap = {};
-    categories.forEach(c => { catMap[c.id] = c.name; });
-
-    // Group by (vendor, category_id)
-    (allItems || []).forEach(item => {
-      const vKey = (item.vendor || '').trim() || '(Unassigned)';
-      const cKey = item.category_id;
-      if (!itemsByVendorCat[vKey]) itemsByVendorCat[vKey] = {};
-      if (!itemsByVendorCat[vKey][cKey]) itemsByVendorCat[vKey][cKey] = { catName: catMap[cKey] || 'Unknown', items: [] };
-      itemsByVendorCat[vKey][cKey].items.push(item);
+    (cats || []).forEach(c => {
+      if (!catsByVendor[c.vendor_id]) catsByVendor[c.vendor_id] = [];
+      catsByVendor[c.vendor_id].push(c);
     });
+
+    // Load items for all categories
+    const allCatIds = (cats || []).map(c => c.id);
+    if (allCatIds.length) {
+      const { data: items, error: iError } = await supabase
+        .from('project_material_items')
+        .select('*')
+        .in('category_id', allCatIds)
+        .order('created_at', { ascending: true });
+      if (iError) throw iError;
+
+      const itemsByCat = {};
+      (items || []).forEach(it => {
+        if (!itemsByCat[it.category_id]) itemsByCat[it.category_id] = [];
+        itemsByCat[it.category_id].push(it);
+      });
+
+      // Attach items to categories
+      (cats || []).forEach(c => { c.items = itemsByCat[c.id] || []; });
+    }
   }
 
   res.render('jobs/materials', {
     title: 'Materials — ' + (job.title || job.name),
     activeNav: 'projects',
     job,
-    categories: categories || [],
-    itemsByVendorCat,
+    vendors: vendorsList,
+    catsByVendor,
   });
 });
 
-// ── POST /projects/:id/materials/categories — create a new material category ──
+// ── Vendor CRUD ──
 
-router.post('/projects/:id/materials/categories', requireMaterialsAccess, async (req, res) => {
+router.post('/projects/:id/materials/vendors', requireMaterialsAccess, async (req, res) => {
   const jobId = req.params.id;
   const name = (req.body.name || '').trim();
-  if (!name) {
-    return res.status(400).json({ error: 'Category name is required.' });
-  }
+  if (!name) return res.status(400).json({ error: 'Vendor name is required.' });
+  const { data: vendor, error } = await supabase
+    .from('project_material_vendors')
+    .insert({ job_id: parseInt(jobId, 10), name })
+    .select()
+    .single();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true, vendor });
+});
+
+router.post('/projects/:id/materials/vendors/:vId/rename', requireMaterialsAccess, async (req, res) => {
+  const name = (req.body.name || '').trim();
+  if (!name) return res.status(400).json({ error: 'Name is required.' });
+  const { error } = await supabase.from('project_material_vendors').update({ name }).eq('id', req.params.vId);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
+});
+
+router.post('/projects/:id/materials/vendors/:vId/delete', requireMaterialsAccess, async (req, res) => {
+  const { error } = await supabase.from('project_material_vendors').delete().eq('id', req.params.vId);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
+});
+
+// ── Category CRUD (under a vendor) ──
+
+router.post('/projects/:id/materials/vendors/:vId/categories', requireMaterialsAccess, async (req, res) => {
+  const { id: jobId } = req.params;
+  const vId = req.params.vId;
+  const name = (req.body.name || '').trim();
+  if (!name) return res.status(400).json({ error: 'Category name is required.' });
   const { data: cat, error } = await supabase
     .from('project_material_categories')
-    .insert({ job_id: parseInt(jobId, 10), name })
+    .insert({ job_id: parseInt(jobId, 10), vendor_id: parseInt(vId, 10), name })
     .select()
     .single();
   if (error) return res.status(500).json({ error: error.message });
   res.json({ ok: true, category: cat });
 });
 
-// ── POST /projects/:id/materials/categories/:catId/rename ──
-
 router.post('/projects/:id/materials/categories/:catId/rename', requireMaterialsAccess, async (req, res) => {
-  const catId = req.params.catId;
   const name = (req.body.name || '').trim();
   if (!name) return res.status(400).json({ error: 'Name is required.' });
-  const { error } = await supabase.from('project_material_categories').update({ name }).eq('id', catId);
+  const { error } = await supabase.from('project_material_categories').update({ name }).eq('id', req.params.catId);
   if (error) return res.status(500).json({ error: error.message });
   res.json({ ok: true });
 });
-
-// ── POST /projects/:id/materials/categories/:catId/delete ──
 
 router.post('/projects/:id/materials/categories/:catId/delete', requireMaterialsAccess, async (req, res) => {
-  const catId = req.params.catId;
-  const { error } = await supabase.from('project_material_categories').delete().eq('id', catId);
+  const { error } = await supabase.from('project_material_categories').delete().eq('id', req.params.catId);
   if (error) return res.status(500).json({ error: error.message });
   res.json({ ok: true });
 });
 
-// ── POST /projects/:id/materials/categories/:catId/items — add a material item ──
+// ── Item CRUD (under a category) ──
 
 router.post('/projects/:id/materials/categories/:catId/items', requireMaterialsAccess, async (req, res) => {
   const catId = req.params.catId;
@@ -127,17 +173,14 @@ router.post('/projects/:id/materials/categories/:catId/items', requireMaterialsA
   const modelNumber = (req.body.model_number || '').trim();
   const quantity = parseFloat(req.body.quantity) || 1;
   const unitPrice = parseFloat(req.body.unit_price) || 0;
-  const vendor = (req.body.vendor || '').trim();
   const { data: item, error } = await supabase
     .from('project_material_items')
-    .insert({ category_id: parseInt(catId, 10), item_name: itemName, model_number: modelNumber || null, quantity, unit_price: unitPrice, vendor: vendor || null })
+    .insert({ category_id: parseInt(catId, 10), item_name: itemName, model_number: modelNumber || null, quantity, unit_price: unitPrice })
     .select()
     .single();
   if (error) return res.status(500).json({ error: error.message });
   res.json({ ok: true, item });
 });
-
-// ── POST /projects/:id/materials/items/:itemId — update a material item ──
 
 router.post('/projects/materials/items/:itemId', requireMaterialsAccess, async (req, res) => {
   const itemId = req.params.itemId;
@@ -146,31 +189,24 @@ router.post('/projects/materials/items/:itemId', requireMaterialsAccess, async (
   const modelNumber = (req.body.model_number || '').trim();
   const quantity = parseFloat(req.body.quantity) || 1;
   const unitPrice = parseFloat(req.body.unit_price) || 0;
-  const vendor = (req.body.vendor || '').trim();
   const approved = req.body.approved === 'true' || req.body.approved === '1';
   const { error } = await supabase
     .from('project_material_items')
-    .update({ item_name: itemName, model_number: modelNumber || null, quantity, unit_price: unitPrice, vendor: vendor || null, approved })
+    .update({ item_name: itemName, model_number: modelNumber || null, quantity, unit_price: unitPrice, approved })
     .eq('id', itemId);
   if (error) return res.status(500).json({ error: error.message });
   res.json({ ok: true });
 });
 
-// ── POST /projects/:id/materials/items/:itemId/approve — toggle approval ──
-
 router.post('/projects/:id/materials/items/:itemId/approve', requireMaterialsAccess, async (req, res) => {
-  const itemId = req.params.itemId;
   const approved = req.body.approved === 'true' || req.body.approved === '1';
-  const { error } = await supabase.from('project_material_items').update({ approved }).eq('id', itemId);
+  const { error } = await supabase.from('project_material_items').update({ approved }).eq('id', req.params.itemId);
   if (error) return res.status(500).json({ error: error.message });
   res.json({ ok: true });
 });
 
-// ── POST /projects/:id/materials/items/:itemId/delete ──
-
 router.post('/projects/:id/materials/items/:itemId/delete', requireMaterialsAccess, async (req, res) => {
-  const itemId = req.params.itemId;
-  const { error } = await supabase.from('project_material_items').delete().eq('id', itemId);
+  const { error } = await supabase.from('project_material_items').delete().eq('id', req.params.itemId);
   if (error) return res.status(500).json({ error: error.message });
   res.json({ ok: true });
 });
