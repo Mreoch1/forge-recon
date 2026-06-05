@@ -41,7 +41,7 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
       </div>
     </summary>
     <div class="border-t border-recon-mist">
-      <div id="chat-messages" class="overflow-y-auto p-4 space-y-2 text-sm" style="min-height:200px;max-height:320px">
+      <div id="chat-messages" class="overflow-y-auto p-4 space-y-2 text-sm" style="min-height:100px;max-height:360px;scroll-behavior:smooth">
         <div class="text-center text-recon-fog text-xs py-4">Loading messages...</div>
       </div>
       <div class="border-t border-recon-mist p-4">
@@ -242,8 +242,8 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
     scrollToBottom();
   });
 
-  // Auto-refresh every 10 seconds
-  setInterval(loadMessages, 10000);
+  // Auto-refresh every 3 seconds for near real-time updates
+  setInterval(loadMessages, 3000);
 
   // Post message
   if (chatForm) {
