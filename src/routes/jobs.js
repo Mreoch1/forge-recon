@@ -1192,6 +1192,31 @@ router.get('/:id/chat', async (req, res) => {
   res.json({ messages: (messages || []).reverse() });
 });
 
+// POST /:id/chat/:msgId/delete — delete a chat message (author or admin/manager)
+router.post('/:id/chat/:msgId/delete', async (req, res) => {
+  const id = req.params.id;
+  const msgId = parseInt(req.params.msgId, 10);
+  if (!msgId) return res.status(400).json({ error: 'Invalid message ID.' });
+  const { data: msg, error: findError } = await supabase
+    .from('project_chat_messages')
+    .select('id, user_id')
+    .eq('id', msgId)
+    .eq('job_id', parseInt(id, 10))
+    .maybeSingle();
+  if (findError) return res.status(500).json({ error: findError.message });
+  if (!msg) return res.status(404).json({ error: 'Message not found.' });
+  // Only the author or admin/manager can delete
+  const isAuthor = Number(msg.user_id) === Number(req.session.userId);
+  const isPrivileged = req.session.role === 'admin' || req.session.role === 'manager';
+  if (!isAuthor && !isPrivileged) return res.status(403).json({ error: 'You can only delete your own messages.' });
+  const { error: deleteError } = await supabase
+    .from('project_chat_messages')
+    .delete()
+    .eq('id', msgId);
+  if (deleteError) return res.status(500).json({ error: deleteError.message });
+  res.json({ ok: true });
+});
+
 // ---------- Excel export (D-024d) ----------
 
 router.get('/:id/export.xlsx', async (req, res) => {

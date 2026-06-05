@@ -198,6 +198,7 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
     div.innerHTML = '<div class="flex items-baseline gap-2 mb-0.5">' +
       '<span class="font-medium text-xs ' + (msg.user_id === userId ? 'text-recon-red' : 'text-recon-charcoal') + '">' + escapeHtml(msg.users?.name || 'Unknown') + '</span>' +
       '<span class="text-xs text-recon-fog">' + formatTime(msg.created_at) + '</span>' +
+      (msg.user_id === userId ? '<button class="ml-auto text-xs text-recon-fog hover:text-recon-red delete-msg" data-msg-id="' + msg.id + '" title="Delete message">&times;</button>' : '') +
       '</div>' +
       '<p class="text-sm m-0 whitespace-pre-wrap">' + escapeHtml(msg.message) + '</p>';
     if (prepend && messagesEl.firstChild) {
@@ -268,6 +269,26 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
       } catch(e) { alert('Failed to send message.'); }
       chatInput.disabled = false;
       chatInput.focus();
+    });
+  }
+
+  // Delete message handler (delegated for dynamically added buttons)
+  if (messagesEl) {
+    messagesEl.addEventListener('click', async function(e) {
+      var btn = e.target.closest('.delete-msg');
+      if (!btn) return;
+      var msgId = btn.getAttribute('data-msg-id');
+      if (!msgId || !confirm('Delete this message?')) return;
+      try {
+        var res = await fetch('/projects/' + projectId + '/chat/' + msgId + '/delete', { method: 'POST' });
+        var data = await res.json();
+        if (data.ok) {
+          var msgEl = btn.closest('[data-msg-id]');
+          if (msgEl) msgEl.remove();
+        } else if (data.error) {
+          alert(data.error);
+        }
+      } catch(e) { alert('Failed to delete message.'); }
     });
   }
 
