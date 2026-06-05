@@ -182,14 +182,16 @@ async function createVendor(e) {
   e.preventDefault();
   var name = document.getElementById('vendor-name').value.trim();
   if (!name) return false;
-  var res = await fetch('/projects/<%= job.id %>/materials/vendors', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: 'name=' + encodeURIComponent(name),
-  });
-  var data = await res.json();
-  if (data.ok) window.location.reload();
-  else alert(data.error || 'Failed.');
+  try {
+    var res = await fetch('/projects/<%= job.id %>/materials/vendors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'name=' + encodeURIComponent(name),
+    });
+    var data = await res.json();
+    if (data && data.ok) window.location.reload();
+    else alert('Failed: ' + (data && data.error || res.status));
+  } catch(e) { alert('Error: ' + e.message); }
   return false;
 }
 
@@ -207,10 +209,12 @@ async function renameVendor(id, current) {
 }
 
 async function deleteVendor(id) {
-  var res = await fetch('/projects/<%= job.id %>/materials/vendors/' + id + '/delete', { method: 'POST' });
-  var data = await res.json();
-  if (data.ok) window.location.reload();
-  else alert(data.error || 'Failed.');
+  try {
+    var res = await fetch('/projects/<%= job.id %>/materials/vendors/' + id + '/delete', { method: 'POST' });
+    var data = await res.json();
+    if (data && data.ok) window.location.reload();
+    else alert('Delete failed: ' + (data && data.error || res.status));
+  } catch(e) { alert('Delete error: ' + e.message); }
 }
 
 async function createCategory(e, vId) {
@@ -243,10 +247,12 @@ async function renameCategory(id, current) {
 }
 
 async function deleteCategory(id) {
-  var res = await fetch('/projects/<%= job.id %>/materials/categories/' + id + '/delete', { method: 'POST' });
-  var data = await res.json();
-  if (data.ok) window.location.reload();
-  else alert(data.error || 'Failed.');
+  try {
+    var res = await fetch('/projects/<%= job.id %>/materials/categories/' + id + '/delete', { method: 'POST' });
+    var data = await res.json();
+    if (data && data.ok) window.location.reload();
+    else alert('Delete failed: ' + (data && data.error || res.status));
+  } catch(e) { alert('Delete error: ' + e.message); }
 }
 
 async function toggleApprove(itemId, checked) {
@@ -266,35 +272,16 @@ async function addItem(e, catId) {
   e.preventDefault();
   var form = e.target;
   var body = new URLSearchParams(new FormData(form)).toString();
-  var res = await fetch('/projects/<%= job.id %>/materials/categories/' + catId + '/items', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body,
-  });
-  var data = await res.json();
-  if (data.ok && data.item) {
-    var it = data.item;
-    var tbody = form.closest('details').querySelector('table.data tbody');
-    if (tbody) {
-      var lt = (Number(it.quantity)||0)*(Number(it.unit_price)||0);
-      var row = document.createElement('tr');
-      row.innerHTML =
-        '<td><input type="checkbox" onchange="toggleApprove(' + it.id + ', this.checked)" class="accent-recon-red"></td>' +
-        '<td>' + escHtml(it.item_name) + '</td>' +
-        '<td class="text-recon-fog">' + (it.model_number || '—') + '</td>' +
-        '<td class="text-right">' + Number(it.quantity) + '</td>' +
-        '<td class="text-right">$' + (Number(it.unit_price)||0).toFixed(2) + '</td>' +
-        '<td class="text-right font-medium">$' + lt.toFixed(2) + '</td>' +
-        '<td class="text-right">' +
-          '<button type="button" class="text-recon-fog hover:text-recon-red" style="font-size:.7rem;background:none;border:none;cursor:pointer" onclick="editItem(' + it.id + ',\\'' + escAttr(it.item_name) + '\\',\\'' + escAttr(it.model_number||'') + '\\',' + (Number(it.quantity)||0) + ',' + (Number(it.unit_price)||0) + ',' + (it.approved) + ')" title="Edit">✎</button>' +
-          '<button type="button" class="text-recon-fog hover:text-recon-red" style="font-size:.7rem;background:none;border:none;cursor:pointer" onclick="if(confirm(\\'Delete this item?\\'))deleteItem(' + it.id + ')" title="Delete">✕</button>' +
-        '</td>';
-      tbody.appendChild(row);
-    }
-    form.reset();
-    form.querySelector('[name=quantity]').value = '1';
-    form.querySelector('[name=unit_price]').value = '0';
-  } else alert(data.error || 'Failed.');
+  try {
+    var res = await fetch('/projects/<%= job.id %>/materials/categories/' + catId + '/items', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body,
+    });
+    var data = await res.json();
+    if (data && data.ok) window.location.reload();
+    else alert('Failed to add item: ' + (data && data.error || res.status));
+  } catch(e) { alert('Add item error: ' + e.message); }
   return false;
 }
 
@@ -332,10 +319,12 @@ async function saveEdit(e) {
 }
 
 async function deleteItem(itemId) {
-  var res = await fetch('/projects/<%= job.id %>/materials/items/' + itemId + '/delete', { method: 'POST' });
-  var data = await res.json();
-  if (data.ok) window.location.reload();
-  else alert(data.error || 'Failed.');
+  try {
+    var res = await fetch('/projects/<%= job.id %>/materials/items/' + itemId + '/delete', { method: 'POST' });
+    var data = await res.json();
+    if (data && data.ok) window.location.reload();
+    else alert('Delete failed: ' + (data && data.error || res.status));
+  } catch(e) { alert('Delete error: ' + e.message); }
 }
 
 function escHtml(s) {
