@@ -13,14 +13,14 @@
   </div>
 
   <!-- New vendor form (hidden) -->
-  <div id="new-vendor-form" class="card p-4 mb-6 hidden">
+  <div id="new-vendor-form" class="card p-4 mb-6" style="display:none">
     <form onsubmit="return createVendor(event)" class="flex gap-2 items-end">
       <div class="flex-1">
         <label class="label" for="vendor-name">Vendor name</label>
         <input type="text" id="vendor-name" class="input" placeholder="e.g. Home Depot, ABC Supply" required>
       </div>
       <button type="submit" class="btn btn-primary text-sm">Create</button>
-      <button type="button" class="btn btn-ghost text-sm" onclick="document.getElementById('new-vendor-form').classList.add('hidden')">Cancel</button>
+      <button type="button" class="btn btn-ghost text-sm" onclick="document.getElementById('new-vendor-form').style.display='none'">Cancel</button>
     </form>
   </div>
 
@@ -174,7 +174,7 @@
 
 <script>
 function showNewVendorForm() {
-  document.getElementById('new-vendor-form').classList.remove('hidden');
+  document.getElementById('new-vendor-form').style.display = '';
   document.getElementById('vendor-name').focus();
 }
 
