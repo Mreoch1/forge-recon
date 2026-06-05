@@ -230,9 +230,39 @@ async function addItem(e, catId) {
     body: body,
   });
   var data = await res.json();
-  if (data.ok) window.location.reload();
-  else alert(data.error || 'Failed to add item.');
+  if (data.ok && data.item) {
+    var it = data.item;
+    var tbody = form.closest('details').querySelector('table.data tbody');
+    var row = document.createElement('tr');
+    var lineTotal = (Number(it.quantity)||0) * (Number(it.unit_price)||0);
+    row.innerHTML =
+      '<td><input type="checkbox" onchange="toggleApprove(' + it.id + ', this.checked)" class="accent-recon-red"></td>' +
+      '<td>' + escHtml(it.item_name) + '</td>' +
+      '<td class="text-recon-fog">' + (it.model_number || '—') + '</td>' +
+      '<td class="text-right">' + Number(it.quantity) + '</td>' +
+      '<td class="text-right">$' + (Number(it.unit_price)||0).toFixed(2) + '</td>' +
+      '<td class="text-right font-medium">$' + lineTotal.toFixed(2) + '</td>' +
+      '<td class="text-right">' +
+        '<button type="button" class="text-recon-fog hover:text-recon-red" style="font-size:.7rem;background:none;border:none;cursor:pointer" onclick="editItem(' + it.id + ',\'' + escAttr(it.item_name) + '\',\'' + escAttr(it.model_number||'') + '\',\'' + escAttr(it.vendor||'') + '\',' + (Number(it.quantity)||0) + ',' + (Number(it.unit_price)||0) + ',' + (it.approved) + ')" title="Edit">✎</button>' +
+        '<button type="button" class="text-recon-fog hover:text-recon-red" style="font-size:.7rem;background:none;border:none;cursor:pointer" onclick="if(confirm(\'Delete this item?\'))deleteItem(' + it.id + ')" title="Delete">✕</button>' +
+      '</td>';
+    if (tbody) tbody.appendChild(row);
+    form.reset();
+    form.querySelector('[name=quantity]').value = '1';
+    form.querySelector('[name=unit_price]').value = '0';
+  } else {
+    alert(data.error || 'Failed to add item.');
+  }
   return false;
+}
+
+function escHtml(s) {
+  if (typeof s !== 'string') return String(s || '');
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) {
+  if (typeof s !== 'string') return String(s || '');
+  return s.replace(/'/g,"\\'").replace(/"/g,'&quot;');
 }
 
 function editItem(id, name, model, vendor, qty, price, approved) {
