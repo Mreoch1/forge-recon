@@ -325,46 +325,12 @@ router.get('/', async (req, res) => {
     customer_name: r.work_orders?.customers?.name || r.work_orders?.jobs?.customers?.name,
   }));
 
-  // Check QuickBooks connection status
-  let qbConnected = false;
-  try {
-    const qb = require('../services/quickbooks');
-    qbConnected = await qb.isConnected();
-  } catch (e) { /* best-effort */ }
-
   res.render('invoices/index', {
     title: 'Invoices', activeNav: 'invoices',
     invoices, q, status, page,
     totalPages: Math.max(1, Math.ceil((total || 0) / PAGE_SIZE)),
     total: total || 0, statuses: VALID_STATUSES,
-    qbConnected,
   });
-});
-
-// POST /batch-push-to-qb — push multiple invoices to QuickBooks
-router.post('/batch-push-to-qb', async (req, res) => {
-  const raw = req.body.invoice_ids;
-  const ids = (Array.isArray(raw) ? raw : [raw]).map(Number).filter(Boolean);
-  if (!ids.length) {
-    setFlash(req, 'error', 'No invoices selected.');
-    return res.redirect('/invoices');
-  }
-
-  let success = 0, fail = 0;
-  for (const id of ids) {
-    try {
-      const invoice = await loadInvoice(id);
-      if (!invoice) { fail++; continue; }
-      const qb = require('../services/quickbooks');
-      await qb.pushInvoice(invoice);
-      success++;
-    } catch (e) {
-      console.warn(`[quickbooks] batch push failed for invoice ${id}:`, e.message);
-      fail++;
-    }
-  }
-  setFlash(req, 'success', `Pushed ${success} invoice(s) to QuickBooks${fail ? `, ${fail} failed.` : '.'}`);
-  res.redirect('/invoices');
 });
 
 // POST /batch-csv — download selected invoices as a single CSV
@@ -643,46 +609,10 @@ router.post('/:id/send', async (req, res, next) => {
       }
     }
 
-    // Best-effort: push invoice to QuickBooks if connected
-    try {
-      const qb = require('../services/quickbooks');
-      if (await qb.isConnected()) {
-        await qb.pushInvoice(invoice);
-        console.log(`[quickbooks] Invoice ${invoice.display_number} pushed to QuickBooks.`);
-      }
-    } catch (qbErr) {
-      console.warn(`[quickbooks] Failed to push invoice ${invoice.display_number}:`, qbErr.message);
-    }
-
     const note = sent.mode === 'file' ? ` Email saved to ${sent.filepath}.` : '';
     setFlash(req, 'success', `${invoice.display_number} email sent to ${recipient}.${note}`);
     res.redirect(`/invoices/${invoice.id}`);
   } catch (err) { next(err); }
-});
-
-// POST /:id/push-to-qb — manually push invoice to QuickBooks (no email)
-router.post('/:id/push-to-qb', async (req, res) => {
-  const invoice = await loadInvoice(req.params.id);
-  if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
-
-  try {
-    const qb = require('../services/quickbooks');
-    if (!(await qb.isConnected())) {
-      setFlash(req, 'error', 'QuickBooks is not connected. Go to Accounting > QuickBooks import staging to connect.');
-      return res.redirect(`/invoices/${invoice.id}`);
-    }
-    const result = await qb.pushInvoice(invoice);
-    if (result && result.skipped) {
-      setFlash(req, 'info', `${invoice.display_number}: ${result.reason}.`);
-    } else {
-      await qb.logSync('Invoice', 'push', `Manually pushed invoice ${invoice.display_number} to QuickBooks`, { forgeId: invoice.id });
-      setFlash(req, 'success', `${invoice.display_number} pushed to QuickBooks successfully.`);
-    }
-  } catch (e) {
-    console.error('[quickbooks] manual push failed:', e);
-    setFlash(req, 'error', `Failed to push to QuickBooks: ${e.message}`);
-  }
-  res.redirect(`/invoices/${invoice.id}`);
 });
 
 // GET /:id/csv — download invoice as QuickBooks-compatible CSV
