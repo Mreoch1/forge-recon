@@ -274,8 +274,10 @@
             <a href="/customers" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'customers' ? ' active' : '' %>">Customers</a>
           <% } %>
           <a href="/schedule" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'schedule' ? ' active' : '' %>">Schedule</a>
-          <% if (_isAdminNav) { %>
+          <% if (_isAdminNav || _isManagerNav) { %>
             <a href="/projects" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'projects' ? ' active' : '' %>">Projects</a>
+          <% } %>
+          <% if (_isAdminNav) { %>
             <a href="/accounting" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'accounting' ? ' active' : '' %>">Accounting</a>
           <% } %>
           <%# Ask FORGE is paused while the AI assistant is rebuilt. %>
@@ -359,7 +361,7 @@
           <a href="/customers" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'customers' ? ' active' : '' %>">Customers</a>
         <% } %>
         <a href="/schedule" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'schedule' ? ' active' : '' %>">Schedule</a>
-        <% if (_isAdminMobile) { %>
+        <% if (_isAdminMobile || _isManagerMobile) { %>
           <a href="/projects" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'projects' ? ' active' : '' %>">Projects</a>
         <% } %>
         <% if (_isAdminMobile || _isManagerMobile) { %>

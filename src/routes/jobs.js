@@ -143,6 +143,10 @@ router.get('/', async (req, res) => {
     countQuery = countQuery.eq('status', status);
   }
 
+  // D-130: managers see their projects — filter is applied at the detail page level
+  // via requireManagerProjectAccess(). The index shows all projects so managers
+  // can find and navigate into the ones they're assigned to.
+
   // R37i: also surface the listing-query error (was being silently swallowed —
   // only countQuery.error was checked, masking PostgREST FK-resolution failures).
   const [listResult, countResult] = await Promise.all([
@@ -579,7 +583,7 @@ router.get('/:id/edit', async (req, res) => {
 
 router.post('/:id', async (req, res) => {
   const id = req.params.id;
-  const { data: job, error: findError } = await supabase.from('jobs').select('id, title').eq('id', id).maybeSingle();
+  const { data: job, error: findError } = await supabase.from('jobs').select('id, title, project_manager_user_id, assigned_to_user_id').eq('id', id).maybeSingle();
   if (findError) throw findError;
   if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Project not found.' });
   const [{ data: customers }, { data: users }] = await Promise.all([
@@ -616,7 +620,7 @@ router.post('/:id', async (req, res) => {
 
 router.post('/:id/delete', async (req, res) => {
   const id = req.params.id;
-  const { data: job, error: findError } = await supabase.from('jobs').select('id, title').eq('id', id).maybeSingle();
+  const { data: job, error: findError } = await supabase.from('jobs').select('id, title, project_manager_user_id, assigned_to_user_id').eq('id', id).maybeSingle();
   if (findError) throw findError;
   if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Project not found.' });
   const { count: woCount, error: woCountError } = await supabase.from('work_orders').select('*', { count: 'exact', head: true }).eq('job_id', id);
@@ -737,6 +741,20 @@ async function loadLineItems(jobId) {
     vendor_name: li.vendors?.name,
     total_cost: Number(li.quantity || 0) * Number(li.unit_cost || 0),
   }));
+}
+
+async function requireManagerProjectAccess(req, res, job) {
+  if (req.session.role !== 'manager') return true; // admins always pass
+  const userId = Number(req.session.userId);
+  if (Number(job.project_manager_user_id) === userId || Number(job.assigned_to_user_id) === userId) return true;
+  const { data: membership } = await supabase
+    .from('job_members')
+    .select('id')
+    .eq('job_id', job.id)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (membership) return true;
+  return false;
 }
 
 async function loadMembers(jobId) {

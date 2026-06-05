@@ -234,7 +234,7 @@ app.get('/privacy', (req, res) => {
 app.use('/customers', requireAuth, requireManager, customersRoutes);
 // D-007: Projects layer — Jobs renamed Projects in UI. /projects is canonical;
 // /jobs preserved as a redirect so older links keep working.
-app.use('/projects', requireAuth, requireAdmin, jobsRoutes);
+app.use('/projects', requireAuth, requireManager, jobsRoutes);
 app.use('/jobs', requireAuth, requireAdmin, (req, res) => {
   const tail = req.url === '/' ? '' : req.url;
   res.redirect(302, '/projects' + tail);

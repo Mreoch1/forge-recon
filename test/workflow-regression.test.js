@@ -48,7 +48,7 @@ test('managers can access customers but cannot delete them', () => {
 test('admin navigation starts with dashboard before work orders', () => {
   const header = read('src/views/layouts/header.ejs');
   const desktopNav = header.match(/<div class="hidden lg:flex items-center gap-0" id="desktop-nav">([\s\S]*?)<!-- More dropdown -->/);
-  const mobileNav = header.match(/<div class="mobile-menu-heading">Work<\/div>([\s\S]*?)<% if \(_isAdminMobile\) \{ %>\s*<a href="\/projects"/);
+  const mobileNav = header.match(/<div class="mobile-menu-heading">Work<\/div>([\s\S]*?)<% if \(_isAdminMobile || _isManagerMobile\) \{ %>\s*<a href="\/projects"/);
 
   assert.ok(desktopNav, 'desktop nav block should exist');
   assert.ok(mobileNav, 'mobile work nav block should exist');
