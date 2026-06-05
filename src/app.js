@@ -40,7 +40,6 @@ const closuresRoutes = require('./routes/closures');
 const settingsRoutes = require('./routes/settings');
 const signupRoutes = require('./routes/signup');
 const apiAddressRoutes = require('./routes/api-address');
-const quickbooksWebhookRoutes = require('./routes/quickbooks-webhooks');
 
 // F2: rate limiters for auth endpoints to slow credential stuffing,
 // account enumeration, and password reset spam.
@@ -150,7 +149,6 @@ app.set('view engine', 'ejs');
 app.set('views', VIEWS_DIR);
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(morgan('dev'));
-app.use('/quickbooks/webhook', express.raw({ type: '*/*', limit: '1mb' }), quickbooksWebhookRoutes);
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(PUBLIC_DIR, { maxAge: '1h' }));
@@ -232,9 +230,6 @@ app.get('/privacy', (req, res) => {
   res.render('privacy', { title: 'Privacy Policy' });
 });
 
-// QuickBooks OAuth integration (admin-only, mounted under accounting)
-const quickbooksRoutes = require('./routes/quickbooks');
-app.use('/accounting/quickbooks', requireAuth, requireAdmin, quickbooksRoutes);
 
 app.use('/customers', requireAuth, requireManager, customersRoutes);
 // D-007: Projects layer — Jobs renamed Projects in UI. /projects is canonical;
