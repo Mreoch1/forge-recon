@@ -21,7 +21,7 @@ var custSiteSame = job.customers && (job.address === job.customers.address) && (
             <a href="/customers/<%= job.customer_id %>" class="hover:text-white"><%= job.customer_name %></a>
             &middot;
           <% } %>
-          Project #<%= job.id %>
+          <%= job.title %>
           &middot; created <%= dateOnly(job.created_at) %>
         </p>
       </div>
