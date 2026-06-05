@@ -4,9 +4,9 @@
   <div class="mb-4 flex items-center justify-between gap-3 flex-wrap">
     <a href="/projects/<%= job.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; Back to <%= job.title || job.name %></a>
     <div class="flex items-center gap-2 flex-wrap">
-      <a href="/projects/<%= job.id %>/rfp/export.pdf" class="btn btn-secondary text-sm" download>PDF</a>
-      <a href="/projects/<%= job.id %>/rfp/export.csv" class="btn btn-secondary text-sm" download>CSV</a>
-      <a href="/projects/<%= job.id %>/rfp/export.xlsx" class="btn btn-secondary text-sm" download>XLSX</a>
+      <a href="/projects/<%= job.id %>/rfp/export.pdf" class="btn btn-secondary text-sm" target="_blank">PDF</a>
+      <a href="/projects/<%= job.id %>/rfp/export.csv" class="btn btn-secondary text-sm" target="_blank">CSV</a>
+      <a href="/projects/<%= job.id %>/rfp/export.xlsx" class="btn btn-secondary text-sm" target="_blank">XLSX</a>
       <button onclick="document.getElementById('rfp-new-form').classList.toggle('hidden')"
               class="btn btn-primary text-sm">+ Add category</button>
     </div>
