@@ -61,6 +61,10 @@
             <label class="label text-xs">Qty</label>
             <input type="number" name="quantity" class="input text-sm" style="width:80px" value="1" min="0" step="1">
           </div>
+          <div>
+            <label class="label text-xs">Price ea</label>
+            <input type="number" name="unit_price" class="input text-sm" style="width:90px" value="0" min="0" step="0.01">
+          </div>
           <button type="submit" class="btn btn-primary text-sm">Add</button>
         </form>
 
@@ -74,27 +78,48 @@
                 <th class="text-left">Item</th>
                 <th class="text-left">Model #</th>
                 <th class="text-right">Qty</th>
+                <th class="text-right">Price ea</th>
+                <th class="text-right">Total</th>
                 <th class="text-right" style="width:80px">Actions</th>
               </tr>
             </thead>
             <tbody>
               <% items.forEach(function(it){ %>
+              <% var lineTotal = (Number(it.quantity) || 0) * (Number(it.unit_price) || 0); %>
               <tr data-item-id="<%= it.id %>">
                 <td><%= it.item_name %></td>
                 <td class="text-recon-fog"><%= it.model_number || '—' %></td>
                 <td class="text-right"><%= Number(it.quantity) %></td>
+                <td class="text-right">$<%= (Number(it.unit_price) || 0).toFixed(2) %></td>
+                <td class="text-right font-medium">$<%= lineTotal.toFixed(2) %></td>
                 <td class="text-right">
-                  <button type="button" class="text-xs text-recon-fog hover:text-recon-red" onclick="editItem(<%= it.id %>, '<%= it.item_name.replace(/'/g, "\\'") %>', '<%= (it.model_number||'').replace(/'/g, "\\'") %>', <%= it.quantity %>)">✎</button>
+                  <button type="button" class="text-xs text-recon-fog hover:text-recon-red" onclick="editItem(<%= it.id %>, '<%= it.item_name.replace(/'/g, "\\'") %>', '<%= (it.model_number||'').replace(/'/g, "\\'") %>', <%= it.quantity %>, <%= Number(it.unit_price) || 0 %>)">✎</button>
                   <button type="button" class="text-xs text-recon-fog hover:text-recon-red ml-2" onclick="if(confirm('Delete this item?'))deleteItem(<%= it.id %>)">✕</button>
                 </td>
               </tr>
               <% }); %>
             </tbody>
+            <tfoot class="bg-recon-cloud">
+              <tr>
+                <td colspan="4" class="text-right text-sm font-medium">Category total</td>
+                <td class="text-right font-semibold">$<%= items.reduce(function(s, it){ return s + (Number(it.quantity)||0) * (Number(it.unit_price)||0); }, 0).toFixed(2) %></td>
+                <td></td>
+              </tr>
+            </tfoot>
           </table>
         <% } %>
       </div>
     </details>
   <% }); %>
+
+  <!-- Project grand total -->
+  <% if (categories.length > 0) { %>
+    <% var grandTotal = 0; categories.forEach(function(cat){ (itemsByCategory[cat.id] || []).forEach(function(it){ grandTotal += (Number(it.quantity)||0) * (Number(it.unit_price)||0); }); }); %>
+    <div class="card p-4 flex items-center justify-between">
+      <span class="font-semibold">Project material total</span>
+      <span class="text-xl font-bold text-recon-red">$<%= grandTotal.toFixed(2) %></span>
+    </div>
+  <% } %>
 </div>
 
 <!-- Edit item modal -->
@@ -114,6 +139,10 @@
       <div class="mb-4">
         <label class="label" for="edit-qty">Quantity</label>
         <input type="number" id="edit-qty" class="input" min="0" step="1" required>
+      </div>
+      <div class="mb-4">
+        <label class="label" for="edit-price">Price ea</label>
+        <input type="number" id="edit-price" class="input" min="0" step="0.01" value="0">
       </div>
       <div class="flex gap-2 justify-end">
         <button type="button" class="btn btn-ghost text-sm" onclick="closeEdit()">Cancel</button>
@@ -179,11 +208,12 @@ async function addItem(e, catId) {
   return false;
 }
 
-function editItem(id, name, model, qty) {
+function editItem(id, name, model, qty, price) {
   document.getElementById('edit-item-id').value = id;
   document.getElementById('edit-name').value = name;
   document.getElementById('edit-model').value = model;
   document.getElementById('edit-qty').value = qty;
+  document.getElementById('edit-price').value = price || 0;
   document.getElementById('edit-modal').classList.remove('hidden');
 }
 
@@ -197,11 +227,12 @@ async function saveEdit(e) {
   var name = document.getElementById('edit-name').value.trim();
   var model = document.getElementById('edit-model').value.trim();
   var qty = document.getElementById('edit-qty').value;
+  var price = document.getElementById('edit-price').value;
   if (!name) return false;
   var res = await fetch('/projects/materials/items/' + id, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: 'item_name=' + encodeURIComponent(name) + '&model_number=' + encodeURIComponent(model) + '&quantity=' + encodeURIComponent(qty),
+    body: 'item_name=' + encodeURIComponent(name) + '&model_number=' + encodeURIComponent(model) + '&quantity=' + encodeURIComponent(qty) + '&unit_price=' + encodeURIComponent(price),
   });
   var data = await res.json();
   if (data.ok) window.location.reload();

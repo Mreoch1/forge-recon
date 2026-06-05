@@ -115,9 +115,10 @@ router.post('/projects/:id/materials/categories/:catId/items', requireMaterialsA
   if (!itemName) return res.status(400).json({ error: 'Item name is required.' });
   const modelNumber = (req.body.model_number || '').trim();
   const quantity = parseFloat(req.body.quantity) || 1;
+  const unitPrice = parseFloat(req.body.unit_price) || 0;
   const { data: item, error } = await supabase
     .from('project_material_items')
-    .insert({ category_id: parseInt(catId, 10), item_name: itemName, model_number: modelNumber || null, quantity })
+    .insert({ category_id: parseInt(catId, 10), item_name: itemName, model_number: modelNumber || null, quantity, unit_price: unitPrice })
     .select()
     .single();
   if (error) return res.status(500).json({ error: error.message });
@@ -132,9 +133,10 @@ router.post('/projects/materials/items/:itemId', requireMaterialsAccess, async (
   if (!itemName) return res.status(400).json({ error: 'Item name is required.' });
   const modelNumber = (req.body.model_number || '').trim();
   const quantity = parseFloat(req.body.quantity) || 1;
+  const unitPrice = parseFloat(req.body.unit_price) || 0;
   const { error } = await supabase
     .from('project_material_items')
-    .update({ item_name: itemName, model_number: modelNumber || null, quantity })
+    .update({ item_name: itemName, model_number: modelNumber || null, quantity, unit_price: unitPrice })
     .eq('id', itemId);
   if (error) return res.status(500).json({ error: error.message });
   res.json({ ok: true });

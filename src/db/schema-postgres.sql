@@ -638,6 +638,23 @@ CREATE TABLE IF NOT EXISTS project_chat_messages (
 );
 CREATE INDEX IF NOT EXISTS idx_project_chat_job ON project_chat_messages(job_id, created_at);
 
+-- ========== PROJECT MATERIALS ==========
+CREATE TABLE IF NOT EXISTS project_material_categories (
+  id BIGSERIAL PRIMARY KEY,
+  job_id BIGINT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS project_material_items (
+  id BIGSERIAL PRIMARY KEY,
+  category_id BIGINT NOT NULL REFERENCES project_material_categories(id) ON DELETE CASCADE,
+  item_name TEXT NOT NULL,
+  model_number TEXT,
+  quantity NUMERIC(12,2) NOT NULL DEFAULT 1,
+  unit_price NUMERIC(12,2) NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE INDEX IF NOT EXISTS idx_wo_job ON work_orders(job_id);
 CREATE INDEX IF NOT EXISTS idx_wo_status ON work_orders(status);
 CREATE INDEX IF NOT EXISTS idx_wo_parent ON work_orders(parent_wo_id);
