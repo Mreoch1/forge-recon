@@ -407,6 +407,16 @@ router.post('/batch-csv', async (req, res) => {
   }
 
   const dateStr = new Date().toISOString().slice(0, 10);
+
+  // Mark exported invoices as synced so they don't appear in future batches
+  try {
+    const supabase = require('../db/supabase');
+    const now = new Date().toISOString();
+    for (const id of ids) {
+      await supabase.from('invoices').update({ qb_synced_at: now }).eq('id', id);
+    }
+  } catch (e) { /* best-effort */ }
+
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', `attachment; filename="forge-invoices-${dateStr}.csv"`);
   res.send(csv);
