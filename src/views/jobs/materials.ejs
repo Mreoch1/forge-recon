@@ -1,0 +1,221 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<div class="ops-shell">
+  <div class="mb-4">
+    <a href="/projects/<%= job.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; <%= job.title %></a>
+  </div>
+
+  <div class="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+    <div>
+      <h1 class="page-h1">Materials</h1>
+      <p class="page-sub">Track and order materials for this project.</p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <button type="button" class="btn btn-primary text-sm" onclick="showNewCategoryForm()">+ Category</button>
+    </div>
+  </div>
+
+  <!-- New category form (hidden) -->
+  <div id="new-cat-form" class="card p-4 mb-6 hidden">
+    <form onsubmit="return createCategory(event)" class="flex gap-2 items-end">
+      <div class="flex-1">
+        <label class="label" for="cat-name">Category name</label>
+        <input type="text" id="cat-name" class="input" placeholder="e.g. Framing, Electrical, Plumbing" required>
+      </div>
+      <button type="submit" class="btn btn-primary text-sm">Create</button>
+      <button type="button" class="btn btn-ghost text-sm" onclick="document.getElementById('new-cat-form').classList.add('hidden')">Cancel</button>
+    </form>
+  </div>
+
+  <!-- Categories list -->
+  <% if (categories.length === 0) { %>
+    <div class="card p-8 text-center text-recon-fog text-sm">
+      No material categories yet. Click "+ Category" to get started.
+    </div>
+  <% } %>
+
+  <% categories.forEach(function(cat){ %>
+    <% var items = (itemsByCategory[cat.id] || []); %>
+    <details class="card mb-4 overflow-hidden" open>
+      <summary class="cursor-pointer px-5 py-3 bg-recon-cloud hover:bg-gray-100 flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <span class="font-semibold text-sm"><%= cat.name %></span>
+          <span class="text-xs text-recon-fog">(<%= items.length %> item<%= items.length === 1 ? '' : 's' %>)</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <button type="button" class="text-xs text-recon-fog hover:text-recon-red px-1" onclick="event.stopPropagation();renameCategory(<%= cat.id %>, '<%= cat.name.replace(/'/g, "\\'") %>')" title="Rename">✎</button>
+          <button type="button" class="text-xs text-recon-fog hover:text-recon-red px-1" onclick="event.stopPropagation();if(confirm('Delete this category and all its items?'))deleteCategory(<%= cat.id %>)" title="Delete">✕</button>
+        </div>
+      </summary>
+      <div class="p-4">
+        <!-- Add item form -->
+        <form onsubmit="return addItem(event, <%= cat.id %>)" class="flex gap-2 items-end mb-4 flex-wrap">
+          <div>
+            <label class="label text-xs">Item name</label>
+            <input type="text" name="item_name" class="input text-sm" style="width:200px" placeholder="e.g. 2x4 Lumber" required>
+          </div>
+          <div>
+            <label class="label text-xs">Model #</label>
+            <input type="text" name="model_number" class="input text-sm" style="width:140px" placeholder="e.g. S4S-2x4-8">
+          </div>
+          <div>
+            <label class="label text-xs">Qty</label>
+            <input type="number" name="quantity" class="input text-sm" style="width:80px" value="1" min="0" step="1">
+          </div>
+          <button type="submit" class="btn btn-primary text-sm">Add</button>
+        </form>
+
+        <!-- Items table -->
+        <% if (items.length === 0) { %>
+          <p class="text-xs text-recon-fog">No items in this category yet.</p>
+        <% } else { %>
+          <table class="data w-full">
+            <thead>
+              <tr>
+                <th class="text-left">Item</th>
+                <th class="text-left">Model #</th>
+                <th class="text-right">Qty</th>
+                <th class="text-right" style="width:80px">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% items.forEach(function(it){ %>
+              <tr data-item-id="<%= it.id %>">
+                <td><%= it.item_name %></td>
+                <td class="text-recon-fog"><%= it.model_number || '—' %></td>
+                <td class="text-right"><%= Number(it.quantity) %></td>
+                <td class="text-right">
+                  <button type="button" class="text-xs text-recon-fog hover:text-recon-red" onclick="editItem(<%= it.id %>, '<%= it.item_name.replace(/'/g, "\\'") %>', '<%= (it.model_number||'').replace(/'/g, "\\'") %>', <%= it.quantity %>)">✎</button>
+                  <button type="button" class="text-xs text-recon-fog hover:text-recon-red ml-2" onclick="if(confirm('Delete this item?'))deleteItem(<%= it.id %>)">✕</button>
+                </td>
+              </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        <% } %>
+      </div>
+    </details>
+  <% }); %>
+</div>
+
+<!-- Edit item modal -->
+<div id="edit-modal" class="fixed inset-0 z-50 hidden" style="background:rgba(0,0,0,0.4)">
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl p-6 w-96 max-w-[90vw]">
+    <h3 class="font-semibold mb-4">Edit item</h3>
+    <form onsubmit="return saveEdit(event)">
+      <input type="hidden" id="edit-item-id">
+      <div class="mb-3">
+        <label class="label" for="edit-name">Item name</label>
+        <input type="text" id="edit-name" class="input" required>
+      </div>
+      <div class="mb-3">
+        <label class="label" for="edit-model">Model #</label>
+        <input type="text" id="edit-model" class="input">
+      </div>
+      <div class="mb-4">
+        <label class="label" for="edit-qty">Quantity</label>
+        <input type="number" id="edit-qty" class="input" min="0" step="1" required>
+      </div>
+      <div class="flex gap-2 justify-end">
+        <button type="button" class="btn btn-ghost text-sm" onclick="closeEdit()">Cancel</button>
+        <button type="submit" class="btn btn-primary text-sm">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function showNewCategoryForm() {
+  document.getElementById('new-cat-form').classList.remove('hidden');
+  document.getElementById('cat-name').focus();
+}
+
+async function createCategory(e) {
+  e.preventDefault();
+  var name = document.getElementById('cat-name').value.trim();
+  if (!name) return false;
+  var res = await fetch('/projects/<%= job.id %>/materials/categories', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'name=' + encodeURIComponent(name),
+  });
+  var data = await res.json();
+  if (data.ok) window.location.reload();
+  else alert(data.error || 'Failed to create category.');
+  return false;
+}
+
+async function renameCategory(catId, currentName) {
+  var name = prompt('Rename category:', currentName);
+  if (!name || name === currentName) return;
+  var res = await fetch('/projects/<%= job.id %>/materials/categories/' + catId + '/rename', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'name=' + encodeURIComponent(name.trim()),
+  });
+  var data = await res.json();
+  if (data.ok) window.location.reload();
+  else alert(data.error || 'Failed to rename.');
+}
+
+async function deleteCategory(catId) {
+  var res = await fetch('/projects/<%= job.id %>/materials/categories/' + catId + '/delete', { method: 'POST' });
+  var data = await res.json();
+  if (data.ok) window.location.reload();
+  else alert(data.error || 'Failed to delete.');
+}
+
+async function addItem(e, catId) {
+  e.preventDefault();
+  var form = e.target;
+  var body = new URLSearchParams(new FormData(form)).toString();
+  var res = await fetch('/projects/<%= job.id %>/materials/categories/' + catId + '/items', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body,
+  });
+  var data = await res.json();
+  if (data.ok) window.location.reload();
+  else alert(data.error || 'Failed to add item.');
+  return false;
+}
+
+function editItem(id, name, model, qty) {
+  document.getElementById('edit-item-id').value = id;
+  document.getElementById('edit-name').value = name;
+  document.getElementById('edit-model').value = model;
+  document.getElementById('edit-qty').value = qty;
+  document.getElementById('edit-modal').classList.remove('hidden');
+}
+
+function closeEdit() {
+  document.getElementById('edit-modal').classList.add('hidden');
+}
+
+async function saveEdit(e) {
+  e.preventDefault();
+  var id = document.getElementById('edit-item-id').value;
+  var name = document.getElementById('edit-name').value.trim();
+  var model = document.getElementById('edit-model').value.trim();
+  var qty = document.getElementById('edit-qty').value;
+  if (!name) return false;
+  var res = await fetch('/projects/materials/items/' + id, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'item_name=' + encodeURIComponent(name) + '&model_number=' + encodeURIComponent(model) + '&quantity=' + encodeURIComponent(qty),
+  });
+  var data = await res.json();
+  if (data.ok) window.location.reload();
+  else alert(data.error || 'Failed to save.');
+  closeEdit();
+  return false;
+}
+
+async function deleteItem(itemId) {
+  var res = await fetch('/projects/<%= job.id %>/materials/items/' + itemId + '/delete', { method: 'POST' });
+  var data = await res.json();
+  if (data.ok) window.location.reload();
+  else alert(data.error || 'Failed to delete.');
+}
+</script>
+
+<%- include('../layouts/footer') %>

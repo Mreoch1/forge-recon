@@ -24,6 +24,7 @@ const customersRoutes = require('./routes/customers');
 const estimatesRoutes = require('./routes/estimates');
 const jobsRoutes = require('./routes/jobs');
 const rfpRoutes = require('./routes/rfp');
+const materialsRoutes = require('./routes/materials');
 const workOrdersRoutes = require('./routes/work-orders');
 const invoicesRoutes = require('./routes/invoices');
 const scheduleRoutes = require('./routes/schedule');
@@ -253,6 +254,7 @@ app.use('/contractors', requireAuth, requireManager, contractorsRoutes);
 app.use('/files', requireAuth, filesRoutes);
 app.use('/', meetingsRoutes);
 app.use('/', requireAuth, rfpRoutes);
+app.use('/', requireAuth, materialsRoutes);
 app.get('/ai/chat/health', (req, res) => {
   const ai = require('./services/ai');
   const enabled = process.env.AI_CHAT_ENABLED === undefined

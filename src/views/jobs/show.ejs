@@ -11,7 +11,10 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
 <div class="ops-shell">
   <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
     <a href="/projects" class="text-sm text-recon-fog hover:text-recon-red">&larr; Projects</a>
-    <a href="/projects/<%= job.id %>/export.xlsx" class="btn btn-secondary text-sm">Export Excel</a>
+    <div class="flex flex-wrap gap-2">
+      <a href="/projects/<%= job.id %>/materials" class="btn btn-secondary text-sm">Materials</a>
+      <a href="/projects/<%= job.id %>/export.xlsx" class="btn btn-secondary text-sm">Export Excel</a>
+    </div>
   </div>
 
   <!-- D-007: Project header partial -->
