@@ -26,100 +26,121 @@
     </form>
   </div>
 
-  <!-- Categories list -->
-  <% if (categories.length === 0) { %>
+  <!-- Empty state -->
+  <% var vendorKeys = Object.keys(itemsByVendorCat); %>
+  <% if (vendorKeys.length === 0) { %>
     <div class="card p-8 text-center text-recon-fog text-sm">
       No material categories yet. Click "+ Category" to get started.
     </div>
   <% } %>
 
-  <% categories.forEach(function(cat){ %>
-    <% var items = (itemsByCategory[cat.id] || []); %>
+  <!-- Grand totals bar -->
+  <% if (vendorKeys.length > 0) { %>
+    <% var allItemsAll = []; vendorKeys.forEach(function(vk){ Object.keys(itemsByVendorCat[vk]).forEach(function(ck){ allItemsAll = allItemsAll.concat(itemsByVendorCat[vk][ck].items); }); }); %>
+    <% var approvedTotal = allItemsAll.reduce(function(s, it){ return s + (it.approved ? (Number(it.quantity)||0)*(Number(it.unit_price)||0) : 0); }, 0); %>
+    <% var totalAll = allItemsAll.reduce(function(s, it){ return s + (Number(it.quantity)||0)*(Number(it.unit_price)||0); }, 0); %>
+    <div class="card p-4 mb-6 flex items-center justify-between">
+      <div>
+        <span class="font-semibold">Approved total</span>
+        <span class="ml-2 text-recon-fog text-xs">(<%= allItemsAll.filter(function(it){ return it.approved; }).length %> of <%= allItemsAll.length %> items approved)</span>
+      </div>
+      <span class="text-xl font-bold text-recon-red">$<%= approvedTotal.toFixed(2) %></span>
+    </div>
+  <% } %>
+
+  <!-- Vendor > Category hierarchy -->
+  <% vendorKeys.sort().forEach(function(vendor){ %>
+    <% var catKeys = Object.keys(itemsByVendorCat[vendor]); %>
+    <% var vItems = []; catKeys.forEach(function(ck){ vItems = vItems.concat(itemsByVendorCat[vendor][ck].items); }); %>
+    <% var vApproved = vItems.reduce(function(s, it){ return s + (it.approved ? (Number(it.quantity)||0)*(Number(it.unit_price)||0) : 0); }, 0); %>
     <details class="card mb-4 overflow-hidden" open>
-      <summary class="cursor-pointer px-5 py-3 bg-recon-cloud hover:bg-gray-100 flex items-center justify-between gap-2">
-        <div class="flex items-center gap-2">
-          <span class="font-semibold text-sm"><%= cat.name %></span>
-          <span class="text-xs text-recon-fog">(<%= items.length %> item<%= items.length === 1 ? '' : 's' %>)</span>
-        </div>
-        <div class="flex items-center gap-1">
-          <button type="button" class="text-xs text-recon-fog hover:text-recon-red px-1" onclick="event.stopPropagation();renameCategory(<%= cat.id %>, '<%= cat.name.replace(/'/g, "\\'") %>')" title="Rename">✎</button>
-          <button type="button" class="text-xs text-recon-fog hover:text-recon-red px-1" onclick="event.stopPropagation();if(confirm('Delete this category and all its items?'))deleteCategory(<%= cat.id %>)" title="Delete">✕</button>
-        </div>
+      <summary class="cursor-pointer px-5 py-3 bg-recon-cloud hover:bg-gray-100 flex items-center justify-between gap-2 font-semibold text-sm">
+        <span><%= vendor %> <span class="text-xs text-recon-fog font-normal">(<%= vItems.length %> item<%= vItems.length === 1 ? '' : 's' %>, approved $<%= vApproved.toFixed(2) %>)</span></span>
       </summary>
       <div class="p-4">
-        <!-- Add item form -->
-        <form onsubmit="return addItem(event, <%= cat.id %>)" class="flex gap-2 items-end mb-4 flex-wrap">
-          <div>
-            <label class="label text-xs">Item name</label>
-            <input type="text" name="item_name" class="input text-sm" style="width:200px" placeholder="e.g. 2x4 Lumber" required>
-          </div>
-          <div>
-            <label class="label text-xs">Model #</label>
-            <input type="text" name="model_number" class="input text-sm" style="width:140px" placeholder="e.g. S4S-2x4-8">
-          </div>
-          <div>
-            <label class="label text-xs">Qty</label>
-            <input type="number" name="quantity" class="input text-sm" style="width:80px" value="1" min="0" step="1">
-          </div>
-          <div>
-            <label class="label text-xs">Price ea</label>
-            <input type="number" name="unit_price" class="input text-sm" style="width:90px" value="0" min="0" step="0.01">
-          </div>
-          <button type="submit" class="btn btn-primary text-sm">Add</button>
-        </form>
 
-        <!-- Items table -->
-        <% if (items.length === 0) { %>
-          <p class="text-xs text-recon-fog">No items in this category yet.</p>
-        <% } else { %>
-          <table class="data w-full">
-            <thead>
-              <tr>
-                <th class="text-left">Item</th>
-                <th class="text-left">Model #</th>
-                <th class="text-right">Qty</th>
-                <th class="text-right">Price ea</th>
-                <th class="text-right">Total</th>
-                <th class="text-right" style="width:80px">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <% items.forEach(function(it){ %>
-              <% var lineTotal = (Number(it.quantity) || 0) * (Number(it.unit_price) || 0); %>
-              <tr data-item-id="<%= it.id %>">
-                <td><%= it.item_name %></td>
-                <td class="text-recon-fog"><%= it.model_number || '—' %></td>
-                <td class="text-right"><%= Number(it.quantity) %></td>
-                <td class="text-right">$<%= (Number(it.unit_price) || 0).toFixed(2) %></td>
-                <td class="text-right font-medium">$<%= lineTotal.toFixed(2) %></td>
-                <td class="text-right">
-                  <button type="button" class="text-xs text-recon-fog hover:text-recon-red" onclick="editItem(<%= it.id %>, '<%= it.item_name.replace(/'/g, "\\'") %>', '<%= (it.model_number||'').replace(/'/g, "\\'") %>', <%= it.quantity %>, <%= Number(it.unit_price) || 0 %>)">✎</button>
-                  <button type="button" class="text-xs text-recon-fog hover:text-recon-red ml-2" onclick="if(confirm('Delete this item?'))deleteItem(<%= it.id %>)">✕</button>
-                </td>
-              </tr>
-              <% }); %>
-            </tbody>
-            <tfoot class="bg-recon-cloud">
-              <tr>
-                <td colspan="4" class="text-right text-sm font-medium">Category total</td>
-                <td class="text-right font-semibold">$<%= items.reduce(function(s, it){ return s + (Number(it.quantity)||0) * (Number(it.unit_price)||0); }, 0).toFixed(2) %></td>
-                <td></td>
-              </tr>
-            </tfoot>
-          </table>
-        <% } %>
+        <% catKeys.sort(function(a,b){ return (itemsByVendorCat[vendor][a].catName || '').localeCompare(itemsByVendorCat[vendor][b].catName || ''); }).forEach(function(ck){ %>
+          <% var group = itemsByVendorCat[vendor][ck]; %>
+          <% var catApproved = group.items.reduce(function(s, it){ return s + (it.approved ? (Number(it.quantity)||0)*(Number(it.unit_price)||0) : 0); }, 0); %>
+          <details class="mb-3" open>
+            <summary class="cursor-pointer text-xs font-semibold text-recon-fog hover:text-recon-charcoal mb-1 flex items-center gap-2">
+              <span><%= group.catName %></span>
+              <span class="text-recon-mist">(<%= group.items.length %> item<%= group.items.length === 1 ? '' : 's' %>)</span>
+              <span class="text-recon-red">$<%= catApproved.toFixed(2) %></span>
+            </summary>
+
+            <!-- Add item form for this category -->
+            <form onsubmit="return addItem(event, <%= ck %>)" class="flex gap-2 items-end mb-3 flex-wrap text-xs">
+              <div>
+                <label class="label" style="font-size:.65rem">Item name</label>
+                <input type="text" name="item_name" class="input" style="width:160px;padding:.25rem .4rem;font-size:.78rem" placeholder="e.g. 2x4 Lumber" required>
+              </div>
+              <div>
+                <label class="label" style="font-size:.65rem">Model #</label>
+                <input type="text" name="model_number" class="input" style="width:110px;padding:.25rem .4rem;font-size:.78rem" placeholder="e.g. S4S-2x4-8">
+              </div>
+              <div>
+                <label class="label" style="font-size:.65rem">Vendor</label>
+                <input type="text" name="vendor" class="input" style="width:120px;padding:.25rem .4rem;font-size:.78rem" placeholder="e.g. Home Depot" value="<%= vendor === '(Unassigned)' ? '' : vendor %>">
+              </div>
+              <div>
+                <label class="label" style="font-size:.65rem">Qty</label>
+                <input type="number" name="quantity" class="input" style="width:60px;padding:.25rem .4rem;font-size:.78rem" value="1" min="0" step="1">
+              </div>
+              <div>
+                <label class="label" style="font-size:.65rem">Price ea</label>
+                <input type="number" name="unit_price" class="input" style="width:75px;padding:.25rem .4rem;font-size:.78rem" value="0" min="0" step="0.01">
+              </div>
+              <button type="submit" class="btn btn-primary" style="font-size:.78rem;padding:.25rem .6rem">Add</button>
+            </form>
+
+            <!-- Items table -->
+            <table class="data w-full" style="font-size:.78rem">
+              <thead>
+                <tr>
+                  <th style="width:28px"></th>
+                  <th class="text-left">Item</th>
+                  <th class="text-left">Model #</th>
+                  <th class="text-right">Qty</th>
+                  <th class="text-right">Price ea</th>
+                  <th class="text-right">Total</th>
+                  <th style="width:60px"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <% group.items.forEach(function(it){ %>
+                <% var lineTotal = (Number(it.quantity)||0) * (Number(it.unit_price)||0); %>
+                <tr class="<%= it.approved ? '' : 'opacity-60' %>">
+                  <td>
+                    <input type="checkbox" <%= it.approved ? 'checked' : '' %> onchange="toggleApprove(<%= it.id %>, this.checked)" class="accent-recon-red">
+                  </td>
+                  <td><%= it.item_name %></td>
+                  <td class="text-recon-fog"><%= it.model_number || '—' %></td>
+                  <td class="text-right"><%= Number(it.quantity) %></td>
+                  <td class="text-right">$<%= (Number(it.unit_price)||0).toFixed(2) %></td>
+                  <td class="text-right font-medium">$<%= lineTotal.toFixed(2) %></td>
+                  <td class="text-right">
+                    <button type="button" class="text-recon-fog hover:text-recon-red" style="font-size:.7rem;background:none;border:none;cursor:pointer" onclick="editItem(<%= it.id %>, '<%= it.item_name.replace(/'/g, "\\'") %>', '<%= (it.model_number||'').replace(/'/g, "\\'") %>', '<%= (it.vendor||'').replace(/'/g, "\\'") %>', <%= it.quantity %>, <%= Number(it.unit_price)||0 %>, <%= it.approved %>)" title="Edit">✎</button>
+                    <button type="button" class="text-recon-fog hover:text-recon-red" style="font-size:.7rem;background:none;border:none;cursor:pointer" onclick="if(confirm('Delete this item?'))deleteItem(<%= it.id %>)" title="Delete">✕</button>
+                  </td>
+                </tr>
+                <% }); %>
+              </tbody>
+              <tfoot class="bg-recon-cloud">
+                <tr>
+                  <td></td>
+                  <td colspan="4" class="text-right text-sm font-medium">Category approved total</td>
+                  <td class="text-right font-semibold">$<%= catApproved.toFixed(2) %></td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </details>
+        <% }); %>
+
       </div>
     </details>
   <% }); %>
-
-  <!-- Project grand total -->
-  <% if (categories.length > 0) { %>
-    <% var grandTotal = 0; categories.forEach(function(cat){ (itemsByCategory[cat.id] || []).forEach(function(it){ grandTotal += (Number(it.quantity)||0) * (Number(it.unit_price)||0); }); }); %>
-    <div class="card p-4 flex items-center justify-between">
-      <span class="font-semibold">Project material total</span>
-      <span class="text-xl font-bold text-recon-red">$<%= grandTotal.toFixed(2) %></span>
-    </div>
-  <% } %>
 </div>
 
 <!-- Edit item modal -->
@@ -136,13 +157,23 @@
         <label class="label" for="edit-model">Model #</label>
         <input type="text" id="edit-model" class="input">
       </div>
-      <div class="mb-4">
+      <div class="mb-3">
+        <label class="label" for="edit-vendor">Vendor</label>
+        <input type="text" id="edit-vendor" class="input">
+      </div>
+      <div class="mb-3">
         <label class="label" for="edit-qty">Quantity</label>
         <input type="number" id="edit-qty" class="input" min="0" step="1" required>
       </div>
-      <div class="mb-4">
+      <div class="mb-3">
         <label class="label" for="edit-price">Price ea</label>
         <input type="number" id="edit-price" class="input" min="0" step="0.01" value="0">
+      </div>
+      <div class="mb-4">
+        <label class="label flex items-center gap-2">
+          <input type="checkbox" id="edit-approved" class="accent-recon-red">
+          <span>Approved</span>
+        </label>
       </div>
       <div class="flex gap-2 justify-end">
         <button type="button" class="btn btn-ghost text-sm" onclick="closeEdit()">Cancel</button>
@@ -173,24 +204,20 @@ async function createCategory(e) {
   return false;
 }
 
-async function renameCategory(catId, currentName) {
-  var name = prompt('Rename category:', currentName);
-  if (!name || name === currentName) return;
-  var res = await fetch('/projects/<%= job.id %>/materials/categories/' + catId + '/rename', {
+async function toggleApprove(itemId, checked) {
+  var res = await fetch('/projects/<%= job.id %>/materials/items/' + itemId + '/approve', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: 'name=' + encodeURIComponent(name.trim()),
+    body: 'approved=' + (checked ? 'true' : 'false'),
   });
   var data = await res.json();
-  if (data.ok) window.location.reload();
-  else alert(data.error || 'Failed to rename.');
-}
-
-async function deleteCategory(catId) {
-  var res = await fetch('/projects/<%= job.id %>/materials/categories/' + catId + '/delete', { method: 'POST' });
-  var data = await res.json();
-  if (data.ok) window.location.reload();
-  else alert(data.error || 'Failed to delete.');
+  if (data.ok) {
+    // Optimistic: toggle row opacity without full reload
+    var row = document.querySelector('tr[data-item-id="' + itemId + '"]') || event.target.closest('tr');
+    if (row) row.style.opacity = checked ? '1' : '0.6';
+  } else {
+    alert(data.error || 'Failed to update approval.');
+  }
 }
 
 async function addItem(e, catId) {
@@ -208,12 +235,14 @@ async function addItem(e, catId) {
   return false;
 }
 
-function editItem(id, name, model, qty, price) {
+function editItem(id, name, model, vendor, qty, price, approved) {
   document.getElementById('edit-item-id').value = id;
   document.getElementById('edit-name').value = name;
   document.getElementById('edit-model').value = model;
+  document.getElementById('edit-vendor').value = vendor;
   document.getElementById('edit-qty').value = qty;
   document.getElementById('edit-price').value = price || 0;
+  document.getElementById('edit-approved').checked = !!approved;
   document.getElementById('edit-modal').classList.remove('hidden');
 }
 
@@ -226,13 +255,20 @@ async function saveEdit(e) {
   var id = document.getElementById('edit-item-id').value;
   var name = document.getElementById('edit-name').value.trim();
   var model = document.getElementById('edit-model').value.trim();
+  var vendor = document.getElementById('edit-vendor').value.trim();
   var qty = document.getElementById('edit-qty').value;
   var price = document.getElementById('edit-price').value;
+  var approved = document.getElementById('edit-approved').checked;
   if (!name) return false;
   var res = await fetch('/projects/materials/items/' + id, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: 'item_name=' + encodeURIComponent(name) + '&model_number=' + encodeURIComponent(model) + '&quantity=' + encodeURIComponent(qty) + '&unit_price=' + encodeURIComponent(price),
+    body: 'item_name=' + encodeURIComponent(name) +
+      '&model_number=' + encodeURIComponent(model) +
+      '&vendor=' + encodeURIComponent(vendor) +
+      '&quantity=' + encodeURIComponent(qty) +
+      '&unit_price=' + encodeURIComponent(price) +
+      '&approved=' + (approved ? 'true' : 'false'),
   });
   var data = await res.json();
   if (data.ok) window.location.reload();

@@ -46,18 +46,29 @@ router.get('/projects/:id/materials', requireMaterialsAccess, async (req, res) =
   if (catsError) throw catsError;
   if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Project not found.' });
 
-  // Load items for each category
-  let itemsByCategory = {};
+  // Load items sorted by vendor then category
+  let itemsByVendorCat = {};
   if (categories && categories.length) {
     const catIds = categories.map(c => c.id);
     const { data: allItems, error: itemsError } = await supabase
       .from('project_material_items')
       .select('*')
       .in('category_id', catIds)
+      .order('vendor', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true });
     if (itemsError) throw itemsError;
+
+    // Build lookup: category_id -> category name
+    const catMap = {};
+    categories.forEach(c => { catMap[c.id] = c.name; });
+
+    // Group by (vendor, category_id)
     (allItems || []).forEach(item => {
-      (itemsByCategory[item.category_id] = itemsByCategory[item.category_id] || []).push(item);
+      const vKey = (item.vendor || '').trim() || '(Unassigned)';
+      const cKey = item.category_id;
+      if (!itemsByVendorCat[vKey]) itemsByVendorCat[vKey] = {};
+      if (!itemsByVendorCat[vKey][cKey]) itemsByVendorCat[vKey][cKey] = { catName: catMap[cKey] || 'Unknown', items: [] };
+      itemsByVendorCat[vKey][cKey].items.push(item);
     });
   }
 
@@ -66,7 +77,7 @@ router.get('/projects/:id/materials', requireMaterialsAccess, async (req, res) =
     activeNav: 'projects',
     job,
     categories: categories || [],
-    itemsByCategory,
+    itemsByVendorCat,
   });
 });
 
@@ -116,9 +127,10 @@ router.post('/projects/:id/materials/categories/:catId/items', requireMaterialsA
   const modelNumber = (req.body.model_number || '').trim();
   const quantity = parseFloat(req.body.quantity) || 1;
   const unitPrice = parseFloat(req.body.unit_price) || 0;
+  const vendor = (req.body.vendor || '').trim();
   const { data: item, error } = await supabase
     .from('project_material_items')
-    .insert({ category_id: parseInt(catId, 10), item_name: itemName, model_number: modelNumber || null, quantity, unit_price: unitPrice })
+    .insert({ category_id: parseInt(catId, 10), item_name: itemName, model_number: modelNumber || null, quantity, unit_price: unitPrice, vendor: vendor || null })
     .select()
     .single();
   if (error) return res.status(500).json({ error: error.message });
@@ -134,10 +146,22 @@ router.post('/projects/materials/items/:itemId', requireMaterialsAccess, async (
   const modelNumber = (req.body.model_number || '').trim();
   const quantity = parseFloat(req.body.quantity) || 1;
   const unitPrice = parseFloat(req.body.unit_price) || 0;
+  const vendor = (req.body.vendor || '').trim();
+  const approved = req.body.approved === 'true' || req.body.approved === '1';
   const { error } = await supabase
     .from('project_material_items')
-    .update({ item_name: itemName, model_number: modelNumber || null, quantity, unit_price: unitPrice })
+    .update({ item_name: itemName, model_number: modelNumber || null, quantity, unit_price: unitPrice, vendor: vendor || null, approved })
     .eq('id', itemId);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
+});
+
+// ── POST /projects/:id/materials/items/:itemId/approve — toggle approval ──
+
+router.post('/projects/:id/materials/items/:itemId/approve', requireMaterialsAccess, async (req, res) => {
+  const itemId = req.params.itemId;
+  const approved = req.body.approved === 'true' || req.body.approved === '1';
+  const { error } = await supabase.from('project_material_items').update({ approved }).eq('id', itemId);
   if (error) return res.status(500).json({ error: error.message });
   res.json({ ok: true });
 });

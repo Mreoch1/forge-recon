@@ -652,6 +652,8 @@ CREATE TABLE IF NOT EXISTS project_material_items (
   model_number TEXT,
   quantity NUMERIC(12,2) NOT NULL DEFAULT 1,
   unit_price NUMERIC(12,2) NOT NULL DEFAULT 0,
+  vendor TEXT,
+  approved BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
