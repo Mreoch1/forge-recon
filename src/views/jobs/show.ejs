@@ -298,6 +298,11 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
 @media (max-width: 1024px) {
   .chat-panel form { flex-direction: column; }
 }
+/* Dark mode overrides */
+html.dark .chat-msg { background: var(--dark-elevated); color: var(--dark-text); }
+html.dark .chat-msg-self { background: rgba(192,32,43,0.15); }
+html.dark .chat-panel[open] summary { border-bottom-color: var(--dark-border); }
+html.dark #chat-messages::-webkit-scrollbar-thumb { background: var(--dark-border-strong); }
 </style>
 
 <script>

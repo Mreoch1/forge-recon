@@ -355,6 +355,13 @@ html.dark .ws-note-body { color: var(--dark-text) !important; }
 html.dark .ws-description { color: var(--dark-text) !important; }
 html.dark div[style*="color:#1a1a1a"] { color: var(--dark-text) !important; }
 
+/* Project chat panel dark mode */
+html.dark .chat-panel { background: var(--dark-surface) !important; border-color: var(--dark-border) !important; }
+html.dark .chat-panel summary { color: var(--dark-text) !important; }
+html.dark .chat-panel #chat-messages { color: var(--dark-text) !important; background: var(--dark-surface) !important; }
+html.dark .chat-panel #chat-messages .chat-msg-self { color: var(--dark-text) !important; }
+html.dark .chat-panel #chat-messages .chat-msg-other { color: var(--dark-text-muted) !important; }
+
 /* ============================================================
    R33b — DARK MODE TEXT CONTRAST PASS (2026-05-12)
    Audit found many hand-written inline <style> blocks using
