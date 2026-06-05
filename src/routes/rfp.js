@@ -561,7 +561,7 @@ async function loadProjectExportData(jobId) {
   return { job, rfps: rows, itemsByRfp };
 }
 
-router.get('/projects/:id/rfp/export.pdf', requireAdmin, async (req, res) => {
+router.get('/projects/:id/rfp/export.pdf', requireRfpAccess, async (req, res) => {
   const data = await loadProjectExportData(req.params.id);
   if (!data) return res.status(404).send('Project not found');
   const user = res.locals.currentUser;
@@ -571,7 +571,7 @@ router.get('/projects/:id/rfp/export.pdf', requireAdmin, async (req, res) => {
   res.send(buf);
 });
 
-router.get('/projects/:id/rfp/export.csv', requireAdmin, async (req, res) => {
+router.get('/projects/:id/rfp/export.csv', requireRfpAccess, async (req, res) => {
   const data = await loadProjectExportData(req.params.id);
   if (!data) return res.status(404).send('Project not found');
   const csv = rfpExport.renderProjectCsv(data.job, data.rfps, data.itemsByRfp);
@@ -580,7 +580,7 @@ router.get('/projects/:id/rfp/export.csv', requireAdmin, async (req, res) => {
   res.send(csv);
 });
 
-router.get('/projects/:id/rfp/export.xlsx', requireAdmin, async (req, res) => {
+router.get('/projects/:id/rfp/export.xlsx', requireRfpAccess, async (req, res) => {
   const data = await loadProjectExportData(req.params.id);
   if (!data) return res.status(404).send('Project not found');
   const buf = await rfpExport.renderProjectXlsx(data.job, data.rfps, data.itemsByRfp);
@@ -589,7 +589,7 @@ router.get('/projects/:id/rfp/export.xlsx', requireAdmin, async (req, res) => {
   res.send(buf);
 });
 
-router.get('/projects/:id/rfps/:rId/export.pdf', requireAdmin, async (req, res) => {
+router.get('/projects/:id/rfps/:rId/export.pdf', requireRfpAccess, async (req, res) => {
   const { data: rfp, error: rfpErr } = await supabase.from('project_rfps').select('*, jobs!left(title)').eq('id', req.params.rId).maybeSingle();
   if (rfpErr) throw rfpErr;
   if (!rfp) return res.status(404).send('RFP not found');
@@ -608,7 +608,7 @@ router.get('/projects/:id/rfps/:rId/export.pdf', requireAdmin, async (req, res) 
   res.send(buf);
 });
 
-router.get('/projects/:id/rfps/:rId/export.csv', requireAdmin, async (req, res) => {
+router.get('/projects/:id/rfps/:rId/export.csv', requireRfpAccess, async (req, res) => {
   const { data: rfp, error: rfpErr } = await supabase.from('project_rfps').select('*').eq('id', req.params.rId).maybeSingle();
   if (rfpErr) throw rfpErr;
   if (!rfp) return res.status(404).send('RFP not found');
@@ -626,7 +626,7 @@ router.get('/projects/:id/rfps/:rId/export.csv', requireAdmin, async (req, res) 
   res.send(csv);
 });
 
-router.get('/projects/:id/rfps/:rId/export.xlsx', requireAdmin, async (req, res) => {
+router.get('/projects/:id/rfps/:rId/export.xlsx', requireRfpAccess, async (req, res) => {
   const { data: rfp, error: rfpErr } = await supabase.from('project_rfps').select('*').eq('id', req.params.rId).maybeSingle();
   if (rfpErr) throw rfpErr;
   if (!rfp) return res.status(404).send('RFP not found');
