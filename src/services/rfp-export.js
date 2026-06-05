@@ -282,16 +282,12 @@ function renderPdf(rfp, items, subItemsMap, extra) {
 
     // ── Build export rows ──
     const rows = buildExportRows(items, subItemsMap);
-    const grandTotal = computeGrandTotal(items, subItemsMap);
 
-    // ── Column definitions ──
+    // ── Column definitions (no pricing, show vendor) ──
     const cols = [
-      { key: 'description', label: 'DESCRIPTION',        width: tableWidth - 50 - 55 - 55 - 55 - 60, align: 'left' },
-      { key: 'qty',         label: 'QTY',                width: 50,  align: 'right' },
-      { key: 'total_cost',  label: 'TOTAL COST',         width: 55,  align: 'right' },
-      { key: 'markup_pct',  label: 'MU%',                width: 55,  align: 'right' },
-      { key: 'gr_pct',      label: 'GR%',                width: 55,  align: 'right' },
-      { key: 'total_w_mu',  label: 'TOTAL w/ MARKUP',    width: 60,  align: 'right' },
+      { key: 'vendor',      label: 'VENDOR / CONTRACTOR', width: 100, align: 'left' },
+      { key: 'description', label: 'DESCRIPTION',         width: tableWidth - 100 - 50, align: 'left' },
+      { key: 'qty',         label: 'QTY',                 width: 50,  align: 'right' },
     ];
 
     const headerHeight = 22;
@@ -325,10 +321,12 @@ function renderPdf(rfp, items, subItemsMap, extra) {
 
         // Measure row height
         let displayDesc = pdfText(r.description);
+        let displayVendor = pdfText(r.vendor);
         if (!isParent) displayDesc = '    ' + displayDesc; // indent sub-lines
 
-        const descH = measurePdfText(doc, displayDesc, cols[0].width - 8, isParent ? 'Helvetica-Bold' : 'Helvetica', 8);
-        const actualRowHeight = Math.max(rowHeight, descH + 8);
+        const descH = measurePdfText(doc, displayDesc, cols[1].width - 8, isParent ? 'Helvetica-Bold' : 'Helvetica', 8);
+        const vendorH = measurePdfText(doc, displayVendor, cols[0].width - 8, 'Helvetica', 8);
+        const actualRowHeight = Math.max(rowHeight, descH + 8, vendorH + 8);
 
         if (y + actualRowHeight > pageBottom) {
           doc.addPage();
@@ -351,27 +349,17 @@ function renderPdf(rfp, items, subItemsMap, extra) {
           doc.fillColor(COLOR.cloud).opacity(0.5).rect(left, y, tableWidth, actualRowHeight).fill().opacity(1);
         }
 
-        // Sub-line indent via description prefix
+        // Vendor cell
+        doc.font('Helvetica').fontSize(8).fillColor(isParent ? COLOR.charcoal : COLOR.ash)
+          .text(displayVendor, left + 4, y + 4, { width: cols[0].width - 8, align: cols[0].align, lineGap: 1 });
+
+        // Description cell
         doc.font(isParent ? 'Helvetica-Bold' : 'Helvetica').fontSize(8).fillColor(COLOR.charcoal);
-        doc.text(displayDesc, left + 4, y + 4, { width: cols[0].width - 8, align: cols[0].align, lineGap: 1 });
+        doc.text(displayDesc, left + cols[0].width + 4, y + 4, { width: cols[1].width - 8, align: cols[1].align, lineGap: 1 });
 
-        // Numeric cells
-        const vals = [
-          r.qty,
-          fmtMoney(r.total_cost),
-          r.markup_pct != null ? (Number(r.markup_pct) + '%') : '—',
-          r.general_requirements_pct != null ? (Number(r.general_requirements_pct) + '%') : '—',
-          fmtMoney(r.total_with_markup),
-        ];
-
-        cx = left + cols[0].width;
-        for (let j = 1; j < cols.length; j++) {
-          const c = cols[j];
-          const val = vals[j - 1];
-          doc.font('Helvetica').fontSize(8).fillColor(isParent ? COLOR.charcoal : COLOR.ash)
-            .text(String(val), cx + 4, y + 4, { width: c.width - 8, align: c.align });
-          cx += c.width;
-        }
+        // Qty cell
+        doc.font('Helvetica').fontSize(8).fillColor(isParent ? COLOR.charcoal : COLOR.ash)
+          .text(String(r.qty || 0), left + cols[0].width + cols[1].width + 4, y + 4, { width: cols[2].width - 8, align: cols[2].align });
 
         // Bottom border
         doc.strokeColor(COLOR.mist).lineWidth(0.5)
@@ -382,26 +370,6 @@ function renderPdf(rfp, items, subItemsMap, extra) {
       doc.y = y + 10;
       break Y;
     }
-
-    // ── Grand Total footer ──
-    const totalY = doc.y;
-    if (totalY > doc.page.height - doc.page.margins.bottom - 30) {
-      doc.addPage();
-      doc.y = doc.page.margins.top;
-    }
-
-    // Divider
-    doc.strokeColor(COLOR.charcoal).lineWidth(1)
-      .moveTo(left, doc.y).lineTo(right, doc.y).stroke();
-    doc.moveDown(0.5);
-
-    const totalLabelW = tableWidth * 0.7;
-    doc.fontSize(11).font('Helvetica-Bold').fillColor(COLOR.charcoal)
-      .text('GRAND TOTAL (Approved)', left, doc.y, { width: totalLabelW, align: 'right' });
-    doc.fillColor(COLOR.red).font('Helvetica-Bold').fontSize(13)
-      .text(fmtMoney(grandTotal), left + totalLabelW, doc.y - 13, { width: tableWidth - totalLabelW, align: 'right' });
-
-    doc.moveDown(1.5);
 
     // ── Footer metadata ──
     const footerY = doc.page.height - doc.page.margins.bottom - 18;
@@ -456,15 +424,11 @@ function renderProjectPdf(project, rfps, itemsByRfp, extra) {
     doc.y = y + 12;
 
     const rows = buildProjectExportRows(rfps, itemsByRfp);
-    const grandTotal = computeProjectGrandTotal(rfps, itemsByRfp);
     const cols = [
-      { key: 'category', label: 'CATEGORY', width: 108, align: 'left' },
-      { key: 'description', label: 'DESCRIPTION', width: tableWidth - 108 - 32 - 54 - 34 - 34 - 62, align: 'left' },
-      { key: 'qty', label: 'QTY', width: 32, align: 'right' },
-      { key: 'total_cost', label: 'COST', width: 54, align: 'right' },
-      { key: 'markup_pct', label: 'MU%', width: 34, align: 'right' },
-      { key: 'gr_pct', label: 'GR%', width: 34, align: 'right' },
-      { key: 'total_w_mu', label: 'TOTAL', width: 62, align: 'right' },
+      { key: 'category',    label: 'CATEGORY',          width: 100, align: 'left' },
+      { key: 'vendor',      label: 'VENDOR / CONTRACTOR', width: 100, align: 'left' },
+      { key: 'description', label: 'DESCRIPTION',       width: tableWidth - 100 - 100 - 40, align: 'left' },
+      { key: 'qty',         label: 'QTY',               width: 40,  align: 'right' },
     ];
     const headerHeight = 22;
     const rowHeight = 18;
@@ -485,10 +449,12 @@ function renderProjectPdf(project, rfps, itemsByRfp, extra) {
     rows.forEach(r => {
       const isParent = r.level === 'parent';
       const categoryText = pdfText(r.category);
+      const displayVendor = pdfText(r.vendor);
       const displayDesc = (isParent ? '' : '    ') + pdfText(r.description);
       const categoryH = measurePdfText(doc, categoryText, cols[0].width - 8, isParent ? 'Helvetica-Bold' : 'Helvetica', 7.5);
-      const descH = measurePdfText(doc, displayDesc, cols[1].width - 8, isParent ? 'Helvetica-Bold' : 'Helvetica', 8);
-      const actualRowHeight = Math.max(rowHeight, categoryH + 8, descH + 8);
+      const vendorH = measurePdfText(doc, displayVendor, cols[1].width - 8, 'Helvetica', 7.5);
+      const descH = measurePdfText(doc, displayDesc, cols[2].width - 8, isParent ? 'Helvetica-Bold' : 'Helvetica', 8);
+      const actualRowHeight = Math.max(rowHeight, categoryH + 8, vendorH + 8, descH + 8);
       if (y + actualRowHeight > pageBottom) {
         doc.addPage();
         y = drawHeader(doc.page.margins.top);
@@ -500,22 +466,14 @@ function renderProjectPdf(project, rfps, itemsByRfp, extra) {
       doc.font(isParent ? 'Helvetica-Bold' : 'Helvetica').fontSize(7.5).fillColor(COLOR.charcoal)
         .text(categoryText, cx + 4, y + 4, { width: cols[0].width - 8, align: cols[0].align, lineGap: 1 });
       cx += cols[0].width;
-      doc.font(isParent ? 'Helvetica-Bold' : 'Helvetica').fontSize(8).fillColor(COLOR.charcoal)
-        .text(displayDesc, cx + 4, y + 4, { width: cols[1].width - 8, align: cols[1].align, lineGap: 1 });
+      doc.font('Helvetica').fontSize(7.5).fillColor(isParent ? COLOR.charcoal : COLOR.ash)
+        .text(displayVendor, cx + 4, y + 4, { width: cols[1].width - 8, align: cols[1].align, lineGap: 1 });
       cx += cols[1].width;
-
-      [
-        r.qty,
-        fmtMoney(r.total_cost),
-        r.markup_pct != null ? `${Number(r.markup_pct)}%` : '—',
-        r.general_requirements_pct != null ? `${Number(r.general_requirements_pct)}%` : '—',
-        fmtMoney(r.total_with_markup),
-      ].forEach((val, idx) => {
-        const c = cols[idx + 2];
-        doc.font('Helvetica').fontSize(8).fillColor(isParent ? COLOR.charcoal : COLOR.ash)
-          .text(String(val), cx + 4, y + 4, { width: c.width - 8, align: c.align });
-        cx += c.width;
-      });
+      doc.font(isParent ? 'Helvetica-Bold' : 'Helvetica').fontSize(8).fillColor(COLOR.charcoal)
+        .text(displayDesc, cx + 4, y + 4, { width: cols[2].width - 8, align: cols[2].align, lineGap: 1 });
+      cx += cols[2].width;
+      doc.font('Helvetica').fontSize(8).fillColor(isParent ? COLOR.charcoal : COLOR.ash)
+        .text(String(r.qty || 0), cx + 4, y + 4, { width: cols[3].width - 8, align: cols[3].align });
 
       doc.strokeColor(COLOR.mist).lineWidth(0.5)
         .moveTo(left, y + actualRowHeight).lineTo(left + tableWidth, y + actualRowHeight).stroke();
@@ -523,18 +481,6 @@ function renderProjectPdf(project, rfps, itemsByRfp, extra) {
     });
 
     doc.y = y + 10;
-    if (doc.y > doc.page.height - doc.page.margins.bottom - 30) {
-      doc.addPage();
-      doc.y = doc.page.margins.top;
-    }
-    doc.strokeColor(COLOR.charcoal).lineWidth(1).moveTo(left, doc.y).lineTo(right, doc.y).stroke();
-    doc.moveDown(0.5);
-    const totalLabelW = tableWidth * 0.7;
-    doc.fontSize(11).font('Helvetica-Bold').fillColor(COLOR.charcoal)
-      .text('GRAND TOTAL (Approved)', left, doc.y, { width: totalLabelW, align: 'right' });
-    doc.fillColor(COLOR.red).font('Helvetica-Bold').fontSize(13)
-      .text(fmtMoney(grandTotal), left + totalLabelW, doc.y - 13, { width: tableWidth - totalLabelW, align: 'right' });
-
     const footerY = doc.page.height - doc.page.margins.bottom - 18;
     doc.fontSize(7).fillColor(COLOR.fog).font('Helvetica')
       .text('Recon Enterprises', left, footerY, { width: tableWidth, align: 'center' });
