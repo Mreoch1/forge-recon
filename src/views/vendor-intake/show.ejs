@@ -1,0 +1,118 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<div class="document-shell">
+  <div class="mb-4"><a href="/vendor-intake/directory" class="text-sm text-recon-fog hover:text-recon-red">&larr; Trade intake</a></div>
+  <div class="ops-panel mb-6">
+    <div class="bg-recon-charcoal text-white p-5 flex items-center justify-between gap-4 flex-wrap">
+      <div>
+        <h1 class="text-2xl font-bold"><%= intake.company_name || '(unnamed company)' %></h1>
+        <p class="text-sm text-recon-fog"><%= (intake.trades || []).join(', ') || 'No trades entered' %> &middot; <%= [intake.city, intake.state].filter(Boolean).join(', ') || 'No location' %></p>
+      </div>
+      <div class="document-actions">
+        <a class="btn btn-secondary" href="<%= publicUrl %>" target="_blank">Open public link</a>
+        <% if (intake.promoted_vendor_id) { %><a class="btn btn-secondary" href="/vendors/<%= intake.promoted_vendor_id %>">Vendor</a><% } %>
+        <% if (intake.promoted_contractor_id) { %><a class="btn btn-secondary" href="/contractors/<%= intake.promoted_contractor_id %>">Contractor</a><% } %>
+      </div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 p-5 bg-white">
+      <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Type</div><%= intake.company_type || '-' %></div>
+      <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Status</div><span class="badge badge-<%= intake.status %>"><%= intake.status %></span></div>
+      <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Rating</div><%- intake.rating ? '&#9733;'.repeat(intake.rating) : '-' %></div>
+      <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Submitted</div><%= (intake.submitted_at || '').slice(0,10) || '-' %></div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+    <div class="lg:col-span-2 space-y-5">
+      <div class="card p-5">
+        <h2 class="font-semibold mb-3">Company information</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Contact</div><%= intake.primary_contact_name || '-' %><br><%= intake.primary_contact_email || intake.email || '-' %><br><%= intake.primary_contact_phone || intake.office_phone || '-' %></div>
+          <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Address</div><%= [intake.address, intake.city, intake.state, intake.zip].filter(Boolean).join(', ') || '-' %></div>
+          <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Service area</div><%= intake.service_area || '-' %></div>
+          <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Website</div><%= intake.website || '-' %></div>
+        </div>
+      </div>
+
+      <div class="card p-5">
+        <h2 class="font-semibold mb-3">Experience</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-4">
+          <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Years</div><%= intake.years_in_business || '-' %></div>
+          <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Employees</div><%= intake.employee_count || '-' %></div>
+          <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Field staff</div><%= intake.field_staff_count || '-' %></div>
+        </div>
+        <div class="text-sm whitespace-pre-wrap"><strong>Largest project:</strong> <%= intake.largest_project_name || '-' %><% if (intake.largest_project_value) { %> ($<%= Number(intake.largest_project_value).toLocaleString() %>)<% } %><br><%= intake.largest_project_description || '' %></div>
+        <div class="text-sm mt-3"><strong>Occupied multifamily:</strong> <%= intake.occupied_multifamily === true ? 'Yes' : intake.occupied_multifamily === false ? 'No' : '-' %><br><span class="whitespace-pre-wrap"><%= intake.occupied_multifamily_notes || '' %></span></div>
+      </div>
+
+      <div class="card p-5">
+        <h2 class="font-semibold mb-3">Insurance & compliance</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-4">
+          <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">GL / WC / Auto</div><%= intake.insurance_gl ? 'GL' : '-' %> / <%= intake.insurance_workers_comp ? 'WC' : '-' %> / <%= intake.insurance_auto ? 'Auto' : '-' %></div>
+          <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Insurance expires</div><%= intake.insurance_expiration_date || '-' %></div>
+          <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Union</div><%= (intake.union_status || 'unknown').replace('_',' ') %></div>
+          <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Prevailing wage</div><%= intake.prevailing_wage_experience === true ? 'Yes' : intake.prevailing_wage_experience === false ? 'No' : '-' %></div>
+          <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">HUD/MSHDA</div><%= intake.hud_mshda_experience === true ? 'Yes' : intake.hud_mshda_experience === false ? 'No' : '-' %></div>
+          <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Section 3</div><%= intake.section3_business === true ? 'Yes' : intake.section3_business === false ? 'No' : '-' %></div>
+        </div>
+        <div class="text-sm whitespace-pre-wrap"><strong>Licenses:</strong><br><%= intake.license_numbers || '-' %></div>
+      </div>
+
+      <div class="card overflow-hidden">
+        <div class="p-4 border-b"><h2 class="font-semibold">References</h2></div>
+        <% const refs = Array.isArray(intake.references_json) ? intake.references_json : []; %>
+        <% if (!refs.length) { %>
+          <div class="p-4 text-sm text-recon-fog">No references entered.</div>
+        <% } else { %>
+          <table class="data"><thead><tr><th>Name</th><th>Company</th><th>Contact</th><th>Relationship</th></tr></thead><tbody>
+            <% refs.forEach(function(ref){ %><tr><td><%= ref.name || '-' %></td><td><%= ref.company || '-' %></td><td><%= ref.email || ref.phone || '-' %></td><td><%= ref.relationship || '-' %></td></tr><% }); %>
+          </tbody></table>
+        <% } %>
+      </div>
+    </div>
+
+    <aside class="space-y-5">
+      <div class="card p-5">
+        <h2 class="font-semibold mb-3">Review</h2>
+        <form method="post" action="/vendor-intake/directory/<%= intake.id %>/review" class="space-y-3">
+          <div><label class="label">Status</label><select class="input" name="status"><% statuses.forEach(function(s){ %><option value="<%= s %>" <%= intake.status === s ? 'selected' : '' %>><%= s %></option><% }); %></select></div>
+          <div><label class="label">Rating</label><select class="input" name="rating"><option value="">No rating</option><% [5,4,3,2,1].forEach(function(r){ %><option value="<%= r %>" <%= Number(intake.rating) === r ? 'selected' : '' %>><%= r %> star<%= r === 1 ? '' : 's' %></option><% }); %></select></div>
+          <div><label class="label">Internal notes</label><textarea class="input" name="internal_notes"><%= intake.internal_notes || '' %></textarea></div>
+          <button class="btn btn-primary w-full" type="submit">Save review</button>
+        </form>
+      </div>
+
+      <div class="card p-5">
+        <h2 class="font-semibold mb-3">Promote</h2>
+        <p class="text-sm text-recon-fog mb-3">Create normal Forge records from this intake when they are ready to use.</p>
+        <form method="post" action="/vendor-intake/directory/<%= intake.id %>/promote" class="space-y-2">
+          <button class="btn btn-secondary w-full" name="target" value="contractor" <%= intake.promoted_contractor_id ? 'disabled' : '' %>>Create contractor</button>
+          <button class="btn btn-secondary w-full" name="target" value="vendor" <%= intake.promoted_vendor_id ? 'disabled' : '' %>>Create vendor</button>
+          <button class="btn btn-primary w-full" name="target" value="both" <%= intake.promoted_vendor_id && intake.promoted_contractor_id ? 'disabled' : '' %>>Create both</button>
+        </form>
+      </div>
+
+      <div class="card p-5">
+        <h2 class="font-semibold mb-3">Follow-up notes</h2>
+        <form method="post" action="/vendor-intake/directory/<%= intake.id %>/notes" class="space-y-3 mb-4">
+          <div><label class="label">Type</label><select class="input" name="note_type"><option value="note">Note</option><option value="call">Call</option><option value="email">Email</option><option value="review">Review</option></select></div>
+          <div><label class="label">Note</label><textarea class="input" name="body" required></textarea></div>
+          <button class="btn btn-primary w-full" type="submit">Add note</button>
+        </form>
+        <% if (!notes.length) { %>
+          <p class="text-sm text-recon-fog">No follow-up yet.</p>
+        <% } else { %>
+          <div class="space-y-3">
+            <% notes.forEach(function(n){ %>
+              <div class="border-t pt-3 text-sm">
+                <div class="font-semibold"><%= n.note_type %> <span class="text-xs text-recon-fog font-normal"><%= (n.created_at || '').replace('T',' ').slice(0,16) %></span></div>
+                <div class="text-xs text-recon-fog"><%= n.users ? (n.users.name || n.users.email) : 'FORGE' %></div>
+                <div class="whitespace-pre-wrap mt-1"><%= n.body %></div>
+              </div>
+            <% }); %>
+          </div>
+        <% } %>
+      </div>
+    </aside>
+  </div>
+</div>
+<%- include('../layouts/footer') %>

@@ -329,6 +329,99 @@ CREATE TABLE IF NOT EXISTS vendors (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS contractors (
+  id BIGSERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  email TEXT,
+  phone TEXT,
+  address TEXT,
+  city TEXT,
+  state TEXT,
+  zip TEXT,
+  trade TEXT,
+  license_number TEXT,
+  insurance_expiry_date DATE,
+  notes TEXT,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  mock BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS contractor_vendor_intakes (
+  id BIGSERIAL PRIMARY KEY,
+  access_token TEXT NOT NULL UNIQUE,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'submitted', 'reviewing', 'approved', 'archived')),
+  source TEXT NOT NULL DEFAULT 'email_link',
+  company_name TEXT NOT NULL DEFAULT '',
+  dba_name TEXT,
+  company_type TEXT NOT NULL DEFAULT 'contractor' CHECK (company_type IN ('contractor', 'vendor', 'both', 'other')),
+  trades TEXT[] NOT NULL DEFAULT '{}',
+  service_area TEXT,
+  address TEXT,
+  city TEXT,
+  state TEXT,
+  zip TEXT,
+  office_phone TEXT,
+  mobile_phone TEXT,
+  email TEXT,
+  website TEXT,
+  primary_contact_name TEXT,
+  primary_contact_title TEXT,
+  primary_contact_phone TEXT,
+  primary_contact_email TEXT,
+  billing_contact_name TEXT,
+  billing_contact_phone TEXT,
+  billing_contact_email TEXT,
+  years_in_business INTEGER,
+  employee_count INTEGER,
+  field_staff_count INTEGER,
+  annual_capacity TEXT,
+  largest_project_name TEXT,
+  largest_project_location TEXT,
+  largest_project_value NUMERIC(12,2),
+  largest_project_date DATE,
+  largest_project_description TEXT,
+  occupied_multifamily BOOLEAN,
+  occupied_multifamily_notes TEXT,
+  hud_mshda_experience BOOLEAN,
+  hud_mshda_notes TEXT,
+  section3_business BOOLEAN,
+  section3_notes TEXT,
+  prevailing_wage_experience BOOLEAN,
+  union_status TEXT NOT NULL DEFAULT 'unknown' CHECK (union_status IN ('union', 'non_union', 'mixed', 'unknown')),
+  insurance_gl BOOLEAN,
+  insurance_workers_comp BOOLEAN,
+  insurance_auto BOOLEAN,
+  insurance_expiration_date DATE,
+  bondable BOOLEAN,
+  license_numbers TEXT,
+  references_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+  certifications TEXT,
+  safety_notes TEXT,
+  documents_notes TEXT,
+  internal_notes TEXT,
+  rating INTEGER CHECK (rating BETWEEN 1 AND 5),
+  reviewed_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  reviewed_at TIMESTAMPTZ,
+  promoted_vendor_id BIGINT REFERENCES vendors(id) ON DELETE SET NULL,
+  promoted_contractor_id BIGINT REFERENCES contractors(id) ON DELETE SET NULL,
+  submitted_at TIMESTAMPTZ,
+  last_update_reminder_sent_at TIMESTAMPTZ,
+  next_update_due_at DATE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS contractor_vendor_intake_notes (
+  id BIGSERIAL PRIMARY KEY,
+  intake_id BIGINT NOT NULL REFERENCES contractor_vendor_intakes(id) ON DELETE CASCADE,
+  user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  note_type TEXT NOT NULL DEFAULT 'note' CHECK (note_type IN ('note', 'call', 'email', 'review')),
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS bills (
   id BIGSERIAL PRIMARY KEY,
   vendor_id BIGINT NOT NULL REFERENCES vendors(id),
@@ -696,6 +789,16 @@ CREATE INDEX IF NOT EXISTS idx_journal_lines_account ON journal_lines(account_id
 
 CREATE INDEX IF NOT EXISTS idx_vendors_name ON vendors(name);
 CREATE INDEX IF NOT EXISTS idx_vendors_archived ON vendors(archived);
+CREATE INDEX IF NOT EXISTS idx_contractors_name ON contractors(name);
+CREATE INDEX IF NOT EXISTS idx_contractors_trade ON contractors(trade);
+CREATE INDEX IF NOT EXISTS idx_contractor_vendor_intakes_status ON contractor_vendor_intakes(status);
+CREATE INDEX IF NOT EXISTS idx_contractor_vendor_intakes_company_name ON contractor_vendor_intakes(company_name);
+CREATE INDEX IF NOT EXISTS idx_contractor_vendor_intakes_email ON contractor_vendor_intakes(email);
+CREATE INDEX IF NOT EXISTS idx_contractor_vendor_intakes_location ON contractor_vendor_intakes(city, state);
+CREATE INDEX IF NOT EXISTS idx_contractor_vendor_intakes_rating ON contractor_vendor_intakes(rating);
+CREATE INDEX IF NOT EXISTS idx_contractor_vendor_intakes_submitted_at ON contractor_vendor_intakes(submitted_at);
+CREATE INDEX IF NOT EXISTS idx_contractor_vendor_intakes_trades ON contractor_vendor_intakes USING GIN(trades);
+CREATE INDEX IF NOT EXISTS idx_contractor_vendor_intake_notes_intake ON contractor_vendor_intake_notes(intake_id, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_bills_vendor ON bills(vendor_id);
 CREATE INDEX IF NOT EXISTS idx_bills_status ON bills(status);

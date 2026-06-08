@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contractor / Vendor Intake - FORGE</title>
+  <link rel="icon" href="/favicon.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { margin:0; font-family:Inter,system-ui,sans-serif; background:#f5f5f5; color:#1a1a1a; }
+    .shell { width:min(100% - 2rem, 980px); margin:0 auto; padding:1.5rem 0 3rem; }
+    .top { display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:1rem; }
+    .brand { display:flex; align-items:center; gap:.75rem; }
+    .brand img { width:46px; }
+    .word { color:#c0202b; font-weight:800; letter-spacing:.16em; }
+    .card { background:white; border:1px solid #e5e5e5; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,.05); overflow:hidden; }
+    .card-head { padding:1rem 1.25rem; border-bottom:1px solid #eee; display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap; align-items:center; }
+    .card-body { padding:1.25rem; }
+    h1 { font-size:1.55rem; margin:.1rem 0 .2rem; }
+    h2 { font-size:1rem; margin:0 0 .85rem; }
+    .muted { color:#777; font-size:.88rem; }
+    .steps { display:grid; grid-template-columns:repeat(5,1fr); gap:.4rem; margin:1rem 0; }
+    .step { padding:.55rem .65rem; border:1px solid #ddd; background:white; border-radius:6px; color:#666; text-align:center; font-size:.78rem; font-weight:700; text-decoration:none; }
+    .step.active { background:#c0202b; border-color:#c0202b; color:white; }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+    .thirds { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; }
+    .full { grid-column:1 / -1; }
+    label { display:block; font-size:.78rem; font-weight:700; color:#333; margin-bottom:.3rem; }
+    input, select, textarea { box-sizing:border-box; width:100%; border:1px solid #d0d0d0; border-radius:6px; padding:.62rem .75rem; font-size:.95rem; font-family:inherit; background:white; }
+    textarea { min-height:6.5rem; resize:vertical; }
+    input:focus, select:focus, textarea:focus { outline:none; border-color:#c0202b; box-shadow:0 0 0 3px rgba(192,32,43,.14); }
+    .checks { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:.5rem; }
+    .check { display:flex; gap:.45rem; align-items:center; border:1px solid #eee; border-radius:6px; padding:.45rem .55rem; font-size:.86rem; }
+    .check input { width:auto; }
+    .radio-row { display:flex; gap:.75rem; flex-wrap:wrap; }
+    .radio-row label { display:inline-flex; align-items:center; gap:.35rem; border:1px solid #eee; border-radius:6px; padding:.45rem .65rem; font-weight:600; }
+    .radio-row input { width:auto; }
+    .actions { display:flex; justify-content:space-between; align-items:center; gap:.75rem; border-top:1px solid #eee; padding:1rem 1.25rem; flex-wrap:wrap; }
+    .btn { border:0; border-radius:6px; padding:.65rem 1rem; font-weight:700; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; }
+    .btn-primary { background:#c0202b; color:white; }
+    .btn-secondary { background:#2d2d2d; color:white; }
+    .btn-ghost { background:transparent; color:#555; }
+    .summary { display:grid; grid-template-columns:1fr 1fr; gap:.75rem; }
+    .summary div { border:1px solid #eee; border-radius:6px; padding:.75rem; }
+    .summary span { display:block; color:#777; font-size:.7rem; text-transform:uppercase; letter-spacing:.08em; font-weight:800; margin-bottom:.2rem; }
+    @media (max-width:760px) { .grid,.thirds,.summary { grid-template-columns:1fr; } .checks { grid-template-columns:1fr; } .steps { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+<%
+  const sectionLabels = { company:'Company', experience:'Experience', compliance:'Insurance & compliance', references:'References', review:'Review' };
+  const refs = Array.isArray(intake.references_json) ? intake.references_json : [];
+  const boolVal = function(v){ return v === true ? 'true' : (v === false ? 'false' : ''); };
+  const tradeSelected = function(t){ return (intake.trades || []).includes(t); };
+%>
+  <main class="shell">
+    <div class="top">
+      <div class="brand">
+        <img src="/logos/recon-logo.jpg" alt="Recon Enterprises">
+        <div>
+          <div class="word">FORGE</div>
+          <div class="muted">Contractor / Vendor Intake</div>
+        </div>
+      </div>
+      <div class="muted">Private update link</div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h1><%= intake.company_name || 'Trade partner intake' %></h1>
+          <div class="muted">Complete each section. Save and exit anytime, then use this same private link to continue later.</div>
+        </div>
+        <div class="muted">Status: <strong><%= intake.status %></strong></div>
+      </div>
+      <div class="card-body">
+        <nav class="steps" aria-label="Intake sections">
+          <% sections.forEach(function(s){ %>
+            <a class="step<%= section === s ? ' active' : '' %>" href="/vendor-intake/<%= intake.access_token %>/<%= s %>"><%= sectionLabels[s] %></a>
+          <% }); %>
+        </nav>
+
+        <form method="post" action="/vendor-intake/<%= intake.access_token %>/<%= section %>">
+          <% if (section === 'company') { %>
+            <h2>Company and contact information</h2>
+            <div class="grid">
+              <div><label>Company name</label><input name="company_name" value="<%= intake.company_name || '' %>" required></div>
+              <div><label>DBA / short name</label><input name="dba_name" value="<%= intake.dba_name || '' %>"></div>
+              <div><label>Company type</label><select name="company_type"><% companyTypes.forEach(function(t){ %><option value="<%= t %>" <%= intake.company_type === t ? 'selected' : '' %>><%= t %></option><% }); %></select></div>
+              <div><label>Website</label><input name="website" value="<%= intake.website || '' %>"></div>
+              <div class="full"><label>Trade / service types</label><div class="checks"><% tradeOptions.forEach(function(t){ %><label class="check"><input type="checkbox" name="trades" value="<%= t %>" <%= tradeSelected(t) ? 'checked' : '' %>> <%= t %></label><% }); %></div></div>
+              <div class="full"><label>Service area</label><input name="service_area" value="<%= intake.service_area || '' %>" placeholder="Example: southeast Michigan, 90-mile radius from Detroit, statewide"></div>
+              <div class="full"><label>Street address</label><input name="address" value="<%= intake.address || '' %>"></div>
+              <div><label>City</label><input name="city" value="<%= intake.city || '' %>"></div>
+              <div><label>State</label><input name="state" value="<%= intake.state || '' %>"></div>
+              <div><label>Zip</label><input name="zip" value="<%= intake.zip || '' %>"></div>
+              <div><label>Company email</label><input type="email" name="email" value="<%= intake.email || '' %>"></div>
+              <div><label>Office phone</label><input name="office_phone" value="<%= intake.office_phone || '' %>" data-phone></div>
+              <div><label>Mobile phone</label><input name="mobile_phone" value="<%= intake.mobile_phone || '' %>" data-phone></div>
+              <div><label>Primary contact</label><input name="primary_contact_name" value="<%= intake.primary_contact_name || '' %>"></div>
+              <div><label>Primary title</label><input name="primary_contact_title" value="<%= intake.primary_contact_title || '' %>"></div>
+              <div><label>Primary email</label><input type="email" name="primary_contact_email" value="<%= intake.primary_contact_email || '' %>"></div>
+              <div><label>Primary phone</label><input name="primary_contact_phone" value="<%= intake.primary_contact_phone || '' %>" data-phone></div>
+              <div><label>Billing contact</label><input name="billing_contact_name" value="<%= intake.billing_contact_name || '' %>"></div>
+              <div><label>Billing email</label><input type="email" name="billing_contact_email" value="<%= intake.billing_contact_email || '' %>"></div>
+              <div><label>Billing phone</label><input name="billing_contact_phone" value="<%= intake.billing_contact_phone || '' %>" data-phone></div>
+            </div>
+          <% } %>
+
+          <% if (section === 'experience') { %>
+            <h2>Company size and project experience</h2>
+            <div class="thirds">
+              <div><label>Years in business</label><input type="number" min="0" name="years_in_business" value="<%= intake.years_in_business || '' %>"></div>
+              <div><label>Total employees/staff</label><input type="number" min="0" name="employee_count" value="<%= intake.employee_count || '' %>"></div>
+              <div><label>Field staff</label><input type="number" min="0" name="field_staff_count" value="<%= intake.field_staff_count || '' %>"></div>
+            </div>
+            <div class="grid" style="margin-top:1rem;">
+              <div class="full"><label>Typical annual capacity</label><input name="annual_capacity" value="<%= intake.annual_capacity || '' %>" placeholder="Example: 8-12 large renovations per year, 20 service calls/week"></div>
+              <div><label>Largest project name</label><input name="largest_project_name" value="<%= intake.largest_project_name || '' %>"></div>
+              <div><label>Largest project location</label><input name="largest_project_location" value="<%= intake.largest_project_location || '' %>"></div>
+              <div><label>Largest project value</label><input name="largest_project_value" value="<%= intake.largest_project_value || '' %>"></div>
+              <div><label>Largest project date</label><input type="date" name="largest_project_date" value="<%= intake.largest_project_date || '' %>"></div>
+              <div class="full"><label>Largest project description</label><textarea name="largest_project_description"><%= intake.largest_project_description || '' %></textarea></div>
+              <div class="full"><label>Have you worked on occupied multifamily renovations?</label><div class="radio-row"><label><input type="radio" name="occupied_multifamily" value="true" <%= boolVal(intake.occupied_multifamily)==='true' ? 'checked' : '' %>> Yes</label><label><input type="radio" name="occupied_multifamily" value="false" <%= boolVal(intake.occupied_multifamily)==='false' ? 'checked' : '' %>> No</label></div></div>
+              <div class="full"><label>Occupied multifamily notes</label><textarea name="occupied_multifamily_notes"><%= intake.occupied_multifamily_notes || '' %></textarea></div>
+            </div>
+          <% } %>
+
+          <% if (section === 'compliance') { %>
+            <h2>Insurance, compliance, and program requirements</h2>
+            <div class="grid">
+              <div><label>General liability insurance?</label><select name="insurance_gl"><option value="">Select</option><option value="true" <%= intake.insurance_gl === true ? 'selected' : '' %>>Yes</option><option value="false" <%= intake.insurance_gl === false ? 'selected' : '' %>>No</option></select></div>
+              <div><label>Workers comp?</label><select name="insurance_workers_comp"><option value="">Select</option><option value="true" <%= intake.insurance_workers_comp === true ? 'selected' : '' %>>Yes</option><option value="false" <%= intake.insurance_workers_comp === false ? 'selected' : '' %>>No</option></select></div>
+              <div><label>Commercial auto?</label><select name="insurance_auto"><option value="">Select</option><option value="true" <%= intake.insurance_auto === true ? 'selected' : '' %>>Yes</option><option value="false" <%= intake.insurance_auto === false ? 'selected' : '' %>>No</option></select></div>
+              <div><label>Insurance expiration date</label><input type="date" name="insurance_expiration_date" value="<%= intake.insurance_expiration_date || '' %>"></div>
+              <div><label>Bondable?</label><select name="bondable"><option value="">Select</option><option value="true" <%= intake.bondable === true ? 'selected' : '' %>>Yes</option><option value="false" <%= intake.bondable === false ? 'selected' : '' %>>No</option></select></div>
+              <div><label>Union status</label><select name="union_status"><% unionStatuses.forEach(function(u){ %><option value="<%= u %>" <%= intake.union_status === u ? 'selected' : '' %>><%= u.replace('_',' ') %></option><% }); %></select></div>
+              <div><label>Prevailing wage experience?</label><select name="prevailing_wage_experience"><option value="">Select</option><option value="true" <%= intake.prevailing_wage_experience === true ? 'selected' : '' %>>Yes</option><option value="false" <%= intake.prevailing_wage_experience === false ? 'selected' : '' %>>No</option></select></div>
+              <div><label>HUD/MSHDA experience?</label><select name="hud_mshda_experience"><option value="">Select</option><option value="true" <%= intake.hud_mshda_experience === true ? 'selected' : '' %>>Yes</option><option value="false" <%= intake.hud_mshda_experience === false ? 'selected' : '' %>>No</option></select></div>
+              <div><label>Section 3 business?</label><select name="section3_business"><option value="">Select</option><option value="true" <%= intake.section3_business === true ? 'selected' : '' %>>Yes</option><option value="false" <%= intake.section3_business === false ? 'selected' : '' %>>No</option></select></div>
+              <div class="full"><label>License numbers</label><textarea name="license_numbers"><%= intake.license_numbers || '' %></textarea></div>
+              <div><label>HUD/MSHDA notes</label><textarea name="hud_mshda_notes"><%= intake.hud_mshda_notes || '' %></textarea></div>
+              <div><label>Section 3 notes</label><textarea name="section3_notes"><%= intake.section3_notes || '' %></textarea></div>
+              <div><label>Certifications</label><textarea name="certifications"><%= intake.certifications || '' %></textarea></div>
+              <div><label>Safety notes / EMR / OSHA</label><textarea name="safety_notes"><%= intake.safety_notes || '' %></textarea></div>
+              <div class="full"><label>Documents available</label><textarea name="documents_notes" placeholder="COI, W-9, licenses, references, safety manual, bond letter, etc."><%= intake.documents_notes || '' %></textarea></div>
+            </div>
+          <% } %>
+
+          <% if (section === 'references') { %>
+            <h2>References</h2>
+            <p class="muted">Add up to three GC, owner, or property manager references.</p>
+            <% for (let i = 0; i < 3; i += 1) { const ref = refs[i] || {}; %>
+              <div class="card" style="box-shadow:none;margin-bottom:1rem;">
+                <div class="card-body">
+                  <h2>Reference <%= i + 1 %></h2>
+                  <div class="grid">
+                    <div><label>Name</label><input name="ref_<%= i %>_name" value="<%= ref.name || '' %>"></div>
+                    <div><label>Company</label><input name="ref_<%= i %>_company" value="<%= ref.company || '' %>"></div>
+                    <div><label>Email</label><input type="email" name="ref_<%= i %>_email" value="<%= ref.email || '' %>"></div>
+                    <div><label>Phone</label><input name="ref_<%= i %>_phone" value="<%= ref.phone || '' %>" data-phone></div>
+                    <div class="full"><label>Relationship / project</label><input name="ref_<%= i %>_relationship" value="<%= ref.relationship || '' %>"></div>
+                  </div>
+                </div>
+              </div>
+            <% } %>
+          <% } %>
+
+          <% if (section === 'review') { %>
+            <h2>Review and submit</h2>
+            <div class="summary">
+              <div><span>Company</span><%= intake.company_name || '-' %></div>
+              <div><span>Type</span><%= intake.company_type || '-' %></div>
+              <div><span>Trades</span><%= (intake.trades || []).join(', ') || '-' %></div>
+              <div><span>Service area</span><%= intake.service_area || '-' %></div>
+              <div><span>Contact</span><%= intake.primary_contact_name || intake.email || '-' %></div>
+              <div><span>Location</span><%= [intake.city, intake.state].filter(Boolean).join(', ') || '-' %></div>
+              <div><span>Insurance</span>GL: <%= intake.insurance_gl === true ? 'Yes' : intake.insurance_gl === false ? 'No' : '-' %> / WC: <%= intake.insurance_workers_comp === true ? 'Yes' : intake.insurance_workers_comp === false ? 'No' : '-' %></div>
+              <div><span>References</span><%= refs.length %> entered</div>
+            </div>
+            <p class="muted" style="margin-top:1rem;">After you submit, Recon can keep this information on file and may contact you when projects match your trade and service area. You can still use this link later to update your information.</p>
+          <% } %>
+
+          <div class="actions">
+            <div>
+              <% const idx = sections.indexOf(section); if (idx > 0) { %>
+                <a href="/vendor-intake/<%= intake.access_token %>/<%= sections[idx - 1] %>" class="btn btn-ghost">Back</a>
+              <% } %>
+            </div>
+            <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
+              <button class="btn btn-secondary" type="submit" name="intent" value="save_exit">Save and exit</button>
+              <% if (section === 'review') { %>
+                <button class="btn btn-primary" type="submit" name="intent" value="submit">Submit intake</button>
+              <% } else { %>
+                <button class="btn btn-primary" type="submit" name="intent" value="continue">Save and continue</button>
+              <% } %>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+  <script src="/js/phone-format.js"></script>
+</body>
+</html>

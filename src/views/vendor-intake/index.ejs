@@ -1,0 +1,89 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<div class="ops-shell">
+  <div class="ops-header">
+    <div class="ops-title-block">
+      <h1 class="page-h1">Trade intake</h1>
+      <p class="page-sub">Contractor and vendor signups, follow-up notes, ratings, and directory promotion.</p>
+    </div>
+    <div class="ops-actions">
+      <a href="/vendor-intake/start" class="btn btn-secondary" target="_blank">Public form</a>
+    </div>
+  </div>
+
+  <div class="ops-summary">
+    <div class="ops-summary-item"><div class="ops-summary-label">Total</div><div class="ops-summary-value"><%= summary.total %></div><div class="ops-summary-meta">intakes</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">Needs review</div><div class="ops-summary-value"><%= summary.submitted %></div><div class="ops-summary-meta">submitted / reviewing</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">Approved</div><div class="ops-summary-value"><%= summary.approved %></div><div class="ops-summary-meta">ready to use</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">Avg rating</div><div class="ops-summary-value"><%= summary.avgRating %></div><div class="ops-summary-meta">rated intakes</div></div>
+  </div>
+
+  <form method="get" class="list-utility-bar">
+    <input type="text" name="q" value="<%= q %>" placeholder="Search company, contact, city..." class="list-search">
+    <select name="trade" class="list-filter">
+      <option value="">All trades</option>
+      <% tradeOptions.forEach(function(t){ %><option value="<%= t %>" <%= trade === t ? 'selected' : '' %>><%= t %></option><% }); %>
+    </select>
+    <select name="status" class="list-filter">
+      <option value="">All statuses</option>
+      <% statuses.forEach(function(s){ %><option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s %></option><% }); %>
+    </select>
+    <input type="text" name="state" value="<%= state %>" placeholder="State" class="list-filter" style="max-width:90px;">
+    <select name="rating" class="list-filter">
+      <option value="">Any rating</option>
+      <% [5,4,3,2,1].forEach(function(r){ %><option value="<%= r %>" <%= Number(rating) === r ? 'selected' : '' %>><%= r %>+ stars</option><% }); %>
+    </select>
+    <button class="btn btn-secondary">Filter</button>
+    <% if (q || trade || status || state || rating) { %><a href="/vendor-intake/directory" class="list-clear">Clear</a><% } %>
+  </form>
+
+  <div class="ops-panel ops-table">
+    <div class="ops-panel-head">
+      <div class="ops-panel-title">Intake directory</div>
+      <div class="text-xs text-recon-fog"><%= count %> shown</div>
+    </div>
+    <div class="ops-panel-body">
+      <% if (!intakes.length) { %>
+        <div class="ops-empty">No trade intakes match this view.</div>
+      <% } else { %>
+        <table class="data">
+          <thead>
+            <tr>
+              <th>Company</th>
+              <th>Trades</th>
+              <th>Location</th>
+              <th>Contact</th>
+              <th>Insurance</th>
+              <th>Rating</th>
+              <th>Status</th>
+              <th>Submitted</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% intakes.forEach(function(i){ %>
+              <tr class="row-link" data-href="/vendor-intake/directory/<%= i.id %>">
+                <td class="font-semibold"><%= i.company_name || '(unnamed)' %><div class="text-xs text-recon-fog"><%= i.company_type || '-' %></div></td>
+                <td><%= (i.trades || []).slice(0,3).join(', ') || '-' %><% if ((i.trades || []).length > 3) { %><span class="text-xs text-recon-fog"> +<%= i.trades.length - 3 %></span><% } %></td>
+                <td><%= [i.city, i.state].filter(Boolean).join(', ') || '-' %></td>
+                <td><%= i.primary_contact_name || '-' %><div class="text-xs text-recon-fog"><%= i.email || i.office_phone || '' %></div></td>
+                <td><%= i.insurance_gl ? 'GL' : '-' %> / <%= i.insurance_workers_comp ? 'WC' : '-' %></td>
+                <td><%- i.rating ? '&#9733;'.repeat(i.rating) : '-' %></td>
+                <td><span class="badge badge-<%= i.status %>"><%= i.status %></span></td>
+                <td><%= (i.submitted_at || i.updated_at || '').slice(0, 10) || '-' %></td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      <% } %>
+    </div>
+  </div>
+
+  <div class="flex justify-between items-center mt-4 text-sm text-recon-fog">
+    <span>Page <%= page %> of <%= totalPages %></span>
+    <div class="flex gap-2">
+      <% const qs = '&q=' + encodeURIComponent(q || '') + '&trade=' + encodeURIComponent(trade || '') + '&status=' + encodeURIComponent(status || '') + '&state=' + encodeURIComponent(state || '') + '&rating=' + encodeURIComponent(rating || ''); %>
+      <% if (page > 1) { %><a href="/vendor-intake/directory?page=<%= page - 1 %><%= qs %>" class="btn btn-ghost text-xs">Previous</a><% } %>
+      <% if (page < totalPages) { %><a href="/vendor-intake/directory?page=<%= page + 1 %><%= qs %>" class="btn btn-ghost text-xs">Next</a><% } %>
+    </div>
+  </div>
+</div>
+<%- include('../layouts/footer') %>

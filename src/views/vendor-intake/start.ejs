@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contractor / Vendor Intake - FORGE</title>
+  <link rel="icon" href="/favicon.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { margin:0; font-family: Inter, system-ui, sans-serif; background:#f5f5f5; color:#1a1a1a; }
+    .wrap { min-height:100vh; display:grid; place-items:center; padding:2rem 1rem; }
+    .card { width:min(100%, 720px); background:white; border:1px solid #e5e5e5; border-radius:10px; box-shadow:0 18px 60px rgba(0,0,0,.08); overflow:hidden; }
+    .head { padding:2rem; border-bottom:1px solid #eee; display:flex; align-items:center; justify-content:space-between; gap:1rem; }
+    .brand { display:flex; align-items:center; gap:.85rem; }
+    .brand img { width:52px; height:auto; }
+    .word { color:#c0202b; font-weight:800; letter-spacing:.18em; font-size:1.3rem; }
+    .body { padding:2rem; }
+    h1 { margin:.2rem 0 .5rem; font-size:1.8rem; }
+    p { color:#666; line-height:1.5; margin:.4rem 0 1.4rem; }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+    .full { grid-column:1 / -1; }
+    label { display:block; font-size:.82rem; font-weight:700; margin-bottom:.3rem; }
+    input { box-sizing:border-box; display:block; width:100%; border:1px solid #d0d0d0; border-radius:6px; padding:.7rem .8rem; font-size:1rem; }
+    input:focus { outline:none; border-color:#c0202b; box-shadow:0 0 0 3px rgba(192,32,43,.14); }
+    .err { color:#b91c1c; font-size:.78rem; margin-top:.25rem; }
+    .actions { display:flex; justify-content:flex-end; gap:.75rem; margin-top:1.5rem; align-items:center; }
+    button { border:0; background:#c0202b; color:white; border-radius:6px; padding:.75rem 1.1rem; font-weight:700; cursor:pointer; font-size:.95rem; }
+    .hint { font-size:.82rem; color:#777; }
+    @media (max-width:700px) { .grid { grid-template-columns:1fr; } .head, .body { padding:1.25rem; } }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="card">
+      <div class="head">
+        <div class="brand">
+          <img src="/logos/recon-logo.jpg" alt="Recon Enterprises">
+          <div>
+            <div class="word">FORGE</div>
+            <div style="font-size:.68rem;color:#777;text-transform:uppercase;letter-spacing:.14em;">Recon Enterprises trade partner intake</div>
+          </div>
+        </div>
+      </div>
+      <div class="body">
+        <h1>Join our contractor / vendor list</h1>
+        <p>Tell us who you are, what trades you cover, and where you work. You can save the form and come back later using your private intake link.</p>
+        <form method="post" action="/vendor-intake/start">
+          <div class="grid">
+            <div class="full">
+              <label>Company name *</label>
+              <input name="company_name" value="<%= intake.company_name || '' %>" required>
+              <% if (errors.company_name) { %><div class="err"><%= errors.company_name %></div><% } %>
+            </div>
+            <div>
+              <label>Main contact</label>
+              <input name="primary_contact_name" value="<%= intake.primary_contact_name || '' %>">
+            </div>
+            <div>
+              <label>Email *</label>
+              <input type="email" name="email" value="<%= intake.email || '' %>" required>
+              <% if (errors.email) { %><div class="err"><%= errors.email %></div><% } %>
+            </div>
+            <div>
+              <label>Office phone</label>
+              <input name="office_phone" value="<%= intake.office_phone || '' %>" data-phone>
+            </div>
+          </div>
+          <div class="actions">
+            <span class="hint">Takes about 5-10 minutes.</span>
+            <button type="submit">Start intake</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </main>
+  <script src="/js/phone-format.js"></script>
+</body>
+</html>

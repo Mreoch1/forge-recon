@@ -48,7 +48,7 @@ test('managers can access customers but cannot delete them', () => {
 test('admin navigation starts with dashboard before work orders', () => {
   const header = read('src/views/layouts/header.ejs');
   const desktopNav = header.match(/<div class="hidden lg:flex items-center gap-0" id="desktop-nav">([\s\S]*?)<!-- More dropdown -->/);
-  const mobileNav = header.match(/<div class="mobile-menu-heading">Work<\/div>([\s\S]*?)<% if \(_isAdminMobile || _isManagerMobile\) \{ %>\s*<a href="\/projects"/);
+  const mobileNav = header.match(/<div class="mobile-menu-heading">Work<\/div>([\s\S]*?)<div class="mobile-menu-heading">Sales<\/div>/);
 
   assert.ok(desktopNav, 'desktop nav block should exist');
   assert.ok(mobileNav, 'mobile work nav block should exist');
@@ -72,6 +72,28 @@ test('managers can manage vendor and contractor records but cannot delete them',
   assert.match(header, /_isAdminMobile \|\| _isManagerMobile[\s\S]*href="\/contractors"/);
 });
 
+test('trade intake has public start form and manager-only directory', () => {
+  const app = read('src/app.js');
+  const routes = read('src/routes/vendor-intake.js');
+  const header = read('src/views/layouts/header.ejs');
+  const migration = read('supabase/migrations/20260608110353_contractor_vendor_intake.sql');
+
+  assert.match(app, /const vendorIntakeRoutes = require\('\.\/routes\/vendor-intake'\)/);
+  assert.match(app, /app\.use\('\/vendor-intake', vendorIntakeRoutes\)/);
+  assert.match(routes, /router\.get\('\/start'/);
+  assert.match(routes, /router\.post\('\/start'/);
+  assert.match(routes, /router\.get\('\/directory', requireManager,/);
+  assert.match(routes, /router\.post\('\/directory\/:id\/notes', requireManager,/);
+  assert.match(routes, /router\.post\('\/directory\/:id\/promote', requireManager,/);
+  assert.match(routes, /access_token/);
+  assert.match(routes, /next_update_due_at/);
+  assert.match(header, /href="\/vendor-intake\/directory"/);
+  assert.match(header, /activeNav === 'intake'/);
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.contractor_vendor_intakes/);
+  assert.match(migration, /references_json JSONB NOT NULL DEFAULT '\[\]'::jsonb/);
+  assert.match(migration, /ALTER TABLE public\.contractor_vendor_intakes ENABLE ROW LEVEL SECURITY/);
+});
+
 test('managers can create and send invoices while admin keeps accounting controls', () => {
   const app = read('src/app.js');
   const estimates = read('src/routes/estimates.js');
@@ -88,11 +110,13 @@ test('managers can create and send invoices while admin keeps accounting control
   assert.match(estimateShow, /canManageInvoices && !invoice && estimate\.lines\.length > 0/);
   assert.match(invoiceShow, /const isAdmin = currentUser && currentUser\.role === 'admin'/);
   assert.match(invoiceShow, /isAdmin && \(invoice\.status === 'sent' \|\| invoice\.status === 'overdue'\)/);
-  assert.match(invoiceShow, /action="\/invoices\/<%= invoice\.id %>\/sync-quickbooks"/);
-  assert.match(invoiceShow, /isAdmin && invoice\.status !== 'paid' && invoice\.status !== 'billing_complete'/);
+  assert.match(invoiceShow, /href="\/invoices\/<%= invoice\.id %>\/csv"/);
+  assert.match(invoiceShow, /action="\/invoices\/<%= invoice\.id %>\/billing-complete"/);
   assert.match(invoices, /router\.post\('\/:id\/mark-paid', requireAdmin,/);
   assert.match(invoices, /router\.post\('\/:id\/billing-complete', requireAdmin,/);
-  assert.match(invoices, /router\.post\('\/:id\/sync-quickbooks', requireAdmin,/);
+  assert.match(invoices, /router\.get\('\/:id\/csv'/);
+  assert.match(invoices, /router\.post\('\/batch-csv'/);
+  assert.doesNotMatch(invoices, /router\.post\('\/:id\/sync-quickbooks'/);
   assert.match(invoices, /router\.post\('\/:id\/reopen-billing', requireAdmin,/);
   assert.match(invoices, /router\.post\('\/:id\/void', requireAdmin,/);
   assert.match(invoices, /router\.post\('\/:id\/delete', requireAdmin,/);
@@ -100,33 +124,21 @@ test('managers can create and send invoices while admin keeps accounting control
   assert.match(header, /_isAdminMobile \|\| _isManagerMobile[\s\S]*href="\/invoices"/);
 });
 
-test('QuickBooks webhook uses raw body parsing before global JSON parser', () => {
+test('QuickBooks flow uses CSV export instead of live API sync', () => {
   const app = read('src/app.js');
-  const rawMount = app.indexOf("app.use('/quickbooks/webhook', express.raw");
-  const jsonParser = app.indexOf("app.use(express.json");
-
-  assert.ok(rawMount > -1, 'QuickBooks webhook route should be mounted');
-  assert.ok(jsonParser > -1, 'global JSON parser should be mounted');
-  assert.ok(rawMount < jsonParser, 'QuickBooks webhook raw parser must run before JSON parser');
-});
-
-test('QuickBooks accounting setup supports OAuth and item mapping', () => {
-  const accountingRoutes = read('src/routes/accounting.js');
   const accountingIndex = read('src/views/accounting/index.ejs');
-  const quickbooksView = read('src/views/accounting/quickbooks.ejs');
-  const quickbooksSync = read('src/services/quickbooks-sync.js');
+  const invoices = read('src/routes/invoices.js');
+  const invoiceIndex = read('src/views/invoices/index.ejs');
+  const invoiceShow = read('src/views/invoices/show.ejs');
 
-  assert.match(accountingIndex, /href: '\/accounting\/quickbooks'/);
-  assert.match(accountingRoutes, /router\.get\('\/quickbooks'/);
-  assert.match(accountingRoutes, /router\.get\('\/quickbooks\/connect'/);
-  assert.match(accountingRoutes, /process\.env\.QUICKBOOKS_REDIRECT_URI/);
-  assert.match(accountingRoutes, /req\.session\.quickbooksOAuthState/);
-  assert.match(accountingRoutes, /req\.query\.state !== expectedState/);
-  assert.match(accountingRoutes, /router\.post\('\/quickbooks\/default-item'/);
-  assert.match(quickbooksView, /Default product\/service/);
-  assert.match(quickbooksView, /name="default_item_id"/);
-  assert.match(quickbooksSync, /options\.defaultItemId \|\| process\.env\.QUICKBOOKS_DEFAULT_ITEM_ID/);
-  assert.match(quickbooksSync, /buildInvoicePayload\(invoice, quickbooksCustomerId, \{ defaultItemId: connection\.default_item_id \}\)/);
+  assert.doesNotMatch(app, /app\.use\('\/quickbooks\/webhook'/);
+  assert.doesNotMatch(app, /app\.use\('\/accounting\/quickbooks'/);
+  assert.doesNotMatch(accountingIndex, /href: '\/accounting\/quickbooks'/);
+  assert.match(invoices, /router\.post\('\/batch-csv'/);
+  assert.match(invoices, /router\.get\('\/:id\/csv'/);
+  assert.match(invoiceIndex, /formaction="\/invoices\/batch-csv"/);
+  assert.match(invoiceShow, /href="\/invoices\/<%= invoice\.id %>\/csv"/);
+  assert.match(invoiceShow, /billing-complete/);
 });
 
 test('project RFP export loader only selects real project columns', () => {
