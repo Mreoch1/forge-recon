@@ -73,7 +73,8 @@ function referencesFromBody(body) {
     const phone = emptyToNullFormattedPhone(body[`ref_${i}_phone`]);
     const email = emptyToNull(body[`ref_${i}_email`]);
     const relationship = emptyToNull(body[`ref_${i}_relationship`]);
-    if (name || company || phone || email || relationship) refs.push({ name, company, phone, email, relationship });
+    const notes = emptyToNull(body[`ref_${i}_notes`]);
+    if (name || company || phone || email || relationship || notes) refs.push({ name, company, phone, email, relationship, notes });
   }
   return refs;
 }

@@ -75,6 +75,8 @@ test('managers can manage vendor and contractor records but cannot delete them',
 test('trade intake has public start form and manager-only directory', () => {
   const app = read('src/app.js');
   const routes = read('src/routes/vendor-intake.js');
+  const form = read('src/views/vendor-intake/form.ejs');
+  const show = read('src/views/vendor-intake/show.ejs');
   const header = read('src/views/layouts/header.ejs');
   const migration = read('supabase/migrations/20260608110353_contractor_vendor_intake.sql');
 
@@ -87,6 +89,9 @@ test('trade intake has public start form and manager-only directory', () => {
   assert.match(routes, /router\.post\('\/directory\/:id\/promote', requireManager,/);
   assert.match(routes, /access_token/);
   assert.match(routes, /next_update_due_at/);
+  assert.ok(routes.includes('ref_${i}_notes'));
+  assert.match(form, /name="ref_<%= i %>_notes"/);
+  assert.match(show, /ref\.notes/);
   assert.match(header, /href="\/vendor-intake\/directory"/);
   assert.match(header, /activeNav === 'intake'/);
   assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.contractor_vendor_intakes/);

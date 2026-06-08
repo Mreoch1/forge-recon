@@ -162,6 +162,7 @@
                     <div><label>Email</label><input type="email" name="ref_<%= i %>_email" value="<%= ref.email || '' %>"></div>
                     <div><label>Phone</label><input name="ref_<%= i %>_phone" value="<%= ref.phone || '' %>" data-phone></div>
                     <div class="full"><label>Relationship / project</label><input name="ref_<%= i %>_relationship" value="<%= ref.relationship || '' %>"></div>
+                    <div class="full"><label>Reference notes</label><textarea name="ref_<%= i %>_notes" placeholder="Project size, scope, timeline, contact details, or anything helpful about this reference."><%= ref.notes || '' %></textarea></div>
                   </div>
                 </div>
               </div>

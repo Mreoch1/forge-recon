@@ -63,8 +63,8 @@
         <% if (!refs.length) { %>
           <div class="p-4 text-sm text-recon-fog">No references entered.</div>
         <% } else { %>
-          <table class="data"><thead><tr><th>Name</th><th>Company</th><th>Contact</th><th>Relationship</th></tr></thead><tbody>
-            <% refs.forEach(function(ref){ %><tr><td><%= ref.name || '-' %></td><td><%= ref.company || '-' %></td><td><%= ref.email || ref.phone || '-' %></td><td><%= ref.relationship || '-' %></td></tr><% }); %>
+          <table class="data"><thead><tr><th>Name</th><th>Company</th><th>Contact</th><th>Relationship / notes</th></tr></thead><tbody>
+            <% refs.forEach(function(ref){ %><tr><td><%= ref.name || '-' %></td><td><%= ref.company || '-' %></td><td><%= ref.email || ref.phone || '-' %></td><td><%= ref.relationship || '-' %><% if (ref.notes) { %><div class="text-xs text-recon-fog whitespace-pre-wrap mt-1"><%= ref.notes %></div><% } %></td></tr><% }); %>
           </tbody></table>
         <% } %>
       </div>
