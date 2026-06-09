@@ -566,11 +566,10 @@ function generateWorkOrderPDF(wo, company, stream) {
     wo.customer_email,
     wo.customer_phone,
   ], [
-    wo.job_title || (wo.customer_name ? wo.customer_name + ' (job site)' : 'Job Site'),
     (wo.job_address || wo.customer_address || ''),
     wo.unit_number ? String(wo.unit_number).replace(/^(Unit|Apt)\s*/i, '').trim() : '',
     ([wo.job_city || wo.customer_city, wo.job_state || wo.customer_state, wo.job_zip || wo.customer_zip].filter(Boolean).join(', ')),
-  ]);
+  ].filter(Boolean));
 
   drawWOMeta(doc, wo);
   drawTextBlock(doc, 'Description', wo.description);

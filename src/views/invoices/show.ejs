@@ -30,8 +30,8 @@ const isAdmin = currentUser && currentUser.role === 'admin';
       </p>
     </div>
     <div class="document-actions">
-      <a href="/invoices/<%= invoice.id %>/pdf" class="btn btn-ghost" target="_blank" rel="noopener"
-         title="Open the invoice PDF in a new tab.">View PDF</a>
+      <a href="/invoices/<%= invoice.id %>/pdf" class="btn btn-secondary text-sm" target="_blank" rel="noopener"
+         title="Open the invoice PDF in a new tab.">PDF</a>
 
       <% if (invoice.status === 'draft' || invoice.status === 'sent' || invoice.status === 'overdue') { %>
         <span class="hidden md:inline text-recon-mist px-1" aria-hidden="true">|</span>

@@ -65,8 +65,8 @@ const customerLabel = estimate.customer_name || 'Customer';
     %>
     <div class="document-actions">
       <!-- Document group: ghost outline, grouped together on the left -->
-      <a href="/estimates/<%= estimate.id %>/pdf" class="btn btn-ghost" target="_blank" rel="noopener"
-         title="Open the estimate PDF in a new tab.">View PDF</a>
+      <a href="/estimates/<%= estimate.id %>/pdf" class="btn btn-secondary text-sm" target="_blank" rel="noopener"
+         title="Open the estimate PDF in a new tab.">PDF</a>
 
       <% if (['new', 'draft', 'sent', 'pending', 'accepted', 'approved'].includes(estimate.status)) { %>
         <!-- Visual separator between document group and workflow group -->
