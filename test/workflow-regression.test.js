@@ -41,19 +41,32 @@ test('managers can access customers but cannot delete them', () => {
 
   assert.match(app, /app\.use\('\/customers', requireAuth, requireManager, customersRoutes\)/);
   assert.match(customers, /router\.post\('\/:id\/delete', requireAdmin,/);
-  assert.match(header, /_isAdminNav \|\| _isManagerNav[\s\S]*href="\/customers"/);
-  assert.match(header, /_isAdminMobile \|\| _isManagerMobile[\s\S]*href="\/customers"/);
+  assert.match(header, /_canManageNav[\s\S]*href="\/customers"/);
+  assert.match(header, /_canManageMobile[\s\S]*href="\/customers"/);
 });
 
-test('admin navigation starts with dashboard before work orders', () => {
+test('navigation is grouped by workflow and role tier', () => {
   const header = read('src/views/layouts/header.ejs');
   const desktopNav = header.match(/<div class="hidden lg:flex items-center gap-0" id="desktop-nav">([\s\S]*?)<!-- More dropdown -->/);
   const mobileNav = header.match(/<div class="mobile-menu-heading">Work<\/div>([\s\S]*?)<div class="mobile-menu-heading">Sales<\/div>/);
+  const desktopMore = header.match(/<div class="more-menu hidden[\s\S]*?<\/div>\s*<\/div>\s*<% } %>\s*<\/div>/);
 
   assert.ok(desktopNav, 'desktop nav block should exist');
   assert.ok(mobileNav, 'mobile work nav block should exist');
+  assert.ok(desktopMore, 'desktop More menu should exist');
   assert.ok(desktopNav[1].indexOf('>Dashboard</a>') < desktopNav[1].indexOf('>Work Orders</a>'));
+  assert.ok(desktopNav[1].indexOf('>Work Orders</a>') < desktopNav[1].indexOf('>Schedule</a>'));
+  assert.ok(desktopNav[1].indexOf('>Schedule</a>') < desktopNav[1].indexOf('>Projects</a>'));
+  assert.ok(desktopNav[1].indexOf('>Projects</a>') < desktopNav[1].indexOf('>Customers</a>'));
+  assert.doesNotMatch(desktopNav[1], /href="\/estimates"/);
+  assert.doesNotMatch(desktopNav[1], /href="\/invoices"/);
+  assert.doesNotMatch(desktopNav[1], /href="\/accounting"/);
   assert.ok(mobileNav[1].indexOf('>Dashboard</a>') < mobileNav[1].indexOf('>Work Orders</a>'));
+  assert.match(header, /<div class="more-menu-heading">Sales<\/div>[\s\S]*href="\/estimates"[\s\S]*href="\/invoices"/);
+  assert.match(header, /<div class="more-menu-heading">Vendors & costs<\/div>[\s\S]*href="\/vendors"[\s\S]*href="\/contractors"[\s\S]*href="\/vendor-intake\/directory"/);
+  assert.match(header, /<% if \(_isAdminNav\) \{ %>[\s\S]*href="\/bills"/);
+  assert.match(header, /<% if \(_isAdminNav\) \{ %>[\s\S]*href="\/accounting"[\s\S]*href="\/admin\/users"/);
+  assert.match(header, /<% if \(_canManageNav\) \{ %>[\s\S]*id="more-dropdown"/);
 });
 
 test('managers can manage vendor and contractor records but cannot delete them', () => {
@@ -66,10 +79,10 @@ test('managers can manage vendor and contractor records but cannot delete them',
   assert.match(app, /app\.use\('\/contractors', requireAuth, requireManager, contractorsRoutes\)/);
   assert.match(vendors, /router\.post\('\/:id\/delete', requireAdmin,/);
   assert.match(contractors, /router\.post\('\/:id\/delete', requireAdmin,/);
-  assert.match(header, /_isAdminNav \|\| _isManagerNav[\s\S]*href="\/vendors"/);
-  assert.match(header, /_isAdminNav \|\| _isManagerNav[\s\S]*href="\/contractors"/);
-  assert.match(header, /_isAdminMobile \|\| _isManagerMobile[\s\S]*href="\/vendors"/);
-  assert.match(header, /_isAdminMobile \|\| _isManagerMobile[\s\S]*href="\/contractors"/);
+  assert.match(header, /_canManageNav[\s\S]*href="\/vendors"/);
+  assert.match(header, /_canManageNav[\s\S]*href="\/contractors"/);
+  assert.match(header, /_canManageMobile[\s\S]*href="\/vendors"/);
+  assert.match(header, /_canManageMobile[\s\S]*href="\/contractors"/);
 });
 
 test('trade intake has public start form and manager-only directory', () => {
@@ -125,8 +138,8 @@ test('managers can create and send invoices while admin keeps accounting control
   assert.match(invoices, /router\.post\('\/:id\/reopen-billing', requireAdmin,/);
   assert.match(invoices, /router\.post\('\/:id\/void', requireAdmin,/);
   assert.match(invoices, /router\.post\('\/:id\/delete', requireAdmin,/);
-  assert.match(header, /_isAdminNav \|\| _isManagerNav[\s\S]*href="\/invoices"/);
-  assert.match(header, /_isAdminMobile \|\| _isManagerMobile[\s\S]*href="\/invoices"/);
+  assert.match(header, /_canManageNav[\s\S]*href="\/invoices"/);
+  assert.match(header, /_canManageMobile[\s\S]*href="\/invoices"/);
 });
 
 test('QuickBooks flow uses CSV export instead of live API sync', () => {
