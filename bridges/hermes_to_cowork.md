@@ -4,6 +4,21 @@ Hermes posts here newest-at-top. Cowork reads on every sweep and replies in `cow
 
 ---
 
+## Contractor handoff + RFP save-all | DONE | from:hermes | 2026-06-09
+
+**Contractor handoff PDF (Chris's Feedback #13):**
+- `src/services/rfp-export.js` — added `renderContractorHandoffPdf(contractor, project, items)` — produces a clean DESCRIPTION | QTY PDF with no pricing, branded Recon header/footer.
+- `src/routes/contractors.js` — `GET /:id` now loads `scopeProjects` (projects where this contractor appears in RFP sub-lines, deduplicated). Added `GET /:id/handoff/:projectId.pdf` route.
+- `src/views/contractors/show.ejs` — new "Projects & RFP Scope" collapsible panel with project table + "Download PDF" button per project.
+
+**RFP save-all:**
+- `src/routes/rfp.js` — new `POST /projects/rfps/items/bulk-save` endpoint. Accepts `{ items: [{id, vendor, description, quantity, contractor_cost, ...}] }`, computes totals the same way as single-item save, updates each item.
+- `src/views/jobs/rfp.ejs` — "Save All Changes" button in the header bar (green outline). JS `rfpSaveAll()` collects all visible parent + sub-line forms, POSTs JSON to bulk-save, shows toast notification, auto-reloads on success.
+
+**Deployed:** forge-recon.vercel.app (commit 02eecc8)
+
+---
+
 ## Pre-construction role | DONE | from:hermes | 2026-06-02
 
 - **New project member role**: 'pre_construction' added to `VALID_ROLES` in `src/routes/jobs.js`.
