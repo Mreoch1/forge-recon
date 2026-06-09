@@ -207,6 +207,29 @@ test('RFP category and parent line-item deletes remove children', () => {
   assert.match(routes, /await deleteRfpLineItemTree\(req\.params\.itemId\)/);
 });
 
+test('RFP editing autosaves individual fields with conflict checks', () => {
+  const routes = read('src/routes/rfp.js');
+  const view = read('src/views/jobs/rfp.ejs');
+  const migration = read('supabase/migrations/20260609130000_rfp_autosave_updated_at.sql');
+
+  assert.match(routes, /router\.patch\('\/projects\/:id\/rfps\/:rId\/autosave'/);
+  assert.match(routes, /router\.patch\('\/projects\/rfps\/items\/:itemId\/autosave'/);
+  assert.match(routes, /originalValue/);
+  assert.match(routes, /conflict: true/);
+  assert.match(routes, /loadRfpItemWithJob\(itemId\)/);
+
+  assert.match(view, /id="rfp-autosave-status"/);
+  assert.match(view, /data-rfp-autosave-category/);
+  assert.match(view, /data-rfp-autosave-item/);
+  assert.match(view, /method: 'PATCH'/);
+  assert.doesNotMatch(view, /rfpSaveAll/);
+  assert.doesNotMatch(view, /Save All Changes/);
+  assert.doesNotMatch(view, /\/projects\/rfps\/items\/bulk-save/);
+
+  assert.match(migration, /ALTER TABLE public\.rfp_line_items\s+ADD COLUMN IF NOT EXISTS updated_at/);
+  assert.match(migration, /CREATE TRIGGER set_rfp_line_items_updated_at/);
+});
+
 test('customer detail exposes customer projects and project creation path', () => {
   const routes = read('src/routes/customers.js');
   const show = read('src/views/customers/show.ejs');

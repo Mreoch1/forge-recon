@@ -9,7 +9,7 @@
       <a href="/projects/<%= job.id %>/rfp/export.xlsx" class="btn btn-secondary text-sm" target="_blank">XLSX</a>
       <button onclick="document.getElementById('rfp-new-form').classList.toggle('hidden')"
               class="btn btn-primary text-sm">+ Add category</button>
-      <button onclick="rfpSaveAll()" class="btn btn-secondary text-sm border-green-600 text-green-700 hover:bg-green-50" id="rfp-save-all-btn">Save All Changes</button>
+      <span id="rfp-autosave-status" class="text-xs text-recon-fog px-2">Autosave on</span>
     </div>
   </div>
 
@@ -132,26 +132,21 @@
                     <%= rfp.contractor_name %>
                   </span>
                   <button type="button" class="text-recon-fog hover:text-recon-red text-xs ml-1"
-                          onclick="event.stopPropagation();var inp=this.parentElement.querySelector('.rename-input');var btn=this.parentElement.querySelector('.rename-save');var lbl=this.parentElement.querySelector('.rfp-rename-trigger');if(inp){inp.value='<%= rfp.contractor_name.replace(/'/g, '&apos;') %>';inp.style.display='inline';inp.removeAttribute('disabled');inp.focus();btn.style.display='inline-flex';lbl.style.display='none';this.style.display='none';}"
+                          onclick="event.stopPropagation();var inp=this.parentElement.querySelector('.rename-input');var lbl=this.parentElement.querySelector('.rfp-rename-trigger');if(inp){inp.value=lbl.textContent.trim();inp.dataset.originalValue=inp.value;inp.style.display='inline';inp.focus();lbl.style.display='none';this.style.display='none';}"
                           title="Edit category name">✎</button>
-                  <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>" method="POST" class="flex items-center gap-1 ml-1"
-                        onsubmit="this.querySelector('input.rename-input').style.display='none';this.querySelector('.rename-save').style.display='none';this.querySelector('input').removeAttribute('disabled');">
-                    <input name="contractor_name" class="input text-xs py-0.5 px-1 w-32 rename-input" style="display:none"
-                           list="rfp-tab-presets" autocomplete="off"
-                           onblur="var f=this.parentElement;var s=f&&f.previousElementSibling;if(s){s.style.display='';}this.style.display='none';this.nextElementSibling.style.display='none';">
-                    <button type="submit" style="display:none" class="btn btn-primary text-xs py-0.5 px-1.5 rename-save">Save</button>
-                  </form>
+                  <input name="contractor_name" class="input text-xs py-0.5 px-1 w-40 rename-input ml-1" style="display:none"
+                         list="rfp-tab-presets" autocomplete="off"
+                         data-rfp-autosave-category data-job-id="<%= job.id %>" data-rfp-id="<%= rfp.id %>" data-field="contractor_name" data-original-value="<%= rfp.contractor_name || '' %>">
                 </div>
               </td>
               <td>
-                <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>" method="POST" onclick="event.stopPropagation()">
-                  <select name="status" onchange="this.form.submit()" class="text-xs border rounded px-1 py-0.5">
-                    <option value="pending" <%= rfp.status === 'pending' ? 'selected' : '' %>>Pending</option>
-                    <option value="submitted" <%= rfp.status === 'submitted' ? 'selected' : '' %>>Submitted</option>
-                    <option value="awarded" <%= rfp.status === 'awarded' ? 'selected' : '' %>>Awarded</option>
-                    <option value="declined" <%= rfp.status === 'declined' ? 'selected' : '' %>>Declined</option>
-                  </select>
-                </form>
+                <select name="status" onclick="event.stopPropagation()" class="text-xs border rounded px-1 py-0.5"
+                        data-rfp-autosave-category data-job-id="<%= job.id %>" data-rfp-id="<%= rfp.id %>" data-field="status" data-original-value="<%= rfp.status || 'pending' %>">
+                  <option value="pending" <%= rfp.status === 'pending' ? 'selected' : '' %>>Pending</option>
+                  <option value="submitted" <%= rfp.status === 'submitted' ? 'selected' : '' %>>Submitted</option>
+                  <option value="awarded" <%= rfp.status === 'awarded' ? 'selected' : '' %>>Awarded</option>
+                  <option value="declined" <%= rfp.status === 'declined' ? 'selected' : '' %>>Declined</option>
+                </select>
               </td>
               <td class="text-right font-semibold <%= rfp.status === 'awarded' ? 'text-green-700' : '' %>">$<%= rfpTotals[rfp.id].toFixed(2) %></td>
               <td class="text-right">
@@ -252,20 +247,20 @@
                     <div class="flex items-start gap-1">
                       <% if (liHasSubs) { %><span class="rfp-li-chevron text-recon-fog text-xs mt-1 select-none inline-block" style="transition:transform 0.15s; transform:rotate(0deg);">▸</span><% } else { %><span class="inline-block w-3"></span><% } %>
                       <form id="<%= itemFormId %>" action="/projects/rfps/items/<%= item.id %>" method="POST" onclick="event.stopPropagation();"></form>
-                      <textarea form="<%= itemFormId %>" name="description" class="input text-xs py-0.5 font-medium w-full" placeholder="Item description" rows="1" data-autosize><%= item.description %></textarea>
+                      <textarea form="<%= itemFormId %>" name="description" class="input text-xs py-0.5 font-medium w-full" placeholder="Item description" rows="1" data-autosize
+                                data-rfp-autosave-item data-item-id="<%= item.id %>" data-field="description" data-original-value="<%= item.description || '' %>"><%= item.description %></textarea>
                     </div>
                   </td>
-                  <td class="text-right"><% if (liHasSubs) { %><span class="font-medium text-xs"><%= liQty %></span><% } else { %><input form="<%= itemFormId %>" name="quantity" type="number" step="any" value="<%= item.quantity != null ? item.quantity : '' %>" class="input text-xs py-0.5 w-16 text-right"><% } %></td>
+                  <td class="text-right"><% if (liHasSubs) { %><span class="font-medium text-xs"><%= liQty %></span><% } else { %><input form="<%= itemFormId %>" name="quantity" type="number" step="any" value="<%= item.quantity != null ? item.quantity : '' %>" class="input text-xs py-0.5 w-16 text-right" data-rfp-autosave-item data-item-id="<%= item.id %>" data-field="quantity" data-original-value="<%= item.quantity != null ? item.quantity : '' %>"><% } %></td>
                   <td class="text-right font-medium">$<%= (liHasSubs ? liUnit : Number(item.unit_cost) || 0).toFixed(2) %></td>
                   <td class="text-right font-medium">$<%= (liHasSubs ? liTotalCost : Number(item.total_cost) || 0).toFixed(2) %></td>
                   <td class="text-right text-xs"><%= liMarkup %></td>
                   <td class="text-right text-xs"><%= liGr %></td>
                   <td class="text-right font-medium">$<%= liDisplayTotal.toFixed(2) %></td>
                   <td class="text-right text-xs">$<%= liDisplayUnit.toFixed(2) %></td>
-                  <td class="text-center"><% if (liHasSubs) { %><span class="text-xs <%= liApproved ? 'text-green-600' : 'text-recon-fog' %>"><%= liApproved ? '✓' : '○' %></span><% } else { %><input form="<%= itemFormId %>" type="hidden" name="approved" value="0"><input form="<%= itemFormId %>" type="checkbox" name="approved" value="1" <%= item.approved ? 'checked' : '' %> data-rfp-item-id="<%= item.id %>" data-approve-toggle><% } %></td>
+                  <td class="text-center"><% if (liHasSubs) { %><span class="text-xs <%= liApproved ? 'text-green-600' : 'text-recon-fog' %>"><%= liApproved ? '✓' : '○' %></span><% } else { %><input form="<%= itemFormId %>" type="hidden" name="approved" value="0"><input form="<%= itemFormId %>" type="checkbox" name="approved" value="1" <%= item.approved ? 'checked' : '' %> data-rfp-autosave-item data-item-id="<%= item.id %>" data-field="approved" data-original-value="<%= item.approved ? '1' : '0' %>"><% } %></td>
                   <td class="text-right flex gap-1 items-center">
                     <span class="text-xs text-recon-fog mr-1" title="Approved sub-lines"><%= liApprovedSubs %>/<%= liSubCount %></span>
-                    <button type="submit" form="<%= itemFormId %>" class="text-green-600 hover:text-green-800 text-xs font-bold" title="Save">&#10003;</button>
                     <form id="<%= itemDelFormId %>" action="/projects/rfps/items/<%= item.id %>/delete" method="POST" onclick="event.stopPropagation();" onsubmit="return confirm('Delete?')"></form>
                     <button type="submit" form="<%= itemDelFormId %>" class="text-recon-fog hover:text-recon-red text-xs">&times;</button>
                   </td>
@@ -310,21 +305,22 @@
                       <div class="flex flex-col gap-1">
                         <input name="vendor" value="<%= sub.vendor || '' %>"
                                class="input text-xs py-0.5 w-full" placeholder="Vendor or contractor"
-                               list="rfp-line-entity-options" autocomplete="off">
-                        <textarea name="description" class="input text-xs py-0.5 w-full" placeholder="Sub-line description" rows="1" data-autosize><%= sub.description %></textarea>
+                               list="rfp-line-entity-options" autocomplete="off"
+                               data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="vendor" data-original-value="<%= sub.vendor || '' %>">
+                        <textarea name="description" class="input text-xs py-0.5 w-full" placeholder="Sub-line description" rows="1" data-autosize
+                                  data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="description" data-original-value="<%= sub.description || '' %>"><%= sub.description %></textarea>
                       </div></form></td>
-                    <td class="text-right"><input form="<%= subFid %>" name="quantity" type="number" step="any" value="<%= sub.quantity != null ? sub.quantity : '' %>" class="input text-xs py-0.5 w-16 text-right"></td>
+                    <td class="text-right"><input form="<%= subFid %>" name="quantity" type="number" step="any" value="<%= sub.quantity != null ? sub.quantity : '' %>" class="input text-xs py-0.5 w-16 text-right" data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="quantity" data-original-value="<%= sub.quantity != null ? sub.quantity : '' %>"></td>
                     <td class="text-right">
-                      <input form="<%= subFid %>" name="contractor_cost" type="number" step="any" value="<%= sub.contractor_cost != null ? sub.contractor_cost : '' %>" class="input text-xs py-0.5 w-20 text-right" placeholder="$ Unit cost">
+                      <input form="<%= subFid %>" name="contractor_cost" type="number" step="any" value="<%= sub.contractor_cost != null ? sub.contractor_cost : '' %>" class="input text-xs py-0.5 w-20 text-right" placeholder="$ Unit cost" data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="contractor_cost" data-original-value="<%= sub.contractor_cost != null ? sub.contractor_cost : '' %>">
                     </td>
                     <td class="text-right"><%= sub.total_cost != null ? '$' + Number(sub.total_cost).toFixed(2) : '-' %></td>
-                    <td class="text-right"><input form="<%= subFid %>" name="markup_pct" type="number" step="any" value="<%= sub.markup_pct != null ? sub.markup_pct : '20' %>" class="input text-xs py-0.5 w-14 text-right"></td>
-                    <td class="text-right"><input form="<%= subFid %>" name="general_requirements_pct" type="number" step="any" value="<%= sub.general_requirements_pct != null ? sub.general_requirements_pct : '6' %>" class="input text-xs py-0.5 w-14 text-right"></td>
+                    <td class="text-right"><input form="<%= subFid %>" name="markup_pct" type="number" step="any" value="<%= sub.markup_pct != null ? sub.markup_pct : '20' %>" class="input text-xs py-0.5 w-14 text-right" data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="markup_pct" data-original-value="<%= sub.markup_pct != null ? sub.markup_pct : '20' %>"></td>
+                    <td class="text-right"><input form="<%= subFid %>" name="general_requirements_pct" type="number" step="any" value="<%= sub.general_requirements_pct != null ? sub.general_requirements_pct : '6' %>" class="input text-xs py-0.5 w-14 text-right" data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="general_requirements_pct" data-original-value="<%= sub.general_requirements_pct != null ? sub.general_requirements_pct : '6' %>"></td>
                     <td class="text-right font-medium"><%= sub.total_with_markup != null ? '$' + Number(sub.total_with_markup).toFixed(2) : '-' %></td>
                     <td class="text-right font-medium"><%= sub.final_unit_cost != null ? '$' + Number(sub.final_unit_cost).toFixed(2) : '-' %></td>
-                    <td class="text-center"><input form="<%= subFid %>" type="hidden" name="approved" value="0"><input form="<%= subFid %>" type="checkbox" name="approved" value="1" <%= sub.approved ? 'checked' : '' %> data-rfp-item-id="<%= sub.id %>" data-approve-toggle></td>
+                    <td class="text-center"><input form="<%= subFid %>" type="hidden" name="approved" value="0"><input form="<%= subFid %>" type="checkbox" name="approved" value="1" <%= sub.approved ? 'checked' : '' %> data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="approved" data-original-value="<%= sub.approved ? '1' : '0' %>"></td>
                     <td class="text-right flex gap-1">
-                      <button onclick="document.getElementById('<%= subFid %>').requestSubmit()" class="text-green-600 hover:text-green-800 text-xs font-bold cursor-pointer" title="Save">&#10003;</button>
                       <form id="<%= subDid %>" action="/projects/rfps/items/<%= sub.id %>/delete" method="POST" onsubmit="return confirm('Delete?')"></form>
                       <button type="submit" form="<%= subDid %>" class="text-recon-fog hover:text-recon-red text-xs">&times;</button>
                     </td>
@@ -366,14 +362,14 @@
     e.stopPropagation();
     var span = target;
     var form = span.nextElementSibling;
-    if (!form || !form.querySelector) return;
-    var inp = form.querySelector('.rename-input');
-    var btn = form.querySelector('.rename-save');
+    var inp = span.parentElement && span.parentElement.querySelector('.rename-input');
     if (!inp) return;
     inp.value = span.textContent.trim();
+    inp.dataset.originalValue = inp.value;
     span.style.display = 'none';
     inp.style.display = 'inline';
-    btn.style.display = 'inline-block';
+    var pencil = span.parentElement && span.parentElement.querySelector('button[title="Edit category name"]');
+    if (pencil) pencil.style.display = 'none';
     inp.focus();
   });
 (function(){
@@ -481,126 +477,156 @@
 })();
 </script>
 
-<!-- Save All notification container -->
-<div id="rfp-save-all-msg" style="display:none;position:fixed;top:16px;right:16px;z-index:9999;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:500;box-shadow:0 2px 8px rgba(0,0,0,0.15);transition:opacity 0.3s;"></div>
+<div id="rfp-autosave-msg" style="display:none;position:fixed;top:16px;right:16px;z-index:9999;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:500;box-shadow:0 2px 8px rgba(0,0,0,0.15);transition:opacity 0.3s;"></div>
 
 <script>
-function rfpSaveAll() {
-  var btn = document.getElementById('rfp-save-all-btn');
-  if (!btn) return;
-  btn.disabled = true;
-  btn.textContent = 'Saving...';
+(function(){
+  var timers = new WeakMap();
 
-  var items = [];
-  // Collect parent line item forms
-  document.querySelectorAll('form[id^="rfp-li-form-"]').forEach(function(form) {
-    var idMatch = form.id.match(/rfp-li-form-(\d+)/);
-    if (!idMatch) return;
-    // Check if the row is actually visible (has a parent TR that's displayed)
-    var row = document.getElementById('rfp-line-' + idMatch[1]);
-    if (row && row.style.display === 'none') return; // skip hidden rows
-    var entry = { id: idMatch[1] };
-    form.querySelectorAll('input, textarea, select').forEach(function(el) {
-      if (el.name) {
-        if (el.type === 'checkbox') {
-          if (!entry[el.name]) entry[el.name] = el.checked ? '1' : '0';
-        } else if (el.type === 'hidden') {
-          entry[el.name] = el.value;
-        } else {
-          entry[el.name] = el.value;
-        }
-      }
-    });
-    items.push(entry);
+  document.querySelectorAll('form[id^="rfp-li-form-"], form[id^="rfp-sub-form-"]').forEach(function(form) {
+    form.addEventListener('submit', function(e) { e.preventDefault(); });
   });
 
-  // Collect sub-line forms
-  document.querySelectorAll('form[id^="rfp-sub-form-"]').forEach(function(form) {
-    var idMatch = form.id.match(/rfp-sub-form-(\d+)/);
-    if (!idMatch) return;
-    // Check visibility — sub rows are inside tr.rfp-sub-row
-    var subRow = form.closest('tr.rfp-sub-row');
-    if (subRow && (subRow.style.display === 'none' || subRow.style.display === '')) {
-      // Display '' can mean hidden via style="display:none" attribute in the template
-      // Actually sub-rows initially have style="display:none" (inline). Check the computed style.
-      if (subRow.style.display === 'none') return;
-    }
-    if (subRow && getComputedStyle(subRow).display === 'none') return;
-    var entry = { id: idMatch[1] };
-    // For sub-forms, some inputs are OUTSIDE the form tag (they use the form attribute)
-    // Collect from the form itself
-    form.querySelectorAll('input, textarea, select').forEach(function(el) {
-      if (el.name && el.type !== 'submit' && el.type !== 'button') {
-        if (el.type === 'checkbox') {
-          if (!entry[el.name]) entry[el.name] = el.checked ? '1' : '0';
-        } else {
-          entry[el.name] = el.value;
-        }
-      }
-    });
-    // Also collect inputs with form="rfp-sub-form-..." that are outside the form
-    document.querySelectorAll('input[form="' + form.id + '"], textarea[form="' + form.id + '"], select[form="' + form.id + '"]').forEach(function(el) {
-      if (el.name && el.type !== 'submit' && el.type !== 'button') {
-        if (el.type === 'checkbox') {
-          entry[el.name] = el.checked ? '1' : '0';
-        } else if (el.type === 'hidden') {
-          entry[el.name] = el.value;
-        } else {
-          entry[el.name] = el.value;
-        }
-      }
-    });
-    items.push(entry);
-  });
-
-  if (items.length === 0) {
-    showRfpSaveMsg('No visible items to save.', 'warning');
-    btn.disabled = false;
-    btn.textContent = 'Save All Changes';
-    return;
+  function fieldValue(el) {
+    if (el.type === 'checkbox') return el.checked ? '1' : '0';
+    return el.value;
   }
 
-  fetch('/projects/rfps/items/bulk-save', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ items: items }),
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(data) {
-    btn.disabled = false;
-    btn.textContent = 'Save All Changes';
-    if (data.ok) {
-      var msg = 'Saved ' + data.saved + ' item' + (data.saved !== 1 ? 's' : '') + '.';
-      if (data.errors && data.errors.length) msg += ' ' + data.errors.length + ' error(s).';
-      showRfpSaveMsg(msg, data.errors && data.errors.length > 0 ? 'warning' : 'success');
-      // Reload page to reflect computed totals
-      setTimeout(function() { location.reload(); }, 800);
-    } else {
-      showRfpSaveMsg('Save failed: ' + (data.error || 'Unknown error'), 'error');
+  function autosaveUrl(el) {
+    if (el.hasAttribute('data-rfp-autosave-category')) {
+      return '/projects/' + encodeURIComponent(el.dataset.jobId) + '/rfps/' + encodeURIComponent(el.dataset.rfpId) + '/autosave';
     }
-  })
-  .catch(function(err) {
-    btn.disabled = false;
-    btn.textContent = 'Save All Changes';
-    showRfpSaveMsg('Network error: ' + err.message, 'error');
-  });
-}
+    return '/projects/rfps/items/' + encodeURIComponent(el.dataset.itemId) + '/autosave';
+  }
 
-function showRfpSaveMsg(text, type) {
-  var el = document.getElementById('rfp-save-all-msg');
-  if (!el) return;
-  var bg = '#059669'; // green
-  if (type === 'error') bg = '#dc2626';
-  if (type === 'warning') bg = '#d97706';
-  el.style.background = bg;
-  el.style.color = '#fff';
-  el.textContent = text;
-  el.style.display = 'block';
-  setTimeout(function() {
-    el.style.opacity = '0';
-    setTimeout(function() { el.style.display = 'none'; el.style.opacity = '1'; }, 300);
-  }, 3000);
-}
+  function showAutosaveStatus(text, type) {
+    var status = document.getElementById('rfp-autosave-status');
+    if (status) {
+      status.textContent = text;
+      status.className = 'text-xs px-2 ' + (type === 'error' ? 'text-recon-red' : type === 'warning' ? 'text-amber-700' : 'text-recon-fog');
+    }
+  }
+
+  function showAutosaveToast(text, type) {
+    var el = document.getElementById('rfp-autosave-msg');
+    if (!el) return;
+    var bg = type === 'error' ? '#dc2626' : type === 'warning' ? '#d97706' : '#059669';
+    el.style.background = bg;
+    el.style.color = '#fff';
+    el.textContent = text;
+    el.style.display = 'block';
+    setTimeout(function() {
+      el.style.opacity = '0';
+      setTimeout(function() { el.style.display = 'none'; el.style.opacity = '1'; }, 300);
+    }, 3000);
+  }
+
+  function markConflict(el, data) {
+    el.classList.add('border-recon-red');
+    el.title = 'Changed by another user. Current value: ' + (data.currentValue == null ? '' : data.currentValue);
+    showAutosaveStatus('Conflict - refresh before replacing', 'warning');
+    showAutosaveToast('This field changed elsewhere. Refresh before overwriting it.', 'warning');
+  }
+
+  function clearFieldState(el) {
+    el.classList.remove('border-recon-red');
+    el.title = '';
+  }
+
+  function restoreRenameInput(el) {
+    if (!el.classList.contains('rename-input')) return;
+    var wrapper = el.closest('.flex');
+    var label = wrapper && wrapper.querySelector('.rfp-rename-trigger');
+    var pencil = wrapper && wrapper.querySelector('button[title="Edit category name"]');
+    if (label) label.style.display = '';
+    if (pencil) pencil.style.display = '';
+    el.style.display = 'none';
+  }
+
+  function applySuccessfulSave(el, data) {
+    var saved = fieldValue(el);
+    if (data && data.rfp && el.dataset.field === 'contractor_name') {
+      saved = data.rfp.contractor_name || '';
+      var wrapper = el.closest('.flex');
+      var label = wrapper && wrapper.querySelector('.rfp-rename-trigger');
+      var pencil = wrapper && wrapper.querySelector('button[title="Edit category name"]');
+      if (label) {
+        label.textContent = saved;
+        label.style.display = '';
+      }
+      if (pencil) pencil.style.display = '';
+      el.style.display = 'none';
+      el.value = saved;
+    }
+    if (data && data.rfp && el.dataset.field === 'status') saved = data.rfp.status || saved;
+    if (data && data.item && Object.prototype.hasOwnProperty.call(data.item, el.dataset.field)) {
+      saved = data.item[el.dataset.field];
+      if (el.type === 'checkbox') saved = data.item[el.dataset.field] ? '1' : '0';
+    }
+    el.dataset.originalValue = saved == null ? '' : String(saved);
+    clearFieldState(el);
+    showAutosaveStatus('Saved just now', 'success');
+  }
+
+  function saveField(el) {
+    var value = fieldValue(el);
+    if (value === (el.dataset.originalValue || '')) {
+      restoreRenameInput(el);
+      return Promise.resolve();
+    }
+    showAutosaveStatus('Saving...', 'success');
+    return fetch(autosaveUrl(el), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        field: el.dataset.field,
+        value: value,
+        originalValue: el.dataset.originalValue || ''
+      })
+    }).then(function(r) {
+      return r.json().then(function(data) {
+        if (!r.ok) {
+          if (r.status === 409 && data && data.conflict) markConflict(el, data);
+          else {
+            showAutosaveStatus('Autosave failed', 'error');
+            showAutosaveToast(data && data.error ? data.error : 'Autosave failed.', 'error');
+          }
+          throw new Error(data && data.error ? data.error : 'Autosave failed.');
+        }
+        applySuccessfulSave(el, data);
+        return data;
+      });
+    }).catch(function(err) {
+      if (!el.classList.contains('border-recon-red')) {
+        showAutosaveStatus('Autosave failed', 'error');
+      }
+      throw err;
+    });
+  }
+
+  function queueSave(el) {
+    if (timers.has(el)) clearTimeout(timers.get(el));
+    timers.set(el, setTimeout(function(){ saveField(el).catch(function(){}); }, 650));
+  }
+
+  document.querySelectorAll('[data-rfp-autosave-item], [data-rfp-autosave-category]').forEach(function(el) {
+    var eventName = (el.tagName === 'SELECT' || el.type === 'checkbox') ? 'change' : 'input';
+    el.addEventListener(eventName, function() {
+      if (el.tagName === 'SELECT' || el.type === 'checkbox') saveField(el).catch(function(){});
+      else queueSave(el);
+    });
+    el.addEventListener('blur', function() {
+      if (timers.has(el)) clearTimeout(timers.get(el));
+      saveField(el).catch(function(){});
+    });
+    el.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && el.classList.contains('rename-input')) {
+        e.preventDefault();
+        el.blur();
+      }
+    });
+  });
+})();
 </script>
 
 <%- include('../layouts/footer') %>
@@ -692,30 +718,6 @@ window.RFP_SOURCES = [
   setupAutocomplete('vendor-search-rfp');
   document.querySelectorAll('.rfp-vendor-autocomplete').forEach(function(el) {
     setupAutocompleteFromElement(el);
-  });
-
-  // F-007: AJAX approval toggle — auto-save approved checkbox without page reload
-  document.querySelectorAll('input[data-approve-toggle]').forEach(function(cb) {
-    cb.addEventListener('change', function() {
-      var itemId = this.getAttribute('data-rfp-item-id');
-      var checked = this.checked ? 1 : 0;
-      var row = this.closest('tr');
-      fetch('/projects/rfps/items/' + itemId + '/approve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ approved: checked })
-      }).then(function(r) { return r.json(); }).then(function(data) {
-        if (data.ok) {
-          row.style.transition = 'background-color 0.25s';
-          row.style.backgroundColor = '#d1fae5';
-          setTimeout(function() { row.style.backgroundColor = ''; }, 400);
-        } else {
-          cb.checked = !cb.checked;
-        }
-      }).catch(function() {
-        cb.checked = !cb.checked;
-      });
-    });
   });
 
   // F-007 bonus: persist expand state of parent rows in localStorage

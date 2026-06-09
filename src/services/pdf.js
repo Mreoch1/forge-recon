@@ -378,6 +378,7 @@ function generateEstimatePDF(estimate, company, stream) {
   drawHeader(doc, company);
   drawTitle(doc, 'Estimate', estimate.estimate_number);
 
+  const unitVal = estimate.unit_number || estimate.wo_unit_number;
   drawAddressBlocks(doc, [
     estimate.customer_name,
     estimate.customer_address || '',
@@ -386,19 +387,9 @@ function generateEstimatePDF(estimate, company, stream) {
     estimate.customer_phone,
   ], [
     estimate.job_title,
-    estimate.job_address || '',
+    (estimate.job_address || '') + (unitVal ? `, ${String(unitVal).replace(/^(Unit|Apt)\s*/i, '').trim()}` : ''),
     [estimate.job_city, estimate.job_state, estimate.job_zip].filter(Boolean).join(', '),
   ].filter(Boolean));
-
-  // D-125: render unit/apt number at 14pt bold on its own line
-  const unitVal = estimate.unit_number || estimate.wo_unit_number;
-  if (unitVal) {
-    const formatted = `Unit ${String(unitVal).replace(/^(Unit|Apt)\s*/i, '')}`;
-    doc.fillColor(COLOR.charcoal).fontSize(14).font('Helvetica-Bold')
-      .text(formatted, doc.page.margins.left + (doc.page.width - doc.page.margins.left - doc.page.margins.right - 20) / 2 + 20, doc.y + 2, {
-        width: (doc.page.width - doc.page.margins.left - doc.page.margins.right - 20) / 2,
-      });
-  }
 
   drawLineItemsTable(doc, estimate.lines || []);
 
@@ -549,8 +540,7 @@ function generateWorkOrderPDF(wo, company, stream) {
     wo.customer_phone,
   ], [
     wo.job_title || (wo.customer_name ? wo.customer_name + ' (job site)' : 'Job Site'),
-    wo.unit_number ? `Unit ${String(wo.unit_number).replace(/^(Unit|Apt)\s*/i, '')}` : '',
-    (wo.job_address || wo.customer_address || ''),
+    (wo.job_address || wo.customer_address || '') + (wo.unit_number ? `, ${String(wo.unit_number).replace(/^(Unit|Apt)\s*/i, '').trim()}` : ''),
     ([wo.job_city || wo.customer_city, wo.job_state || wo.customer_state, wo.job_zip || wo.customer_zip].filter(Boolean).join(', ')),
   ]);
 
@@ -615,8 +605,7 @@ function generateInvoicePDF(invoice, company, stream) {
     invoice.customer_phone,
   ], [
     invoice.job_title,
-    invoice.unit_number ? `Unit ${String(invoice.unit_number).replace(/^(Unit|Apt)\s*/i, '')}` : '',  // R37j: surface unit on invoice PDF, strip duplicate prefix
-    invoice.job_address || '',
+    (invoice.job_address || '') + (invoice.unit_number ? `, ${String(invoice.unit_number).replace(/^(Unit|Apt)\s*/i, '').trim()}` : ''),
     [invoice.job_city, invoice.job_state, invoice.job_zip].filter(Boolean).join(', '),
   ].filter(Boolean));
 

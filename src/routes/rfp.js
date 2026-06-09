@@ -146,6 +146,68 @@ async function requireRfpEditAccess(req, res, next) {
   }
 }
 
+function normalizeAutosaveValue(field, value) {
+  if (field === 'approved') return value === true || value === 1 || value === '1' || value === 'true' || value === 'on';
+  if (['quantity', 'contractor_cost', 'vendor_cost', 'markup_pct', 'general_requirements_pct'].includes(field)) {
+    const n = parseFloat(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  return value == null ? '' : String(value);
+}
+
+function autosaveValuesMatch(field, a, b) {
+  const left = normalizeAutosaveValue(field, a);
+  const right = normalizeAutosaveValue(field, b);
+  if (typeof left === 'number' || typeof right === 'number') return Math.abs(Number(left || 0) - Number(right || 0)) < 0.000001;
+  return left === right;
+}
+
+function parseAutosaveField(field, value) {
+  if (field === 'approved') return normalizeAutosaveValue(field, value);
+  if (['quantity', 'contractor_cost', 'vendor_cost', 'markup_pct', 'general_requirements_pct'].includes(field)) {
+    const n = parseFloat(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (field === 'description') return value == null ? '' : String(value);
+  return value == null || value === '' ? null : String(value);
+}
+
+async function userCanEditRfpJob(req, job) {
+  const appRole = req.session?.role;
+  if (appRole === 'admin' || appRole === 'manager') return true;
+  const access = await loadProjectAccess(req, job);
+  return !!access.canSeeOperations;
+}
+
+async function loadRfpItemWithJob(itemId) {
+  const { data, error } = await supabase
+    .from('rfp_line_items')
+    .select('id, rfp_id, parent_line_item_id, vendor, description, quantity, contractor_cost, vendor_cost, unit_cost, total_cost, markup_pct, general_requirements_pct, total_with_markup, final_unit_cost, approved, updated_at, project_rfps!inner(id, job_id, jobs!inner(id, project_manager_user_id, assigned_to_user_id))')
+    .eq('id', itemId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+function buildLineItemAutosaveUpdate(item, field, value) {
+  const allowed = ['vendor', 'description', 'quantity', 'contractor_cost', 'vendor_cost', 'markup_pct', 'general_requirements_pct', 'approved'];
+  if (!allowed.includes(field)) return null;
+
+  const parsed = parseAutosaveField(field, value);
+  const updateData = { [field]: parsed, updated_at: new Date().toISOString() };
+
+  if (['quantity', 'contractor_cost', 'vendor_cost', 'markup_pct', 'general_requirements_pct'].includes(field)) {
+    const next = { ...item, [field]: parsed };
+    const computed = computeSubLineTotals(next);
+    updateData.unit_cost = computed.unit_cost || null;
+    updateData.total_cost = computed.total_cost || null;
+    updateData.total_with_markup = computed.total_with_markup || null;
+    updateData.final_unit_cost = computed.final_unit_cost || null;
+  }
+
+  return updateData;
+}
+
 // ── GET /projects/:id/rfp — dedicated RFP management page for a project ──
 router.get('/projects/:id/rfp', requireAuth, requireRfpAccess, async (req, res) => {
   const jobId = req.params.id;
@@ -279,6 +341,47 @@ router.post('/projects/:id/rfps/:rId', requireRfpEditAccess, async (req, res) =>
     if (error) throw error;
   }
   res.redirect(rfpRedirect(req.params.id, { open_rfp: req.params.rId }));
+});
+
+// ── PATCH /projects/:id/rfps/:rId/autosave — field-level category autosave ──
+router.patch('/projects/:id/rfps/:rId/autosave', requireAuth, requireRfpEditAccess, async (req, res) => {
+  const { field, value, originalValue } = req.body || {};
+  const allowed = ['contractor_name', 'status'];
+  const validStatuses = ['pending', 'submitted', 'awarded', 'declined'];
+  if (!allowed.includes(field)) return res.status(400).json({ ok: false, error: 'Unsupported field.' });
+  if (field === 'status' && !validStatuses.includes(String(value))) return res.status(400).json({ ok: false, error: 'Invalid status.' });
+
+  const { data: rfp, error: fetchError } = await supabase
+    .from('project_rfps')
+    .select('id, job_id, contractor_name, status, updated_at')
+    .eq('id', req.params.rId)
+    .eq('job_id', req.params.id)
+    .maybeSingle();
+  if (fetchError) return res.status(500).json({ ok: false, error: fetchError.message });
+  if (!rfp) return res.status(404).json({ ok: false, error: 'RFP category not found.' });
+
+  if (originalValue !== undefined && !autosaveValuesMatch(field, rfp[field], originalValue)) {
+    return res.status(409).json({
+      ok: false,
+      conflict: true,
+      field,
+      currentValue: rfp[field] ?? '',
+      currentUpdatedAt: rfp.updated_at || null,
+    });
+  }
+
+  const nextValue = field === 'contractor_name' ? String(value || '').trim() : String(value);
+  if (field === 'contractor_name' && !nextValue) return res.status(400).json({ ok: false, error: 'Category name is required.' });
+
+  const { data: updated, error } = await supabase
+    .from('project_rfps')
+    .update({ [field]: nextValue, updated_at: new Date().toISOString() })
+    .eq('id', req.params.rId)
+    .eq('job_id', req.params.id)
+    .select('id, contractor_name, status, updated_at')
+    .single();
+  if (error) return res.status(500).json({ ok: false, error: error.message });
+  res.json({ ok: true, rfp: updated });
 });
 
 // ── POST /projects/:id/rfps/:rId/items — add line item ──
@@ -461,6 +564,54 @@ router.post('/projects/rfps/items/:itemId', requireRfpEditAccess, async (req, re
     open_rfp: item.rfp_id,
     open_item: item.parent_line_item_id || req.params.itemId,
   }));
+});
+
+// ── PATCH /projects/rfps/items/:itemId/autosave — field-level line-item autosave ──
+router.patch('/projects/rfps/items/:itemId/autosave', requireAuth, async (req, res) => {
+  const itemId = parseInt(req.params.itemId, 10);
+  if (!itemId) return res.status(400).json({ ok: false, error: 'Invalid item id.' });
+
+  const { field, value, originalValue } = req.body || {};
+  const updateData = buildLineItemAutosaveUpdate({}, field, value);
+  if (!updateData) return res.status(400).json({ ok: false, error: 'Unsupported field.' });
+
+  let item;
+  try {
+    item = await loadRfpItemWithJob(itemId);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+  if (!item) return res.status(404).json({ ok: false, error: 'RFP line item not found.' });
+
+  try {
+    const job = item.project_rfps?.jobs;
+    if (!job || !(await userCanEditRfpJob(req, job))) {
+      return res.status(403).json({ ok: false, error: 'You do not have permission to edit this RFP item.' });
+    }
+  } catch (e) {
+    return res.status(403).json({ ok: false, error: 'Could not verify project access.' });
+  }
+
+  if (originalValue !== undefined && !autosaveValuesMatch(field, item[field], originalValue)) {
+    return res.status(409).json({
+      ok: false,
+      conflict: true,
+      field,
+      currentValue: item[field] ?? '',
+      currentUpdatedAt: item.updated_at || null,
+    });
+  }
+
+  const nextUpdateData = buildLineItemAutosaveUpdate(item, field, value);
+  const { data: updated, error } = await supabase
+    .from('rfp_line_items')
+    .update(nextUpdateData)
+    .eq('id', itemId)
+    .select('id, vendor, description, quantity, contractor_cost, vendor_cost, unit_cost, total_cost, markup_pct, general_requirements_pct, total_with_markup, final_unit_cost, approved, updated_at')
+    .single();
+  if (error) return res.status(500).json({ ok: false, error: error.message });
+
+  res.json({ ok: true, item: updated });
 });
 
 // ── D-105: Sub-line item total computation helper ──
