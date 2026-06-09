@@ -1139,6 +1139,7 @@ router.post('/:id', async (req, res) => {
       wo_number_main: newMain,
       wo_number_sub: newSub,
       display_number: newDisplay,
+      unit_number: data.unit_number,
       scheduled_date: data.scheduled_date,
       scheduled_time: data.scheduled_time,
       scheduled_end_time: data.scheduled_end_time,
@@ -1154,6 +1155,7 @@ router.post('/:id', async (req, res) => {
   const { error: assignUpdateErr } = await supabase
     .from('work_orders')
     .update({
+      unit_number: data.unit_number,
       description: data.description || '',
       status: data.status,
       assigned_to_user_id: assignmentFields.assigned_to_user_id,
