@@ -489,6 +489,172 @@ function renderProjectPdf(project, rfps, itemsByRfp, extra) {
   });
 }
 
+/**
+ * Render a contractor handoff PDF — scope-of-work sheet for a specific contractor
+ * on a specific project. No pricing, no markup, no totals — just DESCRIPTION | QTY.
+ *
+ * @param {object} contractor  - contractors row (name, trade, etc.)
+ * @param {object} project     - jobs row (title, address, etc.)
+ * @param {Array}  items       - rfp_line_items (sub-rows) for this contractor + project
+ * @returns {Promise<Buffer>}
+ */
+function renderContractorHandoffPdf(contractor, project, items) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({
+      size: 'LETTER',
+      margin: 50,
+      info: {
+        Title: `SCOPE OF WORK — ${contractor.name || ''}`,
+        Subject: `Scope for ${project.title || ''}`,
+        Author: 'Recon Enterprises',
+      },
+    });
+
+    const chunks = [];
+    const { Writable } = require('stream');
+    const sink = new Writable({
+      write(chunk, _enc, cb) { chunks.push(chunk); cb(); },
+    });
+    sink.on('finish', () => resolve(Buffer.concat(chunks)));
+    sink.on('error', reject);
+    doc.pipe(sink);
+
+    const left = doc.page.margins.left;
+    const right = doc.page.width - doc.page.margins.right;
+    const tableWidth = right - left;
+    const top = doc.page.margins.top;
+
+    // ── Header ──
+    doc.fillColor(COLOR.charcoal).fontSize(22).font('Helvetica-Bold')
+      .text('SCOPE OF WORK', left, top);
+
+    let y = doc.y + 8;
+
+    // Contractor name
+    doc.fontSize(14).font('Helvetica-Bold').fillColor(COLOR.red);
+    doc.text(contractor.name || '—', left, y);
+    y = doc.y + 4;
+
+    // Project title
+    doc.fontSize(12).font('Helvetica').fillColor(COLOR.ash);
+    doc.text(project.title || project.name || '', left, y);
+    y = doc.y + 2;
+
+    // Address
+    if (project.address) {
+      doc.fontSize(10).fillColor(COLOR.fog);
+      doc.text([project.address, project.city, project.state, project.zip].filter(Boolean).join(', '), left, y);
+      y = doc.y + 2;
+    }
+
+    // Date
+    doc.fontSize(10).fillColor(COLOR.fog);
+    doc.text('Date: ' + new Date().toISOString().slice(0, 10), left, y);
+    y = doc.y + 6;
+
+    // Trade / scope tag
+    if (contractor.trade) {
+      doc.fontSize(10).font('Helvetica-Oblique').fillColor(COLOR.fog);
+      doc.text('Trade: ' + contractor.trade, left, y);
+      y = doc.y + 6;
+    }
+
+    // ── Horizontal rule ──
+    y = doc.y + 4;
+    doc.strokeColor(COLOR.red).lineWidth(2)
+      .moveTo(left, y).lineTo(right, y).stroke();
+    doc.moveDown(0.8);
+
+    // ── Items table (DESCRIPTION | QTY only, no pricing) ──
+    const cols = [
+      { key: 'description', label: 'DESCRIPTION', width: tableWidth - 60, align: 'left' },
+      { key: 'qty',         label: 'QTY',         width: 60,             align: 'right' },
+    ];
+
+    const headerHeight = 22;
+    const rowHeight = 18;
+    const sortedItems = (items || []).slice().sort((a, b) => {
+      const ao = a.sort_order != null ? a.sort_order : 0;
+      const bo = b.sort_order != null ? b.sort_order : 0;
+      if (ao !== bo) return ao - bo;
+      return (a.id || 0) - (b.id || 0);
+    });
+
+    y = doc.y;
+    if (y + headerHeight + rowHeight > doc.page.height - doc.page.margins.bottom - 60) {
+      doc.addPage();
+      y = doc.page.margins.top;
+    }
+
+    // Table header
+    doc.fillColor(COLOR.cloud).rect(left, y, tableWidth, headerHeight).fill();
+    doc.fillColor(COLOR.fog).fontSize(8).font('Helvetica-Bold');
+    let cx = left;
+    cols.forEach(c => {
+      doc.text(c.label, cx + 4, y + 7, { width: c.width - 8, align: c.align });
+      cx += c.width;
+    });
+    y += headerHeight;
+
+    let pageBottom = doc.page.height - doc.page.margins.bottom - 60;
+
+    if (sortedItems.length === 0) {
+      // No items message
+      doc.fillColor(COLOR.fog).fontSize(10).font('Helvetica-Oblique')
+        .text('No scope items have been assigned to this contractor yet.', left, y + 10, { width: tableWidth, align: 'center' });
+      y = doc.y + 20;
+    } else {
+      sortedItems.forEach(item => {
+        const displayDesc = pdfText(item.description || item.name || '');
+        const qtyVal = Number(item.quantity) || 0;
+
+        const descH = measurePdfText(doc, displayDesc, cols[0].width - 8, 'Helvetica', 9);
+        const actualRowHeight = Math.max(rowHeight, descH + 8);
+
+        if (y + actualRowHeight > pageBottom) {
+          doc.addPage();
+          y = doc.page.margins.top;
+
+          // Redraw header
+          doc.fillColor(COLOR.cloud).rect(left, y, tableWidth, headerHeight).fill();
+          doc.fillColor(COLOR.fog).fontSize(8).font('Helvetica-Bold');
+          cx = left;
+          cols.forEach(c => {
+            doc.text(c.label, cx + 4, y + 7, { width: c.width - 8, align: c.align });
+            cx += c.width;
+          });
+          y += headerHeight;
+          pageBottom = doc.page.height - doc.page.margins.bottom - 60;
+        }
+
+        // Description cell
+        doc.font('Helvetica').fontSize(9).fillColor(COLOR.charcoal)
+          .text(displayDesc, left + 4, y + 4, { width: cols[0].width - 8, align: cols[0].align, lineGap: 1 });
+
+        // Qty cell
+        doc.font('Helvetica').fontSize(9).fillColor(COLOR.charcoal)
+          .text(String(qtyVal), left + cols[0].width + 4, y + 4, { width: cols[1].width - 8, align: cols[1].align });
+
+        // Bottom border
+        doc.strokeColor(COLOR.mist).lineWidth(0.5)
+          .moveTo(left, y + actualRowHeight).lineTo(left + tableWidth, y + actualRowHeight).stroke();
+
+        y += actualRowHeight;
+      });
+    }
+
+    doc.y = y + 10;
+
+    // ── Footer ──
+    const footerY = doc.page.height - doc.page.margins.bottom - 18;
+    doc.fontSize(7).fillColor(COLOR.fog).font('Helvetica')
+      .text('Recon Enterprises   |   Scope of Work   |   ' + new Date().toISOString().slice(0, 10),
+        left, footerY, { width: tableWidth, align: 'center' });
+
+    doc.end();
+  });
+}
+
 // ════════════════════════════════════════════════════════════════════════
 //  CSV
 // ════════════════════════════════════════════════════════════════════════
@@ -693,6 +859,7 @@ module.exports = {
   renderProjectPdf,
   renderProjectCsv,
   renderProjectXlsx,
+  renderContractorHandoffPdf,
   _internal: {
     pdfText,
   },

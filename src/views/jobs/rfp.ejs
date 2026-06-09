@@ -9,6 +9,7 @@
       <a href="/projects/<%= job.id %>/rfp/export.xlsx" class="btn btn-secondary text-sm" target="_blank">XLSX</a>
       <button onclick="document.getElementById('rfp-new-form').classList.toggle('hidden')"
               class="btn btn-primary text-sm">+ Add category</button>
+      <button onclick="rfpSaveAll()" class="btn btn-secondary text-sm border-green-600 text-green-700 hover:bg-green-50" id="rfp-save-all-btn">Save All Changes</button>
     </div>
   </div>
 
@@ -476,8 +477,130 @@
       }, 60);
     }
   })();
+  })();
 })();
-})();
+</script>
+
+<!-- Save All notification container -->
+<div id="rfp-save-all-msg" style="display:none;position:fixed;top:16px;right:16px;z-index:9999;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:500;box-shadow:0 2px 8px rgba(0,0,0,0.15);transition:opacity 0.3s;"></div>
+
+<script>
+function rfpSaveAll() {
+  var btn = document.getElementById('rfp-save-all-btn');
+  if (!btn) return;
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  var items = [];
+  // Collect parent line item forms
+  document.querySelectorAll('form[id^="rfp-li-form-"]').forEach(function(form) {
+    var idMatch = form.id.match(/rfp-li-form-(\d+)/);
+    if (!idMatch) return;
+    // Check if the row is actually visible (has a parent TR that's displayed)
+    var row = document.getElementById('rfp-line-' + idMatch[1]);
+    if (row && row.style.display === 'none') return; // skip hidden rows
+    var entry = { id: idMatch[1] };
+    form.querySelectorAll('input, textarea, select').forEach(function(el) {
+      if (el.name) {
+        if (el.type === 'checkbox') {
+          if (!entry[el.name]) entry[el.name] = el.checked ? '1' : '0';
+        } else if (el.type === 'hidden') {
+          entry[el.name] = el.value;
+        } else {
+          entry[el.name] = el.value;
+        }
+      }
+    });
+    items.push(entry);
+  });
+
+  // Collect sub-line forms
+  document.querySelectorAll('form[id^="rfp-sub-form-"]').forEach(function(form) {
+    var idMatch = form.id.match(/rfp-sub-form-(\d+)/);
+    if (!idMatch) return;
+    // Check visibility — sub rows are inside tr.rfp-sub-row
+    var subRow = form.closest('tr.rfp-sub-row');
+    if (subRow && (subRow.style.display === 'none' || subRow.style.display === '')) {
+      // Display '' can mean hidden via style="display:none" attribute in the template
+      // Actually sub-rows initially have style="display:none" (inline). Check the computed style.
+      if (subRow.style.display === 'none') return;
+    }
+    if (subRow && getComputedStyle(subRow).display === 'none') return;
+    var entry = { id: idMatch[1] };
+    // For sub-forms, some inputs are OUTSIDE the form tag (they use the form attribute)
+    // Collect from the form itself
+    form.querySelectorAll('input, textarea, select').forEach(function(el) {
+      if (el.name && el.type !== 'submit' && el.type !== 'button') {
+        if (el.type === 'checkbox') {
+          if (!entry[el.name]) entry[el.name] = el.checked ? '1' : '0';
+        } else {
+          entry[el.name] = el.value;
+        }
+      }
+    });
+    // Also collect inputs with form="rfp-sub-form-..." that are outside the form
+    document.querySelectorAll('input[form="' + form.id + '"], textarea[form="' + form.id + '"], select[form="' + form.id + '"]').forEach(function(el) {
+      if (el.name && el.type !== 'submit' && el.type !== 'button') {
+        if (el.type === 'checkbox') {
+          entry[el.name] = el.checked ? '1' : '0';
+        } else if (el.type === 'hidden') {
+          entry[el.name] = el.value;
+        } else {
+          entry[el.name] = el.value;
+        }
+      }
+    });
+    items.push(entry);
+  });
+
+  if (items.length === 0) {
+    showRfpSaveMsg('No visible items to save.', 'warning');
+    btn.disabled = false;
+    btn.textContent = 'Save All Changes';
+    return;
+  }
+
+  fetch('/projects/rfps/items/bulk-save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items: items }),
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    btn.disabled = false;
+    btn.textContent = 'Save All Changes';
+    if (data.ok) {
+      var msg = 'Saved ' + data.saved + ' item' + (data.saved !== 1 ? 's' : '') + '.';
+      if (data.errors && data.errors.length) msg += ' ' + data.errors.length + ' error(s).';
+      showRfpSaveMsg(msg, data.errors && data.errors.length > 0 ? 'warning' : 'success');
+      // Reload page to reflect computed totals
+      setTimeout(function() { location.reload(); }, 800);
+    } else {
+      showRfpSaveMsg('Save failed: ' + (data.error || 'Unknown error'), 'error');
+    }
+  })
+  .catch(function(err) {
+    btn.disabled = false;
+    btn.textContent = 'Save All Changes';
+    showRfpSaveMsg('Network error: ' + err.message, 'error');
+  });
+}
+
+function showRfpSaveMsg(text, type) {
+  var el = document.getElementById('rfp-save-all-msg');
+  if (!el) return;
+  var bg = '#059669'; // green
+  if (type === 'error') bg = '#dc2626';
+  if (type === 'warning') bg = '#d97706';
+  el.style.background = bg;
+  el.style.color = '#fff';
+  el.textContent = text;
+  el.style.display = 'block';
+  setTimeout(function() {
+    el.style.opacity = '0';
+    setTimeout(function() { el.style.display = 'none'; el.style.opacity = '1'; }, 300);
+  }, 3000);
+}
 </script>
 
 <%- include('../layouts/footer') %>

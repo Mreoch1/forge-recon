@@ -139,11 +139,76 @@ router.get('/:id', async (req, res) => {
   }
   const fileCount = files.length;
 
+  // ── Load scope projects — projects this contractor appears on in RFP line items ──
+  let scopeProjects = [];
+  try {
+    const { data: scopeItems, error: scopeError } = await supabase
+      .from('rfp_line_items')
+      .select(`
+        id, description, quantity, total_with_markup, approved,
+        project_rfps!inner(job_id, jobs!inner(id, title, address, city, state, zip))
+      `)
+      .eq('vendor', contractor.name)
+      .not('parent_line_item_id', 'is', null)
+      .limit(500);
+    if (!scopeError && scopeItems) {
+      // Deduplicate by project
+      const projMap = {};
+      scopeItems.forEach(item => {
+        const job = item.project_rfps?.jobs;
+        if (job && !projMap[job.id]) {
+          projMap[job.id] = { id: job.id, title: job.title, address: job.address, city: job.city, state: job.state, zip: job.zip, itemCount: 0 };
+        }
+        if (job) projMap[job.id].itemCount++;
+      });
+      scopeProjects = Object.values(projMap).sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+    }
+  } catch (e) {
+    console.warn('[contractors:show] scope load failed:', e.message);
+  }
+
   res.render('contractors/show', {
     title: contractor.name, activeNav: 'contractors',
     contractor, fileCount,
-    rootFolder, folders, files
+    rootFolder, folders, files,
+    scopeProjects,
   });
+});
+
+router.get('/:id/handoff/:projectId.pdf', async (req, res) => {
+  const id = req.params.id;
+  const projectId = req.params.projectId;
+
+  const [{ data: contractor, error: cError }, { data: job, error: jError }] = await Promise.all([
+    supabase.from('contractors').select('*').eq('id', id).maybeSingle(),
+    supabase.from('jobs').select('*').eq('id', projectId).maybeSingle(),
+  ]);
+  if (cError) throw cError;
+  if (jError) throw jError;
+  if (!contractor) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Contractor not found.' });
+  if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Project not found.' });
+
+  // Load RFP line items for this contractor on this project
+  const { data: items, error: itemsError } = await supabase
+    .from('rfp_line_items')
+    .select(`
+      id, description, quantity, vendor, sort_order,
+      project_rfps!inner(job_id)
+    `)
+    .eq('vendor', contractor.name)
+    .eq('project_rfps.job_id', projectId)
+    .not('parent_line_item_id', 'is', null)
+    .order('sort_order', { ascending: true })
+    .order('id', { ascending: true });
+  if (itemsError) throw itemsError;
+
+  const { renderContractorHandoffPdf } = require('../services/rfp-export');
+  const pdfBuffer = await renderContractorHandoffPdf(contractor, job, items || []);
+
+  const safeName = (contractor.name || 'contractor').replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="scope-${safeName}-${projectId}.pdf"`);
+  res.send(pdfBuffer);
 });
 
 router.get('/:id/edit', async (req, res) => {

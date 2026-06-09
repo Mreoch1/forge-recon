@@ -513,6 +513,70 @@ router.post('/projects/rfps/items/:itemId/approve', requireRfpEditAccess, async 
   res.json({ ok: true, approved });
 });
 
+// ── Bulk save all RFP line items — POST /projects/rfps/items/bulk-save ──
+router.post('/projects/rfps/items/bulk-save', requireRfpEditAccess, async (req, res) => {
+  const items = req.body.items;
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ ok: false, error: 'items array is required' });
+  }
+
+  function lastOf(v) { return Array.isArray(v) ? v[v.length - 1] : v; }
+
+  const results = { saved: 0, errors: [] };
+
+  for (const entry of items) {
+    const itemId = parseInt(entry.id, 10);
+    if (!itemId) { results.errors.push({ id: entry.id, error: 'Invalid item id' }); continue; }
+
+    const vendor = lastOf(entry.vendor);
+    const description = lastOf(entry.description);
+    const quantity = lastOf(entry.quantity);
+    const contractor_cost = lastOf(entry.contractor_cost);
+    const vendor_cost = lastOf(entry.vendor_cost);
+    const markup_pct = lastOf(entry.markup_pct);
+    const general_requirements_pct = lastOf(entry.general_requirements_pct);
+    const approved = lastOf(entry.approved);
+
+    const markup = parseFloat(markup_pct) || 20;
+    const cCost = parseFloat(contractor_cost) || 0;
+    const vCost = parseFloat(vendor_cost) || 0;
+    const qty = parseFloat(quantity) || 0;
+    const gr = parseFloat(general_requirements_pct);
+    const grPct = isFinite(gr) ? gr : 6;
+
+    const computedUnit = cCost + vCost;
+    const baseCost = computedUnit * qty;
+    const withMarkup = baseCost * (1 + (markup + grPct) / 100);
+
+    const updateData = {};
+    if (vendor !== undefined) updateData.vendor = vendor || null;
+    if (description !== undefined) updateData.description = description || '';
+    if (quantity !== undefined) updateData.quantity = qty || null;
+    if (contractor_cost !== undefined) updateData.contractor_cost = cCost || null;
+    updateData.unit_cost = computedUnit || null;
+    updateData.total_cost = baseCost || null;
+    updateData.markup_pct = markup;
+    updateData.total_with_markup = withMarkup;
+    updateData.final_unit_cost = baseCost > 0 ? withMarkup / (qty || 1) : 0;
+    if (general_requirements_pct !== undefined) updateData.general_requirements_pct = grPct;
+    if (approved !== undefined) updateData.approved = approved === '1' || approved === 'true' || approved === true;
+    updateData.updated_at = new Date().toISOString();
+
+    const { error } = await supabase
+      .from('rfp_line_items')
+      .update(updateData)
+      .eq('id', itemId);
+
+    if (error) {
+      results.errors.push({ id: itemId, error: error.message });
+    } else {
+      results.saved++;
+    }
+  }
+
+  res.json({ ok: true, ...results });
+});
+
 // ── F-006: RFP export routes (PDF, CSV, XLSX) ──────────────────────────
 const rfpExport = require('../services/rfp-export');
 
