@@ -379,18 +379,44 @@ function generateEstimatePDF(estimate, company, stream) {
   drawTitle(doc, 'Estimate', estimate.estimate_number);
 
   const unitVal = estimate.unit_number || estimate.wo_unit_number;
-  drawAddressBlocks(doc, [
-    estimate.customer_name,
-    estimate.customer_address || '',
-    [estimate.customer_city, estimate.customer_state, estimate.customer_zip].filter(Boolean).join(', '),
-    estimate.customer_email,
-    estimate.customer_phone,
-  ], [
-    estimate.job_title,
+
+  // Customer info line — no BILL TO header, just name + email
+  const left = doc.page.margins.left;
+  const right = doc.page.width - doc.page.margins.right;
+  const colWidth = (right - left - 20) / 2;
+  const y0 = doc.y;
+
+  doc.fillColor(COLOR.fog).fontSize(8).font('Helvetica-Bold').text('CUSTOMER', left, y0);
+  let ly = doc.y + 2;
+  doc.fillColor(COLOR.charcoal).fontSize(10).font('Helvetica-Bold');
+  doc.text(estimate.customer_name || '', left, ly, { width: colWidth });
+  ly = doc.y;
+  if (estimate.customer_email) {
+    doc.fillColor(COLOR.ash).fontSize(9).font('Helvetica');
+    doc.text(estimate.customer_email, left, ly, { width: colWidth });
+    ly = doc.y;
+  }
+  const yLeft = ly + 4;
+
+  // Job site — just address, no title like "Ginosko Construction work order"
+  const jobLines = [
     (estimate.job_address || ''),
     unitVal ? String(unitVal).replace(/^(Unit|Apt)\s*/i, '').trim() : '',
     [estimate.job_city, estimate.job_state, estimate.job_zip].filter(Boolean).join(', '),
-  ].filter(Boolean));
+  ].filter(Boolean);
+
+  const jx = left + colWidth + 20;
+  doc.fillColor(COLOR.fog).fontSize(8).font('Helvetica-Bold').text('JOB SITE', jx, y0);
+  let jy = doc.y + 2;
+  doc.fillColor(COLOR.charcoal).fontSize(10).font('Helvetica');
+  jobLines.forEach((line, i) => {
+    if (i === 0) doc.font('Helvetica-Bold');
+    else doc.font('Helvetica');
+    doc.text(line, jx, jy, { width: colWidth });
+    jy = doc.y;
+  });
+  const yRight = jy + 4;
+  doc.y = Math.max(yLeft, yRight);
 
   drawLineItemsTable(doc, estimate.lines || []);
 
