@@ -150,6 +150,11 @@ test('project RFP export loader only selects real project columns', () => {
   const routes = read('src/routes/rfp.js');
   assert.match(routes, /\.from\('jobs'\)\s*\.select\('id, title'\)/);
   assert.doesNotMatch(routes, /\.select\('id, title, name'\)/);
+  assert.match(routes, /function exportFilenameBase\(job, fallbackId\)/);
+  assert.ok(routes.includes('${exportFilenameBase(data.job, req.params.id)}.pdf'));
+  assert.ok(routes.includes('${exportFilenameBase(data.job, req.params.id)}.csv'));
+  assert.ok(routes.includes('${exportFilenameBase(data.job, req.params.id)}.xlsx'));
+  assert.doesNotMatch(routes, /project-\$\{req\.params\.id\}-rfp/);
 });
 
 test('work order row links do not depend on the More menu', () => {

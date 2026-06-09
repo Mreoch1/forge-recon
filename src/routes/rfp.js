@@ -561,13 +561,23 @@ async function loadProjectExportData(jobId) {
   return { job, rfps: rows, itemsByRfp };
 }
 
+function exportFilenameBase(job, fallbackId) {
+  const title = (job?.title || `project-${fallbackId}`).trim();
+  const clean = title
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]+/gi, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+  return `${clean || `project-${fallbackId}`}-RFP`;
+}
+
 router.get('/projects/:id/rfp/export.pdf', requireRfpAccess, async (req, res) => {
   const data = await loadProjectExportData(req.params.id);
   if (!data) return res.status(404).send('Project not found');
   const user = res.locals.currentUser;
   const buf = await rfpExport.renderProjectPdf(data.job, data.rfps, data.itemsByRfp, { createdBy: user?.name || '' });
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="project-${req.params.id}-rfp.pdf"`);
+  res.setHeader('Content-Disposition', `attachment; filename="${exportFilenameBase(data.job, req.params.id)}.pdf"`);
   res.send(buf);
 });
 
@@ -576,7 +586,7 @@ router.get('/projects/:id/rfp/export.csv', requireRfpAccess, async (req, res) =>
   if (!data) return res.status(404).send('Project not found');
   const csv = rfpExport.renderProjectCsv(data.job, data.rfps, data.itemsByRfp);
   res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', `attachment; filename="project-${req.params.id}-rfp.csv"`);
+  res.setHeader('Content-Disposition', `attachment; filename="${exportFilenameBase(data.job, req.params.id)}.csv"`);
   res.send(csv);
 });
 
@@ -585,7 +595,7 @@ router.get('/projects/:id/rfp/export.xlsx', requireRfpAccess, async (req, res) =
   if (!data) return res.status(404).send('Project not found');
   const buf = await rfpExport.renderProjectXlsx(data.job, data.rfps, data.itemsByRfp);
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.setHeader('Content-Disposition', `attachment; filename="project-${req.params.id}-rfp.xlsx"`);
+  res.setHeader('Content-Disposition', `attachment; filename="${exportFilenameBase(data.job, req.params.id)}.xlsx"`);
   res.send(buf);
 });
 
