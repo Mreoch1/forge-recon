@@ -387,7 +387,8 @@ function generateEstimatePDF(estimate, company, stream) {
     estimate.customer_phone,
   ], [
     estimate.job_title,
-    (estimate.job_address || '') + (unitVal ? `, ${String(unitVal).replace(/^(Unit|Apt)\s*/i, '').trim()}` : ''),
+    (estimate.job_address || ''),
+    unitVal ? String(unitVal).replace(/^(Unit|Apt)\s*/i, '').trim() : '',
     [estimate.job_city, estimate.job_state, estimate.job_zip].filter(Boolean).join(', '),
   ].filter(Boolean));
 
@@ -540,7 +541,8 @@ function generateWorkOrderPDF(wo, company, stream) {
     wo.customer_phone,
   ], [
     wo.job_title || (wo.customer_name ? wo.customer_name + ' (job site)' : 'Job Site'),
-    (wo.job_address || wo.customer_address || '') + (wo.unit_number ? `, ${String(wo.unit_number).replace(/^(Unit|Apt)\s*/i, '').trim()}` : ''),
+    (wo.job_address || wo.customer_address || ''),
+    wo.unit_number ? String(wo.unit_number).replace(/^(Unit|Apt)\s*/i, '').trim() : '',
     ([wo.job_city || wo.customer_city, wo.job_state || wo.customer_state, wo.job_zip || wo.customer_zip].filter(Boolean).join(', ')),
   ]);
 
@@ -605,7 +607,8 @@ function generateInvoicePDF(invoice, company, stream) {
     invoice.customer_phone,
   ], [
     invoice.job_title,
-    (invoice.job_address || '') + (invoice.unit_number ? `, ${String(invoice.unit_number).replace(/^(Unit|Apt)\s*/i, '').trim()}` : ''),
+    (invoice.job_address || ''),
+    invoice.unit_number ? String(invoice.unit_number).replace(/^(Unit|Apt)\s*/i, '').trim() : '',
     [invoice.job_city, invoice.job_state, invoice.job_zip].filter(Boolean).join(', '),
   ].filter(Boolean));
 

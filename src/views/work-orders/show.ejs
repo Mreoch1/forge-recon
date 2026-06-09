@@ -28,7 +28,7 @@ function fmtTime(t) {
   const h12 = h % 12 || 12;
   return h12 + ':' + (mm || '00') + ' ' + ampm;
 }
-const addr = [wo.job_address, wo.unit_number, wo.job_city, wo.job_state].filter(Boolean).join(', ');
+const addr = [(wo.job_address || wo.customer_address), wo.unit_number, wo.job_city || wo.customer_city, wo.job_state || wo.customer_state].filter(Boolean).join(', ');
 function fmtSize(b) {
   if (!b || b === 0) return '';
   if (b < 1024) return b + ' B';
