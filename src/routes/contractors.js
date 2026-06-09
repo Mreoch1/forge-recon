@@ -206,8 +206,9 @@ router.get('/:id/handoff/:projectId.pdf', async (req, res) => {
   const pdfBuffer = await renderContractorHandoffPdf(contractor, job, items || []);
 
   const safeName = (contractor.name || 'contractor').replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+  const projName = (job.title || 'project').replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="scope-${safeName}-${projectId}.pdf"`);
+  res.setHeader('Content-Disposition', `attachment; filename="scope-${projName}-${safeName}.pdf"`);
   res.send(pdfBuffer);
 });
 
