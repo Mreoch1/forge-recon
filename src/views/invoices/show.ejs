@@ -75,10 +75,6 @@ const isAdmin = currentUser && currentUser.role === 'admin';
     }
   }) %>
 
-        </div>
-    </div>
-  <% } %>
-
   <% if (isAdmin && (invoice.status === 'sent' || invoice.status === 'overdue')) { %>
     <div id="mark-paid-form" class="card p-5 mb-6 hidden bg-green-50 border-green-200">
       <form action="/invoices/<%= invoice.id %>/mark-paid" method="post" class="flex items-end gap-3">
