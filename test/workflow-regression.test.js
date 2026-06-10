@@ -189,8 +189,15 @@ test('bank transactions and account defaults are wired for accounting categoriza
   const header = read('src/views/layouts/header.ejs');
 
   assert.match(accountingRoutes, /router\.get\('\/bank-transactions'/);
+  assert.match(accountingRoutes, /router\.post\('\/bank-transactions\/import'/);
+  assert.match(accountingRoutes, /parseBankUpload/);
+  assert.match(accountingRoutes, /normalizeImportedBankRows/);
+  assert.match(accountingRoutes, /insertBankImportRows/);
   assert.match(accountingRoutes, /\.from\('bank_transactions'\)/);
   assert.match(accountingIndex, /href: '\/accounting\/bank-transactions'/);
+  assert.match(bankView, /action="\/accounting\/bank-transactions\/import"/);
+  assert.match(bankView, /name="bank_file"/);
+  assert.match(bankView, /accept="\.csv,\.xlsx/);
   assert.match(bankView, /class="ops-shell"/);
   assert.match(bankView, /Categorize or match/);
   assert.match(bankView, /Chart of accounts/);

@@ -13,11 +13,19 @@
  */
 
 const express = require('express');
+const path = require('path');
+const multer = require('multer');
+const ExcelJS = require('exceljs');
 const supabase = require('../db/supabase');
 const { setFlash } = require('../middleware/auth');
 const reportPdf = require('../services/accounting-report-pdf');
 
 const router = express.Router();
+
+const bankUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024, files: 1 },
+});
 
 function fmt(n) {
   const num = Number(n);
@@ -277,6 +285,188 @@ function bankActionLabel(tx) {
   return tx.account_id ? 'Match' : 'Add';
 }
 
+function normalizeImportHeader(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function parseMoney(value) {
+  if (value == null || value === '') return 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  let text = String(value).trim();
+  if (!text || text === '-') return 0;
+  const negative = /^\(.*\)$/.test(text) || text.startsWith('-');
+  text = text.replace(/[()$,]/g, '').replace(/^\+/, '').trim();
+  const num = Number(text);
+  if (!Number.isFinite(num)) return 0;
+  return negative ? -Math.abs(num) : num;
+}
+
+function parseImportDate(value) {
+  if (!value) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return ymd(value);
+  if (typeof value === 'object' && value.result) return parseImportDate(value.result);
+  const text = String(value).trim();
+  if (!text) return null;
+  const iso = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (iso) return `${iso[1]}-${String(iso[2]).padStart(2, '0')}-${String(iso[3]).padStart(2, '0')}`;
+  const us = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+  if (us) {
+    const year = us[3].length === 2 ? Number(`20${us[3]}`) : Number(us[3]);
+    return `${year}-${String(us[1]).padStart(2, '0')}-${String(us[2]).padStart(2, '0')}`;
+  }
+  const parsed = new Date(text);
+  return Number.isNaN(parsed.getTime()) ? null : ymd(parsed);
+}
+
+function cellText(value) {
+  if (value == null) return '';
+  if (value instanceof Date) return ymd(value);
+  if (typeof value === 'object') {
+    if (Array.isArray(value.richText)) return value.richText.map(part => part.text || '').join('');
+    if (value.text) return String(value.text);
+    if (value.result != null) return cellText(value.result);
+    if (value.hyperlink && value.text) return String(value.text);
+  }
+  return String(value);
+}
+
+function findColumn(headerMap, names) {
+  for (const name of names) {
+    const key = normalizeImportHeader(name);
+    if (headerMap.has(key)) return headerMap.get(key);
+  }
+  return -1;
+}
+
+function normalizeImportedBankRows(rawRows, accountName, filename) {
+  const headerRowIndex = rawRows.findIndex(row => {
+    const headers = row.map(normalizeImportHeader);
+    const hasDate = headers.some(h => ['date', 'transactiondate', 'postingdate', 'postdate'].includes(h));
+    const hasAmount = headers.some(h => ['amount', 'spent', 'received', 'withdrawal', 'withdrawals', 'debit', 'credit', 'deposit', 'deposits', 'moneyout', 'moneyin'].includes(h));
+    return hasDate && hasAmount;
+  });
+  if (headerRowIndex < 0) {
+    throw new Error('Could not find a transaction header row. Expected Date plus Amount, Spent, or Received columns.');
+  }
+
+  const headerMap = new Map();
+  rawRows[headerRowIndex].forEach((header, index) => {
+    const key = normalizeImportHeader(header);
+    if (key && !headerMap.has(key)) headerMap.set(key, index);
+  });
+
+  const dateCol = findColumn(headerMap, ['date', 'transaction date', 'posting date', 'post date']);
+  const detailCol = findColumn(headerMap, ['bank detail', 'description', 'memo', 'transaction description', 'transaction', 'details']);
+  const payeeCol = findColumn(headerMap, ['payee', 'name', 'vendor', 'customer']);
+  const spentCol = findColumn(headerMap, ['spent', 'withdrawal', 'withdrawals', 'debit', 'payment', 'charge', 'money out']);
+  const receivedCol = findColumn(headerMap, ['received', 'deposit', 'deposits', 'credit', 'money in']);
+  const amountCol = findColumn(headerMap, ['amount']);
+  const checkCol = findColumn(headerMap, ['check or slip #', 'check number', 'check no', 'check #', 'check']);
+  const accountCol = findColumn(headerMap, ['account', 'account name', 'bank account']);
+
+  if (dateCol < 0 || (amountCol < 0 && spentCol < 0 && receivedCol < 0)) {
+    throw new Error('Could not map the bank export columns. Expected Date and either Amount or Spent/Received.');
+  }
+
+  const imported = [];
+  for (const row of rawRows.slice(headerRowIndex + 1)) {
+    if (!row || row.every(value => !String(value || '').trim())) continue;
+    const transactionDate = parseImportDate(row[dateCol]);
+    if (!transactionDate) continue;
+
+    let spent = spentCol >= 0 ? Math.abs(parseMoney(row[spentCol])) : 0;
+    let received = receivedCol >= 0 ? Math.abs(parseMoney(row[receivedCol])) : 0;
+    if (amountCol >= 0 && !spent && !received) {
+      const amount = parseMoney(row[amountCol]);
+      if (amount < 0) spent = Math.abs(amount);
+      else received = amount;
+    }
+    if (!spent && !received) continue;
+
+    const detail = detailCol >= 0 ? cellText(row[detailCol]).trim() : '';
+    const payee = payeeCol >= 0 ? cellText(row[payeeCol]).trim() : '';
+    const checkNumber = checkCol >= 0 ? cellText(row[checkCol]).trim() : '';
+    const rowAccount = accountCol >= 0 ? cellText(row[accountCol]).trim() : '';
+    const memoParts = [];
+    if (checkNumber) memoParts.push(`Check ${checkNumber}`);
+    if (filename) memoParts.push(`Imported from ${filename}`);
+
+    imported.push({
+      account_name: rowAccount || accountName || 'Checking',
+      transaction_date: transactionDate,
+      bank_detail: detail || payee || 'Imported bank transaction',
+      payee: payee || null,
+      match_status: 'for_review',
+      spent: Number(spent.toFixed(2)),
+      received: Number(received.toFixed(2)),
+      memo: memoParts.join(' | ') || null,
+    });
+  }
+
+  return imported;
+}
+
+async function parseBankUpload(file, accountName) {
+  if (!file || !file.buffer) throw new Error('Choose a Chase or QuickBooks bank transaction file first.');
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  const workbook = new ExcelJS.Workbook();
+  let rows = [];
+  if (ext === '.csv') {
+    const worksheet = await workbook.csv.readBuffer(file.buffer);
+    worksheet.eachRow({ includeEmpty: false }, row => {
+      rows.push(row.values.slice(1).map(cellText));
+    });
+  } else if (ext === '.xlsx') {
+    await workbook.xlsx.load(file.buffer);
+    const worksheet = workbook.worksheets[0];
+    if (!worksheet) throw new Error('The workbook does not contain any sheets.');
+    worksheet.eachRow({ includeEmpty: false }, row => {
+      rows.push(row.values.slice(1).map(cellText));
+    });
+  } else {
+    throw new Error('Upload a .csv or .xlsx bank transaction export.');
+  }
+  return normalizeImportedBankRows(rows, accountName, file.originalname || 'bank export');
+}
+
+function bankDuplicateKey(row) {
+  return [
+    row.account_name,
+    row.transaction_date,
+    row.bank_detail,
+    row.payee || '',
+    Number(row.spent || 0).toFixed(2),
+    Number(row.received || 0).toFixed(2),
+  ].join('|').toLowerCase();
+}
+
+async function insertBankImportRows(rows) {
+  if (!rows.length) return { inserted: 0, skipped: 0 };
+  const startDate = rows.reduce((min, row) => !min || row.transaction_date < min ? row.transaction_date : min, null);
+  const endDate = rows.reduce((max, row) => !max || row.transaction_date > max ? row.transaction_date : max, null);
+  const { data: existing, error: existingErr } = await supabase
+    .from('bank_transactions')
+    .select('account_name, transaction_date, bank_detail, payee, spent, received')
+    .gte('transaction_date', startDate)
+    .lte('transaction_date', endDate)
+    .limit(5000);
+  if (existingErr) throw existingErr;
+
+  const seen = new Set((existing || []).map(bankDuplicateKey));
+  const toInsert = [];
+  for (const row of rows) {
+    const key = bankDuplicateKey(row);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    toInsert.push(row);
+  }
+  if (!toInsert.length) return { inserted: 0, skipped: rows.length };
+
+  const { error } = await supabase.from('bank_transactions').insert(toInsert);
+  if (error) throw error;
+  return { inserted: toInsert.length, skipped: rows.length - toInsert.length };
+}
+
 async function loadBankTransactions(req) {
   const status = normalizeBankStatus(req.query.status);
   const dateRange = bankDateRange(req.query.date_range);
@@ -360,6 +550,25 @@ router.get('/bank-transactions', async (req, res) => {
     money,
     bankActionLabel,
   });
+});
+
+router.post('/bank-transactions/import', bankUpload.single('bank_file'), async (req, res) => {
+  try {
+    const accountName = String(req.body.account_name || '').trim() || 'Checking';
+    const importedRows = await parseBankUpload(req.file, accountName);
+    const result = await insertBankImportRows(importedRows);
+    if (!importedRows.length) {
+      setFlash(req, 'error', 'No usable bank transactions were found in that file.');
+    } else if (result.inserted) {
+      const skipped = result.skipped ? ` ${result.skipped} duplicate row(s) skipped.` : '';
+      setFlash(req, 'success', `Imported ${result.inserted} bank transaction(s).${skipped}`);
+    } else {
+      setFlash(req, 'success', `No new transactions imported. ${result.skipped} duplicate row(s) were already in Forge.`);
+    }
+  } catch (error) {
+    setFlash(req, 'error', error.message || 'Bank transaction import failed.');
+  }
+  res.redirect('/accounting/bank-transactions?status=for_review');
 });
 
 async function loadPayrollOverview() {

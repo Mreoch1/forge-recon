@@ -137,6 +137,29 @@ const txTypes = [
     <div class="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"><%= warning %></div>
   <% } %>
 
+  <div class="ops-panel mb-4 no-print">
+    <div class="ops-panel-head">
+      <div>
+        <div class="ops-panel-title">Import bank transactions</div>
+        <div class="text-xs text-recon-fog mt-1">Upload a Chase or QuickBooks CSV/XLSX export. New rows land in For review.</div>
+      </div>
+    </div>
+    <div class="ops-panel-body">
+      <form method="post" action="/accounting/bank-transactions/import" enctype="multipart/form-data" class="flex flex-wrap items-end gap-3">
+        <div>
+          <label class="form-label" for="bank-account-name">Bank account name</label>
+          <input id="bank-account-name" class="input min-w-[220px]" type="text" name="account_name" value="Checking" placeholder="Chase Checking">
+        </div>
+        <div>
+          <label class="form-label" for="bank-file">Export file</label>
+          <input id="bank-file" class="input min-w-[280px]" type="file" name="bank_file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Import transactions</button>
+        <p class="text-xs text-recon-fog max-w-xl">Supported layouts include QuickBooks bank transaction exports and Chase activity exports with Date plus Amount or Spent/Received columns.</p>
+      </form>
+    </div>
+  </div>
+
   <div class="bank-account-grid">
     <% if (accountCards.length) { %>
       <% accountCards.forEach(function(card, idx) { %>
