@@ -12,6 +12,7 @@ const { setFlash } = require('../middleware/auth');
 const { sanitizePostgrestSearch } = require('../services/sanitize');
 const { getProjectContractorRollup } = require('../services/project-contractor-rollup');
 const { renderSubcontractAgreementPdf } = require('../services/contract-pdf');
+const { sendEmail } = require('../services/email');
 
 const router = express.Router();
 const PAGE_SIZE = 25;
@@ -71,6 +72,162 @@ function decodeContractorKey(key) {
   } catch (e) {
     return decodeURIComponent(String(key || ''));
   }
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function compactHandle(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '')
+    .replace(/^[-._]+|[-._]+$/g, '');
+}
+
+function firstNameHandle(name, email) {
+  const first = String(name || '').trim().split(/\s+/)[0];
+  return compactHandle(first || String(email || '').split('@')[0]);
+}
+
+function fullNameHandle(name, email) {
+  const fromName = compactHandle(String(name || '').trim().replace(/\s+/g, ''));
+  return fromName || compactHandle(String(email || '').split('@')[0]);
+}
+
+function assignMentionHandles(users) {
+  const normalized = (users || [])
+    .filter(u => u && u.id && (u.name || u.email))
+    .map(u => ({
+      id: Number(u.id),
+      name: u.name || u.email,
+      email: u.email || '',
+      firstHandle: firstNameHandle(u.name, u.email),
+      fullHandle: fullNameHandle(u.name, u.email),
+    }));
+  const counts = normalized.reduce((acc, u) => {
+    if (u.firstHandle) acc[u.firstHandle] = (acc[u.firstHandle] || 0) + 1;
+    return acc;
+  }, {});
+  return normalized
+    .map(u => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      handle: counts[u.firstHandle] > 1 ? u.fullHandle : u.firstHandle,
+    }))
+    .filter(u => u.handle)
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+}
+
+function buildChatMentionUsers({ members, users, projectManager, job }) {
+  const byId = new Map();
+  function add(user) {
+    if (!user || !user.id) return;
+    const id = Number(user.id);
+    if (!id || byId.has(id)) return;
+    byId.set(id, {
+      id,
+      name: user.name || user.user_name || user.email || user.user_email || 'User',
+      email: user.email || user.user_email || '',
+    });
+  }
+  (members || []).forEach(m => add({ id: m.user_id, name: m.user_name, email: m.user_email }));
+  add(projectManager);
+  const assigned = (users || []).find(u => Number(u.id) === Number(job?.assigned_to_user_id));
+  add(assigned);
+  return assignMentionHandles(Array.from(byId.values()));
+}
+
+function mentionAliases(user) {
+  return [
+    user.handle,
+    firstNameHandle(user.name, user.email),
+    fullNameHandle(user.name, user.email),
+    compactHandle(String(user.email || '').split('@')[0]),
+  ].filter(Boolean);
+}
+
+function resolveMentionIds(message, mentionUsers, explicitIds) {
+  const ids = new Set();
+  (explicitIds || []).forEach(id => {
+    const n = Number(id);
+    if (n) ids.add(n);
+  });
+
+  const aliasBuckets = new Map();
+  (mentionUsers || []).forEach(user => {
+    mentionAliases(user).forEach(alias => {
+      if (!aliasBuckets.has(alias)) aliasBuckets.set(alias, []);
+      aliasBuckets.get(alias).push(Number(user.id));
+    });
+  });
+
+  const matches = String(message || '').matchAll(/(^|\s)@([a-zA-Z0-9._-]+)/g);
+  for (const match of matches) {
+    const alias = compactHandle(match[2]);
+    const bucket = aliasBuckets.get(alias) || [];
+    if (bucket.length === 1) ids.add(bucket[0]);
+  }
+  return ids;
+}
+
+async function loadProjectMentionUsers(jobId) {
+  const [jobResult, membersResult, usersResult] = await Promise.all([
+    supabase.from('jobs').select('id, assigned_to_user_id, project_manager_user_id').eq('id', jobId).maybeSingle(),
+    supabase.from('job_members').select('user_id, users!inner(id, name, email, active)').eq('job_id', jobId),
+    supabase.from('users').select('id, name, email, active').eq('active', 1),
+  ]);
+  throwIfSupabaseError(jobResult, 'Project mention job load failed');
+  throwIfSupabaseError(membersResult, 'Project mention members load failed');
+  throwIfSupabaseError(usersResult, 'Project mention users load failed');
+
+  const job = jobResult.data || {};
+  const allUsers = usersResult.data || [];
+  const byId = new Map();
+  function add(user) {
+    if (!user || !user.id || user.active === 0 || user.active === false) return;
+    byId.set(Number(user.id), { id: Number(user.id), name: user.name, email: user.email || '' });
+  }
+  (membersResult.data || []).forEach(m => add(m.users));
+  [job.assigned_to_user_id, job.project_manager_user_id].forEach(id => {
+    add(allUsers.find(u => Number(u.id) === Number(id)));
+  });
+  return assignMentionHandles(Array.from(byId.values()));
+}
+
+async function sendProjectChatMentionEmails({ projectId, projectTitle, authorName, message, recipients }) {
+  if (!recipients || !recipients.length) return;
+  const base = process.env.PUBLIC_BASE_URL || 'https://forge-recon.vercel.app';
+  const link = `${base}/projects/${projectId}`;
+  const safeProject = escapeHtml(projectTitle || `Project #${projectId}`);
+  const safeAuthor = escapeHtml(authorName || 'A FORGE user');
+  const safeMessage = escapeHtml(message).replace(/\n/g, '<br>');
+  const subject = `FORGE · You were mentioned on ${projectTitle || `Project #${projectId}`}`;
+
+  const sends = recipients.map(recipient => sendEmail({
+    to: recipient.email,
+    subject,
+    text: `${authorName || 'A FORGE user'} mentioned you in Project Chat for ${projectTitle || `Project #${projectId}`}:\n\n${message}\n\nOpen project: ${link}`,
+    htmlBody: [
+      `<p>Hi ${escapeHtml(recipient.name || '')},</p>`,
+      `<p><strong>${safeAuthor}</strong> mentioned you in Project Chat for <strong>${safeProject}</strong>.</p>`,
+      `<div style="background:#f7f7f7;border:1px solid #e5e5e5;border-radius:8px;padding:14px 16px;margin:16px 0;color:#222;font-size:14px;line-height:1.5">${safeMessage}</div>`,
+      `<div style="text-align:center;margin:20px 0"><a href="${link}" style="display:inline-block;background:#c0202b;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:700">Open project chat</a></div>`,
+    ].join('\n'),
+  }));
+
+  const results = await Promise.allSettled(sends);
+  results.forEach((result, idx) => {
+    if (result.status === 'rejected') {
+      console.warn('[project-chat] mention email failed for', recipients[idx].email, result.reason?.message || result.reason);
+    }
+  });
 }
 
 function slugPart(value) {
@@ -333,7 +490,7 @@ router.get('/new', async (req, res) => {
 router.post('/', async (req, res) => {
   const [{ data: customers }, { data: users }] = await Promise.all([
     supabase.from('customers').select('id, name, address, city, state, zip').order('name'),
-    supabase.from('users').select('id, name').eq('active', 1).order('name'),
+    supabase.from('users').select('id, name, email').eq('active', 1).order('name'),
   ]);
   const { errors, data } = await validateJob(req.body);
   if (Object.keys(errors).length) {
@@ -587,6 +744,13 @@ router.get('/:id', async (req, res) => {
     projectManager = pm;
   }
 
+  const chatMentionUsers = buildChatMentionUsers({
+    members: normalizedMembers,
+    users,
+    projectManager,
+    job,
+  });
+
   // Load RFP line items for each RFP
   let rfpItemsMap = {};
   if (rfps && rfps.length) {
@@ -659,6 +823,7 @@ router.get('/:id', async (req, res) => {
       total_cost: Number(li.quantity || 0) * Number(li.unit_cost || 0),
     })),
     members: normalizedMembers,
+    chatMentionUsers,
     projectAccess: access,
     // R37n: RPM-style vendor invoice rollup.
     vendorSpend,
@@ -1373,19 +1538,51 @@ router.post('/:id/decisions/:dId/answer', async (req, res) => {
 
 router.post('/:id/chat', async (req, res) => {
   const id = req.params.id;
+  const allowed = await requireProjectAccess(req, res, id);
+  if (!allowed) return;
   const message = (req.body.message || '').trim();
   if (!message) return res.status(400).json({ error: 'Message is required.' });
   const { data: msg, error } = await supabase.from('project_chat_messages').insert({
     job_id: parseInt(id, 10),
     user_id: req.session.userId,
     message,
-  }).select('id, message, created_at, users!inner(name, email)').single();
+  }).select('id, user_id, message, created_at, users!inner(id, name, email)').single();
   if (error) return res.status(500).json({ error: error.message });
+
+  try {
+    const explicitMentionIds = String(req.body.mention_user_ids || '')
+      .split(',')
+      .map(v => Number(v.trim()))
+      .filter(Boolean);
+    const [mentionUsers, projectResult] = await Promise.all([
+      loadProjectMentionUsers(id),
+      supabase.from('jobs').select('id, title').eq('id', id).maybeSingle(),
+    ]);
+    throwIfSupabaseError(projectResult, 'Project chat email project load failed');
+    const mentionedIds = resolveMentionIds(message, mentionUsers, explicitMentionIds);
+    const recipients = mentionUsers.filter(user =>
+      mentionedIds.has(Number(user.id)) &&
+      Number(user.id) !== Number(req.session.userId) &&
+      user.email
+    );
+    await sendProjectChatMentionEmails({
+      projectId: id,
+      projectTitle: projectResult.data?.title,
+      authorName: msg.users?.name || req.session.name,
+      message,
+      recipients,
+    });
+  } catch (emailError) {
+    console.warn('[project-chat] mention email processing failed:', emailError.message);
+  }
+
   res.json({ ok: true, message: msg });
 });
 
 router.get('/:id/chat', async (req, res) => {
   const id = req.params.id;
+  const allowed = await requireProjectAccess(req, res, id);
+  if (!allowed) return;
   const before = req.query.before ? parseInt(req.query.before, 10) : null;
   let query = supabase
     .from('project_chat_messages')

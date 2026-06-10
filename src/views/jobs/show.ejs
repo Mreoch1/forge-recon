@@ -49,7 +49,11 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
       </div>
       <div class="border-t border-recon-mist p-4">
         <form id="chat-form" class="flex gap-2">
-          <input type="text" id="chat-input" class="input flex-1 text-sm" placeholder="Type a message..." required autocomplete="off">
+          <div class="chat-mention-wrap">
+            <input type="text" id="chat-input" class="input w-full text-sm" placeholder="Type a message... use @name to notify project team" required autocomplete="off">
+            <input type="hidden" id="chat-mention-ids" name="mention_user_ids" value="">
+            <div id="chat-mention-menu" class="chat-mention-menu hidden"></div>
+          </div>
           <button type="submit" class="btn btn-primary text-sm">Send</button>
         </form>
       </div>
@@ -179,8 +183,12 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
   var messagesEl = document.getElementById('chat-messages');
   var chatForm = document.getElementById('chat-form');
   var chatInput = document.getElementById('chat-input');
+  var mentionInput = document.getElementById('chat-mention-ids');
+  var mentionMenu = document.getElementById('chat-mention-menu');
   var chatPanel = document.querySelector('.chat-panel');
   var unreadEl = document.getElementById('chat-unread');
+  var mentionUsers = <%- JSON.stringify(chatMentionUsers || []).replace(/</g, '\\u003c') %>;
+  var selectedMentionIds = new Set();
   var lastMessageId = null;
   var isLoading = false;
   var panelOpen = chatPanel && chatPanel.hasAttribute('open');
@@ -208,7 +216,7 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
       '<span class="text-xs text-recon-fog">' + formatTime(msg.created_at) + '</span>' +
       (msg.user_id === userId ? '<button class="ml-auto text-xs text-recon-fog hover:text-recon-red delete-msg" data-msg-id="' + msg.id + '" title="Delete message">&times;</button>' : '') +
       '</div>' +
-      '<p class="text-sm m-0 whitespace-pre-wrap">' + escapeHtml(msg.message) + '</p>';
+      '<p class="text-sm m-0 whitespace-pre-wrap">' + highlightMentions(escapeHtml(msg.message)) + '</p>';
     if (prepend && messagesEl.firstChild) {
       messagesEl.insertBefore(div, messagesEl.firstChild);
     } else {
@@ -220,6 +228,108 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
   function escapeHtml(s) {
     if (typeof s !== 'string') return '';
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function highlightMentions(html) {
+    return html.replace(/(^|\s)(@[a-zA-Z0-9._-]+)/g, '$1<span class="chat-mention">$2</span>');
+  }
+
+  function normalizeHandle(value) {
+    return String(value || '').toLowerCase().replace(/[^a-z0-9._-]+/g, '');
+  }
+
+  function firstHandle(user) {
+    var first = String(user.name || '').trim().split(/\s+/)[0] || String(user.email || '').split('@')[0];
+    return normalizeHandle(first);
+  }
+
+  function syncMentionIds() {
+    if (mentionInput) mentionInput.value = Array.from(selectedMentionIds).join(',');
+  }
+
+  function currentMentionToken() {
+    if (!chatInput) return null;
+    var pos = chatInput.selectionStart || 0;
+    var before = chatInput.value.slice(0, pos);
+    var match = before.match(/(^|\s)@([a-zA-Z0-9._-]*)$/);
+    if (!match) return null;
+    return {
+      start: pos - match[2].length - 1,
+      end: pos,
+      query: normalizeHandle(match[2]),
+    };
+  }
+
+  function hideMentionMenu() {
+    if (mentionMenu) mentionMenu.classList.add('hidden');
+  }
+
+  function showMentionMenu(matches, token) {
+    if (!mentionMenu) return;
+    if (!token || !matches.length) {
+      hideMentionMenu();
+      return;
+    }
+    mentionMenu.innerHTML = matches.map(function(user) {
+      return '<button type="button" class="chat-mention-option" data-user-id="' + user.id + '">' +
+        '<span class="chat-mention-avatar">' + escapeHtml(String(user.name || '?').slice(0, 1).toUpperCase()) + '</span>' +
+        '<span><strong>' + escapeHtml(user.name || user.email || 'User') + '</strong>' +
+        '<small>@' + escapeHtml(user.handle || firstHandle(user)) + (user.email ? ' · ' + escapeHtml(user.email) : '') + '</small></span>' +
+      '</button>';
+    }).join('');
+    mentionMenu.classList.remove('hidden');
+  }
+
+  function updateMentionMenu() {
+    var token = currentMentionToken();
+    if (!token) {
+      hideMentionMenu();
+      return;
+    }
+    var q = token.query;
+    var matches = mentionUsers.filter(function(user) {
+      var haystack = [
+        user.name,
+        user.email,
+        user.handle,
+        firstHandle(user),
+      ].join(' ').toLowerCase();
+      return !q || haystack.indexOf(q) !== -1;
+    }).slice(0, 8);
+    showMentionMenu(matches, token);
+  }
+
+  function selectMention(userId) {
+    var user = mentionUsers.find(function(u){ return Number(u.id) === Number(userId); });
+    var token = currentMentionToken();
+    if (!user || !token || !chatInput) return;
+    var handle = user.handle || firstHandle(user);
+    var value = chatInput.value;
+    chatInput.value = value.slice(0, token.start) + '@' + handle + ' ' + value.slice(token.end);
+    var cursor = token.start + handle.length + 2;
+    chatInput.setSelectionRange(cursor, cursor);
+    selectedMentionIds.add(Number(user.id));
+    syncMentionIds();
+    hideMentionMenu();
+    chatInput.focus();
+  }
+
+  function captureTypedMentionIds(text) {
+    var aliases = new Map();
+    mentionUsers.forEach(function(user) {
+      [user.handle, firstHandle(user), normalizeHandle(String(user.email || '').split('@')[0])].forEach(function(alias) {
+        if (!alias) return;
+        var list = aliases.get(alias) || [];
+        list.push(Number(user.id));
+        aliases.set(alias, list);
+      });
+    });
+    var matches = String(text || '').matchAll(/(^|\s)@([a-zA-Z0-9._-]+)/g);
+    for (var match of matches) {
+      var list = aliases.get(normalizeHandle(match[2])) || [];
+      if (list.length === 1) selectedMentionIds.add(list[0]);
+    }
+    syncMentionIds();
   }
 
   async function loadMessages() {
@@ -260,17 +370,21 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
       e.preventDefault();
       var text = chatInput.value.trim();
       if (!text) return;
+      captureTypedMentionIds(text);
       chatInput.disabled = true;
       try {
         var res = await fetch('/projects/' + projectId + '/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: 'message=' + encodeURIComponent(text),
+          body: 'message=' + encodeURIComponent(text) + '&mention_user_ids=' + encodeURIComponent(mentionInput ? mentionInput.value : ''),
         });
         var data = await res.json();
         if (data.ok && data.message) {
           appendMessage(data.message);
           chatInput.value = '';
+          selectedMentionIds.clear();
+          syncMentionIds();
+          hideMentionMenu();
         } else if (data.error) {
           alert(data.error);
         }
@@ -279,6 +393,29 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
       chatInput.focus();
     });
   }
+
+  if (chatInput) {
+    chatInput.addEventListener('input', updateMentionMenu);
+    chatInput.addEventListener('keyup', updateMentionMenu);
+    chatInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') hideMentionMenu();
+    });
+  }
+
+  if (mentionMenu) {
+    mentionMenu.addEventListener('mousedown', function(e) {
+      var option = e.target.closest('.chat-mention-option');
+      if (!option) return;
+      e.preventDefault();
+      selectMention(option.getAttribute('data-user-id'));
+    });
+  }
+
+  document.addEventListener('click', function(e) {
+    if (!mentionMenu || !chatInput) return;
+    if (e.target === chatInput || mentionMenu.contains(e.target)) return;
+    hideMentionMenu();
+  });
 
   // Delete message handler (delegated for dynamically added buttons)
   if (messagesEl) {
@@ -320,18 +457,80 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
 <style>
 .chat-msg { padding: 6px 10px; border-radius: 8px; background: #f5f5f5; }
 .chat-msg-self { background: #fef2f2; }
+.chat-mention-wrap { position: relative; flex: 1 1 auto; min-width: 0; }
+.chat-mention { color: #c0202b; font-weight: 700; }
+.chat-mention-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 40;
+  max-height: 240px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+  box-shadow: 0 12px 30px rgba(0,0,0,.16);
+  padding: 6px;
+}
+.chat-mention-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+.chat-mention-option:hover,
+.chat-mention-option:focus {
+  background: #f5f5f5;
+}
+.chat-mention-option strong {
+  display: block;
+  color: #1f1f1f;
+  font-size: 13px;
+}
+.chat-mention-option small {
+  display: block;
+  color: #777;
+  font-size: 11px;
+  margin-top: 1px;
+}
+.chat-mention-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #c0202b;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
 .chat-panel summary::-webkit-details-marker { display: none; }
 .chat-panel[open] summary { border-bottom: 1px solid #e5e5e5; }
 #chat-messages::-webkit-scrollbar { width: 4px; }
 #chat-messages::-webkit-scrollbar-thumb { background: #d0d0d0; border-radius: 2px; }
 @media (max-width: 1024px) {
   .chat-panel form { flex-direction: column; }
+  .chat-mention-wrap { width: 100%; }
 }
 /* Dark mode overrides */
 html.dark .chat-msg { background: var(--dark-elevated); color: var(--dark-text); }
 html.dark .chat-msg-self { background: rgba(192,32,43,0.15); }
 html.dark .chat-panel[open] summary { border-bottom-color: var(--dark-border); }
 html.dark #chat-messages::-webkit-scrollbar-thumb { background: var(--dark-border-strong); }
+html.dark .chat-mention-menu { background: var(--dark-surface); border-color: var(--dark-border); }
+html.dark .chat-mention-option:hover,
+html.dark .chat-mention-option:focus { background: var(--dark-elevated); }
+html.dark .chat-mention-option strong { color: var(--dark-text); }
+html.dark .chat-mention-option small { color: var(--dark-muted); }
 </style>
 
 <script>
