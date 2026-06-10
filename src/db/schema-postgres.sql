@@ -357,6 +357,8 @@ CREATE TABLE IF NOT EXISTS contractor_vendor_intakes (
   dba_name TEXT,
   company_type TEXT NOT NULL DEFAULT 'contractor' CHECK (company_type IN ('contractor', 'vendor', 'both', 'other')),
   trades TEXT[] NOT NULL DEFAULT '{}',
+  other_trade_name TEXT,
+  other_trade_description TEXT,
   service_area TEXT,
   address TEXT,
   city TEXT,

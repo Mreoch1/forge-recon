@@ -104,7 +104,24 @@ test('trade intake has public start form and manager-only directory', () => {
   assert.match(routes, /next_update_due_at/);
   assert.ok(routes.includes('ref_${i}_notes'));
   assert.match(form, /name="ref_<%= i %>_notes"/);
+  assert.match(form, /ref\.notes/);
   assert.match(show, /ref\.notes/);
+  [
+    'dba_name',
+    'billing_contact_name',
+    'billing_contact_email',
+    'billing_contact_phone',
+    'mobile_phone',
+    'annual_capacity',
+    'largest_project_location',
+    'largest_project_date',
+    'bondable',
+    'hud_mshda_notes',
+    'section3_notes',
+    'certifications',
+    'safety_notes',
+    'documents_notes'
+  ].forEach(field => assert.match(show, new RegExp(`intake\\.${field}`)));
   assert.match(header, /href="\/vendor-intake\/directory"/);
   assert.match(header, /activeNav === 'intake'/);
   assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.contractor_vendor_intakes/);

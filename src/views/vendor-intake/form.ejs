@@ -90,7 +90,11 @@
               <div><label>DBA / short name</label><input name="dba_name" value="<%= intake.dba_name || '' %>"></div>
               <div><label>Company type</label><select name="company_type"><% companyTypes.forEach(function(t){ %><option value="<%= t %>" <%= intake.company_type === t ? 'selected' : '' %>><%= t %></option><% }); %></select></div>
               <div><label>Website</label><input name="website" value="<%= intake.website || '' %>"></div>
-              <div class="full"><label>Trade / service types</label><div class="checks"><% tradeOptions.forEach(function(t){ %><label class="check"><input type="checkbox" name="trades" value="<%= t %>" <%= tradeSelected(t) ? 'checked' : '' %>> <%= t %></label><% }); %></div></div>
+              <div class="full"><label>Trade / service types</label><div class="checks" id="tradeChecks"><% tradeOptions.forEach(function(t){ %><label class="check"><input type="checkbox" name="trades" value="<%= t %>" class="trade-check"<%- t === 'other' ? ' id="otherTradeCheck"' : '' %> <%= tradeSelected(t) ? 'checked' : '' %>> <%= t %></label><% }); %></div>
+                <div id="otherTradeFields" style="display:<%= tradeSelected('other') ? 'flex' : 'none' %>; gap:1rem; margin-top:.75rem; flex-wrap:wrap;">
+                  <div style="flex:2;min-width:200px;"><label>Specify other trade / service</label><input name="other_trade_name" value="<%= intake.other_trade_name || '' %>" placeholder="e.g. fire protection, insulation, waterproofing"></div>
+                  <div style="flex:3;min-width:280px;"><label>Description of this trade / service</label><textarea name="other_trade_description" style="min-height:3.5rem;" placeholder="Describe the scope of work or specialty"><%= intake.other_trade_description || '' %></textarea></div>
+                </div></div>
               <div class="full"><label>Service area</label><input name="service_area" value="<%= intake.service_area || '' %>" placeholder="Example: southeast Michigan, 90-mile radius from Detroit, statewide"></div>
               <div class="full"><label>Street address</label><input name="address" value="<%= intake.address || '' %>"></div>
               <div><label>City</label><input name="city" value="<%= intake.city || '' %>"></div>
@@ -174,13 +178,28 @@
             <div class="summary">
               <div><span>Company</span><%= intake.company_name || '-' %></div>
               <div><span>Type</span><%= intake.company_type || '-' %></div>
-              <div><span>Trades</span><%= (intake.trades || []).join(', ') || '-' %></div>
+              <div><span>Trades</span><%= (intake.trades || []).join(', ') || '-' %><% if (intake.other_trade_name) { %><div style="font-size:.82rem;color:#666;margin-top:.25rem;"><%= intake.other_trade_name %><% if (intake.other_trade_description) { %> &mdash; <%= intake.other_trade_description %><% } %></div><% } %></div>
               <div><span>Service area</span><%= intake.service_area || '-' %></div>
               <div><span>Contact</span><%= intake.primary_contact_name || intake.email || '-' %></div>
               <div><span>Location</span><%= [intake.city, intake.state].filter(Boolean).join(', ') || '-' %></div>
               <div><span>Insurance</span>GL: <%= intake.insurance_gl === true ? 'Yes' : intake.insurance_gl === false ? 'No' : '-' %> / WC: <%= intake.insurance_workers_comp === true ? 'Yes' : intake.insurance_workers_comp === false ? 'No' : '-' %></div>
               <div><span>References</span><%= refs.length %> entered</div>
             </div>
+            <% if (refs.length) { %>
+              <div class="card" style="box-shadow:none;margin-top:1rem;">
+                <div class="card-body">
+                  <h2>References</h2>
+                  <% refs.forEach(function(ref, i){ %>
+                    <div style="border-top:<%= i ? '1px solid #eee' : '0' %>; padding-top:<%= i ? '.75rem' : '0' %>; margin-top:<%= i ? '.75rem' : '0' %>;">
+                      <strong><%= ref.name || ('Reference ' + (i + 1)) %></strong><% if (ref.company) { %> - <%= ref.company %><% } %>
+                      <div class="muted"><%= [ref.email, ref.phone].filter(Boolean).join(' | ') || 'No contact entered' %></div>
+                      <% if (ref.relationship) { %><div><%= ref.relationship %></div><% } %>
+                      <% if (ref.notes) { %><div style="white-space:pre-wrap; margin-top:.35rem;"><%= ref.notes %></div><% } %>
+                    </div>
+                  <% }); %>
+                </div>
+              </div>
+            <% } %>
             <p class="muted" style="margin-top:1rem;">After you submit, Recon can keep this information on file and may contact you when projects match your trade and service area. You can still use this link later to update your information.</p>
           <% } %>
 
@@ -204,5 +223,18 @@
     </div>
   </main>
   <script src="/js/phone-format.js"></script>
+  <script src="/js/address-autocomplete.js?v=20260520" defer></script>
+  <script>
+    (function(){
+      var fields = document.getElementById('otherTradeFields');
+      if (!fields) return;
+      function toggle() {
+        var cb = document.getElementById('otherTradeCheck');
+        if (cb) fields.style.display = cb.checked ? 'flex' : 'none';
+      }
+      document.getElementById('tradeChecks').addEventListener('click', toggle);
+      document.getElementById('tradeChecks').addEventListener('change', toggle);
+    })();
+  </script>
 </body>
 </html>

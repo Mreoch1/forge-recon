@@ -106,11 +106,15 @@ function updateForSection(section, body) {
   if (section === 'company') {
     const companyType = COMPANY_TYPES.includes(body.company_type) ? body.company_type : 'contractor';
     const trades = checkedList(body.trades).filter(t => TRADE_OPTIONS.includes(t));
+    const otherTradeName = emptyToNull(body.other_trade_name);
+    const otherTradeDesc = emptyToNull(body.other_trade_description);
     return {
       company_name: emptyToNull(body.company_name) || '',
       dba_name: emptyToNull(body.dba_name),
       company_type: companyType,
       trades,
+      other_trade_name: trades.includes('other') ? otherTradeName : null,
+      other_trade_description: trades.includes('other') ? otherTradeDesc : null,
       service_area: emptyToNull(body.service_area),
       address: emptyToNull(body.address),
       city: emptyToNull(body.city),
@@ -400,6 +404,16 @@ router.post('/directory/:id/promote', requireManager, async (req, res) => {
   if (updateError) throw updateError;
   setFlash(req, 'success', 'Intake promoted into the Forge directory.');
   res.redirect(`/vendor-intake/directory/${id}`);
+});
+
+router.post('/directory/:id/delete', requireManager, async (req, res) => {
+  const id = req.params.id;
+  await Promise.all([
+    supabase.from('contractor_vendor_intakes').delete().eq('id', id),
+    supabase.from('contractor_vendor_intake_notes').delete().eq('intake_id', id),
+  ]);
+  setFlash(req, 'success', 'Intake deleted.');
+  res.redirect('/vendor-intake/directory');
 });
 
 router.get('/:token', async (req, res) => {

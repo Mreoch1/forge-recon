@@ -11,7 +11,7 @@
 
   function isPhoneInput(el) {
     if (!el || !el.matches) return false;
-    return el.matches('input[name="phone"], input[data-phone-format]');
+    return el.matches('input[name="phone"], input[data-phone], input[data-phone-format]');
   }
 
   function applyFormat(el) {
@@ -25,6 +25,6 @@
   });
 
   document.addEventListener('DOMContentLoaded', function(){
-    document.querySelectorAll('input[name="phone"], input[data-phone-format]').forEach(applyFormat);
+    document.querySelectorAll('input[name="phone"], input[data-phone], input[data-phone-format]').forEach(applyFormat);
   });
 })();

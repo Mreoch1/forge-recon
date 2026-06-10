@@ -1,5 +1,17 @@
 # Pending migrations — apply via Supabase SQL editor (or MCP)
 
+## d174_other_trade_fields — custom trade name/desc on intake form (2026-06-09)
+
+```sql
+-- D-174: Custom "other" trade name and description on the contractor/vendor intake form.
+-- When "other" is selected from the trade checkboxes, the user can type their own
+-- trade/service type and optionally add a description.
+
+ALTER TABLE contractor_vendor_intakes
+  ADD COLUMN IF NOT EXISTS other_trade_name TEXT,
+  ADD COLUMN IF NOT EXISTS other_trade_description TEXT;
+```
+
 ## 006-estimate-statuses — estimate status CHECK constraint (2026-05-21)
 
 **Status:** Code deployed; DB constraint still needs applying on `zquzmavbpiaboouffqhm`.

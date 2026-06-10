@@ -5,7 +5,7 @@
     <div class="bg-recon-charcoal text-white p-5 flex items-center justify-between gap-4 flex-wrap">
       <div>
         <h1 class="text-2xl font-bold"><%= intake.company_name || '(unnamed company)' %></h1>
-        <p class="text-sm text-recon-fog"><%= (intake.trades || []).join(', ') || 'No trades entered' %> &middot; <%= [intake.city, intake.state].filter(Boolean).join(', ') || 'No location' %></p>
+        <p class="text-sm text-recon-fog"><%= (intake.trades || []).join(', ') || 'No trades entered' %><% if (intake.other_trade_name) { %> &middot; <strong><%= intake.other_trade_name %></strong><% } %> &middot; <%= [intake.city, intake.state].filter(Boolean).join(', ') || 'No location' %></p>
       </div>
       <div class="document-actions">
         <a class="btn btn-secondary" href="<%= publicUrl %>" target="_blank">Open public link</a>
@@ -26,10 +26,16 @@
       <div class="card p-5">
         <h2 class="font-semibold mb-3">Company information</h2>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Contact</div><%= intake.primary_contact_name || '-' %><br><%= intake.primary_contact_email || intake.email || '-' %><br><%= intake.primary_contact_phone || intake.office_phone || '-' %></div>
+          <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">DBA / short name</div><%= intake.dba_name || '-' %></div>
+          <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Company contact</div><%= intake.email || '-' %><br><%= intake.office_phone || '-' %><% if (intake.mobile_phone) { %><br><%= intake.mobile_phone %><% } %></div>
+          <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Primary contact</div><%= intake.primary_contact_name || '-' %><% if (intake.primary_contact_title) { %><br><%= intake.primary_contact_title %><% } %><br><%= intake.primary_contact_email || '-' %><br><%= intake.primary_contact_phone || '-' %></div>
+          <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Billing contact</div><%= intake.billing_contact_name || '-' %><br><%= intake.billing_contact_email || '-' %><br><%= intake.billing_contact_phone || '-' %></div>
           <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Address</div><%= [intake.address, intake.city, intake.state, intake.zip].filter(Boolean).join(', ') || '-' %></div>
           <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Service area</div><%= intake.service_area || '-' %></div>
           <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Website</div><%= intake.website || '-' %></div>
+          <% if (intake.other_trade_name) { %>
+          <div class="md:col-span-2"><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Other trade / service</div><%= intake.other_trade_name %><% if (intake.other_trade_description) { %><div class="text-recon-fog text-sm mt-1 whitespace-pre-wrap"><%= intake.other_trade_description %></div><% } %></div>
+          <% } %>
         </div>
       </div>
 
@@ -39,8 +45,9 @@
           <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Years</div><%= intake.years_in_business || '-' %></div>
           <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Employees</div><%= intake.employee_count || '-' %></div>
           <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Field staff</div><%= intake.field_staff_count || '-' %></div>
+          <div class="md:col-span-3"><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Annual capacity</div><%= intake.annual_capacity || '-' %></div>
         </div>
-        <div class="text-sm whitespace-pre-wrap"><strong>Largest project:</strong> <%= intake.largest_project_name || '-' %><% if (intake.largest_project_value) { %> ($<%= Number(intake.largest_project_value).toLocaleString() %>)<% } %><br><%= intake.largest_project_description || '' %></div>
+        <div class="text-sm whitespace-pre-wrap"><strong>Largest project:</strong> <%= intake.largest_project_name || '-' %><% if (intake.largest_project_value) { %> ($<%= Number(intake.largest_project_value).toLocaleString() %>)<% } %><% if (intake.largest_project_location || intake.largest_project_date) { %><br><%= [intake.largest_project_location, intake.largest_project_date].filter(Boolean).join(' | ') %><% } %><br><%= intake.largest_project_description || '' %></div>
         <div class="text-sm mt-3"><strong>Occupied multifamily:</strong> <%= intake.occupied_multifamily === true ? 'Yes' : intake.occupied_multifamily === false ? 'No' : '-' %><br><span class="whitespace-pre-wrap"><%= intake.occupied_multifamily_notes || '' %></span></div>
       </div>
 
@@ -53,8 +60,16 @@
           <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Prevailing wage</div><%= intake.prevailing_wage_experience === true ? 'Yes' : intake.prevailing_wage_experience === false ? 'No' : '-' %></div>
           <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">HUD/MSHDA</div><%= intake.hud_mshda_experience === true ? 'Yes' : intake.hud_mshda_experience === false ? 'No' : '-' %></div>
           <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Section 3</div><%= intake.section3_business === true ? 'Yes' : intake.section3_business === false ? 'No' : '-' %></div>
+          <div><div class="text-xs uppercase tracking-wide text-recon-fog font-bold">Bondable</div><%= intake.bondable === true ? 'Yes' : intake.bondable === false ? 'No' : '-' %></div>
         </div>
         <div class="text-sm whitespace-pre-wrap"><strong>Licenses:</strong><br><%= intake.license_numbers || '-' %></div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mt-4">
+          <div class="whitespace-pre-wrap"><strong>HUD/MSHDA notes:</strong><br><%= intake.hud_mshda_notes || '-' %></div>
+          <div class="whitespace-pre-wrap"><strong>Section 3 notes:</strong><br><%= intake.section3_notes || '-' %></div>
+          <div class="whitespace-pre-wrap"><strong>Certifications:</strong><br><%= intake.certifications || '-' %></div>
+          <div class="whitespace-pre-wrap"><strong>Safety notes:</strong><br><%= intake.safety_notes || '-' %></div>
+          <div class="md:col-span-2 whitespace-pre-wrap"><strong>Documents available:</strong><br><%= intake.documents_notes || '-' %></div>
+        </div>
       </div>
 
       <div class="card overflow-hidden">
@@ -64,7 +79,7 @@
           <div class="p-4 text-sm text-recon-fog">No references entered.</div>
         <% } else { %>
           <table class="data"><thead><tr><th>Name</th><th>Company</th><th>Contact</th><th>Relationship / notes</th></tr></thead><tbody>
-            <% refs.forEach(function(ref){ %><tr><td><%= ref.name || '-' %></td><td><%= ref.company || '-' %></td><td><%= ref.email || ref.phone || '-' %></td><td><%= ref.relationship || '-' %><% if (ref.notes) { %><div class="text-xs text-recon-fog whitespace-pre-wrap mt-1"><%= ref.notes %></div><% } %></td></tr><% }); %>
+            <% refs.forEach(function(ref){ %><tr><td><%= ref.name || '-' %></td><td><%= ref.company || '-' %></td><td><%= [ref.email, ref.phone].filter(Boolean).join(' | ') || '-' %></td><td><%= ref.relationship || '-' %><% if (ref.notes) { %><div class="text-xs text-recon-fog whitespace-pre-wrap mt-1"><%= ref.notes %></div><% } %></td></tr><% }); %>
           </tbody></table>
         <% } %>
       </div>
@@ -111,6 +126,14 @@
             <% }); %>
           </div>
         <% } %>
+      </div>
+
+      <div class="card p-5 border border-red-300">
+        <h2 class="font-semibold mb-3 text-red-600">Danger zone</h2>
+        <p class="text-sm text-recon-fog mb-3">Permanently delete this intake and all associated notes. This cannot be undone.</p>
+        <form method="post" action="/vendor-intake/directory/<%= intake.id %>/delete" onsubmit="return confirm('Delete this intake permanently? This cannot be undone.');">
+          <button class="btn bg-red-600 text-white w-full hover:bg-red-700" type="submit">Delete intake</button>
+        </form>
       </div>
     </aside>
   </div>
