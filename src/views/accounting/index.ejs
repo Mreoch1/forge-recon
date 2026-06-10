@@ -1,31 +1,30 @@
 <%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
 
 <%
-const primaryReports = [
+const reports = Array.isArray(favoriteReports) ? favoriteReports : [];
+const grouped = reports.reduce(function(acc, report) {
+  const key = report.group || 'Reports';
+  if (!acc[key]) acc[key] = [];
+  acc[key].push(report);
+  return acc;
+}, {});
+const groupOrder = ['Receivables', 'Payables', 'Payroll', 'Financial statements', 'Banking'];
+const orderedGroups = groupOrder.filter(function(g) { return grouped[g]; })
+  .concat(Object.keys(grouped).filter(function(g) { return groupOrder.indexOf(g) === -1; }));
+const supportTools = [
   {
-    name: 'AR Aging',
-    href: '/accounting/ar-aging',
-    pdf: '/accounting/ar-aging.pdf',
-    type: 'Receivable',
-    cadence: 'Current',
-    description: 'Customer invoice balances by age and due date.'
+    name: 'Bank transactions',
+    href: '/accounting/bank-transactions',
+    type: 'Banking',
+    status: 'Review workspace',
+    description: 'Review bank activity, match payments, and assign chart accounts before posting.'
   },
-  {
-    name: 'AP Aging',
-    href: '/accounting/ap-aging',
-    pdf: '/accounting/ap-aging.pdf',
-    type: 'Payable',
-    cadence: 'Current',
-    description: 'Open vendor bills by age and due date.'
-  }
-];
-const financialReports = [
   {
     name: 'Chart of accounts',
     href: '/accounting/accounts',
     pdf: '/accounting/accounts.pdf',
     type: 'Setup',
-    cadence: 'As needed',
+    status: 'As needed',
     description: 'Account list used for posting and reports.'
   },
   {
@@ -33,7 +32,7 @@ const financialReports = [
     href: '/accounting/journal',
     pdf: '/accounting/journal.pdf',
     type: 'Ledger',
-    cadence: 'As posted',
+    status: 'As posted',
     description: 'Posted accounting activity from invoices, bills, and payments.'
   },
   {
@@ -41,57 +40,29 @@ const financialReports = [
     href: '/accounting/reports/trial-balance',
     pdf: '/accounting/reports/trial-balance.pdf',
     type: 'Report',
-    cadence: 'Current',
+    status: 'Current',
     description: 'Debit and credit balances from posted journal lines.'
   },
   {
-    name: 'Profit & loss',
-    href: '/accounting/reports/profit-loss',
-    pdf: '/accounting/reports/profit-loss.pdf',
-    type: 'Report',
-    cadence: 'Current',
-    description: 'Revenue, expenses, and net income.'
-  },
-  {
-    name: 'Balance sheet',
-    href: '/accounting/reports/balance-sheet',
-    pdf: '/accounting/reports/balance-sheet.pdf',
-    type: 'Report',
-    cadence: 'Current',
-    description: 'Assets, liabilities, equity, and balance check.'
-  }
-];
-const importTools = [
-  {
-    name: 'Bank transactions',
-    href: '/accounting/bank-transactions',
-    pdf: '',
-    type: 'Review',
-    cadence: 'Manual import',
-    description: 'Review bank activity and assign chart accounts before posting.'
-  },
-  {
-    name: 'Payroll',
+    name: 'Payroll workspace',
     href: '/accounting/payroll',
-    pdf: '',
-    type: 'Admin only',
-    cadence: 'QuickBooks source',
-    description: 'Review payroll roster, payroll runs, and labor-cost allocation status.'
+    type: 'Payroll',
+    status: 'Manual admin',
+    description: 'Manage payroll employees and review payroll source data.'
   }
 ];
-const allReports = primaryReports.concat(financialReports);
 %>
 
 <style>
   .accounting-table {
     table-layout: fixed;
-    min-width: 64rem;
+    min-width: 76rem;
   }
-  .accounting-table .acct-name-col { width: 17%; }
-  .accounting-table .acct-type-col { width: 13%; }
-  .accounting-table .acct-description-col { width: 45%; }
-  .accounting-table .acct-updated-col { width: 12%; }
-  .accounting-table .acct-actions-col { width: 13%; }
+  .accounting-table .acct-name-col { width: 22%; }
+  .accounting-table .acct-group-col { width: 13%; }
+  .accounting-table .acct-type-col { width: 11%; }
+  .accounting-table .acct-description-col { width: 37%; }
+  .accounting-table .acct-actions-col { width: 17%; }
   .accounting-actions {
     display: inline-flex;
     align-items: center;
@@ -110,34 +81,41 @@ const allReports = primaryReports.concat(financialReports);
     text-align: center;
     color: #1a1a1a;
     font-size: .78rem;
-    font-weight: 600;
+    font-weight: 700;
   }
   .accounting-actions .acct-pdf-link:hover { color: #c0202b; }
+  .accounting-group-label {
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #777;
+  }
 </style>
 
 <div class="ops-shell">
   <div class="ops-header">
     <div class="ops-title-block">
       <h1 class="page-h1">Accounting</h1>
-      <p class="page-sub mt-1">Aging, ledgers, and financial reports.</p>
+      <p class="page-sub mt-1">QuickBooks-style favorite reports, ledgers, and bank review tools.</p>
     </div>
   </div>
 
   <div class="ops-summary">
     <div class="ops-summary-item">
-      <div class="ops-summary-label">Reports</div>
-      <div class="ops-summary-value"><%= allReports.length + importTools.length %></div>
-      <div class="ops-summary-meta">views available</div>
+      <div class="ops-summary-label">Favorite reports</div>
+      <div class="ops-summary-value"><%= reports.length %></div>
+      <div class="ops-summary-meta">QuickBooks set</div>
     </div>
     <div class="ops-summary-item">
-      <div class="ops-summary-label">Banking</div>
-      <div class="ops-summary-value">1</div>
-      <div class="ops-summary-meta">review workspace</div>
+      <div class="ops-summary-label">Report groups</div>
+      <div class="ops-summary-value"><%= orderedGroups.length %></div>
+      <div class="ops-summary-meta">AR, AP, payroll, financials</div>
     </div>
     <div class="ops-summary-item">
-      <div class="ops-summary-label">Ledger</div>
-      <div class="ops-summary-value">1</div>
-      <div class="ops-summary-meta">journal register</div>
+      <div class="ops-summary-label">Support tools</div>
+      <div class="ops-summary-value"><%= supportTools.length %></div>
+      <div class="ops-summary-meta">banking and ledger</div>
     </div>
     <div class="ops-summary-item">
       <div class="ops-summary-label">Exports</div>
@@ -148,83 +126,48 @@ const allReports = primaryReports.concat(financialReports);
 
   <div class="ops-panel ops-table mb-4">
     <div class="ops-panel-head">
-      <div class="ops-panel-title">Import controls</div>
-      <div class="text-xs text-recon-fog"><%= importTools.length %> tool</div>
+      <div>
+        <div class="ops-panel-title">Favorite reports</div>
+        <div class="text-xs text-recon-fog mt-1">Matches the favorited QuickBooks reports used by Recon.</div>
+      </div>
+      <div class="text-xs text-recon-fog"><%= reports.length %> reports</div>
     </div>
     <div class="ops-panel-body">
       <table class="data accounting-table">
         <colgroup>
           <col class="acct-name-col">
+          <col class="acct-group-col">
           <col class="acct-type-col">
           <col class="acct-description-col">
-          <col class="acct-updated-col">
           <col class="acct-actions-col">
         </colgroup>
         <thead>
           <tr>
-            <th>Tool</th>
+            <th>Report</th>
+            <th>Group</th>
             <th>Type</th>
             <th>Description</th>
-            <th>Status</th>
             <th class="text-right">Actions</th>
           </tr>
         </thead>
         <tbody>
-          <% importTools.forEach(function(r){ %>
-            <tr class="row-link" data-href="<%= r.href %>">
-              <td class="font-semibold"><%= r.name %></td>
-              <td><span class="badge badge-draft"><%= r.type %></span></td>
-              <td class="text-recon-fog"><%= r.description %></td>
-              <td><%= r.cadence %></td>
-              <td class="text-right">
-                <span class="accounting-actions">
-                  <a href="<%= r.href %>" class="btn btn-secondary text-xs">Open</a>
-                </span>
-              </td>
-            </tr>
-          <% }); %>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="ops-panel ops-table mb-4">
-    <div class="ops-panel-head">
-      <div class="ops-panel-title">Aging</div>
-      <div class="text-xs text-recon-fog"><%= primaryReports.length %> views</div>
-    </div>
-    <div class="ops-panel-body">
-      <table class="data accounting-table">
-        <colgroup>
-          <col class="acct-name-col">
-          <col class="acct-type-col">
-          <col class="acct-description-col">
-          <col class="acct-updated-col">
-          <col class="acct-actions-col">
-        </colgroup>
-        <thead>
-          <tr>
-            <th>View</th>
-            <th>Type</th>
-            <th>Description</th>
-            <th>Updated</th>
-            <th class="text-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% primaryReports.forEach(function(r){ %>
-            <tr class="row-link" data-href="<%= r.href %>">
-              <td class="font-semibold"><%= r.name %></td>
-              <td><span class="badge badge-draft"><%= r.type %></span></td>
-              <td class="text-recon-fog"><%= r.description %></td>
-              <td><%= r.cadence %></td>
-              <td class="text-right">
-                <span class="accounting-actions">
-                  <a href="<%= r.href %>" class="btn btn-secondary text-xs">Open</a>
-                  <a href="<%= r.pdf %>" class="acct-pdf-link">PDF</a>
-                </span>
-              </td>
-            </tr>
+          <% orderedGroups.forEach(function(groupName) { %>
+            <% grouped[groupName].forEach(function(report) { %>
+              <tr class="row-link" data-href="<%= report.href %>">
+                <td class="font-semibold"><%= report.title %></td>
+                <td><span class="accounting-group-label"><%= groupName %></span></td>
+                <td><span class="badge badge-draft"><%= report.type %></span></td>
+                <td class="text-recon-fog"><%= report.description %></td>
+                <td class="text-right">
+                  <span class="accounting-actions">
+                    <a href="<%= report.href %>" class="btn btn-secondary text-xs">Open</a>
+                    <% if (report.pdf) { %>
+                      <a href="<%= report.pdf %>" class="acct-pdf-link">PDF</a>
+                    <% } %>
+                  </span>
+                </td>
+              </tr>
+            <% }); %>
           <% }); %>
         </tbody>
       </table>
@@ -233,38 +176,40 @@ const allReports = primaryReports.concat(financialReports);
 
   <div class="ops-panel ops-table">
     <div class="ops-panel-head">
-      <div class="ops-panel-title">Reports and ledger</div>
-      <div class="text-xs text-recon-fog"><%= financialReports.length %> items</div>
+      <div class="ops-panel-title">Ledger and import tools</div>
+      <div class="text-xs text-recon-fog"><%= supportTools.length %> tools</div>
     </div>
     <div class="ops-panel-body">
       <table class="data accounting-table">
         <colgroup>
           <col class="acct-name-col">
-          <col class="acct-type-col">
+          <col class="acct-group-col">
           <col class="acct-description-col">
-          <col class="acct-updated-col">
+          <col class="acct-type-col">
           <col class="acct-actions-col">
         </colgroup>
         <thead>
           <tr>
-            <th>Report</th>
-            <th>Type</th>
+            <th>Tool</th>
+            <th>Area</th>
             <th>Description</th>
-            <th>Updated</th>
+            <th>Status</th>
             <th class="text-right">Actions</th>
           </tr>
         </thead>
         <tbody>
-          <% financialReports.forEach(function(r){ %>
-            <tr class="row-link" data-href="<%= r.href %>">
-              <td class="font-semibold"><%= r.name %></td>
-              <td><span class="badge badge-draft"><%= r.type %></span></td>
-              <td class="text-recon-fog"><%= r.description %></td>
-              <td><%= r.cadence %></td>
+          <% supportTools.forEach(function(tool) { %>
+            <tr class="row-link" data-href="<%= tool.href %>">
+              <td class="font-semibold"><%= tool.name %></td>
+              <td><span class="badge badge-draft"><%= tool.type %></span></td>
+              <td class="text-recon-fog"><%= tool.description %></td>
+              <td><%= tool.status %></td>
               <td class="text-right">
                 <span class="accounting-actions">
-                  <a href="<%= r.href %>" class="btn btn-secondary text-xs">Open</a>
-                  <a href="<%= r.pdf %>" class="acct-pdf-link">PDF</a>
+                  <a href="<%= tool.href %>" class="btn btn-secondary text-xs">Open</a>
+                  <% if (tool.pdf) { %>
+                    <a href="<%= tool.pdf %>" class="acct-pdf-link">PDF</a>
+                  <% } %>
                 </span>
               </td>
             </tr>

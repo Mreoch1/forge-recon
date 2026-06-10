@@ -2,13 +2,29 @@
 <div class="document-shell">
   <div class="mb-4"><a href="/accounting" class="text-sm text-recon-fog hover:text-recon-red">&larr; Accounting</a></div>
   <div class="flex items-center justify-between gap-3 mb-6 flex-wrap">
-    <h1 class="page-h1">Balance sheet</h1>
+    <div>
+      <h1 class="page-h1">Balance sheet</h1>
+      <p class="page-sub mt-1"><%= range ? range.label : 'Current range' %></p>
+    </div>
     <div class="flex gap-2 no-print">
       <button type="button" class="btn btn-secondary text-sm" onclick="window.print()">Print</button>
-      <a href="/accounting/reports/balance-sheet.pdf" class="btn btn-secondary text-sm">PDF</a>
+      <a href="/accounting/reports/balance-sheet.pdf<%= range ? '?range=' + encodeURIComponent(range.value) : '' %>" class="btn btn-secondary text-sm">PDF</a>
     </div>
   </div>
-  <% if (!assets || assets.length === 0) { %>
+  <form method="get" class="card p-4 mb-6 no-print">
+    <div class="flex flex-wrap items-end gap-3">
+      <div>
+        <label class="form-label" for="range">Date range</label>
+        <select id="range" name="range" class="input min-w-[180px]">
+          <% rangeOptions.forEach(function(option){ %>
+            <option value="<%= option.value %>" <%= range && option.value === range.value ? 'selected' : '' %>><%= option.label %></option>
+          <% }); %>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-secondary text-sm">Apply</button>
+    </div>
+  </form>
+  <% if ((!assets || assets.length === 0) && (!liabilities || liabilities.length === 0) && (!equity || equity.length === 0)) { %>
     <div class="card p-8 text-center"><p class="text-recon-fog">No account balances yet.</p></div>
   <% } else { %>
     <div class="card p-6 mb-4">

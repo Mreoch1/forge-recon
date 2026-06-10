@@ -1,0 +1,248 @@
+<%- include('../../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<%
+const rowCount = Array.isArray(rows) ? rows.length : 0;
+const reportColumns = Array.isArray(columns) ? columns : [];
+const reportRows = Array.isArray(rows) ? rows : [];
+const reportSummary = Array.isArray(summary) ? summary : [];
+const group = definition && definition.group ? definition.group : '';
+const statusOptions = [
+  { value: 'all', label: 'All statuses' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'sent', label: 'Sent' },
+  { value: 'approved', label: 'Approved' },
+  { value: 'paid', label: 'Paid' },
+  { value: 'open', label: 'Open' },
+  { value: 'void', label: 'Void' },
+  { value: 'posted', label: 'Posted' },
+  { value: 'imported', label: 'Imported' },
+];
+const pdfParams = new URLSearchParams();
+if (filters.range && filters.range.value) pdfParams.set('range', filters.range.value);
+if (filters.q) pdfParams.set('q', filters.q);
+if (filters.status && filters.status !== 'all') pdfParams.set('status', filters.status);
+if (filters.vendor && filters.vendor !== 'all') pdfParams.set('vendor', filters.vendor);
+if (filters.customer && filters.customer !== 'all') pdfParams.set('customer', filters.customer);
+if (filters.employee && filters.employee !== 'all') pdfParams.set('employee', filters.employee);
+const pdfHref = (definition.pdf || '#') + (pdfParams.toString() ? '?' + pdfParams.toString() : '');
+function cellValue(row, col) {
+  const value = row[col.key];
+  if (col.type === 'money') return money(value);
+  if (value === null || value === undefined || value === '') return '-';
+  return value;
+}
+function sortValue(row, col) {
+  const value = row[col.key];
+  if (col.type === 'money') return Number(value || 0);
+  return value === null || value === undefined ? '' : String(value);
+}
+%>
+
+<style>
+  .report-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: .75rem;
+    align-items: end;
+  }
+  .qb-report-table {
+    table-layout: fixed;
+    min-width: max(82rem, 100%);
+  }
+  .qb-report-table th {
+    white-space: nowrap;
+    user-select: none;
+  }
+  .qb-report-table th[data-sort-key] {
+    cursor: pointer;
+  }
+  .qb-report-table th[data-sort-key]:hover {
+    color: #c0202b;
+  }
+  .qb-report-table td {
+    vertical-align: top;
+  }
+  .qb-report-value {
+    max-width: 24rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sort-marker {
+    color: #c0202b;
+    font-size: .7rem;
+    margin-left: .25rem;
+  }
+</style>
+
+<div class="ops-shell">
+  <div class="ops-header">
+    <div class="ops-title-block">
+      <div class="mb-2"><a href="/accounting" class="text-sm text-recon-fog hover:text-recon-red">&larr; Accounting</a></div>
+      <h1 class="page-h1"><%= definition.title %></h1>
+      <p class="page-sub mt-1"><%= definition.description %></p>
+    </div>
+    <div class="ops-actions no-print">
+      <button type="button" class="btn btn-secondary" onclick="window.print()">Print</button>
+      <a href="<%= pdfHref %>" class="btn btn-secondary">PDF</a>
+    </div>
+  </div>
+
+  <% if (warning) { %>
+    <div class="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"><%= warning %></div>
+  <% } %>
+
+  <form method="get" class="card p-4 mb-4 no-print">
+    <div class="report-filter-grid">
+      <div>
+        <label class="form-label" for="range">Date range</label>
+        <select id="range" name="range" class="input">
+          <% dateOptions.forEach(function(option) { %>
+            <option value="<%= option.value %>" <%= filters.range && filters.range.value === option.value ? 'selected' : '' %>><%= option.label %></option>
+          <% }); %>
+        </select>
+      </div>
+
+      <div>
+        <label class="form-label" for="q">Search</label>
+        <input id="q" name="q" class="input" type="search" value="<%= filters.q || '' %>" placeholder="Name, number, memo, status">
+      </div>
+
+      <% if (group === 'Payables') { %>
+        <div>
+          <label class="form-label" for="vendor">Vendor</label>
+          <select id="vendor" name="vendor" class="input">
+            <option value="all">All vendors</option>
+            <% (options.vendors || []).forEach(function(vendor) { %>
+              <option value="<%= vendor.id %>" <%= String(filters.vendor) === String(vendor.id) ? 'selected' : '' %>><%= vendor.name %></option>
+            <% }); %>
+          </select>
+        </div>
+      <% } %>
+
+      <% if (group === 'Receivables') { %>
+        <div>
+          <label class="form-label" for="customer">Customer</label>
+          <select id="customer" name="customer" class="input">
+            <option value="all">All customers</option>
+            <% (options.customers || []).forEach(function(customer) { %>
+              <option value="<%= customer.id %>" <%= String(filters.customer) === String(customer.id) ? 'selected' : '' %>><%= customer.name %></option>
+            <% }); %>
+          </select>
+        </div>
+      <% } %>
+
+      <% if (group === 'Payroll') { %>
+        <div>
+          <label class="form-label" for="employee">Employee</label>
+          <select id="employee" name="employee" class="input">
+            <option value="all">All employees</option>
+            <% (options.employees || []).forEach(function(employee) { %>
+              <option value="<%= employee.id %>" <%= String(filters.employee) === String(employee.id) ? 'selected' : '' %>><%= employee.display_name %></option>
+            <% }); %>
+          </select>
+        </div>
+      <% } %>
+
+      <div>
+        <label class="form-label" for="status">Status</label>
+        <select id="status" name="status" class="input">
+          <% statusOptions.forEach(function(option) { %>
+            <option value="<%= option.value %>" <%= filters.status === option.value ? 'selected' : '' %>><%= option.label %></option>
+          <% }); %>
+        </select>
+      </div>
+
+      <div class="flex gap-2">
+        <button type="submit" class="btn btn-secondary">Apply</button>
+        <a href="<%= definition.href %>" class="btn btn-ghost">Clear</a>
+      </div>
+    </div>
+  </form>
+
+  <div class="ops-summary">
+    <% reportSummary.forEach(function(item) { %>
+      <div class="ops-summary-item">
+        <div class="ops-summary-label"><%= item.label %></div>
+        <div class="ops-summary-value"><%= item.value %></div>
+        <div class="ops-summary-meta"><%= item.label === 'Range' ? 'active filter' : 'current view' %></div>
+      </div>
+    <% }); %>
+  </div>
+
+  <div class="ops-panel ops-table">
+    <div class="ops-panel-head">
+      <div>
+        <div class="ops-panel-title"><%= definition.title %></div>
+        <div class="text-xs text-recon-fog mt-1"><%= filters.range ? filters.range.label : 'Current range' %></div>
+      </div>
+      <div class="text-xs text-recon-fog"><%= rowCount %> rows</div>
+    </div>
+    <div class="ops-panel-body overflow-x-auto">
+      <% if (!reportColumns.length) { %>
+        <div class="p-8 text-center text-recon-fog text-sm">This report does not have columns configured yet.</div>
+      <% } else if (!reportRows.length) { %>
+        <div class="p-8 text-center text-recon-fog text-sm">No rows match the current filters.</div>
+      <% } else { %>
+        <table class="data qb-report-table" id="qb-report-table">
+          <thead>
+            <tr>
+              <% reportColumns.forEach(function(col, idx) { %>
+                <th data-sort-key="<%= col.key %>" data-sort-type="<%= col.type === 'money' ? 'number' : 'text' %>" class="<%= col.align === 'right' ? 'text-right' : '' %>">
+                  <%= col.label %><span class="sort-marker"></span>
+                </th>
+              <% }); %>
+            </tr>
+          </thead>
+          <tbody>
+            <% reportRows.forEach(function(row) { %>
+              <tr>
+                <% reportColumns.forEach(function(col) { %>
+                  <td data-sort-value="<%= sortValue(row, col) %>" class="<%= col.align === 'right' ? 'text-right font-mono' : '' %>">
+                    <div class="<%= col.align === 'right' ? '' : 'qb-report-value' %>"><%= cellValue(row, col) %></div>
+                  </td>
+                <% }); %>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var table = document.getElementById('qb-report-table');
+  if (!table) return;
+  var tbody = table.querySelector('tbody');
+  var sortState = { index: -1, dir: 1 };
+
+  table.querySelectorAll('th[data-sort-key]').forEach(function(th, index) {
+    th.addEventListener('click', function() {
+      var type = th.getAttribute('data-sort-type') || 'text';
+      sortState.dir = sortState.index === index ? sortState.dir * -1 : 1;
+      sortState.index = index;
+
+      var rows = Array.from(tbody.querySelectorAll('tr'));
+      rows.sort(function(a, b) {
+        var av = a.children[index].getAttribute('data-sort-value') || '';
+        var bv = b.children[index].getAttribute('data-sort-value') || '';
+        if (type === 'number') {
+          av = Number(av) || 0;
+          bv = Number(bv) || 0;
+          return (av - bv) * sortState.dir;
+        }
+        return av.localeCompare(bv, undefined, { numeric: true, sensitivity: 'base' }) * sortState.dir;
+      });
+      rows.forEach(function(row) { tbody.appendChild(row); });
+
+      table.querySelectorAll('.sort-marker').forEach(function(marker) { marker.textContent = ''; });
+      var marker = th.querySelector('.sort-marker');
+      if (marker) marker.textContent = sortState.dir === 1 ? '▲' : '▼';
+    });
+  });
+})();
+</script>
+
+<%- include('../../layouts/footer') %>

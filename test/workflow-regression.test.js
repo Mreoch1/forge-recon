@@ -206,6 +206,41 @@ test('bank transactions and account defaults are wired for accounting categoriza
   assert.match(header, /href="\/accounting\/bank-transactions"/);
 });
 
+test('QuickBooks favorite accounting reports are available with filters and exports', () => {
+  const accountingRoutes = read('src/routes/accounting.js');
+  const accountingIndex = read('src/views/accounting/index.ejs');
+  const genericReport = read('src/views/accounting/reports/generic.ejs');
+
+  [
+    'ap-aging-detail',
+    'ar-aging-detail',
+    'bills-applied-payments',
+    'bill-payment-list',
+    'deposit-detail',
+    'invoices-received-payments',
+    'paycheck-history',
+    'payroll-summary-by-employee',
+    'payroll-details',
+    'payroll-summary',
+    'payroll-tax-liability',
+    'total-payroll-cost',
+    'payroll-tax-wage-summary',
+    'unpaid-bills',
+    'vendor-balance-summary',
+    'vendor-balance-detail',
+  ].forEach(slug => assert.match(accountingRoutes, new RegExp(`slug: '${slug}'`)));
+
+  assert.match(accountingRoutes, /router\.get\('\/reports\/:slug'/);
+  assert.match(accountingRoutes, /router\.get\('\/reports\/:slug\.pdf'/);
+  assert.match(accountingRoutes, /function reportDateRange/);
+  assert.match(accountingIndex, /favoriteReports/);
+  assert.match(accountingIndex, /Favorite reports/);
+  assert.match(genericReport, /name="range"/);
+  assert.match(genericReport, /name="q"/);
+  assert.match(genericReport, /data-sort-key/);
+  assert.match(genericReport, /definition\.pdf/);
+});
+
 test('project RFP export loader only selects real project columns', () => {
   const routes = read('src/routes/rfp.js');
   assert.match(routes, /\.from\('jobs'\)\s*\.select\('id, title'\)/);

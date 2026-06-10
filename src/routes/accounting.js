@@ -53,6 +53,40 @@ const BANK_DATE_OPTIONS = [
   { value: '1y', label: 'Last 1 year' },
 ];
 
+const REPORT_DATE_OPTIONS = [
+  { value: 'all', label: 'All dates' },
+  { value: 'mtd', label: 'Month to date' },
+  { value: 'ytd', label: 'Year to date' },
+  { value: '30d', label: 'Last 30 days' },
+  { value: '90d', label: 'Last 90 days' },
+  { value: '1y', label: 'Last 1 year' },
+  { value: '2y', label: 'Last 2 years' },
+  { value: '3y', label: 'Last 3 years' },
+];
+
+const FAVORITE_REPORTS = [
+  { slug: 'ap-aging-summary', title: 'Accounts payable aging summary', group: 'Payables', type: 'Aging', description: 'Open vendor balances by aging bucket.', href: '/accounting/ap-aging', pdf: '/accounting/ap-aging.pdf' },
+  { slug: 'ap-aging-detail', title: 'Accounts payable aging detail', group: 'Payables', type: 'Aging', description: 'Open vendor bills and balances by due date.', href: '/accounting/reports/ap-aging-detail', pdf: '/accounting/reports/ap-aging-detail.pdf' },
+  { slug: 'ar-aging-summary', title: 'Accounts receivable aging summary', group: 'Receivables', type: 'Aging', description: 'Open customer balances by aging bucket.', href: '/accounting/ar-aging', pdf: '/accounting/ar-aging.pdf' },
+  { slug: 'ar-aging-detail', title: 'Accounts receivable aging detail', group: 'Receivables', type: 'Aging', description: 'Open customer invoices and balances by due date.', href: '/accounting/reports/ar-aging-detail', pdf: '/accounting/reports/ar-aging-detail.pdf' },
+  { slug: 'balance-sheet', title: 'Balance Sheet', group: 'Financial statements', type: 'Statement', description: 'Assets, liabilities, equity, and balance check.', href: '/accounting/reports/balance-sheet', pdf: '/accounting/reports/balance-sheet.pdf' },
+  { slug: 'bills-applied-payments', title: 'Bills and Applied Payments', group: 'Payables', type: 'Payments', description: 'Bills with paid amounts and remaining balances.', href: '/accounting/reports/bills-applied-payments', pdf: '/accounting/reports/bills-applied-payments.pdf' },
+  { slug: 'bill-payment-list', title: 'Bill Payment List', group: 'Payables', type: 'Payments', description: 'Paid vendor bills and payment totals.', href: '/accounting/reports/bill-payment-list', pdf: '/accounting/reports/bill-payment-list.pdf' },
+  { slug: 'deposit-detail', title: 'Deposit Detail', group: 'Banking', type: 'Deposits', description: 'Received bank transactions and customer deposits.', href: '/accounting/reports/deposit-detail', pdf: '/accounting/reports/deposit-detail.pdf' },
+  { slug: 'invoices-received-payments', title: 'Invoices and Received Payments', group: 'Receivables', type: 'Payments', description: 'Invoices with customer payments and open balances.', href: '/accounting/reports/invoices-received-payments', pdf: '/accounting/reports/invoices-received-payments.pdf' },
+  { slug: 'profit-loss', title: 'Profit and Loss', group: 'Financial statements', type: 'Statement', description: 'Revenue, expenses, and net income.', href: '/accounting/reports/profit-loss', pdf: '/accounting/reports/profit-loss.pdf' },
+  { slug: 'paycheck-history', title: 'Paycheck History', group: 'Payroll', type: 'Payroll', description: 'Payroll run checks and employee net pay.', href: '/accounting/reports/paycheck-history', pdf: '/accounting/reports/paycheck-history.pdf' },
+  { slug: 'payroll-summary-by-employee', title: 'Payroll Summary by Employee', group: 'Payroll', type: 'Payroll', description: 'Gross pay, taxes, deductions, and net pay by employee.', href: '/accounting/reports/payroll-summary-by-employee', pdf: '/accounting/reports/payroll-summary-by-employee.pdf' },
+  { slug: 'payroll-details', title: 'Payroll Details', group: 'Payroll', type: 'Payroll', description: 'Payroll line detail by employee, project, and work order.', href: '/accounting/reports/payroll-details', pdf: '/accounting/reports/payroll-details.pdf' },
+  { slug: 'payroll-summary', title: 'Payroll Summary', group: 'Payroll', type: 'Payroll', description: 'Payroll totals by pay date and payroll run.', href: '/accounting/reports/payroll-summary', pdf: '/accounting/reports/payroll-summary.pdf' },
+  { slug: 'payroll-tax-liability', title: 'Payroll Tax Liability', group: 'Payroll', type: 'Tax', description: 'Employer tax liability by payroll run.', href: '/accounting/reports/payroll-tax-liability', pdf: '/accounting/reports/payroll-tax-liability.pdf' },
+  { slug: 'total-payroll-cost', title: 'Total Payroll Cost', group: 'Payroll', type: 'Payroll', description: 'Gross pay plus employer taxes by employee.', href: '/accounting/reports/total-payroll-cost', pdf: '/accounting/reports/total-payroll-cost.pdf' },
+  { slug: 'payroll-tax-wage-summary', title: 'Payroll Tax and Wage Summary', group: 'Payroll', type: 'Tax', description: 'Taxable wages and payroll tax summary.', href: '/accounting/reports/payroll-tax-wage-summary', pdf: '/accounting/reports/payroll-tax-wage-summary.pdf' },
+  { slug: 'unpaid-bills', title: 'Unpaid Bills', group: 'Payables', type: 'Open balance', description: 'Unpaid and partially paid vendor bills.', href: '/accounting/reports/unpaid-bills', pdf: '/accounting/reports/unpaid-bills.pdf' },
+  { slug: 'vendor-balance-summary', title: 'Vendor Balance Summary', group: 'Payables', type: 'Vendor balance', description: 'Open balances summarized by vendor.', href: '/accounting/reports/vendor-balance-summary', pdf: '/accounting/reports/vendor-balance-summary.pdf' },
+  { slug: 'vendor-balance-detail', title: 'Vendor Balance Detail', group: 'Payables', type: 'Vendor balance', description: 'Open vendor balances by bill.', href: '/accounting/reports/vendor-balance-detail', pdf: '/accounting/reports/vendor-balance-detail.pdf' },
+];
+
 function startOfDay(date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
@@ -96,6 +130,58 @@ function agingRange(rawValue, now = new Date()) {
     startYmd: ymd(start),
     endYmd: ymd(today),
   };
+}
+
+function reportDateRange(rawValue, now = new Date()) {
+  const value = REPORT_DATE_OPTIONS.some(o => o.value === rawValue) ? rawValue : 'ytd';
+  const today = startOfDay(now);
+  let start = null;
+  if (value === 'mtd') {
+    start = new Date(today.getFullYear(), today.getMonth(), 1);
+  } else if (value === 'ytd') {
+    start = new Date(today.getFullYear(), 0, 1);
+  } else if (value === '30d' || value === '90d') {
+    start = new Date(today);
+    start.setDate(start.getDate() - Number(value.slice(0, -1)));
+  } else if (/^\d+y$/.test(value)) {
+    start = new Date(today);
+    start.setFullYear(start.getFullYear() - Number(value.slice(0, -1)));
+  }
+  const option = REPORT_DATE_OPTIONS.find(o => o.value === value);
+  return {
+    value,
+    label: option ? option.label : 'Year to date',
+    start,
+    end: today,
+    startYmd: ymd(start),
+    endYmd: ymd(today),
+  };
+}
+
+function inReportRange(value, range) {
+  if (!range || range.value === 'all') return true;
+  const d = dateOnly(value);
+  if (!d) return false;
+  return (!range.start || d >= range.start) && (!range.end || d <= range.end);
+}
+
+function cleanQuery(value) {
+  return String(value || '').trim();
+}
+
+function includesQuery(row, q) {
+  if (!q) return true;
+  const needle = q.toLowerCase();
+  return Object.values(row).some(value => String(value == null ? '' : value).toLowerCase().includes(needle));
+}
+
+function numberValue(value) {
+  const num = Number(value || 0);
+  return Number.isFinite(num) ? num : 0;
+}
+
+function getFavoriteReport(slug) {
+  return FAVORITE_REPORTS.find(r => r.slug === slug) || null;
 }
 
 function inAgingRange(value, range) {
@@ -148,6 +234,7 @@ router.get('/', async (req, res) => {
     billCount: 0,
     vendorCount: 0,
     recentEntries: [],
+    favoriteReports: FAVORITE_REPORTS,
   });
 });
 
@@ -655,16 +742,16 @@ router.get('/journal/:id', async (req, res) => {
 
 // --- reports ---
 
-async function computeTrialBalance() {
+async function computeTrialBalance(range = null) {
   const [{ data: accounts, error: aErr }, { data: lines, error: lErr }] = await Promise.all([
     supabase.from('accounts').select('id, code, name, type').eq('active', true).order('code', { ascending: true }),
-    supabase.from('journal_lines').select('account_id, debit, credit'),
+    supabase.from('journal_lines').select('account_id, debit, credit, journal_entries!inner(entry_date)'),
   ]);
   if (aErr) throw aErr;
   if (lErr) throw lErr;
 
   const totals = {};
-  (lines || []).forEach(l => {
+  (lines || []).filter(l => inReportRange(l.journal_entries?.entry_date, range)).forEach(l => {
     const aid = l.account_id;
     if (!totals[aid]) totals[aid] = { debits: 0, credits: 0 };
     totals[aid].debits += Number(l.debit || 0);
@@ -683,9 +770,10 @@ async function computeTrialBalance() {
 }
 
 router.get('/reports/trial-balance', async (req, res) => {
+  const filters = reportFilters(req);
   let rows = [];
   try {
-    rows = await computeTrialBalance();
+    rows = await computeTrialBalance(filters.range);
   } catch (error) {
     logAccountingSetupWarning('/reports/trial-balance', error);
   }
@@ -696,12 +784,13 @@ router.get('/reports/trial-balance', async (req, res) => {
   });
   res.render('accounting/reports/trial-balance', {
     title: 'Trial balance', activeNav: 'accounting',
-    rows, totalDr, totalCr, fmt,
+    rows, totalDr, totalCr, fmt, range: filters.range, rangeOptions: REPORT_DATE_OPTIONS,
   });
 });
 
 router.get('/reports/trial-balance.pdf', async (req, res) => {
-  const [rows, company] = await Promise.all([computeTrialBalance(), getCompany()]);
+  const filters = reportFilters(req);
+  const [rows, company] = await Promise.all([computeTrialBalance(filters.range), getCompany()]);
   let totalDr = 0, totalCr = 0;
   rows.forEach(r => {
     if (r.balance > 0) totalDr += r.balance;
@@ -713,6 +802,7 @@ router.get('/reports/trial-balance.pdf', async (req, res) => {
     summary: [
       { label: 'Debit total', value: reportPdf.money(totalDr) },
       { label: 'Credit total', value: reportPdf.money(totalCr) },
+      { label: 'Range', value: filters.range.label },
       { label: 'Status', value: Math.abs(totalDr - totalCr) < 0.01 ? 'Balanced' : 'Unbalanced', color: Math.abs(totalDr - totalCr) < 0.01 ? '#166534' : '#c0202b' },
     ],
     columns: [
@@ -728,9 +818,10 @@ router.get('/reports/trial-balance.pdf', async (req, res) => {
 });
 
 router.get('/reports/profit-loss', async (req, res) => {
+  const filters = reportFilters(req);
   let rows = [];
   try {
-    rows = await computeTrialBalance();
+    rows = await computeTrialBalance(filters.range);
   } catch (error) {
     logAccountingSetupWarning('/reports/profit-loss', error);
   }
@@ -747,12 +838,13 @@ router.get('/reports/profit-loss', async (req, res) => {
 
   res.render('accounting/reports/profit-loss', {
     title: 'Profit & loss', activeNav: 'accounting',
-    revenueRows, expenseRows, totalRevenue, totalExpenses, netIncome, fmt,
+    revenueRows, expenseRows, totalRevenue, totalExpenses, netIncome, fmt, range: filters.range, rangeOptions: REPORT_DATE_OPTIONS,
   });
 });
 
 router.get('/reports/profit-loss.pdf', async (req, res) => {
-  const [rows, company] = await Promise.all([computeTrialBalance(), getCompany()]);
+  const filters = reportFilters(req);
+  const [rows, company] = await Promise.all([computeTrialBalance(filters.range), getCompany()]);
   const revenueRows = rows.filter(r => r.type === 'revenue').map(r => ({ ...r, amount: -r.balance }));
   const expenseRows = rows.filter(r => r.type === 'expense').map(r => ({ ...r, amount: r.balance }));
   const totalRevenue = revenueRows.reduce((s, r) => s + r.amount, 0);
@@ -764,6 +856,7 @@ router.get('/reports/profit-loss.pdf', async (req, res) => {
     summary: [
       { label: 'Revenue', value: reportPdf.money(totalRevenue) },
       { label: 'Expenses', value: reportPdf.money(totalExpenses) },
+      { label: 'Range', value: filters.range.label },
       { label: 'Net income', value: reportPdf.money(netIncome), color: netIncome >= 0 ? '#166534' : '#c0202b' },
     ],
     sections: [
@@ -775,9 +868,10 @@ router.get('/reports/profit-loss.pdf', async (req, res) => {
 });
 
 router.get('/reports/balance-sheet', async (req, res) => {
+  const filters = reportFilters(req);
   let rows = [];
   try {
-    rows = await computeTrialBalance();
+    rows = await computeTrialBalance(filters.range);
   } catch (error) {
     logAccountingSetupWarning('/reports/balance-sheet', error);
   }
@@ -799,12 +893,13 @@ router.get('/reports/balance-sheet', async (req, res) => {
     assets, liabilities, equity, netIncome,
     totalAssets, totalLiabilities, totalEquity: totalEquityWithIncome,
     balanced: Math.abs(totalAssets - (totalLiabilities + totalEquityWithIncome)) < 0.01,
-    fmt,
+    fmt, range: filters.range, rangeOptions: REPORT_DATE_OPTIONS,
   });
 });
 
 router.get('/reports/balance-sheet.pdf', async (req, res) => {
-  const [rows, company] = await Promise.all([computeTrialBalance(), getCompany()]);
+  const filters = reportFilters(req);
+  const [rows, company] = await Promise.all([computeTrialBalance(filters.range), getCompany()]);
   const assets = rows.filter(r => r.type === 'asset').map(r => ({ ...r, amount: r.balance }));
   const liabilities = rows.filter(r => r.type === 'liability').map(r => ({ ...r, amount: -r.balance }));
   const equity = rows.filter(r => r.type === 'equity').map(r => ({ ...r, amount: -r.balance }));
@@ -823,6 +918,7 @@ router.get('/reports/balance-sheet.pdf', async (req, res) => {
       { label: 'Assets', value: reportPdf.money(totalAssets) },
       { label: 'Liabilities', value: reportPdf.money(totalLiabilities) },
       { label: 'Equity', value: reportPdf.money(totalEquity) },
+      { label: 'Range', value: filters.range.label },
       { label: 'Status', value: balanced ? 'Balanced' : 'Unbalanced', color: balanced ? '#166534' : '#c0202b' },
     ],
     sections: [
@@ -1009,6 +1105,430 @@ router.get('/ap-aging.pdf', async (req, res) => {
       { key: 'bucket', label: 'Bucket', width: 0.9 },
     ],
     rows,
+  });
+});
+
+function reportFilters(req) {
+  return {
+    range: reportDateRange(req.query.range),
+    q: cleanQuery(req.query.q),
+    status: cleanQuery(req.query.status || 'all') || 'all',
+    vendor: cleanQuery(req.query.vendor || 'all') || 'all',
+    customer: cleanQuery(req.query.customer || 'all') || 'all',
+    employee: cleanQuery(req.query.employee || 'all') || 'all',
+  };
+}
+
+async function loadInvoicePaymentRows(filters) {
+  const { data, error } = await supabase
+    .from('invoices')
+    .select(`
+      id, status, total, amount_paid, created_at, due_date, sent_at, paid_at, payment_terms, po_number,
+      work_orders!left(display_number, unit_number,
+        customers!left(id, name),
+        jobs!left(title, customers!left(id, name)))
+    `)
+    .order('created_at', { ascending: false })
+    .limit(1000);
+  if (error) throw error;
+
+  return (data || []).map(inv => {
+    const wo = inv.work_orders || {};
+    const job = wo.jobs || {};
+    const customer = wo.customers || job.customers || {};
+    const issueDate = String(inv.created_at || '').slice(0, 10);
+    const paidDate = inv.paid_at ? String(inv.paid_at).slice(0, 10) : '';
+    const balance = numberValue(inv.total) - numberValue(inv.amount_paid);
+    return {
+      id: inv.id,
+      customer_id: customer.id || null,
+      customer: customer.name || 'Unassigned customer',
+      invoice: wo.display_number ? `INV-${wo.display_number}` : `INV-${inv.id}`,
+      work_order: wo.display_number ? `WO-${wo.display_number}` : '-',
+      project: job.title || '-',
+      po_number: inv.po_number || '-',
+      status: inv.status || '-',
+      issued: issueDate,
+      due: inv.due_date || '-',
+      paid_date: paidDate || '-',
+      terms: inv.payment_terms || '-',
+      total: numberValue(inv.total),
+      received: numberValue(inv.amount_paid),
+      balance,
+      reportDate: paidDate || issueDate,
+    };
+  }).filter(row => inReportRange(row.reportDate, filters.range))
+    .filter(row => filters.status === 'all' || row.status === filters.status)
+    .filter(row => filters.customer === 'all' || String(row.customer_id) === String(filters.customer))
+    .filter(row => includesQuery(row, filters.q));
+}
+
+async function loadBillPaymentRows(filters) {
+  const { data, error } = await supabase
+    .from('bills')
+    .select('id, bill_number, status, bill_date, due_date, total, amount_paid, approved_at, updated_at, created_at, vendors!left(id, name)')
+    .order('bill_date', { ascending: false })
+    .limit(1000);
+  if (error) throw error;
+
+  return (data || []).map(bill => {
+    const billDate = bill.bill_date || String(bill.created_at || '').slice(0, 10);
+    const paymentDate = bill.status === 'paid' ? String(bill.updated_at || '').slice(0, 10) : '';
+    const balance = numberValue(bill.total) - numberValue(bill.amount_paid);
+    return {
+      id: bill.id,
+      vendor_id: bill.vendors?.id || null,
+      vendor: bill.vendors?.name || 'Unassigned vendor',
+      bill: bill.bill_number || `Bill #${bill.id}`,
+      status: bill.status || '-',
+      bill_date: billDate || '-',
+      due: bill.due_date || '-',
+      paid_date: paymentDate || '-',
+      total: numberValue(bill.total),
+      paid: numberValue(bill.amount_paid),
+      balance,
+      reportDate: paymentDate || billDate,
+    };
+  }).filter(row => inReportRange(row.reportDate, filters.range))
+    .filter(row => filters.status === 'all' || row.status === filters.status)
+    .filter(row => filters.vendor === 'all' || String(row.vendor_id) === String(filters.vendor))
+    .filter(row => includesQuery(row, filters.q));
+}
+
+async function loadDepositRows(filters) {
+  let bankRows = [];
+  try {
+    const { data, error } = await supabase
+      .from('bank_transactions')
+      .select('id, transaction_date, bank_detail, payee, account_name, received, memo, accounts:account_id(code, name)')
+      .gt('received', 0)
+      .order('transaction_date', { ascending: false })
+      .limit(1000);
+    if (error) throw error;
+    bankRows = (data || []).map(tx => ({
+      id: tx.id,
+      source: 'Bank transaction',
+      date: tx.transaction_date,
+      account: tx.accounts ? `${tx.accounts.code} ${tx.accounts.name}` : (tx.account_name || 'Bank account'),
+      name: tx.payee || '-',
+      detail: tx.bank_detail || tx.memo || '-',
+      amount: numberValue(tx.received),
+      reportDate: tx.transaction_date,
+    }));
+  } catch (error) {
+    bankRows = [];
+  }
+
+  const invoiceRows = (await loadInvoicePaymentRows({ ...filters, status: 'all', customer: 'all', q: '' }))
+    .filter(row => numberValue(row.received) > 0)
+    .map(row => ({
+      id: row.id,
+      source: 'Invoice payment',
+      date: row.paid_date !== '-' ? row.paid_date : row.issued,
+      account: 'Accounts Receivable',
+      name: row.customer,
+      detail: `${row.invoice} ${row.po_number !== '-' ? 'PO ' + row.po_number : ''}`.trim(),
+      amount: row.received,
+      reportDate: row.paid_date !== '-' ? row.paid_date : row.issued,
+    }));
+
+  return bankRows.concat(invoiceRows)
+    .filter(row => inReportRange(row.reportDate, filters.range))
+    .filter(row => includesQuery(row, filters.q))
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+}
+
+async function loadVendorBalanceRows(filters, detail = false) {
+  const rows = await loadBillPaymentRows({ ...filters, status: 'all', q: '' });
+  const open = rows.filter(row => row.status !== 'void' && numberValue(row.balance) > 0);
+  if (detail) {
+    return open
+      .filter(row => filters.vendor === 'all' || String(row.vendor_id) === String(filters.vendor))
+      .filter(row => includesQuery(row, filters.q));
+  }
+
+  const grouped = new Map();
+  open.forEach(row => {
+    const key = row.vendor_id || row.vendor;
+    const current = grouped.get(key) || {
+      vendor_id: row.vendor_id,
+      vendor: row.vendor,
+      open_bills: 0,
+      total_billed: 0,
+      paid: 0,
+      balance: 0,
+      oldest_due: row.due,
+    };
+    current.open_bills += 1;
+    current.total_billed += row.total;
+    current.paid += row.paid;
+    current.balance += row.balance;
+    if (row.due && row.due !== '-' && (!current.oldest_due || current.oldest_due === '-' || row.due < current.oldest_due)) current.oldest_due = row.due;
+    grouped.set(key, current);
+  });
+  return Array.from(grouped.values())
+    .filter(row => filters.vendor === 'all' || String(row.vendor_id) === String(filters.vendor))
+    .filter(row => includesQuery(row, filters.q))
+    .sort((a, b) => b.balance - a.balance);
+}
+
+async function loadPayrollLineRows(filters) {
+  const { data, error } = await supabase
+    .from('payroll_run_lines')
+    .select(`
+      id, earning_type, regular_hours, overtime_hours, gross_pay, employer_taxes, deductions, net_pay, labor_cost, allocation_status,
+      payroll_runs!inner(id, pay_period_start, pay_period_end, pay_date, status),
+      payroll_employees!left(id, display_name, role_title),
+      jobs!left(title),
+      work_orders!left(display_number)
+    `)
+    .order('created_at', { ascending: false })
+    .limit(1000);
+  if (error) throw error;
+
+  return (data || []).map(line => {
+    const run = line.payroll_runs || {};
+    return {
+      id: line.id,
+      employee_id: line.payroll_employees?.id || null,
+      employee: line.payroll_employees?.display_name || 'Unassigned employee',
+      role: line.payroll_employees?.role_title || '-',
+      pay_date: run.pay_date || '-',
+      period: [run.pay_period_start, run.pay_period_end].filter(Boolean).join(' to ') || '-',
+      earning_type: line.earning_type || '-',
+      project: line.jobs?.title || '-',
+      work_order: line.work_orders?.display_number ? `WO-${line.work_orders.display_number}` : '-',
+      regular_hours: numberValue(line.regular_hours),
+      overtime_hours: numberValue(line.overtime_hours),
+      gross_pay: numberValue(line.gross_pay),
+      employer_taxes: numberValue(line.employer_taxes),
+      deductions: numberValue(line.deductions),
+      net_pay: numberValue(line.net_pay),
+      labor_cost: numberValue(line.labor_cost),
+      allocation_status: line.allocation_status || '-',
+      reportDate: run.pay_date,
+    };
+  }).filter(row => inReportRange(row.reportDate, filters.range))
+    .filter(row => filters.employee === 'all' || String(row.employee_id) === String(filters.employee))
+    .filter(row => includesQuery(row, filters.q));
+}
+
+async function loadPayrollRunRows(filters) {
+  const { data, error } = await supabase
+    .from('payroll_runs')
+    .select('id, source, pay_period_start, pay_period_end, pay_date, status, gross_pay, employer_taxes, deductions, net_pay')
+    .order('pay_date', { ascending: false })
+    .limit(500);
+  if (error) throw error;
+  return (data || []).map(run => ({
+    id: run.id,
+    pay_date: run.pay_date || '-',
+    period: [run.pay_period_start, run.pay_period_end].filter(Boolean).join(' to ') || '-',
+    source: run.source || '-',
+    status: run.status || '-',
+    gross_pay: numberValue(run.gross_pay),
+    employer_taxes: numberValue(run.employer_taxes),
+    deductions: numberValue(run.deductions),
+    net_pay: numberValue(run.net_pay),
+    total_cost: numberValue(run.gross_pay) + numberValue(run.employer_taxes),
+    reportDate: run.pay_date,
+  })).filter(row => inReportRange(row.reportDate, filters.range))
+    .filter(row => filters.status === 'all' || row.status === filters.status)
+    .filter(row => includesQuery(row, filters.q));
+}
+
+async function loadReportOptions() {
+  const [vendors, customers, employees] = await Promise.all([
+    supabase.from('vendors').select('id, name').order('name', { ascending: true }).limit(500).then(r => r.data || []).catch(() => []),
+    supabase.from('customers').select('id, name').order('name', { ascending: true }).limit(500).then(r => r.data || []).catch(() => []),
+    supabase.from('payroll_employees').select('id, display_name').order('display_name', { ascending: true }).limit(500).then(r => r.data || []).catch(() => []),
+  ]);
+  return { vendors, customers, employees };
+}
+
+function summarizeRows(rows, fields) {
+  return fields.map(field => ({
+    label: field.label,
+    value: field.money ? money(rows.reduce((sum, row) => sum + numberValue(row[field.key]), 0)) : String(rows.length),
+  }));
+}
+
+function reportColumns(slug) {
+  const currency = key => ({ key, label: key.replace(/_/g, ' '), type: 'money', align: 'right' });
+  switch (slug) {
+    case 'ar-aging-detail':
+      return [
+        { key: 'customer', label: 'Customer' }, { key: 'invoice', label: 'Invoice' }, { key: 'status', label: 'Status' },
+        { key: 'issued', label: 'Issued' }, { key: 'due', label: 'Due' }, currency('total'), currency('received'), currency('balance'),
+      ];
+    case 'ap-aging-detail':
+    case 'unpaid-bills':
+    case 'vendor-balance-detail':
+      return [
+        { key: 'vendor', label: 'Vendor' }, { key: 'bill', label: 'Bill' }, { key: 'status', label: 'Status' },
+        { key: 'bill_date', label: 'Bill date' }, { key: 'due', label: 'Due' }, currency('total'), currency('paid'), currency('balance'),
+      ];
+    case 'bills-applied-payments':
+      return [
+        { key: 'vendor', label: 'Vendor' }, { key: 'bill', label: 'Bill' }, { key: 'status', label: 'Status' },
+        { key: 'bill_date', label: 'Bill date' }, { key: 'paid_date', label: 'Paid date' }, currency('total'), currency('paid'), currency('balance'),
+      ];
+    case 'bill-payment-list':
+      return [
+        { key: 'vendor', label: 'Vendor' }, { key: 'bill', label: 'Bill' }, { key: 'paid_date', label: 'Paid date' },
+        currency('paid'), { key: 'status', label: 'Status' },
+      ];
+    case 'deposit-detail':
+      return [
+        { key: 'date', label: 'Date' }, { key: 'source', label: 'Source' }, { key: 'name', label: 'Name' },
+        { key: 'detail', label: 'Detail' }, { key: 'account', label: 'Account' }, currency('amount'),
+      ];
+    case 'invoices-received-payments':
+      return [
+        { key: 'customer', label: 'Customer' }, { key: 'invoice', label: 'Invoice' }, { key: 'po_number', label: 'PO #' },
+        { key: 'status', label: 'Status' }, { key: 'issued', label: 'Issued' }, { key: 'paid_date', label: 'Paid date' },
+        currency('total'), currency('received'), currency('balance'),
+      ];
+    case 'vendor-balance-summary':
+      return [
+        { key: 'vendor', label: 'Vendor' }, { key: 'open_bills', label: 'Open bills', align: 'right' },
+        { key: 'oldest_due', label: 'Oldest due' }, currency('total_billed'), currency('paid'), currency('balance'),
+      ];
+    case 'paycheck-history':
+      return [
+        { key: 'employee', label: 'Employee' }, { key: 'pay_date', label: 'Pay date' }, { key: 'period', label: 'Period' },
+        { key: 'earning_type', label: 'Earning' }, currency('gross_pay'), currency('deductions'), currency('net_pay'),
+      ];
+    case 'payroll-details':
+      return [
+        { key: 'employee', label: 'Employee' }, { key: 'pay_date', label: 'Pay date' }, { key: 'project', label: 'Project' },
+        { key: 'work_order', label: 'WO' }, { key: 'regular_hours', label: 'Reg hrs', align: 'right' }, { key: 'overtime_hours', label: 'OT hrs', align: 'right' },
+        currency('gross_pay'), currency('employer_taxes'), currency('labor_cost'),
+      ];
+    case 'payroll-summary-by-employee':
+    case 'total-payroll-cost':
+    case 'payroll-tax-wage-summary':
+      return [
+        { key: 'employee', label: 'Employee' }, { key: 'role', label: 'Role' },
+        { key: 'regular_hours', label: 'Reg hrs', align: 'right' }, { key: 'overtime_hours', label: 'OT hrs', align: 'right' },
+        currency('gross_pay'), currency('employer_taxes'), currency('deductions'), currency('net_pay'), currency('labor_cost'),
+      ];
+    case 'payroll-summary':
+    case 'payroll-tax-liability':
+      return [
+        { key: 'pay_date', label: 'Pay date' }, { key: 'period', label: 'Period' }, { key: 'status', label: 'Status' },
+        currency('gross_pay'), currency('employer_taxes'), currency('deductions'), currency('net_pay'), currency('total_cost'),
+      ];
+    default:
+      return [];
+  }
+}
+
+async function loadGenericReport(slug, filters) {
+  let rows = [];
+  if (slug === 'ar-aging-detail') {
+    rows = (await loadInvoicePaymentRows(filters)).filter(row => numberValue(row.balance) > 0 && row.status !== 'void' && row.status !== 'draft');
+  } else if (slug === 'ap-aging-detail' || slug === 'unpaid-bills') {
+    rows = (await loadBillPaymentRows(filters)).filter(row => numberValue(row.balance) > 0 && row.status !== 'void');
+  } else if (slug === 'bills-applied-payments') {
+    rows = await loadBillPaymentRows(filters);
+  } else if (slug === 'bill-payment-list') {
+    rows = (await loadBillPaymentRows({ ...filters, status: 'paid' })).filter(row => numberValue(row.paid) > 0);
+  } else if (slug === 'deposit-detail') {
+    rows = await loadDepositRows(filters);
+  } else if (slug === 'invoices-received-payments') {
+    rows = await loadInvoicePaymentRows(filters);
+  } else if (slug === 'vendor-balance-summary') {
+    rows = await loadVendorBalanceRows(filters, false);
+  } else if (slug === 'vendor-balance-detail') {
+    rows = await loadVendorBalanceRows(filters, true);
+  } else if (slug === 'payroll-summary-by-employee' || slug === 'total-payroll-cost' || slug === 'payroll-tax-wage-summary') {
+    const lineRows = await loadPayrollLineRows(filters);
+    const grouped = new Map();
+    lineRows.forEach(row => {
+      const key = row.employee_id || row.employee;
+      const current = grouped.get(key) || { employee_id: row.employee_id, employee: row.employee, role: row.role, regular_hours: 0, overtime_hours: 0, gross_pay: 0, employer_taxes: 0, deductions: 0, net_pay: 0, labor_cost: 0 };
+      ['regular_hours', 'overtime_hours', 'gross_pay', 'employer_taxes', 'deductions', 'net_pay', 'labor_cost'].forEach(k => { current[k] += numberValue(row[k]); });
+      grouped.set(key, current);
+    });
+    rows = Array.from(grouped.values()).filter(row => includesQuery(row, filters.q));
+  } else if (slug === 'payroll-details' || slug === 'paycheck-history') {
+    rows = await loadPayrollLineRows(filters);
+  } else if (slug === 'payroll-summary' || slug === 'payroll-tax-liability') {
+    rows = await loadPayrollRunRows(filters);
+  }
+
+  const columns = reportColumns(slug);
+  const summary = [
+    { label: 'Rows', value: String(rows.length) },
+    { label: 'Range', value: filters.range.label },
+  ];
+  columns.filter(c => c.type === 'money').slice(-3).forEach(c => {
+    summary.push({ label: c.label, value: money(rows.reduce((sum, row) => sum + numberValue(row[c.key]), 0)) });
+  });
+
+  return { rows, columns, summary };
+}
+
+function pdfColumnsFromReport(columns) {
+  return columns.map(col => ({
+    key: col.key,
+    label: col.label,
+    width: col.type === 'money' ? 1 : 1.4,
+    align: col.align || (col.type === 'money' ? 'right' : 'left'),
+    value: row => col.type === 'money' ? reportPdf.money(row[col.key]) : row[col.key],
+  }));
+}
+
+router.get('/reports/:slug.pdf', async (req, res, next) => {
+  const definition = getFavoriteReport(req.params.slug);
+  if (!definition || ['balance-sheet', 'profit-loss'].includes(definition.slug)) return next();
+  const filters = reportFilters(req);
+  try {
+    const [report, company] = await Promise.all([loadGenericReport(definition.slug, filters), getCompany()]);
+    sendPdf(res, `${definition.slug}.pdf`, {
+      title: definition.title,
+      subtitle: `Range: ${filters.range.label}`,
+      company,
+      summary: report.summary,
+      columns: pdfColumnsFromReport(report.columns),
+      rows: report.rows,
+    });
+  } catch (error) {
+    logAccountingSetupWarning(`/reports/${definition.slug}.pdf`, error);
+    res.status(503).render('error', {
+      title: 'Report unavailable',
+      code: 503,
+      message: 'This report is waiting on matching accounting/payroll data before it can be exported.',
+    });
+  }
+});
+
+router.get('/reports/:slug', async (req, res, next) => {
+  const definition = getFavoriteReport(req.params.slug);
+  if (!definition || ['balance-sheet', 'profit-loss'].includes(definition.slug)) return next();
+  const filters = reportFilters(req);
+  const options = await loadReportOptions();
+  let report = { rows: [], columns: [], summary: [] };
+  let warning = null;
+  try {
+    report = await loadGenericReport(definition.slug, filters);
+  } catch (error) {
+    logAccountingSetupWarning(`/reports/${definition.slug}`, error);
+    warning = 'This report is waiting on the matching accounting/payroll table or import data.';
+  }
+  res.render('accounting/reports/generic', {
+    title: definition.title,
+    activeNav: 'accounting',
+    definition,
+    filters,
+    options,
+    dateOptions: REPORT_DATE_OPTIONS,
+    rows: report.rows,
+    columns: report.columns,
+    summary: report.summary,
+    warning,
+    money,
   });
 });
 
