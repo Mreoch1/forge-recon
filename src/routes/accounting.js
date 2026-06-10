@@ -39,6 +39,20 @@ const AGING_RANGE_OPTIONS = [
   { value: '3y', label: 'Last 3 years' },
 ];
 
+const BANK_STATUS_TABS = [
+  { value: 'for_review', label: 'For review' },
+  { value: 'categorized', label: 'Categorized' },
+  { value: 'excluded', label: 'Excluded' },
+];
+
+const BANK_DATE_OPTIONS = [
+  { value: 'all', label: 'All dates' },
+  { value: '30d', label: 'Last 30 days' },
+  { value: '90d', label: 'Last 90 days' },
+  { value: 'ytd', label: 'Year to date' },
+  { value: '1y', label: 'Last 1 year' },
+];
+
 function startOfDay(date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
@@ -134,6 +148,130 @@ router.get('/', async (req, res) => {
     billCount: 0,
     vendorCount: 0,
     recentEntries: [],
+  });
+});
+
+function bankDateRange(rawValue, now = new Date()) {
+  const value = BANK_DATE_OPTIONS.some(o => o.value === rawValue) ? rawValue : 'all';
+  const today = startOfDay(now);
+  let start = null;
+  if (value === '30d' || value === '90d') {
+    start = new Date(today);
+    start.setDate(start.getDate() - Number(value.slice(0, -1)));
+  } else if (value === 'ytd') {
+    start = new Date(today.getFullYear(), 0, 1);
+  } else if (value === '1y') {
+    start = new Date(today);
+    start.setFullYear(start.getFullYear() - 1);
+  }
+  return { value, startYmd: ymd(start), endYmd: ymd(today) };
+}
+
+function normalizeBankStatus(value) {
+  return BANK_STATUS_TABS.some(tab => tab.value === value) ? value : 'for_review';
+}
+
+function bankTransactionMatchesSearch(tx, q) {
+  if (!q) return true;
+  const haystack = [
+    tx.transaction_date,
+    tx.bank_detail,
+    tx.payee,
+    tx.memo,
+    tx.accounts && tx.accounts.code,
+    tx.accounts && tx.accounts.name,
+  ].filter(Boolean).join(' ').toLowerCase();
+  return haystack.includes(q.toLowerCase());
+}
+
+function bankActionLabel(tx) {
+  if (tx.match_status === 'categorized') return 'View';
+  if (tx.match_status === 'excluded') return 'Restore';
+  return tx.account_id ? 'Match' : 'Add';
+}
+
+async function loadBankTransactions(req) {
+  const status = normalizeBankStatus(req.query.status);
+  const dateRange = bankDateRange(req.query.date_range);
+  const txType = ['all', 'spent', 'received'].includes(req.query.type) ? req.query.type : 'all';
+  const q = String(req.query.q || '').trim();
+
+  let query = supabase
+    .from('bank_transactions')
+    .select('*, accounts:account_id(id, code, name, type)')
+    .eq('match_status', status)
+    .order('transaction_date', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(500);
+
+  if (dateRange.startYmd) query = query.gte('transaction_date', dateRange.startYmd);
+  if (txType === 'spent') query = query.gt('spent', 0);
+  if (txType === 'received') query = query.gt('received', 0);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const rows = (data || []).filter(tx => bankTransactionMatchesSearch(tx, q));
+  const accountMap = new Map();
+  rows.forEach(tx => {
+    const key = tx.account_name || 'Unassigned account';
+    const current = accountMap.get(key) || {
+      name: key,
+      forReview: 0,
+      categorized: 0,
+      excluded: 0,
+      balance: 0,
+    };
+    current[tx.match_status === 'for_review' ? 'forReview' : tx.match_status] += 1;
+    current.balance += Number(tx.received || 0) - Number(tx.spent || 0);
+    accountMap.set(key, current);
+  });
+
+  const totals = rows.reduce((sum, tx) => {
+    sum.spent += Number(tx.spent || 0);
+    sum.received += Number(tx.received || 0);
+    return sum;
+  }, { spent: 0, received: 0 });
+
+  return {
+    rows,
+    status,
+    dateRange,
+    txType,
+    q,
+    accountCards: Array.from(accountMap.values()),
+    totals,
+  };
+}
+
+router.get('/bank-transactions', async (req, res) => {
+  let data = {
+    rows: [],
+    status: normalizeBankStatus(req.query.status),
+    dateRange: bankDateRange(req.query.date_range),
+    txType: ['all', 'spent', 'received'].includes(req.query.type) ? req.query.type : 'all',
+    q: String(req.query.q || '').trim(),
+    accountCards: [],
+    totals: { spent: 0, received: 0 },
+  };
+  let warning = null;
+
+  try {
+    data = await loadBankTransactions(req);
+  } catch (error) {
+    logAccountingSetupWarning('/bank-transactions', error);
+    warning = 'Bank transaction table is not ready yet. Run the latest database migration, then refresh this page.';
+  }
+
+  res.render('accounting/bank-transactions', {
+    title: 'Bank transactions',
+    activeNav: 'accounting',
+    ...data,
+    warning,
+    statusTabs: BANK_STATUS_TABS,
+    dateOptions: BANK_DATE_OPTIONS,
+    money,
+    bankActionLabel,
   });
 });
 

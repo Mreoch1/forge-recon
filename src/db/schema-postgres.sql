@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS customers (
   email TEXT,
   billing_email TEXT,
   phone TEXT,
+  default_income_account_id BIGINT,
   address TEXT,
   city TEXT,
   state TEXT,
@@ -339,6 +340,7 @@ CREATE TABLE IF NOT EXISTS contractors (
   state TEXT,
   zip TEXT,
   trade TEXT,
+  default_expense_account_id BIGINT REFERENCES accounts(id),
   license_number TEXT,
   insurance_expiry_date DATE,
   notes TEXT,
@@ -347,6 +349,31 @@ CREATE TABLE IF NOT EXISTS contractors (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS bank_transactions (
+  id BIGSERIAL PRIMARY KEY,
+  account_name TEXT NOT NULL DEFAULT 'Checking',
+  transaction_date DATE NOT NULL,
+  bank_detail TEXT NOT NULL DEFAULT '',
+  payee TEXT,
+  account_id BIGINT REFERENCES accounts(id) ON DELETE SET NULL,
+  match_status TEXT NOT NULL DEFAULT 'for_review'
+    CHECK(match_status IN ('for_review','categorized','excluded')),
+  suggested_match_type TEXT,
+  suggested_match_id BIGINT,
+  spent NUMERIC(14,2) NOT NULL DEFAULT 0,
+  received NUMERIC(14,2) NOT NULL DEFAULT 0,
+  memo TEXT,
+  attachment_count INTEGER NOT NULL DEFAULT 0,
+  reviewed_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  reviewed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_bank_transactions_status ON bank_transactions(match_status);
+CREATE INDEX IF NOT EXISTS idx_bank_transactions_date ON bank_transactions(transaction_date);
+CREATE INDEX IF NOT EXISTS idx_bank_transactions_account ON bank_transactions(account_id);
 
 CREATE TABLE IF NOT EXISTS contractor_vendor_intakes (
   id BIGSERIAL PRIMARY KEY,

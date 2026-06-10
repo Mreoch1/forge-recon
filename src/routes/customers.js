@@ -21,6 +21,17 @@ function emptyToNull(v) {
   return t === '' ? null : t;
 }
 
+async function loadAccountOptions(type) {
+  const { data, error } = await supabase
+    .from('accounts')
+    .select('id, code, name')
+    .eq('type', type)
+    .eq('active', true)
+    .order('code', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
 function validateCustomer(body) {
   const errors = {};
   const name = emptyToNull(body.name);
@@ -44,6 +55,7 @@ function validateCustomer(body) {
       billing_email,
       contact_name: emptyToNull(body.contact_name),
       phone: emptyToNullFormattedPhone(body.phone),
+      default_income_account_id: parseInt(body.default_income_account_id, 10) || null,
       address: emptyToNull(body.address),
       city: emptyToNull(body.city),
       state: emptyToNull(body.state),
@@ -56,7 +68,7 @@ function validateCustomer(body) {
 function blankCustomer() {
   return {
     id: null, name: '', email: '', billing_email: '', phone: '',
-    address: '', city: '', state: '', zip: '', notes: ''
+    default_income_account_id: '', address: '', city: '', state: '', zip: '', notes: ''
   };
 }
 
@@ -89,25 +101,28 @@ router.get('/', async (req, res) => {
 });
 
 router.get('/new', async (req, res) => {
+  const accounts = await loadAccountOptions('revenue');
   res.render('customers/new', {
     title: 'New customer', activeNav: 'customers',
-    customer: blankCustomer(), errors: {}
+    customer: blankCustomer(), errors: {}, accounts
   });
 });
 
 router.post('/', async (req, res) => {
   const { errors, data } = validateCustomer(req.body);
   if (Object.keys(errors).length) {
+    const accounts = await loadAccountOptions('revenue');
     return res.status(400).render('customers/new', {
       title: 'New customer', activeNav: 'customers',
-      customer: { id: null, ...data }, errors
+      customer: { id: null, ...data }, errors, accounts
     });
   }
   const { data: newCustomer, error: insertError } = await supabase
     .from('customers')
     .insert({
       name: data.name, email: data.email, billing_email: data.billing_email,
-      phone: data.phone, address: data.address, city: data.city,
+      phone: data.phone, default_income_account_id: data.default_income_account_id,
+      address: data.address, city: data.city,
       state: data.state, zip: data.zip, notes: data.notes
     })
     .select()
@@ -226,9 +241,10 @@ router.get('/:id/edit', async (req, res) => {
   const { data: customer, error } = await supabase.from('customers').select('*').eq('id', req.params.id).maybeSingle();
   if (error) throw error;
   if (!customer) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Customer not found.' });
+  const accounts = await loadAccountOptions('revenue');
   res.render('customers/edit', {
     title: `Edit ${customer.name}`, activeNav: 'customers',
-    customer, errors: {}
+    customer, errors: {}, accounts
   });
 });
 
@@ -238,9 +254,10 @@ router.post('/:id', async (req, res) => {
   if (!customer) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Customer not found.' });
   const { errors, data } = validateCustomer(req.body);
   if (Object.keys(errors).length) {
+    const accounts = await loadAccountOptions('revenue');
     return res.status(400).render('customers/edit', {
       title: `Edit ${customer.name}`, activeNav: 'customers',
-      customer: { id: customer.id, ...data }, errors
+      customer: { id: customer.id, ...data }, errors, accounts
     });
   }
   const { error: updateError } = await supabase

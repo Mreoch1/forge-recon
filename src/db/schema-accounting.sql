@@ -104,6 +104,29 @@ CREATE TABLE IF NOT EXISTS ai_extractions (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- ========== Bank transactions ==========
+-- Imported bank rows waiting for chart-account categorization or invoice/bill matching.
+CREATE TABLE IF NOT EXISTS bank_transactions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  account_name TEXT NOT NULL DEFAULT 'Checking',
+  transaction_date TEXT NOT NULL,
+  bank_detail TEXT NOT NULL DEFAULT '',
+  payee TEXT,
+  account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+  match_status TEXT NOT NULL DEFAULT 'for_review'
+    CHECK(match_status IN ('for_review','categorized','excluded')),
+  suggested_match_type TEXT,
+  suggested_match_id INTEGER,
+  spent REAL NOT NULL DEFAULT 0,
+  received REAL NOT NULL DEFAULT 0,
+  memo TEXT,
+  attachment_count INTEGER NOT NULL DEFAULT 0,
+  reviewed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  reviewed_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- ========== Audit log ==========
 -- Every mutation on financial records leaves a row here. before_json/after_json
 -- are JSON snapshots of the row (or relevant subset). source distinguishes

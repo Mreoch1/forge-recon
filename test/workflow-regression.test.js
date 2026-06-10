@@ -176,6 +176,36 @@ test('QuickBooks flow uses CSV export instead of live API sync', () => {
   assert.match(invoiceShow, /billing-complete/);
 });
 
+test('bank transactions and account defaults are wired for accounting categorization', () => {
+  const accountingRoutes = read('src/routes/accounting.js');
+  const accountingIndex = read('src/views/accounting/index.ejs');
+  const bankView = read('src/views/accounting/bank-transactions.ejs');
+  const customers = read('src/routes/customers.js');
+  const customerForm = read('src/views/customers/_form.ejs');
+  const contractors = read('src/routes/contractors.js');
+  const contractorForm = read('src/views/contractors/_form.ejs');
+  const vendorForm = read('src/views/vendors/_form.ejs');
+  const migration = read('supabase/migrations/20260610120000_bank_transactions_and_account_defaults.sql');
+  const header = read('src/views/layouts/header.ejs');
+
+  assert.match(accountingRoutes, /router\.get\('\/bank-transactions'/);
+  assert.match(accountingRoutes, /\.from\('bank_transactions'\)/);
+  assert.match(accountingIndex, /href: '\/accounting\/bank-transactions'/);
+  assert.match(bankView, /class="ops-shell"/);
+  assert.match(bankView, /Categorize or match/);
+  assert.match(bankView, /Chart of accounts/);
+  assert.match(customers, /default_income_account_id/);
+  assert.match(customers, /loadAccountOptions\('revenue'\)/);
+  assert.match(customerForm, /name="default_income_account_id"/);
+  assert.match(contractors, /default_expense_account_id/);
+  assert.match(contractors, /loadExpenseAccounts\(\)/);
+  assert.match(contractorForm, /name="default_expense_account_id"/);
+  assert.match(vendorForm, /name="default_expense_account_id"/);
+  assert.match(migration, /create table if not exists public\.bank_transactions/);
+  assert.match(migration, /alter table public\.bank_transactions enable row level security/);
+  assert.match(header, /href="\/accounting\/bank-transactions"/);
+});
+
 test('project RFP export loader only selects real project columns', () => {
   const routes = read('src/routes/rfp.js');
   assert.match(routes, /\.from\('jobs'\)\s*\.select\('id, title'\)/);

@@ -302,6 +302,7 @@
               <% if (_isAdminNav) { %>
                 <div class="more-menu-section">
                   <div class="more-menu-heading">Accounting</div>
+                  <a href="/accounting/bank-transactions" class="more-menu-link<%= typeof activeNav !== 'undefined' && activeNav === 'accounting' ? ' active' : '' %>">Bank transactions</a>
                   <a href="/accounting" class="more-menu-link<%= typeof activeNav !== 'undefined' && activeNav === 'accounting' ? ' active' : '' %>">Accounting reports</a>
                 </div>
                 <div class="more-menu-section">
@@ -379,6 +380,7 @@
         <% } %>
         <% if (_isAdminMobile) { %>
           <div class="mobile-menu-heading">Accounting</div>
+          <a href="/accounting/bank-transactions" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'accounting' ? ' active' : '' %>">Bank transactions</a>
           <a href="/accounting" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'accounting' ? ' active' : '' %>">Accounting</a>
           <div class="mobile-menu-heading">Admin</div>
           <a href="/admin/users" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'admin' ? ' active' : '' %>">Admin</a>

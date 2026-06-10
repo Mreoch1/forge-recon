@@ -1,0 +1,281 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<%
+const tabQuery = function(nextStatus) {
+  const params = new URLSearchParams();
+  params.set('status', nextStatus);
+  if (dateRange && dateRange.value && dateRange.value !== 'all') params.set('date_range', dateRange.value);
+  if (txType && txType !== 'all') params.set('type', txType);
+  if (q) params.set('q', q);
+  return '/accounting/bank-transactions?' + params.toString();
+};
+const filterStatus = status || 'for_review';
+const txTypes = [
+  { value: 'all', label: 'All transactions' },
+  { value: 'spent', label: 'Money out' },
+  { value: 'received', label: 'Money in' },
+];
+%>
+
+<style>
+  .bank-account-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: .75rem;
+    margin-bottom: 1rem;
+  }
+  .bank-account-card {
+    border: 1px solid #d9d9d9;
+    border-radius: .5rem;
+    background: #fff;
+    padding: .85rem 1rem;
+    min-height: 6.25rem;
+  }
+  .bank-account-card.active {
+    border-color: #c0202b;
+    box-shadow: inset 0 3px 0 #c0202b;
+  }
+  .bank-card-title {
+    font-size: .75rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #666;
+  }
+  .bank-card-balance {
+    margin-top: .45rem;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #1a1a1a;
+  }
+  .bank-card-meta {
+    margin-top: .35rem;
+    display: flex;
+    gap: .75rem;
+    flex-wrap: wrap;
+    font-size: .75rem;
+    color: #888;
+  }
+  .bank-tabs {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid #d0d0d0;
+    border-radius: 999px;
+    overflow: hidden;
+    background: #fff;
+    margin-bottom: 1rem;
+  }
+  .bank-tab {
+    padding: .35rem .85rem;
+    font-size: .8rem;
+    color: #1a1a1a;
+    border-right: 1px solid #d0d0d0;
+    white-space: nowrap;
+  }
+  .bank-tab:last-child { border-right: 0; }
+  .bank-tab.active {
+    background: #2d2d2d;
+    color: #fff;
+  }
+  .bank-transaction-table {
+    table-layout: fixed;
+    min-width: 96rem;
+  }
+  .bank-transaction-table .check-col { width: 2.5rem; }
+  .bank-transaction-table .date-col { width: 7rem; }
+  .bank-transaction-table .detail-col { width: 31%; }
+  .bank-transaction-table .payee-col { width: 17%; }
+  .bank-transaction-table .category-col { width: 22%; }
+  .bank-transaction-table .money-col { width: 8rem; }
+  .bank-transaction-table .attachment-col { width: 4rem; }
+  .bank-transaction-table .action-col { width: 6rem; }
+  .bank-detail {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .bank-match {
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
+    min-width: 0;
+  }
+  .bank-match-account {
+    font-size: .82rem;
+    color: #1a1a1a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .bank-match-badge {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    border: 1px solid #93c47d;
+    color: #2d7b20;
+    background: #f1f8ed;
+    font-size: .68rem;
+    font-weight: 700;
+    padding: .05rem .35rem;
+    border-radius: .25rem;
+  }
+</style>
+
+<div class="ops-shell">
+  <div class="ops-header">
+    <div class="ops-title-block">
+      <div class="mb-2"><a href="/accounting" class="text-sm text-recon-fog hover:text-recon-red">&larr; Accounting</a></div>
+      <h1 class="page-h1">Bank transactions</h1>
+      <p class="page-sub mt-1">Review bank activity, match payments, and assign chart accounts before posting.</p>
+    </div>
+    <div class="ops-actions">
+      <a href="/accounting/accounts" class="btn btn-secondary">Chart of accounts</a>
+    </div>
+  </div>
+
+  <% if (warning) { %>
+    <div class="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"><%= warning %></div>
+  <% } %>
+
+  <div class="bank-account-grid">
+    <% if (accountCards.length) { %>
+      <% accountCards.forEach(function(card, idx) { %>
+        <div class="bank-account-card<%= idx === 0 ? ' active' : '' %>">
+          <div class="bank-card-title"><%= card.name %></div>
+          <div class="bank-card-balance"><%= money(card.balance) %></div>
+          <div class="bank-card-meta">
+            <span><%= card.forReview %> for review</span>
+            <span><%= card.categorized %> categorized</span>
+            <span><%= card.excluded %> excluded</span>
+          </div>
+        </div>
+      <% }); %>
+    <% } else { %>
+      <div class="bank-account-card">
+        <div class="bank-card-title">No bank activity</div>
+        <div class="bank-card-balance">$0.00</div>
+        <div class="bank-card-meta">
+          <span>Import bank transactions to start reviewing.</span>
+        </div>
+      </div>
+    <% } %>
+  </div>
+
+  <div class="bank-tabs no-print">
+    <% statusTabs.forEach(function(tab) { %>
+      <a href="<%= tabQuery(tab.value) %>" class="bank-tab<%= filterStatus === tab.value ? ' active' : '' %>"><%= tab.label %></a>
+    <% }); %>
+  </div>
+
+  <form method="get" action="/accounting/bank-transactions" class="list-utility-bar no-print">
+    <input type="hidden" name="status" value="<%= filterStatus %>">
+    <select name="date_range" class="list-filter">
+      <% dateOptions.forEach(function(opt) { %>
+        <option value="<%= opt.value %>" <%= dateRange && dateRange.value === opt.value ? 'selected' : '' %>><%= opt.label %></option>
+      <% }); %>
+    </select>
+    <select name="type" class="list-filter">
+      <% txTypes.forEach(function(opt) { %>
+        <option value="<%= opt.value %>" <%= txType === opt.value ? 'selected' : '' %>><%= opt.label %></option>
+      <% }); %>
+    </select>
+    <input class="list-search" type="search" name="q" value="<%= q || '' %>" placeholder="Search description, check number, payee, or account">
+    <button type="submit" class="btn btn-secondary">Filter</button>
+    <% if ((dateRange && dateRange.value !== 'all') || txType !== 'all' || q) { %>
+      <a href="/accounting/bank-transactions?status=<%= filterStatus %>" class="list-clear">Clear</a>
+    <% } %>
+  </form>
+
+  <div class="ops-summary">
+    <div class="ops-summary-item">
+      <div class="ops-summary-label">Shown</div>
+      <div class="ops-summary-value"><%= rows.length %></div>
+      <div class="ops-summary-meta">transactions</div>
+    </div>
+    <div class="ops-summary-item">
+      <div class="ops-summary-label">Money out</div>
+      <div class="ops-summary-value"><%= money(totals.spent) %></div>
+      <div class="ops-summary-meta">spent</div>
+    </div>
+    <div class="ops-summary-item">
+      <div class="ops-summary-label">Money in</div>
+      <div class="ops-summary-value"><%= money(totals.received) %></div>
+      <div class="ops-summary-meta">received</div>
+    </div>
+    <div class="ops-summary-item">
+      <div class="ops-summary-label">Status</div>
+      <div class="ops-summary-value"><%= (statusTabs.find(t => t.value === filterStatus) || {}).label || 'For review' %></div>
+      <div class="ops-summary-meta">current view</div>
+    </div>
+  </div>
+
+  <div class="ops-panel ops-table">
+    <div class="ops-panel-head">
+      <div class="ops-panel-title">Transaction list</div>
+      <div class="text-xs text-recon-fog"><%= rows.length %> shown</div>
+    </div>
+    <div class="ops-panel-body">
+      <table class="data bank-transaction-table">
+        <colgroup>
+          <col class="check-col">
+          <col class="date-col">
+          <col class="detail-col">
+          <col class="payee-col">
+          <col class="category-col">
+          <col class="money-col">
+          <col class="money-col">
+          <col class="attachment-col">
+          <col class="action-col">
+        </colgroup>
+        <thead>
+          <tr>
+            <th><input type="checkbox" aria-label="Select all bank transactions"></th>
+            <th>Date</th>
+            <th>Bank detail</th>
+            <th>Payee</th>
+            <th>Categorize or match</th>
+            <th class="text-right">Spent</th>
+            <th class="text-right">Received</th>
+            <th class="text-center">Files</th>
+            <th class="text-right">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (rows.length) { %>
+            <% rows.forEach(function(tx) { %>
+              <tr>
+                <td><input type="checkbox" aria-label="Select transaction <%= tx.id %>"></td>
+                <td><%= tx.transaction_date || '—' %></td>
+                <td><div class="bank-detail" title="<%= tx.bank_detail || '' %>"><%= tx.bank_detail || '—' %></div></td>
+                <td><%= tx.payee || '—' %></td>
+                <td>
+                  <div class="bank-match">
+                    <% if (tx.accounts) { %>
+                      <span class="bank-match-account"><%= tx.accounts.code %> <%= tx.accounts.name %></span>
+                      <% if (tx.suggested_match_type || tx.suggested_match_id) { %>
+                        <span class="bank-match-badge">match found</span>
+                      <% } %>
+                    <% } else { %>
+                      <span class="text-recon-fog">Choose chart account</span>
+                    <% } %>
+                    <% if (tx.memo) { %><span class="text-xs text-recon-fog"><%= tx.memo %></span><% } %>
+                  </div>
+                </td>
+                <td class="text-right"><%= Number(tx.spent || 0) ? money(tx.spent) : '' %></td>
+                <td class="text-right"><%= Number(tx.received || 0) ? money(tx.received) : '' %></td>
+                <td class="text-center"><%= tx.attachment_count || '' %></td>
+                <td class="text-right"><button type="button" class="btn btn-ghost text-xs"><%= bankActionLabel(tx) %></button></td>
+              </tr>
+            <% }); %>
+          <% } else { %>
+            <tr>
+              <td colspan="9" class="ops-empty">No bank transactions in this view yet.</td>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<%- include('../layouts/footer') %>

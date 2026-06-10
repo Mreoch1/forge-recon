@@ -30,6 +30,17 @@ function emptyToNull(v) {
   return t === '' ? null : t;
 }
 
+async function loadExpenseAccounts() {
+  const { data, error } = await supabase
+    .from('accounts')
+    .select('id, code, name')
+    .eq('type', 'expense')
+    .eq('active', true)
+    .order('code', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
 function validate(body) {
   const errors = {};
   const name = emptyToNull(body.name);
@@ -48,6 +59,7 @@ function validate(body) {
       state: emptyToNull(body.state),
       zip: emptyToNull(body.zip),
       trade,
+      default_expense_account_id: parseInt(body.default_expense_account_id, 10) || null,
       license_number: emptyToNull(body.license_number),
       insurance_expiry_date: emptyToNull(body.insurance_expiry_date),
       notes: emptyToNull(body.notes),
@@ -81,13 +93,15 @@ router.get('/', async (req, res) => {
 });
 
 router.get('/new', async (req, res) => {
-  res.render('contractors/new', { title: 'New contractor', activeNav: 'contractors', contractor: {}, errors: {} });
+  const accounts = await loadExpenseAccounts();
+  res.render('contractors/new', { title: 'New contractor', activeNav: 'contractors', contractor: {}, errors: {}, accounts });
 });
 
 router.post('/', async (req, res) => {
   const { errors, data } = validate(req.body);
   if (Object.keys(errors).length) {
-    return res.status(400).render('contractors/new', { title: 'New contractor', activeNav: 'contractors', contractor: { id: null, ...data }, errors });
+    const accounts = await loadExpenseAccounts();
+    return res.status(400).render('contractors/new', { title: 'New contractor', activeNav: 'contractors', contractor: { id: null, ...data }, errors, accounts });
   }
   const { data: newContractor, error: insertError } = await supabase
     .from('contractors')
@@ -95,6 +109,7 @@ router.post('/', async (req, res) => {
       name: data.name, email: data.email, phone: data.phone,
       address: data.address, city: data.city, state: data.state,
       zip: data.zip, trade: data.trade,
+      default_expense_account_id: data.default_expense_account_id,
       license_number: data.license_number,
       insurance_expiry_date: data.insurance_expiry_date,
       notes: data.notes,
@@ -217,7 +232,8 @@ router.get('/:id/edit', async (req, res) => {
   const { data: contractor, error: cError } = await supabase.from('contractors').select('*').eq('id', id).maybeSingle();
   if (cError) throw cError;
   if (!contractor) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Contractor not found.' });
-  res.render('contractors/edit', { title: 'Edit ' + contractor.name, activeNav: 'contractors', contractor, errors: {} });
+  const accounts = await loadExpenseAccounts();
+  res.render('contractors/edit', { title: 'Edit ' + contractor.name, activeNav: 'contractors', contractor, errors: {}, accounts });
 });
 
 router.post('/:id', async (req, res) => {
@@ -228,7 +244,8 @@ router.post('/:id', async (req, res) => {
   if (!contractor) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Contractor not found.' });
   if (Object.keys(errors).length) {
     const contractor_merged = { id: contractor.id, ...data };
-    return res.status(400).render('contractors/edit', { title: 'Edit ' + (data.name || contractor.name), activeNav: 'contractors', contractor: contractor_merged, errors });
+    const accounts = await loadExpenseAccounts();
+    return res.status(400).render('contractors/edit', { title: 'Edit ' + (data.name || contractor.name), activeNav: 'contractors', contractor: contractor_merged, errors, accounts });
   }
   const { error: updateError } = await supabase
     .from('contractors')

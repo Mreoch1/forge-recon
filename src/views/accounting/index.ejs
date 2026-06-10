@@ -63,6 +63,14 @@ const financialReports = [
 ];
 const importTools = [
   {
+    name: 'Bank transactions',
+    href: '/accounting/bank-transactions',
+    pdf: '',
+    type: 'Review',
+    cadence: 'Manual import',
+    description: 'Review bank activity and assign chart accounts before posting.'
+  },
+  {
     name: 'Payroll',
     href: '/accounting/payroll',
     pdf: '',
@@ -118,13 +126,13 @@ const allReports = primaryReports.concat(financialReports);
   <div class="ops-summary">
     <div class="ops-summary-item">
       <div class="ops-summary-label">Reports</div>
-      <div class="ops-summary-value"><%= allReports.length %></div>
-      <div class="ops-summary-meta">available</div>
+      <div class="ops-summary-value"><%= allReports.length + importTools.length %></div>
+      <div class="ops-summary-meta">views available</div>
     </div>
     <div class="ops-summary-item">
-      <div class="ops-summary-label">AR / AP</div>
-      <div class="ops-summary-value">2</div>
-      <div class="ops-summary-meta">aging views</div>
+      <div class="ops-summary-label">Banking</div>
+      <div class="ops-summary-value">1</div>
+      <div class="ops-summary-meta">review workspace</div>
     </div>
     <div class="ops-summary-item">
       <div class="ops-summary-label">Ledger</div>

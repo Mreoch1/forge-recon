@@ -45,6 +45,19 @@
       <input type="text" name="phone" id="phone" value="<%= customer.phone || '' %>" class="input">
     </div>
 
+    <div>
+      <label class="label" for="default_income_account_id">Chart account
+        <span class="text-recon-fog text-xs font-normal">(income)</span>
+        <span class="ml-1 text-recon-fog cursor-help" title="Default revenue account used later when invoices or payments are categorized for this customer.">ⓘ</span>
+      </label>
+      <select name="default_income_account_id" id="default_income_account_id" class="input">
+        <option value="">— Select —</option>
+        <% (typeof accounts !== 'undefined' ? accounts : []).forEach(function(a) { %>
+          <option value="<%= a.id %>" <%= String(customer.default_income_account_id || '') === String(a.id) ? 'selected' : '' %>><%= a.code %> — <%= a.name %></option>
+        <% }); %>
+      </select>
+    </div>
+
     <div class="md:col-span-2">
       <label class="label" for="address">Address
         <span class="ml-1 text-recon-fog cursor-help" title="Service address — where the crew will go. Appears on the WO PDF.">ⓘ</span>

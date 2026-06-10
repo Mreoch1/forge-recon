@@ -29,8 +29,9 @@
         <div><label class="label">EIN / Tax ID
           <span class="ml-1 text-recon-fog cursor-help" title="Vendor's federal tax ID (EIN or SSN). Required to issue a 1099 at year-end.">ⓘ</span>
         </label><input type="text" name="ein" value="<%= vendor.ein || '' %>" class="input"></div>
-        <div><label class="label">Default expense account
-          <span class="ml-1 text-recon-fog cursor-help" title="Account used to auto-categorize bills from this vendor. Saves time on every bill entry.">ⓘ</span>
+        <div><label class="label">Chart account
+          <span class="text-recon-fog text-xs font-normal">(expense)</span>
+          <span class="ml-1 text-recon-fog cursor-help" title="Default expense account used later when bills, bank payments, and project costs are categorized for this vendor.">ⓘ</span>
         </label>
           <select name="default_expense_account_id" class="input">
             <option value="">— Select —</option>

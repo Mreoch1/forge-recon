@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS customers (
   email TEXT,           -- primary contact, used for estimate emails
   billing_email TEXT,   -- separate billing contact, used for invoices (falls back to email)
   phone TEXT,
+  default_income_account_id INTEGER,
   address TEXT,
   city TEXT,
   state TEXT,
