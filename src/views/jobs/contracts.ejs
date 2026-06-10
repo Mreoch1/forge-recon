@@ -1,0 +1,75 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<%
+function fmtMoney(n) {
+  var num = Number(n || 0);
+  return '$' + (isFinite(num) ? num.toFixed(2) : '0.00');
+}
+%>
+
+<div class="ops-shell">
+  <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <a href="/projects/<%= job.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; <%= job.title %></a>
+    <a href="/projects/<%= job.id %>/rfp" class="btn btn-secondary text-sm">RFP</a>
+  </div>
+
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold tracking-tight">Contracts</h1>
+    <p class="text-sm text-recon-fog mt-1">
+      <%= job.customer_name %>
+      <% if (projectAddress) { %>&middot; <%= projectAddress %><% } %>
+    </p>
+  </div>
+
+  <div class="card overflow-hidden">
+    <div class="px-5 py-4 border-b border-recon-mist flex items-center justify-between gap-3">
+      <div>
+        <h2 class="font-semibold m-0">Contractor contracts</h2>
+        <p class="text-xs text-recon-fog m-0 mt-0.5">Built from awarded RFP pricing approved for each contractor/vendor.</p>
+      </div>
+      <span class="text-xs uppercase tracking-wider text-recon-fog"><%= contractorRollup.length %> available</span>
+    </div>
+
+    <% if (contractorRollup.length) { %>
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Contractor / vendor</th>
+            <th>Scope preview</th>
+            <th class="text-right">Contract sum</th>
+            <th class="text-right">Billed</th>
+            <th class="text-right">Remaining</th>
+            <th class="text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% contractorRollup.forEach(function(c){ %>
+            <tr>
+              <td class="font-medium"><%= c.vendor %></td>
+              <td class="text-sm text-recon-fog">
+                <% if (c.description_lines && c.description_lines.length) { %>
+                  <%= c.description_lines.join(' · ') %>
+                <% } else { %>
+                  Awarded RFP scope
+                <% } %>
+              </td>
+              <td class="text-right font-medium"><%= fmtMoney(c.contract_value) %></td>
+              <td class="text-right"><%= fmtMoney(c.billed) %></td>
+              <td class="text-right <%= Number(c.remaining || 0) >= 0 ? 'text-green-700' : 'text-recon-red' %>"><%= fmtMoney(c.remaining) %></td>
+              <td class="text-right whitespace-nowrap">
+                <a href="/projects/<%= job.id %>/contracts/<%= c.contract_key %>" class="btn btn-secondary text-xs">Preview</a>
+                <a href="/projects/<%= job.id %>/contracts/<%= c.contract_key %>.pdf" class="btn btn-secondary text-xs ml-1" target="_blank">PDF</a>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } else { %>
+      <div class="px-5 py-10 text-center text-recon-fog">
+        <p class="m-0">No contractor contracts are ready yet.</p>
+        <p class="text-xs mt-1">Award an RFP and approve contractor/vendor line items to generate contract documents.</p>
+      </div>
+    <% } %>
+  </div>
+</div>
+
+<%- include('../layouts/footer') %>

@@ -18,7 +18,7 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
   </div>
 
   <!-- D-007: Project header partial -->
-  <%- include('_project_header', { job: job, projectManager: typeof projectManager !== 'undefined' ? projectManager : null }) %>
+  <%- include('_project_header', { job: job, projectManager: typeof projectManager !== 'undefined' ? projectManager : null, projectAccess: access }) %>
 
   <% if (access.projectRole === 'accountant') { %>
     <div class="card p-4 mb-6 border-l-4 border-recon-red">
@@ -105,6 +105,7 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
               <th class="text-right">Contract</th>
               <th class="text-right">Billed</th>
               <th class="text-right">Remaining</th>
+              <th class="text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -117,9 +118,13 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
                 <td class="text-right">$<%= Number(c.contract_value).toFixed(2) %></td>
                 <td class="text-right">$<%= Number(c.billed).toFixed(2) %></td>
                 <td class="text-right font-medium <%= c.remaining >= 0 ? 'text-green-700' : 'text-recon-red' %>">$<%= Number(c.remaining).toFixed(2) %></td>
+                <td class="text-right">
+                  <a href="/projects/<%= job.id %>/contracts/<%= c.contract_key %>" class="btn btn-secondary text-xs" onclick="event.stopPropagation()">Contract</a>
+                  <a href="/projects/<%= job.id %>/contracts/<%= c.contract_key %>.pdf" class="btn btn-secondary text-xs ml-1" target="_blank" onclick="event.stopPropagation()">PDF</a>
+                </td>
               </tr>
               <tr class="contractor-detail hidden">
-                <td colspan="4" class="p-0">
+                <td colspan="5" class="p-0">
                   <div class="bg-recon-cloud p-3 text-sm">
                     <% if (c.bills && c.bills.length) { %>
                       <table class="w-full text-xs">

@@ -10,6 +10,8 @@ const express = require('express');
 const supabase = require('../db/supabase');
 const { setFlash } = require('../middleware/auth');
 const { sanitizePostgrestSearch } = require('../services/sanitize');
+const { getProjectContractorRollup } = require('../services/project-contractor-rollup');
+const { renderSubcontractAgreementPdf } = require('../services/contract-pdf');
 
 const router = express.Router();
 const PAGE_SIZE = 25;
@@ -48,6 +50,133 @@ function isMissingOptionalRfpTable(error) {
     message.includes('project_rfps') ||
     message.includes('rfp_line_items') ||
     message.includes('could not find the table');
+}
+
+function vendorKey(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function encodeContractorKey(name) {
+  return Buffer.from(String(name || ''), 'utf8').toString('base64url');
+}
+
+function decodeContractorKey(key) {
+  try {
+    return Buffer.from(String(key || ''), 'base64url').toString('utf8');
+  } catch (e) {
+    return decodeURIComponent(String(key || ''));
+  }
+}
+
+function slugPart(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 70) || 'contract';
+}
+
+function projectAddress(job) {
+  return [job.address, [job.city, job.state, job.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+}
+
+function withContractKeys(contractorRollup) {
+  return (contractorRollup || []).map(c => ({ ...c, contract_key: encodeContractorKey(c.vendor) }));
+}
+
+async function loadContractData(projectId, contractorName) {
+  const normalizedName = vendorKey(contractorName);
+  if (!normalizedName) return null;
+
+  const [
+    jobResult,
+    settingsResult,
+    rfpResult,
+    vendorsResult,
+    contractorsResult,
+  ] = await Promise.all([
+    supabase
+      .from('jobs')
+      .select('*, customers!left(id, name, email, phone, address, city, state, zip)')
+      .eq('id', projectId)
+      .maybeSingle(),
+    supabase.from('company_settings').select('*').eq('id', 1).maybeSingle(),
+    supabase.from('project_rfps').select('id, contractor_name, status').eq('job_id', projectId).eq('status', 'awarded'),
+    supabase.from('vendors').select('*'),
+    supabase.from('contractors').select('*'),
+  ]);
+
+  throwIfSupabaseError(jobResult, 'Contract project load failed');
+  throwIfSupabaseError(settingsResult, 'Contract company settings load failed');
+  throwIfSupabaseError(rfpResult, 'Contract RFP load failed');
+  throwIfSupabaseError(vendorsResult, 'Contract vendor load failed');
+  throwIfSupabaseError(contractorsResult, 'Contract contractor load failed');
+
+  const job = jobResult.data;
+  if (!job) return null;
+
+  job.customer_name = job.customers?.name || job.client;
+  job.project_manager_name = null;
+  job.project_manager_email = null;
+  if (job.project_manager_user_id) {
+    const { data: manager, error: managerError } = await supabase
+      .from('users')
+      .select('id, name, email')
+      .eq('id', job.project_manager_user_id)
+      .maybeSingle();
+    if (managerError) throw managerError;
+    job.project_manager_name = manager?.name || null;
+    job.project_manager_email = manager?.email || null;
+  }
+
+  const rfps = rfpResult.data || [];
+  const rfpIds = rfps.map(r => r.id);
+  const rfpById = {};
+  rfps.forEach(r => { rfpById[r.id] = r; });
+
+  let items = [];
+  if (rfpIds.length) {
+    const { data: itemRows, error: itemError } = await supabase
+      .from('rfp_line_items')
+      .select('id, rfp_id, parent_line_item_id, vendor, description, quantity, unit_cost, final_unit_cost, total_with_markup, approved, sort_order')
+      .in('rfp_id', rfpIds)
+      .eq('approved', true)
+      .order('sort_order', { ascending: true })
+      .order('id', { ascending: true });
+    if (itemError) throw itemError;
+    items = (itemRows || [])
+      .filter(item => vendorKey(item.vendor) === normalizedName)
+      .map(item => ({
+        ...item,
+        category: rfpById[item.rfp_id]?.contractor_name || '',
+        quantity: Number(item.quantity || 0),
+        unit_cost: Number(item.unit_cost || 0),
+        final_unit_cost: Number(item.final_unit_cost || item.unit_cost || 0),
+        total_with_markup: Number(item.total_with_markup || 0),
+      }));
+  }
+
+  const contractors = contractorsResult.data || [];
+  const vendors = vendorsResult.data || [];
+  const contractor = contractors.find(c => vendorKey(c.name) === normalizedName)
+    || vendors.find(v => vendorKey(v.name) === normalizedName)
+    || { name: contractorName };
+  const contractTotal = items.reduce((sum, item) => sum + Number(item.total_with_markup || 0), 0);
+
+  return {
+    job,
+    company: settingsResult.data || {},
+    customer: job.customers || {},
+    contractor,
+    vendorName: contractorName,
+    items,
+    contractTotal,
+  };
 }
 
 async function validateJob(body) {
@@ -281,7 +410,6 @@ router.get('/:id', async (req, res) => {
   // F-011: contractor rollup — contract value from RFP vs billed from bills
   let contractorRollup = [];
   try {
-    const { getProjectContractorRollup } = require('../services/project-contractor-rollup');
     contractorRollup = await getProjectContractorRollup(id);
   } catch (e) {
     console.warn('[contractor-rollup] failed for job', id, ':', e.message);
@@ -545,7 +673,7 @@ router.get('/:id', async (req, res) => {
     projectFinancials: access.canSeeBilling ? projectFinancials : null,
     projectFinancialsError,
     // F-011: contractor/vendor rollup
-    contractorRollup: access.canSeeBilling ? contractorRollup : [],
+    contractorRollup: access.canSeeBilling ? withContractKeys(contractorRollup) : [],
     // D-024a: customer payment ledger
     payments: access.canSeeBilling ? (payments || []).map(p => ({ ...p })) : [],
     paymentTotal: access.canSeeBilling ? (paymentTotal || 0) : 0,
@@ -566,6 +694,83 @@ router.get('/:id', async (req, res) => {
     rfps: rfps || [],
     rfpItemsMap,
     watchTables: ['jobs', 'work_orders'],
+  });
+});
+
+router.get('/:id/contracts', async (req, res) => {
+  const id = req.params.id;
+  const allowed = await requireProjectAccess(req, res, id, 'billing');
+  if (!allowed) return;
+
+  const { data: job, error: jobError } = await supabase
+    .from('jobs')
+    .select('id, title, customer_id, client, address, city, state, zip, status, created_at, customers!left(name)')
+    .eq('id', id)
+    .maybeSingle();
+  if (jobError) throw jobError;
+  if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Project not found.' });
+  job.customer_name = job.customers?.name || job.client || '—';
+
+  let contractorRollup = [];
+  try {
+    contractorRollup = await getProjectContractorRollup(id);
+  } catch (e) {
+    console.warn('[contracts] contractor rollup failed for job', id, ':', e.message);
+  }
+
+  res.render('jobs/contracts', {
+    title: `${job.title} Contracts`,
+    activeNav: 'projects',
+    job,
+    projectAddress: projectAddress(job),
+    projectAccess: allowed.access,
+    contractorRollup: withContractKeys(contractorRollup),
+  });
+});
+
+router.get('/:id/contracts/:contractorKey.pdf', async (req, res) => {
+  const id = req.params.id;
+  const allowed = await requireProjectAccess(req, res, id, 'billing');
+  if (!allowed) return;
+  const contractorName = decodeContractorKey(req.params.contractorKey);
+  const data = await loadContractData(id, contractorName);
+  if (!data) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Contract scope not found.' });
+
+  const buf = await renderSubcontractAgreementPdf({
+    company: data.company,
+    project: data.job,
+    customer: data.customer,
+    contractor: data.contractor,
+    vendorName: data.vendorName,
+    items: data.items,
+    contractTotal: data.contractTotal,
+    createdBy: req.session?.name || req.session?.email || '',
+  });
+
+  const filename = `${slugPart(data.job.title)}-${slugPart(data.vendorName)}-contract.pdf`;
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+  res.send(buf);
+});
+
+router.get('/:id/contracts/:contractorKey', async (req, res) => {
+  const id = req.params.id;
+  const allowed = await requireProjectAccess(req, res, id, 'billing');
+  if (!allowed) return;
+  const contractorName = decodeContractorKey(req.params.contractorKey);
+  const data = await loadContractData(id, contractorName);
+  if (!data) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Contract scope not found.' });
+
+  res.render('jobs/contract-preview', {
+    title: `${data.job.title} Contract`,
+    activeNav: 'projects',
+    job: data.job,
+    customer: data.customer,
+    contractor: data.contractor,
+    vendorName: data.vendorName,
+    items: data.items,
+    contractTotal: data.contractTotal,
+    contractorKey: req.params.contractorKey,
   });
 });
 

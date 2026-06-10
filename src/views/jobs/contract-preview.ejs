@@ -1,0 +1,133 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<%
+function safe(v) { return String(v == null ? '' : v); }
+function fmtMoney(n) {
+  var num = Number(n || 0);
+  return '$' + (isFinite(num) ? num.toFixed(2) : '0.00');
+}
+function address(record) {
+  return [record.address, [record.city, record.state, record.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+}
+var projectAddress = address(job);
+var contractorAddress = address(contractor || {});
+%>
+
+<div class="document-shell">
+  <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <a href="/projects/<%= job.id %>/contracts" class="text-sm text-recon-fog hover:text-recon-red">&larr; Contracts</a>
+    <div class="flex flex-wrap gap-2">
+      <button type="button" class="btn btn-secondary text-sm" onclick="window.print()">Print</button>
+      <a href="/projects/<%= job.id %>/contracts/<%= contractorKey %>.pdf" class="btn btn-secondary text-sm" target="_blank">PDF</a>
+    </div>
+  </div>
+
+  <div class="card overflow-hidden mb-6">
+    <div class="px-5 py-5 bg-gradient-to-r from-recon-charcoal to-recon-steel text-white">
+      <div class="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 class="text-2xl font-bold tracking-tight">Subcontract Agreement</h1>
+          <p class="text-recon-fog text-sm mt-1"><%= job.title %> &middot; <%= vendorName %></p>
+        </div>
+        <div class="text-right">
+          <p class="text-xs uppercase tracking-wider text-recon-fog m-0">Contract sum</p>
+          <p class="text-xl font-bold m-0"><%= fmtMoney(contractTotal) %></p>
+        </div>
+      </div>
+    </div>
+    <div class="px-5 py-4 text-sm border-b border-recon-mist">
+      <p class="m-0 text-recon-fog">Draft short-form construction contract. Review before issuing for signature.</p>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 px-5 py-4 text-sm">
+      <div>
+        <p class="text-[.65rem] uppercase tracking-wider text-recon-fog mb-1">Project</p>
+        <p class="font-medium m-0"><%= job.title %></p>
+        <% if (projectAddress) { %><p class="text-recon-fog m-0"><%= projectAddress %></p><% } %>
+        <% if (job.customer_name) { %><p class="text-recon-fog m-0">Customer: <%= job.customer_name %></p><% } %>
+      </div>
+      <div>
+        <p class="text-[.65rem] uppercase tracking-wider text-recon-fog mb-1">Contractor / vendor</p>
+        <p class="font-medium m-0"><%= contractor && contractor.name ? contractor.name : vendorName %></p>
+        <% if (contractor && contractor.email) { %><p class="text-recon-fog m-0"><%= contractor.email %></p><% } %>
+        <% if (contractor && contractor.phone) { %><p class="text-recon-fog m-0"><%= contractor.phone %></p><% } %>
+        <% if (contractorAddress) { %><p class="text-recon-fog m-0"><%= contractorAddress %></p><% } %>
+      </div>
+    </div>
+  </div>
+
+  <div class="card overflow-hidden mb-6">
+    <div class="px-5 py-4 border-b border-recon-mist flex items-center justify-between gap-3">
+      <h2 class="font-semibold m-0">Scope and pricing</h2>
+      <span class="text-xs uppercase tracking-wider text-recon-fog"><%= items.length %> line<%= items.length === 1 ? '' : 's' %></span>
+    </div>
+    <% if (items.length) { %>
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Description</th>
+            <th class="text-right">Qty</th>
+            <th>Unit</th>
+            <th class="text-right">Unit cost</th>
+            <th class="text-right">Line total</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% items.forEach(function(item){ %>
+            <tr>
+              <td><%= item.category || '—' %></td>
+              <td class="font-medium"><%= item.description %></td>
+              <td class="text-right"><%= Number(item.quantity || 0) || '' %></td>
+              <td><%= item.unit || 'ea' %></td>
+              <td class="text-right"><%= fmtMoney(item.final_unit_cost || item.unit_cost) %></td>
+              <td class="text-right font-medium"><%= fmtMoney(item.total_with_markup) %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+        <tfoot>
+          <tr>
+            <th colspan="5" class="text-right">Contract sum</th>
+            <th class="text-right text-recon-red"><%= fmtMoney(contractTotal) %></th>
+          </tr>
+        </tfoot>
+      </table>
+    <% } else { %>
+      <div class="px-5 py-8 text-center text-recon-fog">
+        No approved awarded RFP scope was found for this contractor.
+      </div>
+    <% } %>
+  </div>
+
+  <div class="card p-5 mb-6">
+    <h2 class="font-semibold m-0 mb-3">Short-form terms</h2>
+    <ol class="text-sm text-recon-charcoal space-y-2 list-decimal pl-5">
+      <li>Contractor shall furnish labor, materials, supervision, tools, equipment, insurance, permits, and services needed to complete the scope above.</li>
+      <li>The contract sum is fixed unless changed by written change order approved by Recon Enterprises before extra work begins.</li>
+      <li>Payment is subject to completed accepted work, invoice approval, required lien waivers, and insurance documentation.</li>
+      <li>Contractor shall coordinate with the project manager, follow the project schedule, and comply with site rules.</li>
+      <li>Contractor shall maintain required licenses and insurance and comply with applicable OSHA, HUD/MSHDA, Section 3, prevailing wage, occupied multifamily, and project-specific requirements.</li>
+      <li>Work shall be completed in a good and workmanlike manner, kept clean and protected, and corrected promptly if defective or incomplete.</li>
+      <li>Contractor may not assign or subcontract this agreement without written approval from Recon Enterprises.</li>
+      <li>To the fullest extent permitted by law, contractor shall defend, indemnify, and hold harmless Recon Enterprises, the owner, and project parties from claims arising from contractor work or omissions.</li>
+    </ol>
+  </div>
+
+  <div class="card p-5">
+    <h2 class="font-semibold m-0 mb-4">Acceptance</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm">
+      <div>
+        <p class="font-medium mb-10">Subcontractor / Vendor</p>
+        <div class="border-t border-recon-charcoal pt-2 text-xs text-recon-fog uppercase tracking-wider">Authorized signature</div>
+        <div class="border-t border-recon-mist pt-2 mt-10 text-xs text-recon-fog uppercase tracking-wider">Print name / title</div>
+        <div class="border-t border-recon-mist pt-2 mt-10 text-xs text-recon-fog uppercase tracking-wider">Date</div>
+      </div>
+      <div>
+        <p class="font-medium mb-10">Recon Enterprises</p>
+        <div class="border-t border-recon-charcoal pt-2 text-xs text-recon-fog uppercase tracking-wider">Authorized signature</div>
+        <div class="border-t border-recon-mist pt-2 mt-10 text-xs text-recon-fog uppercase tracking-wider">Print name / title</div>
+        <div class="border-t border-recon-mist pt-2 mt-10 text-xs text-recon-fog uppercase tracking-wider">Date</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('../layouts/footer') %>
