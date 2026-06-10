@@ -6,12 +6,32 @@
   </div>
 
   <div class="flex items-center justify-between gap-3 mb-6 flex-wrap">
-    <h1 class="page-h1">AP Aging</h1>
+    <div>
+      <h1 class="page-h1">AP Aging</h1>
+      <p class="text-sm text-recon-fog mt-1 mb-0">Showing bills and vendor invoices dated <%= range.value === 'all' ? 'for all dates' : 'from ' + range.startYmd + ' through ' + range.endYmd %>.</p>
+    </div>
     <div class="flex gap-2 no-print">
       <button type="button" class="btn btn-secondary text-sm" onclick="window.print()">Print</button>
-      <a href="/accounting/ap-aging.pdf" class="btn btn-secondary text-sm">PDF</a>
+      <a href="/accounting/ap-aging.pdf?range=<%= encodeURIComponent(range.value) %>" class="btn btn-secondary text-sm">PDF</a>
     </div>
   </div>
+
+  <form method="get" class="card p-4 mb-6 no-print">
+    <div class="flex flex-wrap items-end gap-3">
+      <div>
+        <label class="form-label" for="range">Date range</label>
+        <select id="range" name="range" class="input min-w-[180px]" onchange="this.form.submit()">
+          <% rangeOptions.forEach(function(option){ %>
+            <option value="<%= option.value %>" <%= option.value === range.value ? 'selected' : '' %>><%= option.label %></option>
+          <% }); %>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-secondary text-sm">Apply</button>
+      <% if (range.value !== 'all') { %>
+        <a href="/accounting/ap-aging" class="text-sm text-recon-red hover:underline mb-2">Clear filter</a>
+      <% } %>
+    </div>
+  </form>
 
   <!-- Bucket summary — clickable to filter -->
   <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8" id="bucket-filters">

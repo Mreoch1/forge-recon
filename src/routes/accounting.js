@@ -31,6 +31,66 @@ function money(value) {
   return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+const AGING_RANGE_OPTIONS = [
+  { value: 'all', label: 'All dates' },
+  { value: 'ytd', label: 'Year to date' },
+  { value: '1y', label: 'Last 1 year' },
+  { value: '2y', label: 'Last 2 years' },
+  { value: '3y', label: 'Last 3 years' },
+];
+
+function startOfDay(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function dateOnly(value) {
+  if (!value) return null;
+  const parts = String(value).slice(0, 10).split('-').map(Number);
+  if (parts.length !== 3 || parts.some(n => !Number.isFinite(n))) return null;
+  const d = new Date(parts[0], parts[1] - 1, parts[2]);
+  if (Number.isNaN(d.getTime())) return null;
+  return startOfDay(d);
+}
+
+function ymd(date) {
+  if (!date) return null;
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function agingRange(rawValue, now = new Date()) {
+  const value = AGING_RANGE_OPTIONS.some(o => o.value === rawValue) ? rawValue : 'all';
+  const today = startOfDay(now);
+  let start = null;
+  if (value === 'ytd') {
+    start = new Date(today.getFullYear(), 0, 1);
+  } else if (/^\d+y$/.test(value)) {
+    const years = Number(value.slice(0, -1));
+    start = new Date(today);
+    start.setFullYear(start.getFullYear() - years);
+  }
+  const option = AGING_RANGE_OPTIONS.find(o => o.value === value);
+  return {
+    value,
+    label: option ? option.label : 'All dates',
+    start,
+    end: today,
+    startYmd: ymd(start),
+    endYmd: ymd(today),
+  };
+}
+
+function inAgingRange(value, range) {
+  if (!range || range.value === 'all') return true;
+  const d = dateOnly(value);
+  if (!d) return false;
+  return (!range.start || d >= range.start) && (!range.end || d <= range.end);
+}
+
 function logAccountingSetupWarning(route, error) {
   console.warn(`[accounting] ${route} unavailable; rendering empty state: ${error.message || error.code || error}`);
 }
@@ -649,7 +709,7 @@ function ageBucket(dueDate) {
   return '90+';
 }
 
-async function loadARAging() {
+async function loadARAging(range) {
   const { data: invoices, error: invoicesErr } = await supabase
     .from('invoices')
     .select('*, work_orders!left(display_number, customers!left(id, name))')
@@ -675,8 +735,9 @@ async function loadARAging() {
       total: Number(inv.total || 0),
       bucket: ageBucket(inv.due_date),
       status: inv.status,
+      reportDate: issued,
     };
-  });
+  }).filter(r => inAgingRange(r.reportDate, range));
 
   // Sort by age desc
   rows.sort((a, b) => b.ageDays - a.ageDays);
@@ -688,20 +749,22 @@ async function loadARAging() {
 }
 
 router.get('/ar-aging', async (req, res) => {
-  const { rows, buckets } = await loadARAging();
+  const range = agingRange(req.query.range);
+  const { rows, buckets } = await loadARAging(range);
 
   res.render('accounting/ar-aging', {
     title: 'AR Aging', activeNav: 'accounting',
-    rows, buckets, fmt,
+    rows, buckets, fmt, range, rangeOptions: AGING_RANGE_OPTIONS,
   });
 });
 
 router.get('/ar-aging.pdf', async (req, res) => {
-  const [{ rows, buckets }, company] = await Promise.all([loadARAging(), getCompany()]);
+  const range = agingRange(req.query.range);
+  const [{ rows, buckets }, company] = await Promise.all([loadARAging(range), getCompany()]);
   sendPdf(res, 'ar-aging.pdf', {
     title: 'Accounts receivable aging',
     company,
-    summary: Object.keys(buckets).map(b => ({ label: b, value: reportPdf.money(buckets[b]), color: b === '90+' ? '#c0202b' : undefined })),
+    summary: [{ label: 'Range', value: range.label }].concat(Object.keys(buckets).map(b => ({ label: b, value: reportPdf.money(buckets[b]), color: b === '90+' ? '#c0202b' : undefined }))),
     columns: [
       { key: 'customer', label: 'Customer', width: 2 },
       { key: 'invoiceNumber', label: 'Invoice', width: 1.2 },
@@ -717,7 +780,7 @@ router.get('/ar-aging.pdf', async (req, res) => {
 
 // --- AP Aging ---
 
-async function loadAPAging() {
+async function loadAPAging(range) {
   // Bills: unpaid or partially paid
   const { data: bills, error: billsErr } = await supabase
     .from('bills')
@@ -736,14 +799,16 @@ async function loadAPAging() {
       vendor: b.vendors?.name || '—',
       source: 'Bill',
       ref: b.bill_number || `BL-${b.id}`,
+      billDate,
       dueDate: due || '—',
       ageDays,
       balance: Math.max(0, balance),
       total: Number(b.total || 0),
       bucket: ageBucket(b.due_date),
       status: b.status,
+      reportDate: billDate,
     };
-  }).filter(r => r.balance > 0);
+  }).filter(r => r.balance > 0 && inAgingRange(r.reportDate, range));
 
   // Also check vendor_invoices (unpaid RPM imports)
   const { data: vinvs, error: viErr } = await supabase
@@ -760,14 +825,16 @@ async function loadAPAging() {
       vendor: v.vendors?.name || '—',
       source: 'Vendor Invoice',
       ref: v.invoice_number || `VI-${v.id}`,
+      billDate: String(v.created_at || '').slice(0,10),
       dueDate: '—',
       ageDays: 0,
       balance: Number(v.amount || 0),
       total: Number(v.amount || 0),
       bucket: 'Current',
       status: 'open',
+      reportDate: String(v.created_at || '').slice(0,10),
     };
-  });
+  }).filter(r => inAgingRange(r.reportDate, range));
 
   const rows = [...billRows, ...viRows].sort((a, b) => b.ageDays - a.ageDays);
 
@@ -777,20 +844,22 @@ async function loadAPAging() {
 }
 
 router.get('/ap-aging', async (req, res) => {
-  const { rows, buckets } = await loadAPAging();
+  const range = agingRange(req.query.range);
+  const { rows, buckets } = await loadAPAging(range);
 
   res.render('accounting/ap-aging', {
     title: 'AP Aging', activeNav: 'accounting',
-    rows, buckets, fmt,
+    rows, buckets, fmt, range, rangeOptions: AGING_RANGE_OPTIONS,
   });
 });
 
 router.get('/ap-aging.pdf', async (req, res) => {
-  const [{ rows, buckets }, company] = await Promise.all([loadAPAging(), getCompany()]);
+  const range = agingRange(req.query.range);
+  const [{ rows, buckets }, company] = await Promise.all([loadAPAging(range), getCompany()]);
   sendPdf(res, 'ap-aging.pdf', {
     title: 'Accounts payable aging',
     company,
-    summary: Object.keys(buckets).map(b => ({ label: b, value: reportPdf.money(buckets[b]), color: b === '90+' ? '#c0202b' : undefined })),
+    summary: [{ label: 'Range', value: range.label }].concat(Object.keys(buckets).map(b => ({ label: b, value: reportPdf.money(buckets[b]), color: b === '90+' ? '#c0202b' : undefined }))),
     columns: [
       { key: 'vendor', label: 'Vendor', width: 2 },
       { key: 'source', label: 'Source', width: 1.1 },
