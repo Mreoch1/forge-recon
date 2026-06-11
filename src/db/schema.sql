@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS customers (
   city TEXT,
   state TEXT,
   zip TEXT,
+  mhelpdesk_customer_id TEXT,
   notes TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))

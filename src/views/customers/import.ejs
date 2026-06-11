@@ -1,0 +1,92 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<div class="document-shell">
+  <div class="mb-4">
+    <a href="/customers" class="text-sm text-recon-fog hover:text-recon-red">&larr; Customers</a>
+  </div>
+
+  <div class="doc-card">
+    <div class="doc-section">
+      <div class="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 class="page-h1">Import customers</h1>
+          <p class="page-sub">Upload the mHelpDesk customer CSV export to create or update Forge customers.</p>
+        </div>
+        <a href="/customers" class="btn btn-secondary">Customer directory</a>
+      </div>
+    </div>
+
+    <% if (result) { %>
+      <div class="doc-section">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div class="stat-card">
+            <div class="stat-label">Imported</div>
+            <div class="stat-value"><%= result.imported %></div>
+            <div class="stat-meta"><%= result.filename %></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Created</div>
+            <div class="stat-value text-green-700"><%= result.created %></div>
+            <div class="stat-meta">new customers</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Updated</div>
+            <div class="stat-value"><%= result.updated %></div>
+            <div class="stat-meta">matched customers</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Skipped</div>
+            <div class="stat-value"><%= result.skipped %></div>
+            <div class="stat-meta">duplicate rows</div>
+          </div>
+        </div>
+      </div>
+    <% } %>
+
+    <% if (errors && errors.length) { %>
+      <div class="doc-section">
+        <div class="notice notice-warning">
+          <div class="font-semibold mb-2"><%= result ? 'Import warnings' : 'Import needs attention' %></div>
+          <ul class="list-disc pl-5 space-y-1">
+            <% errors.forEach(function(error) { %>
+              <li><%= error %></li>
+            <% }); %>
+          </ul>
+          <% if (result && result.warningCount > errors.length) { %>
+            <div class="mt-2 text-sm">Showing first <%= errors.length %> of <%= result.warningCount %> warning(s).</div>
+          <% } %>
+        </div>
+      </div>
+    <% } %>
+
+    <form method="post" action="/customers/import" enctype="multipart/form-data" class="doc-section space-y-5">
+      <div>
+        <label class="form-label" for="customers_csv">mHelpDesk customer CSV</label>
+        <input
+          id="customers_csv"
+          name="customers_csv"
+          type="file"
+          accept=".csv,text/csv"
+          required
+          class="form-input"
+        >
+        <p class="form-help">Expected columns include ID, Name, address1, address2, city, state, zip, email, primaryPhone, Tax, TaxRate, and Notes.</p>
+      </div>
+
+      <div class="notice">
+        <div class="font-semibold">Import behavior</div>
+        <p class="mt-1 text-sm text-recon-fog">
+          Forge matches existing customers by mHelpDesk ID first, then by name, email, and address. Existing matches are updated; new matches are created.
+          Placeholder rows named [None] are skipped.
+        </p>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Import customers</button>
+        <a href="/customers" class="btn btn-ghost">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<%- include('../layouts/footer') %>

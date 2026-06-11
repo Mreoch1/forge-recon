@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS customers (
   state TEXT,
   zip TEXT,
   quickbooks_id TEXT,
+  mhelpdesk_customer_id TEXT,
   quickbooks_sync_error TEXT,
   quickbooks_synced_at TIMESTAMPTZ,
   notes TEXT,

@@ -38,9 +38,18 @@ test('managers can access customers but cannot delete them', () => {
   const app = read('src/app.js');
   const customers = read('src/routes/customers.js');
   const header = read('src/views/layouts/header.ejs');
+  const customerIndex = read('src/views/customers/index.ejs');
+  const customerImport = read('src/views/customers/import.ejs');
 
   assert.match(app, /app\.use\('\/customers', requireAuth, requireManager, customersRoutes\)/);
   assert.match(customers, /router\.post\('\/:id\/delete', requireAdmin,/);
+  assert.match(customers, /router\.get\('\/import'/);
+  assert.match(customers, /router\.post\('\/import', importUpload\.single\('customers_csv'\)/);
+  assert.match(customers, /parseMhelpdeskCustomersCsv/);
+  assert.match(customers, /mhelpdesk_customer_id/);
+  assert.match(customerIndex, /href="\/customers\/import"/);
+  assert.match(customerImport, /mHelpDesk customer CSV/);
+  assert.match(customerImport, /name="customers_csv"/);
   assert.match(header, /_canManageNav[\s\S]*href="\/customers"/);
   assert.match(header, /_canManageMobile[\s\S]*href="\/customers"/);
 });
