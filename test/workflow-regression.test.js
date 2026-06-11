@@ -47,6 +47,16 @@ test('managers can access customers but cannot delete them', () => {
   assert.match(customers, /router\.post\('\/import', importUpload\.single\('customers_csv'\)/);
   assert.match(customers, /parseMhelpdeskCustomersCsv/);
   assert.match(customers, /mhelpdesk_customer_id/);
+  assert.match(customers, /CUSTOMER_SORTS/);
+  assert.match(customers, /CUSTOMER_FILTERS/);
+  assert.match(customers, /req\.query\.sort/);
+  assert.match(customers, /req\.query\.has/);
+  assert.match(customerIndex, /customer-toolbar/);
+  assert.match(customerIndex, /name="has"/);
+  assert.match(customerIndex, /name="sort"/);
+  assert.match(customerIndex, /compactPages/);
+  assert.match(customerIndex, /Previous/);
+  assert.match(customerIndex, /Next/);
   assert.match(customerIndex, /href="\/customers\/import"/);
   assert.match(customerImport, /mHelpDesk customer CSV/);
   assert.match(customerImport, /name="customers_csv"/);

@@ -1,10 +1,118 @@
 <%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
 
+<%
+  function customerUrl(overrides) {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (has && has !== 'all') params.set('has', has);
+    if (sort && sort !== 'name') params.set('sort', sort);
+    if (dir && dir !== 'asc') params.set('dir', dir);
+    if (page && page > 1) params.set('page', String(page));
+    Object.keys(overrides || {}).forEach(function(key) {
+      const value = overrides[key];
+      if (value === null || value === undefined || value === '' || (key === 'has' && value === 'all') || (key === 'sort' && value === 'name') || (key === 'dir' && value === 'asc') || (key === 'page' && Number(value) === 1)) {
+        params.delete(key);
+      } else {
+        params.set(key, String(value));
+      }
+    });
+    const query = params.toString();
+    return query ? `/customers?${query}` : '/customers';
+  }
+
+  function sortUrl(key) {
+    return customerUrl({
+      sort: key,
+      dir: sort === key && dir === 'asc' ? 'desc' : 'asc',
+      page: 1
+    });
+  }
+
+  function sortArrow(key) {
+    if (sort !== key) return '';
+    return dir === 'asc' ? '↑' : '↓';
+  }
+
+  function compactPages(current, totalPages) {
+    const pages = [];
+    const seen = new Set();
+    function add(value) {
+      if (value < 1 || value > totalPages || seen.has(value)) return;
+      seen.add(value);
+      pages.push(value);
+    }
+    add(1);
+    for (let p = current - 2; p <= current + 2; p++) add(p);
+    add(totalPages);
+    pages.sort(function(a, b) { return a - b; });
+    const output = [];
+    pages.forEach(function(value, index) {
+      if (index > 0 && value - pages[index - 1] > 1) output.push('…');
+      output.push(value);
+    });
+    return output;
+  }
+
+  const pageItems = compactPages(page, totalPages);
+  const rangeStart = total > 0 ? ((page - 1) * pageSize) + 1 : 0;
+  const rangeEnd = total > 0 ? rangeStart + customers.length - 1 : 0;
+%>
+
+<style>
+  .customer-toolbar {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .customer-toolbar .list-search { min-width: 280px; }
+  .customer-sort-link {
+    align-items: center;
+    color: inherit;
+    display: inline-flex;
+    gap: 6px;
+    text-decoration: none;
+  }
+  .customer-sort-link:hover { color: var(--recon-red); }
+  .customer-sort-arrow {
+    color: var(--recon-red);
+    font-size: 11px;
+    min-width: 10px;
+  }
+  .customer-pagination {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: space-between;
+    margin-top: 16px;
+  }
+  .customer-pagination-meta {
+    color: var(--recon-fog);
+    font-size: 12px;
+  }
+  .customer-pagination-pages {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-end;
+  }
+  .customer-page-ellipsis {
+    color: var(--recon-fog);
+    padding: 0 4px;
+  }
+</style>
+
 <div class="ops-shell">
   <div class="ops-header">
     <div class="ops-title-block">
       <h1 class="page-h1">Customers</h1>
-      <p class="page-sub"><%= total %> total<% if (q) { %> &middot; filter: "<%= q %>"<% } %></p>
+      <p class="page-sub">
+        <%= total %> total
+        <% if (q) { %> &middot; search: "<%= q %>"<% } %>
+        <% if (has && has !== 'all') { %> &middot; <%= filterOptions[has] %><% } %>
+      </p>
     </div>
     <div class="ops-actions">
       <a href="/customers/import" class="btn btn-secondary">Import customers</a>
@@ -19,9 +127,23 @@
     <div class="ops-summary-item"><div class="ops-summary-label">With phone</div><div class="ops-summary-value"><%= customers.filter(function(c){ return !!c.phone; }).length %></div><div class="ops-summary-meta">shown on page</div></div>
   </div>
 
-  <form method="get" action="/customers" class="list-utility-bar" id="customer-search-form">
+  <form method="get" action="/customers" class="list-utility-bar customer-toolbar" id="customer-search-form">
     <input type="text" name="q" value="<%= q %>" placeholder="Search name, email, phone, city..." class="list-search" id="customer-q" autocomplete="off">
-    <% if (q) { %>
+    <select name="has" class="list-filter" id="customer-has">
+      <% Object.keys(filterOptions).forEach(function(key){ %>
+        <option value="<%= key %>" <%= has === key ? 'selected' : '' %>><%= filterOptions[key] %></option>
+      <% }); %>
+    </select>
+    <select name="sort" class="list-filter" id="customer-sort">
+      <% Object.keys(sortOptions).forEach(function(key){ %>
+        <option value="<%= key %>" <%= sort === key ? 'selected' : '' %>>Sort: <%= sortOptions[key].label %></option>
+      <% }); %>
+    </select>
+    <select name="dir" class="list-filter" id="customer-dir">
+      <option value="asc" <%= dir === 'asc' ? 'selected' : '' %>>A to Z</option>
+      <option value="desc" <%= dir === 'desc' ? 'selected' : '' %>>Z to A</option>
+    </select>
+    <% if (q || has !== 'all' || sort !== 'name' || dir !== 'asc') { %>
       <a href="/customers" class="list-clear">Clear</a>
     <% } %>
   </form>
@@ -30,10 +152,19 @@
 (function(){
   var input = document.getElementById('customer-q');
   var form = document.getElementById('customer-search-form');
+  var filters = [
+    document.getElementById('customer-has'),
+    document.getElementById('customer-sort'),
+    document.getElementById('customer-dir')
+  ];
   var timer;
   input.addEventListener('input', function(){
     clearTimeout(timer);
     timer = setTimeout(function(){ form.submit(); }, 350);
+  });
+  filters.forEach(function(filter){
+    if (!filter) return;
+    filter.addEventListener('change', function(){ form.submit(); });
   });
 })();
 </script>
@@ -56,10 +187,10 @@
       <table class="data">
         <thead>
           <tr>
-            <th>Name</th>
-            <th>Email</th>
-            <th>Phone</th>
-            <th>Location</th>
+            <th><a class="customer-sort-link" href="<%= sortUrl('name') %>">Name <span class="customer-sort-arrow"><%= sortArrow('name') %></span></a></th>
+            <th><a class="customer-sort-link" href="<%= sortUrl('email') %>">Email <span class="customer-sort-arrow"><%= sortArrow('email') %></span></a></th>
+            <th><a class="customer-sort-link" href="<%= sortUrl('phone') %>">Phone <span class="customer-sort-arrow"><%= sortArrow('phone') %></span></a></th>
+            <th><a class="customer-sort-link" href="<%= sortUrl('location') %>">Location <span class="customer-sort-arrow"><%= sortArrow('location') %></span></a></th>
           </tr>
         </thead>
         <tbody>
@@ -78,14 +209,35 @@
   </div>
 
   <% if (totalPages > 1) { %>
-    <div class="flex items-center justify-center gap-2 mt-4">
-      <% for (let p = 1; p <= totalPages; p++) { %>
-        <% if (p === page) { %>
-          <span class="btn btn-primary"><%= p %></span>
+    <div class="customer-pagination">
+      <div class="customer-pagination-meta">
+        Showing <%= rangeStart %>–<%= rangeEnd %> of <%= total %> customers · Page <%= page %> of <%= totalPages %>
+      </div>
+      <div class="customer-pagination-pages">
+        <% if (page > 1) { %>
+          <a href="<%= customerUrl({ page: page - 1 }) %>" class="btn btn-ghost">Previous</a>
         <% } else { %>
-          <a href="/customers?page=<%= p %><%= q ? '&q=' + encodeURIComponent(q) : '' %>" class="btn btn-ghost"><%= p %></a>
+          <span class="btn btn-ghost opacity-50">Previous</span>
         <% } %>
-      <% } %>
+        <% pageItems.forEach(function(p){ %>
+          <% if (p === '…') { %>
+            <span class="customer-page-ellipsis">…</span>
+          <% } else if (p === page) { %>
+            <span class="btn btn-primary"><%= p %></span>
+          <% } else { %>
+            <a href="<%= customerUrl({ page: p }) %>" class="btn btn-ghost"><%= p %></a>
+          <% } %>
+        <% }); %>
+        <% if (page < totalPages) { %>
+          <a href="<%= customerUrl({ page: page + 1 }) %>" class="btn btn-ghost">Next</a>
+        <% } else { %>
+          <span class="btn btn-ghost opacity-50">Next</span>
+        <% } %>
+      </div>
+    </div>
+  <% } else if (total > 0) { %>
+    <div class="customer-pagination">
+      <div class="customer-pagination-meta">Showing <%= rangeStart %>–<%= rangeEnd %> of <%= total %> customers</div>
     </div>
   <% } %>
 </div>

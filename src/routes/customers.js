@@ -15,6 +15,19 @@ const { emptyToNullFormattedPhone } = require('../services/phone');
 
 const router = express.Router();
 const PAGE_SIZE = 25;
+const CUSTOMER_SORTS = {
+  name: { label: 'Name', column: 'name' },
+  email: { label: 'Email', column: 'email' },
+  phone: { label: 'Phone', column: 'phone' },
+  location: { label: 'Location', column: 'city' },
+};
+const CUSTOMER_FILTERS = {
+  all: 'All customers',
+  with_email: 'With email',
+  missing_email: 'Missing email',
+  with_phone: 'With phone',
+  missing_phone: 'Missing phone',
+};
 const importUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024, files: 1 },
@@ -226,6 +239,11 @@ router.get('/', async (req, res) => {
   // F4: sanitize before interpolating into PostgREST .or() filter.
   const q = sanitizePostgrestSearch((req.query.q || '').trim());
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const requestedSort = String(req.query.sort || 'name');
+  const sort = CUSTOMER_SORTS[requestedSort] ? requestedSort : 'name';
+  const dir = req.query.dir === 'desc' ? 'desc' : 'asc';
+  const requestedFilter = String(req.query.has || 'all');
+  const has = CUSTOMER_FILTERS[requestedFilter] ? requestedFilter : 'all';
   const offset = (page - 1) * PAGE_SIZE;
 
   let query = supabase.from('customers').select('id, name, email, billing_email, phone, city, state', { count: 'exact', head: false });
@@ -237,16 +255,55 @@ router.get('/', async (req, res) => {
     countQuery = countQuery.or(`name.ilike.${like},email.ilike.${like},billing_email.ilike.${like},phone.ilike.${like},city.ilike.${like}`);
   }
 
-  const [{ data: customers, count: total }, { error }] = await Promise.all([
-    query.order('name').range(offset, offset + PAGE_SIZE - 1),
+  if (has === 'with_email') {
+    query = query.not('email', 'is', null);
+    countQuery = countQuery.not('email', 'is', null);
+  } else if (has === 'missing_email') {
+    query = query.is('email', null);
+    countQuery = countQuery.is('email', null);
+  } else if (has === 'with_phone') {
+    query = query.not('phone', 'is', null);
+    countQuery = countQuery.not('phone', 'is', null);
+  } else if (has === 'missing_phone') {
+    query = query.is('phone', null);
+    countQuery = countQuery.is('phone', null);
+  }
+
+  const sortColumn = CUSTOMER_SORTS[sort].column;
+  const [{ data: customers, count: total, error: listError }, { error: countError }] = await Promise.all([
+    query
+      .order(sortColumn, { ascending: dir === 'asc', nullsFirst: false })
+      .order('name', { ascending: true })
+      .range(offset, offset + PAGE_SIZE - 1),
     countQuery,
   ]);
-  if (error) throw error;
+  if (listError) throw listError;
+  if (countError) throw countError;
 
   const totalPages = Math.max(1, Math.ceil((total || 0) / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  if (page !== safePage) {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (has !== 'all') params.set('has', has);
+    if (sort !== 'name') params.set('sort', sort);
+    if (dir !== 'asc') params.set('dir', dir);
+    params.set('page', String(safePage));
+    return res.redirect(`/customers?${params.toString()}`);
+  }
   res.render('customers/index', {
     title: 'Customers', activeNav: 'customers',
-    customers: customers || [], q, page, totalPages, total: total || 0
+    customers: customers || [],
+    q,
+    page: safePage,
+    totalPages,
+    total: total || 0,
+    pageSize: PAGE_SIZE,
+    sort,
+    dir,
+    has,
+    sortOptions: CUSTOMER_SORTS,
+    filterOptions: CUSTOMER_FILTERS
   });
 });
 
