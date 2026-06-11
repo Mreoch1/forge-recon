@@ -8,6 +8,9 @@ CREATE TABLE IF NOT EXISTS accounts (
   code TEXT NOT NULL UNIQUE,           -- e.g. "1100" = Accounts Receivable
   name TEXT NOT NULL,
   type TEXT NOT NULL CHECK(type IN ('asset','liability','equity','revenue','expense')),
+  qbo_account_type TEXT,
+  detail_type TEXT,
+  sort_order INTEGER,
   parent_account_id INTEGER REFERENCES accounts(id),
   active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),

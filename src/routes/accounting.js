@@ -19,6 +19,7 @@ const ExcelJS = require('exceljs');
 const supabase = require('../db/supabase');
 const { setFlash } = require('../middleware/auth');
 const reportPdf = require('../services/accounting-report-pdf');
+const { sanitizePostgrestSearch } = require('../services/sanitize');
 
 const router = express.Router();
 
@@ -780,22 +781,48 @@ router.post('/payroll/employees/:id/deactivate', async (req, res) => {
 
 // --- chart of accounts ---
 
-async function loadAccounts() {
-  const { data: accounts, error } = await supabase
+function accountQueryParams(query = {}) {
+  const q = sanitizePostgrestSearch((query.q || '').trim());
+  const type = (query.type || 'all').trim();
+  const status = (query.status || 'active').trim();
+  return { q, type, status };
+}
+
+async function loadAccounts(filters = {}) {
+  const { q, type, status } = accountQueryParams(filters);
+  let query = supabase
     .from('accounts')
-    .select('*')
+    .select('*');
+
+  if (q) {
+    const like = `%${q}%`;
+    query = query.or(`code.ilike.${like},name.ilike.${like},qbo_account_type.ilike.${like},detail_type.ilike.${like}`);
+  }
+  if (type && type !== 'all') query = query.eq('qbo_account_type', type);
+  if (status === 'active') query = query.eq('active', true);
+  if (status === 'inactive') query = query.eq('active', false);
+
+  query = query
+    .order('sort_order', { ascending: true, nullsFirst: false })
     .order('code', { ascending: true });
+
+  const { data: accounts, error } = await query;
   if (error) throw error;
 
   const grouped = { asset: [], liability: [], equity: [], revenue: [], expense: [] };
   (accounts || []).forEach(a => { (grouped[a.type] = grouped[a.type] || []).push(a); });
-  return { accounts: accounts || [], grouped };
+  const { data: typeRows } = await supabase
+    .from('accounts')
+    .select('qbo_account_type')
+    .order('qbo_account_type', { ascending: true });
+  const accountTypes = Array.from(new Set((typeRows || []).map(a => a.qbo_account_type).filter(Boolean))).sort();
+  return { accounts: accounts || [], grouped, accountTypes, filters: { q, type, status } };
 }
 
 router.get('/accounts', async (req, res) => {
-  let data = { accounts: [], grouped: { asset: [], liability: [], equity: [], revenue: [], expense: [] } };
+  let data = { accounts: [], grouped: { asset: [], liability: [], equity: [], revenue: [], expense: [] }, accountTypes: [], filters: accountQueryParams(req.query) };
   try {
-    data = await loadAccounts();
+    data = await loadAccounts(req.query);
   } catch (error) {
     logAccountingSetupWarning('/accounts', error);
   }
@@ -807,9 +834,10 @@ router.get('/accounts', async (req, res) => {
 });
 
 router.get('/accounts.pdf', async (req, res) => {
-  const [{ accounts }, company] = await Promise.all([loadAccounts(), getCompany()]);
+  const [{ accounts, filters }, company] = await Promise.all([loadAccounts(req.query), getCompany()]);
   sendPdf(res, 'chart-of-accounts.pdf', {
     title: 'Chart of accounts',
+    subtitle: filters.q ? `Filtered by ${filters.q}` : 'Recon Enterprises chart of accounts',
     company,
     summary: [
       { label: 'Accounts', value: String(accounts.length) },
@@ -818,7 +846,8 @@ router.get('/accounts.pdf', async (req, res) => {
     columns: [
       { key: 'code', label: 'Code', width: 1 },
       { key: 'name', label: 'Name', width: 3 },
-      { key: 'type', label: 'Type', width: 1.2 },
+      { key: 'qbo_account_type', label: 'Account type', width: 1.6, value: r => r.qbo_account_type || r.type },
+      { key: 'detail_type', label: 'Detail type', width: 1.8 },
       { key: 'active', label: 'Status', width: 1, value: r => r.active ? 'Active' : 'Inactive' },
     ],
     rows: accounts,

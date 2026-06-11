@@ -296,22 +296,6 @@ function fileIcon(mime) {
         <% }); %>
       <% } %>
 
-      <% if (currentUser && currentUser.role !== 'worker') { %>
-        <h2 class="ws-h-secondary mt-8">Files</h2>
-        <div class="ws-cust mb-4">
-          <div class="flex items-center justify-between gap-3">
-            <div>
-              <div class="ws-cust-name">Work order files</div>
-              <div class="ws-cust-line">
-                Upload photos, PDFs, signed notices, and other WO documents.
-                <%= fileCount ? fileCount + ' file' + (fileCount === 1 ? '' : 's') + ' attached.' : 'No files attached yet.' %>
-              </div>
-            </div>
-            <a href="/files/work_order/<%= wo.id %>" class="btn btn-secondary text-sm whitespace-nowrap">Open files &rarr;</a>
-          </div>
-        </div>
-      <% } %>
-
       <% if (isAdmin) { %>
         <!-- F-010: Vendor Billing -->
         <h2 class="ws-h-secondary mt-8">Vendor Billing</h2>

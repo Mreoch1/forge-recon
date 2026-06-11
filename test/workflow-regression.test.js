@@ -183,6 +183,7 @@ test('QuickBooks flow uses CSV export instead of live API sync', () => {
 test('bank transactions and account defaults are wired for accounting categorization', () => {
   const accountingRoutes = read('src/routes/accounting.js');
   const accountingIndex = read('src/views/accounting/index.ejs');
+  const accountsView = read('src/views/accounting/accounts.ejs');
   const bankView = read('src/views/accounting/bank-transactions.ejs');
   const customers = read('src/routes/customers.js');
   const customerForm = read('src/views/customers/_form.ejs');
@@ -199,6 +200,12 @@ test('bank transactions and account defaults are wired for accounting categoriza
   assert.match(accountingRoutes, /insertBankImportRows/);
   assert.match(accountingRoutes, /\.from\('bank_transactions'\)/);
   assert.match(accountingIndex, /href: '\/accounting\/bank-transactions'/);
+  assert.match(accountsView, /class="ops-shell"/);
+  assert.match(accountsView, /Filter by name or number/);
+  assert.match(accountsView, /name="type"/);
+  assert.match(accountsView, /qbo_account_type/);
+  assert.match(accountsView, /detail_type/);
+  assert.match(accountsView, /View register/);
   assert.match(bankView, /action="\/accounting\/bank-transactions\/import"/);
   assert.match(bankView, /name="bank_file"/);
   assert.match(bankView, /accept="\.csv,\.xlsx/);
@@ -221,6 +228,7 @@ test('QuickBooks favorite accounting reports are available with filters and expo
   const accountingRoutes = read('src/routes/accounting.js');
   const accountingIndex = read('src/views/accounting/index.ejs');
   const genericReport = read('src/views/accounting/reports/generic.ejs');
+  const migration = read('supabase/migrations/20260611153209_recon_quickbooks_chart_of_accounts.sql');
 
   [
     'ap-aging-detail',
@@ -243,6 +251,9 @@ test('QuickBooks favorite accounting reports are available with filters and expo
 
   assert.match(accountingRoutes, /router\.get\('\/reports\/:slug'/);
   assert.match(accountingRoutes, /router\.get\('\/reports\/:slug\.pdf'/);
+  assert.match(accountingRoutes, /accountQueryParams/);
+  assert.match(accountingRoutes, /qbo_account_type/);
+  assert.match(accountingRoutes, /detail_type/);
   assert.match(accountingRoutes, /function reportDateRange/);
   assert.match(accountingIndex, /favoriteReports/);
   assert.match(accountingIndex, /Favorite reports/);
@@ -250,6 +261,9 @@ test('QuickBooks favorite accounting reports are available with filters and expo
   assert.match(genericReport, /name="q"/);
   assert.match(genericReport, /data-sort-key/);
   assert.match(genericReport, /definition\.pdf/);
+  assert.match(migration, /recon_accounts\(code, name, type, qbo_account_type, detail_type, sort_order\)/);
+  assert.match(migration, /Checking Account/);
+  assert.match(migration, /Receivables-Trade/);
 });
 
 test('project RFP export loader only selects real project columns', () => {
@@ -280,8 +294,8 @@ test('managers can edit open work orders and access WO files from show page', ()
   assert.match(show, /currentUser && currentUser\.role !== 'worker' && !\['closed', 'complete', 'cancelled'\]\.includes\(wo\.status\)/);
   assert.match(show, /href="\/work-orders\/<%= wo\.id %>\/edit"/);
   assert.match(show, /href="\/files\/work_order\/<%= wo\.id %>"/);
-  assert.match(show, /Work order files/);
-  assert.match(show, /Open files/);
+  assert.match(show, /Photos &amp; Files/);
+  assert.doesNotMatch(show, /Work order files/);
 });
 
 test('RFP edits return users to the open category and line item', () => {

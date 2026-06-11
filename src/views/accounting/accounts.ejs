@@ -1,45 +1,179 @@
 <%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
 
+<%
+const safeFilters = filters || { q: '', type: 'all', status: 'active' };
+const queryParts = [];
+if (safeFilters.q) queryParts.push('q=' + encodeURIComponent(safeFilters.q));
+if (safeFilters.type && safeFilters.type !== 'all') queryParts.push('type=' + encodeURIComponent(safeFilters.type));
+if (safeFilters.status && safeFilters.status !== 'active') queryParts.push('status=' + encodeURIComponent(safeFilters.status));
+const pdfHref = '/accounting/accounts.pdf' + (queryParts.length ? '?' + queryParts.join('&') : '');
+const activeCount = (accounts || []).filter(function(acc) { return acc.active; }).length;
+const typeCount = new Set((accounts || []).map(function(acc) { return acc.qbo_account_type || acc.type; })).size;
+%>
+
+<style>
+  .coa-table {
+    table-layout: fixed;
+    min-width: 78rem;
+  }
+  .coa-table .coa-check-col { width: 3%; }
+  .coa-table .coa-number-col { width: 9%; }
+  .coa-table .coa-name-col { width: 27%; }
+  .coa-table .coa-type-col { width: 18%; }
+  .coa-table .coa-detail-col { width: 21%; }
+  .coa-table .coa-forge-col { width: 10%; }
+  .coa-table .coa-status-col { width: 6%; }
+  .coa-table .coa-action-col { width: 6%; }
+  .coa-checkbox {
+    width: 1rem;
+    height: 1rem;
+    accent-color: #c0202b;
+  }
+  .coa-type {
+    color: #1a1a1a;
+    font-weight: 700;
+  }
+  .coa-detail {
+    color: #6b7280;
+  }
+  .coa-action {
+    color: #16803a;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+  .coa-muted-action {
+    color: #8a8a8a;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+</style>
+
 <div class="ops-shell">
   <div class="mb-4">
     <a href="/accounting" class="text-sm text-recon-fog hover:text-recon-red">&larr; Accounting</a>
   </div>
-  <div class="flex items-center justify-between gap-3 mb-6 flex-wrap">
-    <h1 class="page-h1">Chart of accounts</h1>
-    <div class="flex gap-2 no-print">
-      <button type="button" class="btn btn-secondary text-sm" onclick="window.print()">Print</button>
-      <a href="/accounting/accounts.pdf" class="btn btn-secondary text-sm">PDF</a>
+
+  <div class="ops-header">
+    <div class="ops-title-block">
+      <h1 class="page-h1">Chart of accounts</h1>
+      <p class="page-sub">Recon Enterprises QuickBooks chart imported into Forge.</p>
+    </div>
+    <div class="ops-actions no-print">
+      <button type="button" class="btn btn-secondary" onclick="window.print()">Print</button>
+      <a href="<%= pdfHref %>" class="btn btn-secondary">PDF</a>
     </div>
   </div>
 
-  <% if (!accounts || accounts.length === 0) { %>
-    <div class="card p-8 text-center">
-      <p class="text-recon-fog">No accounts found. Run <code>node src/db/init-accounting.js</code> to seed the starter chart.</p>
+  <div class="ops-summary">
+    <div class="ops-summary-item">
+      <div class="ops-summary-label">Accounts</div>
+      <div class="ops-summary-value"><%= accounts.length %></div>
+      <div class="ops-summary-meta">shown</div>
     </div>
-  <% } else { %>
-    <div class="card overflow-hidden">
-      <table class="data">
-        <thead>
-          <tr>
-            <th>Code</th>
-            <th>Name</th>
-            <th>Type</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% accounts.forEach(function(acc) { %>
-            <tr>
-              <td class="font-mono text-sm"><%= acc.code %></td>
-              <td><%= acc.name %></td>
-              <td><span class="badge badge-<%= acc.type %>"><%= acc.type %></span></td>
-              <td><%= acc.active ? 'Active' : 'Inactive' %></td>
-            </tr>
-          <% }); %>
-        </tbody>
-      </table>
+    <div class="ops-summary-item">
+      <div class="ops-summary-label">Active</div>
+      <div class="ops-summary-value"><%= activeCount %></div>
+      <div class="ops-summary-meta">shown</div>
     </div>
-  <% } %>
+    <div class="ops-summary-item">
+      <div class="ops-summary-label">Account types</div>
+      <div class="ops-summary-value"><%= typeCount %></div>
+      <div class="ops-summary-meta">shown</div>
+    </div>
+    <div class="ops-summary-item">
+      <div class="ops-summary-label">Exports</div>
+      <div class="ops-summary-value">PDF</div>
+      <div class="ops-summary-meta">print-ready</div>
+    </div>
+  </div>
+
+  <form method="get" action="/accounting/accounts" class="list-utility-bar no-print">
+    <span class="btn btn-ghost">Batch actions</span>
+    <input
+      type="text"
+      name="q"
+      value="<%= safeFilters.q || '' %>"
+      placeholder="Filter by name or number..."
+      class="list-search"
+    >
+    <select name="type" class="list-filter">
+      <option value="all">All account types</option>
+      <% accountTypes.forEach(function(type) { %>
+        <option value="<%= type %>" <%= safeFilters.type === type ? 'selected' : '' %>><%= type %></option>
+      <% }); %>
+    </select>
+    <select name="status" class="list-filter">
+      <option value="active" <%= safeFilters.status === 'active' ? 'selected' : '' %>>Active</option>
+      <option value="all" <%= safeFilters.status === 'all' ? 'selected' : '' %>>All statuses</option>
+      <option value="inactive" <%= safeFilters.status === 'inactive' ? 'selected' : '' %>>Inactive</option>
+    </select>
+    <button type="submit" class="btn btn-secondary">Filter</button>
+    <% if (safeFilters.q || safeFilters.type !== 'all' || safeFilters.status !== 'active') { %>
+      <a href="/accounting/accounts" class="list-clear">Clear</a>
+    <% } %>
+  </form>
+
+  <div class="ops-panel ops-table">
+    <div class="ops-panel-head">
+      <div class="ops-panel-title">Account list</div>
+      <div class="text-xs text-recon-fog"><%= accounts.length %> shown</div>
+    </div>
+    <div class="ops-panel-body">
+      <% if (!accounts || accounts.length === 0) { %>
+        <div class="ops-empty">
+          No accounts match those filters.
+          <a href="/accounting/accounts" class="text-recon-red underline">Clear filters</a>.
+        </div>
+      <% } else { %>
+        <div class="overflow-x-auto">
+          <table class="data coa-table">
+            <colgroup>
+              <col class="coa-check-col">
+              <col class="coa-number-col">
+              <col class="coa-name-col">
+              <col class="coa-type-col">
+              <col class="coa-detail-col">
+              <col class="coa-forge-col">
+              <col class="coa-status-col">
+              <col class="coa-action-col">
+            </colgroup>
+            <thead>
+              <tr>
+                <th><input type="checkbox" class="coa-checkbox no-print" aria-label="Select all accounts" disabled></th>
+                <th>Number</th>
+                <th>Name</th>
+                <th>Account type</th>
+                <th>Detail type</th>
+                <th>Forge type</th>
+                <th>Status</th>
+                <th class="text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% accounts.forEach(function(acc) { %>
+                <tr>
+                  <td><input type="checkbox" class="coa-checkbox no-print" aria-label="Select <%= acc.name %>" disabled></td>
+                  <td class="font-mono text-sm"><%= String(acc.code || '').startsWith('QB-') ? '' : acc.code %></td>
+                  <td class="font-medium"><%= acc.name %></td>
+                  <td><span class="coa-type"><%= acc.qbo_account_type || acc.type %></span></td>
+                  <td><span class="coa-detail"><%= acc.detail_type || '-' %></span></td>
+                  <td><span class="badge badge-draft"><%= acc.type %></span></td>
+                  <td><%= acc.active ? 'Active' : 'Inactive' %></td>
+                  <td class="text-right">
+                    <% if ((acc.qbo_account_type || '').toLowerCase() === 'bank') { %>
+                      <a href="/accounting/bank-transactions" class="coa-action">View register</a>
+                    <% } else { %>
+                      <span class="coa-muted-action">View register</span>
+                    <% } %>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </div>
+  </div>
 </div>
 
 <%- include('../layouts/footer') %>
