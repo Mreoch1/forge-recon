@@ -10,6 +10,7 @@ const supabase = require('../db/supabase');
 const { requireManager, setFlash } = require('../middleware/auth');
 const { sanitizePostgrestSearch } = require('../services/sanitize');
 const { emptyToNullFormattedPhone } = require('../services/phone');
+const { generateVendorIntakePDF } = require('../services/vendor-intake-pdf');
 
 const router = express.Router();
 const PAGE_SIZE = 25;
@@ -90,6 +91,24 @@ function nextSection(section) {
 
 function publicLink(req, intake) {
   return `${req.protocol}://${req.get('host')}/vendor-intake/${intake.access_token}`;
+}
+
+async function loadIntakeDetail(id) {
+  const [{ data: intake, error }, { data: notes, error: notesError }] = await Promise.all([
+    supabase.from('contractor_vendor_intakes').select('*').eq('id', id).maybeSingle(),
+    supabase.from('contractor_vendor_intake_notes').select('*, users(name, email)').eq('intake_id', id).order('created_at', { ascending: false }),
+  ]);
+  if (error) throw error;
+  if (notesError) throw notesError;
+  return { intake, notes: notes || [] };
+}
+
+function filenameSlug(value) {
+  return String(value || 'trade-intake')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || 'trade-intake';
 }
 
 async function findByToken(accessToken) {
@@ -286,14 +305,19 @@ router.get('/directory', requireManager, async (req, res) => {
   });
 });
 
+router.get('/directory/:id.pdf', requireManager, async (req, res) => {
+  const id = req.params.id;
+  const { intake, notes } = await loadIntakeDetail(id);
+  if (!intake) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Intake not found.' });
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${filenameSlug(intake.company_name)}-trade-intake.pdf"`);
+  generateVendorIntakePDF(intake, notes, res);
+});
+
 router.get('/directory/:id', requireManager, async (req, res) => {
   const id = req.params.id;
-  const [{ data: intake, error }, { data: notes, error: notesError }] = await Promise.all([
-    supabase.from('contractor_vendor_intakes').select('*').eq('id', id).maybeSingle(),
-    supabase.from('contractor_vendor_intake_notes').select('*, users(name, email)').eq('intake_id', id).order('created_at', { ascending: false }),
-  ]);
-  if (error) throw error;
-  if (notesError) throw notesError;
+  const { intake, notes } = await loadIntakeDetail(id);
   if (!intake) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Intake not found.' });
 
   res.render('vendor-intake/show', {

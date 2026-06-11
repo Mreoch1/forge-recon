@@ -1,13 +1,24 @@
 <%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<style>
+  @media print {
+    .intake-screen-only { display: none !important; }
+    .intake-print-main { grid-column: 1 / -1 !important; }
+    .document-shell { max-width: none !important; padding: 0 !important; }
+    .ops-panel, .card { box-shadow: none !important; break-inside: avoid; }
+    table.data { font-size: 10px; }
+  }
+</style>
 <div class="document-shell">
-  <div class="mb-4"><a href="/vendor-intake/directory" class="text-sm text-recon-fog hover:text-recon-red">&larr; Trade intake</a></div>
+  <div class="mb-4 intake-screen-only"><a href="/vendor-intake/directory" class="text-sm text-recon-fog hover:text-recon-red">&larr; Trade intake</a></div>
   <div class="ops-panel mb-6">
     <div class="bg-recon-charcoal text-white p-5 flex items-center justify-between gap-4 flex-wrap">
       <div>
         <h1 class="text-2xl font-bold"><%= intake.company_name || '(unnamed company)' %></h1>
         <p class="text-sm text-recon-fog"><%= (intake.trades || []).join(', ') || 'No trades entered' %><% if (intake.other_trade_name) { %> &middot; <strong><%= intake.other_trade_name %></strong><% } %> &middot; <%= [intake.city, intake.state].filter(Boolean).join(', ') || 'No location' %></p>
       </div>
-      <div class="document-actions">
+      <div class="document-actions intake-screen-only">
+        <button type="button" class="btn btn-secondary" onclick="window.print()">Print</button>
+        <a class="btn btn-secondary" href="/vendor-intake/directory/<%= intake.id %>.pdf" target="_blank" rel="noopener">PDF</a>
         <a class="btn btn-secondary" href="<%= publicUrl %>" target="_blank">Open public link</a>
         <% if (intake.promoted_vendor_id) { %><a class="btn btn-secondary" href="/vendors/<%= intake.promoted_vendor_id %>">Vendor</a><% } %>
         <% if (intake.promoted_contractor_id) { %><a class="btn btn-secondary" href="/contractors/<%= intake.promoted_contractor_id %>">Contractor</a><% } %>
@@ -22,7 +33,7 @@
   </div>
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
-    <div class="lg:col-span-2 space-y-5">
+    <div class="lg:col-span-2 space-y-5 intake-print-main">
       <div class="card p-5">
         <h2 class="font-semibold mb-3">Company information</h2>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -85,7 +96,7 @@
       </div>
     </div>
 
-    <aside class="space-y-5">
+    <aside class="space-y-5 intake-screen-only">
       <div class="card p-5">
         <h2 class="font-semibold mb-3">Review</h2>
         <form method="post" action="/vendor-intake/directory/<%= intake.id %>/review" class="space-y-3">

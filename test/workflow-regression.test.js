@@ -98,14 +98,18 @@ test('trade intake has public start form and manager-only directory', () => {
   assert.match(routes, /router\.get\('\/start'/);
   assert.match(routes, /router\.post\('\/start'/);
   assert.match(routes, /router\.get\('\/directory', requireManager,/);
+  assert.match(routes, /router\.get\('\/directory\/:id\.pdf', requireManager,/);
   assert.match(routes, /router\.post\('\/directory\/:id\/notes', requireManager,/);
   assert.match(routes, /router\.post\('\/directory\/:id\/promote', requireManager,/);
+  assert.match(routes, /generateVendorIntakePDF/);
   assert.match(routes, /access_token/);
   assert.match(routes, /next_update_due_at/);
   assert.ok(routes.includes('ref_${i}_notes'));
   assert.match(form, /name="ref_<%= i %>_notes"/);
   assert.match(form, /ref\.notes/);
   assert.match(show, /ref\.notes/);
+  assert.match(show, /window\.print\(\)/);
+  assert.match(show, /\/vendor-intake\/directory\/<%= intake\.id %>\.pdf/);
   [
     'dba_name',
     'billing_contact_name',
