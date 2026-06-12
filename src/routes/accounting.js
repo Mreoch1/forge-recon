@@ -20,6 +20,7 @@ const supabase = require('../db/supabase');
 const { setFlash } = require('../middleware/auth');
 const reportPdf = require('../services/accounting-report-pdf');
 const { sanitizePostgrestSearch } = require('../services/sanitize');
+const { emptyToNullFormattedPhone } = require('../services/phone');
 
 const router = express.Router();
 
@@ -572,7 +573,157 @@ router.post('/bank-transactions/import', bankUpload.single('bank_file'), async (
   res.redirect('/accounting/bank-transactions?status=for_review');
 });
 
-async function loadPayrollOverview() {
+const PAYROLL_PAGE_SIZE = 25;
+const PAYROLL_STATUSES = ['active', 'inactive', 'terminated'];
+const PAYROLL_PAY_TYPES = ['salary', 'hourly', 'contract', 'other'];
+const PAYROLL_RATE_PERIODS = ['year', 'hour', 'day', 'pay_period', 'other'];
+const PAYROLL_PROFILE_TABS = ['personal', 'job-pay', 'time-off', 'documents'];
+
+const PAYROLL_EMPLOYEE_SELECT = [
+  'id',
+  'user_id',
+  'quickbooks_employee_id',
+  'quickbooks_display_name',
+  'display_name',
+  'first_name',
+  'last_name',
+  'preferred_name',
+  'email',
+  'role_title',
+  'status',
+  'pay_type',
+  'pay_rate_amount',
+  'pay_rate_period',
+  'pay_method',
+  'pay_schedule',
+  'phone',
+  'mobile_phone',
+  'home_phone',
+  'work_phone',
+  'address',
+  'city',
+  'state',
+  'zip',
+  'hire_date',
+  'birth_date',
+  'gender',
+  'ssn_last4',
+  'employee_identifier',
+  'employment_type',
+  'department',
+  'manager_name',
+  'work_location',
+  'worker_comp_class',
+  'default_weekly_hours',
+  'pay_effective_date',
+  'federal_filing_status',
+  'state_tax_status',
+  'emergency_contact_name',
+  'emergency_contact_relationship',
+  'emergency_contact_phone',
+  'emergency_contact_email',
+  'additional_pay_types',
+  'deductions_and_contributions',
+  'documents_notes',
+  'time_off_notes',
+  'notes',
+  'imported_at',
+  'created_at',
+  'updated_at',
+].join(', ');
+
+function cleanDateInput(value) {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
+}
+
+function cleanNumberInput(value) {
+  const raw = String(value || '').replace(/[$,]/g, '').trim();
+  if (!raw) return null;
+  const number = Number(raw);
+  return Number.isFinite(number) ? number : NaN;
+}
+
+function payrollEmployeeBlank() {
+  return {
+    id: null,
+    user_id: '',
+    display_name: '',
+    first_name: '',
+    last_name: '',
+    preferred_name: '',
+    email: '',
+    role_title: '',
+    status: 'active',
+    pay_type: 'salary',
+    pay_rate_amount: '',
+    pay_rate_period: 'year',
+    pay_method: 'Paper check',
+    pay_schedule: 'Every Other Friday',
+    phone: '',
+    mobile_phone: '',
+    home_phone: '',
+    work_phone: '',
+    address: '',
+    city: '',
+    state: '',
+    zip: '',
+    hire_date: '',
+    birth_date: '',
+    gender: '',
+    ssn_last4: '',
+    employee_identifier: '',
+    employment_type: '',
+    department: '',
+    manager_name: '',
+    work_location: '',
+    worker_comp_class: '',
+    default_weekly_hours: '40.00',
+    pay_effective_date: '',
+    federal_filing_status: '',
+    state_tax_status: '',
+    emergency_contact_name: '',
+    emergency_contact_relationship: '',
+    emergency_contact_phone: '',
+    emergency_contact_email: '',
+    additional_pay_types: '',
+    deductions_and_contributions: '',
+    documents_notes: '',
+    time_off_notes: '',
+    notes: '',
+  };
+}
+
+function payrollFilters(query = {}) {
+  const q = sanitizePostgrestSearch(String(query.q || '').trim());
+  const status = query.status === 'all' || PAYROLL_STATUSES.includes(query.status) ? query.status : 'active';
+  const schedule = cleanOptionalText(query.schedule) || 'all';
+  const page = Math.max(Number.parseInt(query.page, 10) || 1, 1);
+  return { q, status, schedule, page };
+}
+
+function payrollEmployeeNameParts(employee = {}) {
+  if (employee.first_name || employee.last_name) return employee;
+  const parts = String(employee.display_name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return { ...employee, first_name: employee.first_name || parts[0], last_name: employee.last_name || parts.slice(1).join(' ') };
+  }
+  return employee;
+}
+
+async function loadPayrollUsers() {
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, name, email, role')
+    .in('role', ['admin', 'manager', 'worker'])
+    .order('name', { ascending: true })
+    .limit(500);
+  if (error) throw error;
+  return data || [];
+}
+
+async function loadPayrollOverview(filters = {}) {
   const empty = {
     ready: false,
     settings: null,
@@ -583,51 +734,78 @@ async function loadPayrollOverview() {
     activeCount: 0,
     nextPayDate: null,
     latestRun: null,
+    page: filters.page || 1,
+    pageSize: PAYROLL_PAGE_SIZE,
+    totalPages: 1,
+    filters,
+    schedules: [],
     error: null,
   };
 
   try {
+    const safeFilters = payrollFilters(filters);
+    const from = (safeFilters.page - 1) * PAYROLL_PAGE_SIZE;
+    const to = from + PAYROLL_PAGE_SIZE - 1;
+
+    let employeeQuery = supabase
+      .from('payroll_employees')
+      .select(PAYROLL_EMPLOYEE_SELECT, { count: 'exact', head: false });
+
+    if (safeFilters.q) {
+      const like = `%${safeFilters.q}%`;
+      employeeQuery = employeeQuery.or(`display_name.ilike.${like},email.ilike.${like},role_title.ilike.${like},pay_schedule.ilike.${like}`);
+    }
+    if (safeFilters.status !== 'all') employeeQuery = employeeQuery.eq('status', safeFilters.status);
+    if (safeFilters.schedule !== 'all') employeeQuery = employeeQuery.eq('pay_schedule', safeFilters.schedule);
+
     const [
       { data: settings, error: settingsErr },
-      { data: employees, error: employeeErr },
-      { data: users, error: usersErr },
+      employeeResult,
+      users,
       { data: runs, error: runsErr },
+      { count: totalEmployees, error: totalErr },
+      { count: activeEmployees, error: activeErr },
+      { data: scheduleRows, error: scheduleErr },
     ] = await Promise.all([
       supabase.from('payroll_settings').select('*').eq('id', 1).maybeSingle(),
-      supabase
-        .from('payroll_employees')
-        .select('id, user_id, display_name, email, role_title, status, pay_type, pay_rate_amount, pay_rate_period, pay_method, pay_schedule, imported_at')
-        .order('display_name', { ascending: true })
-        .limit(250),
-      supabase
-        .from('users')
-        .select('id, name, email, role')
-        .in('role', ['admin', 'manager', 'worker'])
-        .order('name', { ascending: true })
-        .limit(250),
+      employeeQuery.order('display_name', { ascending: true }).range(from, to),
+      loadPayrollUsers(),
       supabase
         .from('payroll_runs')
         .select('id, source, pay_period_start, pay_period_end, pay_date, status, gross_pay, employer_taxes, deductions, net_pay')
         .order('pay_date', { ascending: false })
         .limit(20),
+      supabase.from('payroll_employees').select('id', { count: 'exact', head: true }),
+      supabase.from('payroll_employees').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+      supabase.from('payroll_employees').select('pay_schedule').not('pay_schedule', 'is', null).order('pay_schedule', { ascending: true }).limit(500),
     ]);
     if (settingsErr) throw settingsErr;
-    if (employeeErr) throw employeeErr;
-    if (usersErr) throw usersErr;
+    if (employeeResult.error) throw employeeResult.error;
     if (runsErr) throw runsErr;
+    if (totalErr) throw totalErr;
+    if (activeErr) throw activeErr;
+    if (scheduleErr) throw scheduleErr;
 
-    const roster = employees || [];
+    const roster = (employeeResult.data || []).map(payrollEmployeeNameParts);
     const payrollRuns = runs || [];
+    const count = employeeResult.count || 0;
+    const schedules = Array.from(new Set((scheduleRows || []).map(r => r.pay_schedule).filter(Boolean))).sort();
     return {
       ready: true,
       settings: settings || null,
       employees: roster,
       users: users || [],
       runs: payrollRuns,
-      employeeCount: roster.length,
-      activeCount: roster.filter(e => e.status === 'active').length,
+      employeeCount: totalEmployees || 0,
+      filteredCount: count,
+      activeCount: activeEmployees || 0,
       nextPayDate: settings?.next_pay_date || null,
       latestRun: payrollRuns[0] || null,
+      page: safeFilters.page,
+      pageSize: PAYROLL_PAGE_SIZE,
+      totalPages: Math.max(Math.ceil(count / PAYROLL_PAGE_SIZE), 1),
+      filters: safeFilters,
+      schedules,
       error: null,
     };
   } catch (error) {
@@ -635,14 +813,58 @@ async function loadPayrollOverview() {
   }
 }
 
+async function loadPayrollEmployee(id) {
+  const employeeId = Number.parseInt(id, 10);
+  if (!Number.isFinite(employeeId) || employeeId <= 0) return null;
+
+  const { data: employee, error } = await supabase
+    .from('payroll_employees')
+    .select(PAYROLL_EMPLOYEE_SELECT)
+    .eq('id', employeeId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!employee) return null;
+
+  let lines = [];
+  try {
+    const { data: payrollLines, error: linesError } = await supabase
+      .from('payroll_run_lines')
+      .select(`
+        id,
+        earning_type,
+        regular_hours,
+        overtime_hours,
+        gross_pay,
+        employer_taxes,
+        deductions,
+        net_pay,
+        labor_cost,
+        allocation_status,
+        payroll_runs!inner(id, pay_period_start, pay_period_end, pay_date, status)
+      `)
+      .eq('payroll_employee_id', employeeId)
+      .order('id', { ascending: false })
+      .limit(25);
+    if (linesError) throw linesError;
+    lines = payrollLines || [];
+  } catch (lineError) {
+    lines = [];
+  }
+
+  return { employee: payrollEmployeeNameParts(employee), lines };
+}
+
 router.get('/payroll', async (req, res) => {
-  const payroll = await loadPayrollOverview();
+  const filters = payrollFilters(req.query || {});
+  const payroll = await loadPayrollOverview(filters);
   res.render('accounting/payroll', {
-    title: 'Payroll',
+    title: 'Employees',
     activeNav: 'accounting',
     payroll,
-    employeeForm: {},
-    money: money,
+    money,
+    statuses: PAYROLL_STATUSES,
+    payTypes: PAYROLL_PAY_TYPES,
+    ratePeriods: PAYROLL_RATE_PERIODS,
   });
 });
 
@@ -652,28 +874,40 @@ function cleanOptionalText(value) {
 }
 
 function cleanPayrollEmployeeInput(body) {
+  const base = payrollEmployeeBlank();
   const displayName = cleanOptionalText(body.display_name);
+  const firstName = cleanOptionalText(body.first_name);
+  const lastName = cleanOptionalText(body.last_name);
+  const preferredName = cleanOptionalText(body.preferred_name);
   const email = cleanOptionalText(body.email);
   const roleTitle = cleanOptionalText(body.role_title);
   const payMethod = cleanOptionalText(body.pay_method);
   const paySchedule = cleanOptionalText(body.pay_schedule);
   const userId = Number.parseInt(body.user_id, 10);
-  const rawPayRate = String(body.pay_rate_amount || '').replace(/[$,]/g, '').trim();
-  const payRate = rawPayRate ? Number(rawPayRate) : null;
-  const status = ['active', 'inactive', 'terminated'].includes(body.status) ? body.status : 'active';
-  const payType = ['salary', 'hourly', 'contract', 'other'].includes(body.pay_type) ? body.pay_type : 'salary';
-  const payRatePeriod = ['year', 'hour', 'day', 'pay_period', 'other'].includes(body.pay_rate_period) ? body.pay_rate_period : null;
+  const payRate = cleanNumberInput(body.pay_rate_amount);
+  const defaultWeeklyHours = cleanNumberInput(body.default_weekly_hours);
+  const status = PAYROLL_STATUSES.includes(body.status) ? body.status : base.status;
+  const payType = PAYROLL_PAY_TYPES.includes(body.pay_type) ? body.pay_type : base.pay_type;
+  const payRatePeriod = PAYROLL_RATE_PERIODS.includes(body.pay_rate_period) ? body.pay_rate_period : null;
+  const ssnLast4 = String(body.ssn_last4 || '').replace(/\D/g, '').trim() || null;
+  const emergencyEmail = cleanOptionalText(body.emergency_contact_email);
 
   const errors = [];
   if (!displayName) errors.push('Employee name is required.');
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push('Email address is not valid.');
-  if (rawPayRate && (!Number.isFinite(payRate) || payRate < 0)) errors.push('Pay rate must be a positive number.');
+  if (emergencyEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emergencyEmail)) errors.push('Emergency contact email is not valid.');
+  if (payRate != null && (!Number.isFinite(payRate) || payRate < 0)) errors.push('Pay rate must be a positive number.');
+  if (defaultWeeklyHours != null && (!Number.isFinite(defaultWeeklyHours) || defaultWeeklyHours < 0)) errors.push('Default weekly hours must be a positive number.');
   if (payRate != null && !payRatePeriod) errors.push('Choose a pay rate period.');
+  if (ssnLast4 && ssnLast4.length !== 4) errors.push('SSN last four must be exactly 4 digits.');
 
   return {
     data: {
       user_id: Number.isFinite(userId) && userId > 0 ? userId : null,
       display_name: displayName,
+      first_name: firstName,
+      last_name: lastName,
+      preferred_name: preferredName,
       email,
       role_title: roleTitle,
       status,
@@ -682,6 +916,37 @@ function cleanPayrollEmployeeInput(body) {
       pay_rate_period: payRate != null ? payRatePeriod : null,
       pay_method: payMethod,
       pay_schedule: paySchedule,
+      phone: emptyToNullFormattedPhone(body.phone),
+      mobile_phone: emptyToNullFormattedPhone(body.mobile_phone),
+      home_phone: emptyToNullFormattedPhone(body.home_phone),
+      work_phone: emptyToNullFormattedPhone(body.work_phone),
+      address: cleanOptionalText(body.address),
+      city: cleanOptionalText(body.city),
+      state: cleanOptionalText(body.state),
+      zip: cleanOptionalText(body.zip),
+      hire_date: cleanDateInput(body.hire_date),
+      birth_date: cleanDateInput(body.birth_date),
+      gender: cleanOptionalText(body.gender),
+      ssn_last4: ssnLast4,
+      employee_identifier: cleanOptionalText(body.employee_identifier),
+      employment_type: cleanOptionalText(body.employment_type),
+      department: cleanOptionalText(body.department),
+      manager_name: cleanOptionalText(body.manager_name),
+      work_location: cleanOptionalText(body.work_location),
+      worker_comp_class: cleanOptionalText(body.worker_comp_class),
+      default_weekly_hours: defaultWeeklyHours,
+      pay_effective_date: cleanDateInput(body.pay_effective_date),
+      federal_filing_status: cleanOptionalText(body.federal_filing_status),
+      state_tax_status: cleanOptionalText(body.state_tax_status),
+      emergency_contact_name: cleanOptionalText(body.emergency_contact_name),
+      emergency_contact_relationship: cleanOptionalText(body.emergency_contact_relationship),
+      emergency_contact_phone: emptyToNullFormattedPhone(body.emergency_contact_phone),
+      emergency_contact_email: emergencyEmail,
+      additional_pay_types: cleanOptionalText(body.additional_pay_types),
+      deductions_and_contributions: cleanOptionalText(body.deductions_and_contributions),
+      documents_notes: cleanOptionalText(body.documents_notes),
+      time_off_notes: cleanOptionalText(body.time_off_notes),
+      notes: cleanOptionalText(body.notes),
       imported_from: 'manual',
       imported_at: new Date().toISOString(),
       metadata: { entry: 'manual' },
@@ -690,35 +955,107 @@ function cleanPayrollEmployeeInput(body) {
   };
 }
 
+router.get('/payroll/employees/new', async (req, res) => {
+  let users = [];
+  try {
+    users = await loadPayrollUsers();
+  } catch (error) {
+    setFlash(req, 'error', `Employee form could not load users: ${error.message}`);
+  }
+  res.render('accounting/payroll-employee-form', {
+    title: 'New employee',
+    activeNav: 'accounting',
+    mode: 'new',
+    employee: payrollEmployeeBlank(),
+    users,
+    errors: [],
+    statuses: PAYROLL_STATUSES,
+    payTypes: PAYROLL_PAY_TYPES,
+    ratePeriods: PAYROLL_RATE_PERIODS,
+  });
+});
+
 router.post('/payroll/employees', async (req, res) => {
   const { data, errors } = cleanPayrollEmployeeInput(req.body || {});
   if (errors.length) {
-    const payroll = await loadPayrollOverview();
-    return res.status(400).render('accounting/payroll', {
-      title: 'Payroll',
+    const users = await loadPayrollUsers().catch(() => []);
+    return res.status(400).render('accounting/payroll-employee-form', {
+      title: 'New employee',
       activeNav: 'accounting',
-      payroll,
-      employeeForm: req.body || {},
-      employeeError: errors.join(' '),
-      money: money,
+      mode: 'new',
+      employee: { ...payrollEmployeeBlank(), ...(req.body || {}) },
+      users,
+      errors,
+      statuses: PAYROLL_STATUSES,
+      payTypes: PAYROLL_PAY_TYPES,
+      ratePeriods: PAYROLL_RATE_PERIODS,
     });
   }
 
-  const { error } = await supabase.from('payroll_employees').insert(data);
+  const { data: inserted, error } = await supabase.from('payroll_employees').insert(data).select('id').single();
   if (error) {
-    const payroll = await loadPayrollOverview();
-    return res.status(400).render('accounting/payroll', {
-      title: 'Payroll',
+    const users = await loadPayrollUsers().catch(() => []);
+    return res.status(400).render('accounting/payroll-employee-form', {
+      title: 'New employee',
       activeNav: 'accounting',
-      payroll,
-      employeeForm: req.body || {},
-      employeeError: `Employee could not be saved: ${error.message}`,
-      money: money,
+      mode: 'new',
+      employee: { ...payrollEmployeeBlank(), ...(req.body || {}) },
+      users,
+      errors: [`Employee could not be saved: ${error.message}`],
+      statuses: PAYROLL_STATUSES,
+      payTypes: PAYROLL_PAY_TYPES,
+      ratePeriods: PAYROLL_RATE_PERIODS,
     });
   }
 
   setFlash(req, 'success', `Payroll employee "${data.display_name}" added.`);
-  res.redirect('/accounting/payroll');
+  res.redirect(`/accounting/payroll/employees/${inserted.id}`);
+});
+
+router.get('/payroll/employees/:id', async (req, res) => {
+  try {
+    const payrollEmployee = await loadPayrollEmployee(req.params.id);
+    if (!payrollEmployee) {
+      setFlash(req, 'error', 'Payroll employee not found.');
+      return res.redirect('/accounting/payroll');
+    }
+    const tab = PAYROLL_PROFILE_TABS.includes(req.query.tab) ? req.query.tab : 'job-pay';
+    return res.render('accounting/payroll-employee-show', {
+      title: payrollEmployee.employee.display_name,
+      activeNav: 'accounting',
+      payroll: payrollEmployee,
+      tab,
+      money,
+    });
+  } catch (error) {
+    setFlash(req, 'error', `Payroll employee could not be loaded: ${error.message}`);
+    return res.redirect('/accounting/payroll');
+  }
+});
+
+router.get('/payroll/employees/:id/edit', async (req, res) => {
+  try {
+    const payrollEmployee = await loadPayrollEmployee(req.params.id);
+    if (!payrollEmployee) {
+      setFlash(req, 'error', 'Payroll employee not found.');
+      return res.redirect('/accounting/payroll');
+    }
+    const users = await loadPayrollUsers().catch(() => []);
+    return res.render('accounting/payroll-employee-form', {
+      title: `Edit ${payrollEmployee.employee.display_name}`,
+      activeNav: 'accounting',
+      mode: 'edit',
+      employee: payrollEmployee.employee,
+      users,
+      errors: [],
+      statuses: PAYROLL_STATUSES,
+      payTypes: PAYROLL_PAY_TYPES,
+      ratePeriods: PAYROLL_RATE_PERIODS,
+    });
+  } catch (error) {
+    setFlash(req, 'error', `Payroll employee could not be loaded: ${error.message}`);
+    return res.redirect('/accounting/payroll');
+  }
 });
 
 router.post('/payroll/employees/:id', async (req, res) => {
@@ -730,33 +1067,35 @@ router.post('/payroll/employees/:id', async (req, res) => {
 
   const { data, errors } = cleanPayrollEmployeeInput(req.body || {});
   if (errors.length) {
-    setFlash(req, 'error', errors.join(' '));
-    return res.redirect('/accounting/payroll');
+    const users = await loadPayrollUsers().catch(() => []);
+    return res.status(400).render('accounting/payroll-employee-form', {
+      title: `Edit ${data.display_name || 'employee'}`,
+      activeNav: 'accounting',
+      mode: 'edit',
+      employee: { ...payrollEmployeeBlank(), ...(req.body || {}), id },
+      users,
+      errors,
+      statuses: PAYROLL_STATUSES,
+      payTypes: PAYROLL_PAY_TYPES,
+      ratePeriods: PAYROLL_RATE_PERIODS,
+    });
   }
 
   const update = {
-    user_id: data.user_id,
-    display_name: data.display_name,
-    email: data.email,
-    role_title: data.role_title,
-    status: data.status,
-    pay_type: data.pay_type,
-    pay_rate_amount: data.pay_rate_amount,
-    pay_rate_period: data.pay_rate_period,
-    pay_method: data.pay_method,
-    pay_schedule: data.pay_schedule,
+    ...data,
     imported_from: data.imported_from,
-    metadata: { entry: 'manual_update' },
+    imported_at: data.imported_at,
+    metadata: { ...(data.metadata || {}), entry: 'manual_update' },
   };
 
   const { error } = await supabase.from('payroll_employees').update(update).eq('id', id);
   if (error) {
     setFlash(req, 'error', `Payroll employee could not be updated: ${error.message}`);
-    return res.redirect('/accounting/payroll');
+    return res.redirect(`/accounting/payroll/employees/${id}/edit`);
   }
 
   setFlash(req, 'success', `Payroll employee "${data.display_name}" updated.`);
-  res.redirect('/accounting/payroll');
+  res.redirect(`/accounting/payroll/employees/${id}`);
 });
 
 router.post('/payroll/employees/:id/deactivate', async (req, res) => {
@@ -776,7 +1115,7 @@ router.post('/payroll/employees/:id/deactivate', async (req, res) => {
   }
 
   setFlash(req, 'success', 'Payroll employee deactivated.');
-  res.redirect('/accounting/payroll');
+  res.redirect(req.get('referer') || '/accounting/payroll');
 });
 
 // --- chart of accounts ---

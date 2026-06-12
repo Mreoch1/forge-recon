@@ -285,6 +285,32 @@ test('QuickBooks favorite accounting reports are available with filters and expo
   assert.match(migration, /Receivables-Trade/);
 });
 
+test('admin payroll employees use QuickBooks-style editable profile workflow', () => {
+  const accountingRoutes = read('src/routes/accounting.js');
+  const payrollList = read('src/views/accounting/payroll.ejs');
+  const payrollForm = read('src/views/accounting/payroll-employee-form.ejs');
+  const payrollShow = read('src/views/accounting/payroll-employee-show.ejs');
+  const accountingIndex = read('src/views/accounting/index.ejs');
+  const migration = read('supabase/migrations/20260612105000_payroll_employee_profile_fields.sql');
+
+  assert.match(accountingRoutes, /router\.get\('\/payroll\/employees\/new'/);
+  assert.match(accountingRoutes, /router\.get\('\/payroll\/employees\/:id'/);
+  assert.match(accountingRoutes, /router\.post\('\/payroll\/employees\/:id'/);
+  assert.match(accountingRoutes, /PAYROLL_EMPLOYEE_SELECT/);
+  assert.match(accountingIndex, /name: 'Employees'/);
+  assert.match(payrollList, /Search By Name/);
+  assert.match(payrollList, /Pay rate/);
+  assert.match(payrollList, /Pay method/);
+  assert.match(payrollForm, /name="pay_rate_amount"/);
+  assert.match(payrollForm, /name="emergency_contact_name"/);
+  assert.match(payrollForm, /name="deductions_and_contributions"/);
+  assert.match(payrollShow, /Job & pay/);
+  assert.match(payrollShow, /Payroll activity/);
+  assert.doesNotMatch(payrollShow, /Background check/i);
+  assert.match(migration, /additional_pay_types/);
+  assert.match(migration, /ALTER TABLE public\.payroll_employees ENABLE ROW LEVEL SECURITY/);
+});
+
 test('project RFP export loader only selects real project columns', () => {
   const routes = read('src/routes/rfp.js');
   assert.match(routes, /\.from\('jobs'\)\s*\.select\('id, title'\)/);

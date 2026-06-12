@@ -1,0 +1,329 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<%
+const isEdit = mode === 'edit';
+const formAction = isEdit ? '/accounting/payroll/employees/' + employee.id : '/accounting/payroll/employees';
+const payrollStatuses = typeof statuses !== 'undefined' && Array.isArray(statuses) ? statuses : ['active', 'inactive', 'terminated'];
+const payrollTypes = typeof payTypes !== 'undefined' && Array.isArray(payTypes) ? payTypes : ['salary', 'hourly', 'contract', 'other'];
+const periods = typeof ratePeriods !== 'undefined' && Array.isArray(ratePeriods) ? ratePeriods : ['year', 'hour', 'day', 'pay_period', 'other'];
+function value(field) {
+  return employee && employee[field] != null ? employee[field] : '';
+}
+function selected(field, option, fallback) {
+  const current = value(field) || fallback || '';
+  return String(current) === String(option) ? 'selected' : '';
+}
+%>
+
+<style>
+  .employee-form-grid {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  .employee-form-card {
+    grid-column: span 12;
+    background: #fff;
+    border: 1px solid #e4e4e4;
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  }
+  .employee-form-card-head {
+    padding: .9rem 1rem;
+    border-bottom: 1px solid #ececec;
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: #777;
+  }
+  .employee-form-card-body { padding: 1rem; }
+  .employee-form-row {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  .employee-form-row > label { grid-column: span 4; }
+  .employee-form-row > label.wide { grid-column: span 6; }
+  .employee-form-row > label.full { grid-column: span 12; }
+  .employee-form-row textarea { min-height: 5.75rem; }
+  @media (max-width: 780px) {
+    .employee-form-row > label,
+    .employee-form-row > label.wide { grid-column: span 12; }
+  }
+</style>
+
+<div class="document-edit-shell">
+  <div class="mb-4">
+    <a href="<%= isEdit ? '/accounting/payroll/employees/' + employee.id : '/accounting/payroll' %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; <%= isEdit ? employee.display_name : 'Employees' %></a>
+  </div>
+
+  <div class="flex flex-wrap items-start justify-between gap-3 mb-6">
+    <div>
+      <h1 class="page-h1"><%= isEdit ? 'Edit ' + employee.display_name : 'New employee' %></h1>
+      <p class="page-sub mt-1">Admin-only employee profile data for payroll review, reporting, and labor costing.</p>
+    </div>
+    <% if (isEdit) { %>
+      <a href="/accounting/payroll/employees/<%= employee.id %>" class="btn btn-secondary">View profile</a>
+    <% } %>
+  </div>
+
+  <% if (errors && errors.length) { %>
+    <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+      <%= errors.join(' ') %>
+    </div>
+  <% } %>
+
+  <form id="employee-profile-form" method="post" action="<%= formAction %>" class="employee-form-grid">
+    <section class="employee-form-card">
+      <div class="employee-form-card-head">Identity and contact</div>
+      <div class="employee-form-card-body">
+        <div class="employee-form-row">
+          <label>
+            <span class="label">Employee name *</span>
+            <input class="input" name="display_name" value="<%= value('display_name') %>" required>
+          </label>
+          <label>
+            <span class="label">First name</span>
+            <input class="input" name="first_name" value="<%= value('first_name') %>">
+          </label>
+          <label>
+            <span class="label">Last name</span>
+            <input class="input" name="last_name" value="<%= value('last_name') %>">
+          </label>
+          <label>
+            <span class="label">Preferred name</span>
+            <input class="input" name="preferred_name" value="<%= value('preferred_name') %>">
+          </label>
+          <label>
+            <span class="label">Email</span>
+            <input class="input" name="email" type="email" value="<%= value('email') %>">
+          </label>
+          <label>
+            <span class="label">Forge user link</span>
+            <select class="input" name="user_id">
+              <option value="">No linked user</option>
+              <% (users || []).forEach(function(user) { %>
+                <option value="<%= user.id %>" <%= String(value('user_id')) === String(user.id) ? 'selected' : '' %>>
+                  <%= user.name %><%= user.email ? ' - ' + user.email : '' %>
+                </option>
+              <% }); %>
+            </select>
+          </label>
+          <label>
+            <span class="label">Mobile phone</span>
+            <input class="input" name="mobile_phone" value="<%= value('mobile_phone') || value('phone') %>">
+          </label>
+          <label>
+            <span class="label">Home phone</span>
+            <input class="input" name="home_phone" value="<%= value('home_phone') %>">
+          </label>
+          <label>
+            <span class="label">Work phone</span>
+            <input class="input" name="work_phone" value="<%= value('work_phone') %>">
+          </label>
+          <label class="wide">
+            <span class="label">Home address</span>
+            <input class="input" name="address" value="<%= value('address') %>">
+          </label>
+          <label>
+            <span class="label">City</span>
+            <input class="input" name="city" value="<%= value('city') %>">
+          </label>
+          <label>
+            <span class="label">State</span>
+            <input class="input" name="state" value="<%= value('state') %>">
+          </label>
+          <label>
+            <span class="label">ZIP</span>
+            <input class="input" name="zip" value="<%= value('zip') %>">
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section class="employee-form-card">
+      <div class="employee-form-card-head">Employment details</div>
+      <div class="employee-form-card-body">
+        <div class="employee-form-row">
+          <label>
+            <span class="label">Status</span>
+            <select class="input" name="status">
+              <% payrollStatuses.forEach(function(status) { %>
+                <option value="<%= status %>" <%= selected('status', status, 'active') %>><%= status %></option>
+              <% }); %>
+            </select>
+          </label>
+          <label>
+            <span class="label">Hire date</span>
+            <input class="input" type="date" name="hire_date" value="<%= value('hire_date') ? String(value('hire_date')).slice(0, 10) : '' %>">
+          </label>
+          <label>
+            <span class="label">Employee ID</span>
+            <input class="input" name="employee_identifier" value="<%= value('employee_identifier') %>">
+          </label>
+          <label>
+            <span class="label">Job title</span>
+            <input class="input" name="role_title" value="<%= value('role_title') %>">
+          </label>
+          <label>
+            <span class="label">Employment type</span>
+            <input class="input" name="employment_type" value="<%= value('employment_type') %>" placeholder="Full time, part time, seasonal">
+          </label>
+          <label>
+            <span class="label">Department</span>
+            <input class="input" name="department" value="<%= value('department') %>">
+          </label>
+          <label>
+            <span class="label">Manager</span>
+            <input class="input" name="manager_name" value="<%= value('manager_name') %>">
+          </label>
+          <label>
+            <span class="label">Work location</span>
+            <input class="input" name="work_location" value="<%= value('work_location') %>">
+          </label>
+          <label>
+            <span class="label">Worker comp class</span>
+            <input class="input" name="worker_comp_class" value="<%= value('worker_comp_class') %>">
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section class="employee-form-card">
+      <div class="employee-form-card-head">Job and pay</div>
+      <div class="employee-form-card-body">
+        <div class="employee-form-row">
+          <label>
+            <span class="label">Pay type</span>
+            <select class="input" name="pay_type">
+              <% payrollTypes.forEach(function(type) { %>
+                <option value="<%= type %>" <%= selected('pay_type', type, 'salary') %>><%= type %></option>
+              <% }); %>
+            </select>
+          </label>
+          <label>
+            <span class="label">Pay rate</span>
+            <input class="input" name="pay_rate_amount" inputmode="decimal" value="<%= value('pay_rate_amount') %>">
+          </label>
+          <label>
+            <span class="label">Rate period</span>
+            <select class="input" name="pay_rate_period">
+              <option value="">Choose if rate entered</option>
+              <% periods.forEach(function(period) { %>
+                <option value="<%= period %>" <%= selected('pay_rate_period', period, 'year') %>><%= String(period).replace('pay_period', 'pay period') %></option>
+              <% }); %>
+            </select>
+          </label>
+          <label>
+            <span class="label">Default weekly hours</span>
+            <input class="input" name="default_weekly_hours" inputmode="decimal" value="<%= value('default_weekly_hours') %>">
+          </label>
+          <label>
+            <span class="label">Pay effective date</span>
+            <input class="input" type="date" name="pay_effective_date" value="<%= value('pay_effective_date') ? String(value('pay_effective_date')).slice(0, 10) : '' %>">
+          </label>
+          <label>
+            <span class="label">Pay method</span>
+            <input class="input" name="pay_method" value="<%= value('pay_method') %>" placeholder="Paper check, direct deposit">
+          </label>
+          <label>
+            <span class="label">Pay schedule</span>
+            <input class="input" name="pay_schedule" value="<%= value('pay_schedule') %>" placeholder="Every Other Friday">
+          </label>
+          <label class="full">
+            <span class="label">Additional pay types</span>
+            <textarea class="input" name="additional_pay_types"><%= value('additional_pay_types') %></textarea>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section class="employee-form-card">
+      <div class="employee-form-card-head">Personal payroll fields</div>
+      <div class="employee-form-card-body">
+        <div class="employee-form-row">
+          <label>
+            <span class="label">Birth date</span>
+            <input class="input" type="date" name="birth_date" value="<%= value('birth_date') ? String(value('birth_date')).slice(0, 10) : '' %>">
+          </label>
+          <label>
+            <span class="label">Gender</span>
+            <input class="input" name="gender" value="<%= value('gender') %>">
+          </label>
+          <label>
+            <span class="label">SSN last 4</span>
+            <input class="input" name="ssn_last4" value="<%= value('ssn_last4') %>" maxlength="4" inputmode="numeric">
+          </label>
+          <label>
+            <span class="label">Federal filing status</span>
+            <input class="input" name="federal_filing_status" value="<%= value('federal_filing_status') %>">
+          </label>
+          <label>
+            <span class="label">State tax status</span>
+            <input class="input" name="state_tax_status" value="<%= value('state_tax_status') %>">
+          </label>
+          <label class="full">
+            <span class="label">Deductions and contributions</span>
+            <textarea class="input" name="deductions_and_contributions"><%= value('deductions_and_contributions') %></textarea>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section class="employee-form-card">
+      <div class="employee-form-card-head">Emergency contact and notes</div>
+      <div class="employee-form-card-body">
+        <div class="employee-form-row">
+          <label>
+            <span class="label">Emergency contact</span>
+            <input class="input" name="emergency_contact_name" value="<%= value('emergency_contact_name') %>">
+          </label>
+          <label>
+            <span class="label">Relationship</span>
+            <input class="input" name="emergency_contact_relationship" value="<%= value('emergency_contact_relationship') %>">
+          </label>
+          <label>
+            <span class="label">Emergency phone</span>
+            <input class="input" name="emergency_contact_phone" value="<%= value('emergency_contact_phone') %>">
+          </label>
+          <label>
+            <span class="label">Emergency email</span>
+            <input class="input" type="email" name="emergency_contact_email" value="<%= value('emergency_contact_email') %>">
+          </label>
+          <label class="wide">
+            <span class="label">Time off notes</span>
+            <textarea class="input" name="time_off_notes"><%= value('time_off_notes') %></textarea>
+          </label>
+          <label class="wide">
+            <span class="label">Documents notes</span>
+            <textarea class="input" name="documents_notes"><%= value('documents_notes') %></textarea>
+          </label>
+          <label class="full">
+            <span class="label">Internal notes</span>
+            <textarea class="input" name="notes"><%= value('notes') %></textarea>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <div class="employee-form-card">
+      <div class="employee-form-card-body flex flex-wrap justify-between gap-3">
+        <% if (isEdit) { %>
+          <button class="btn btn-danger" type="submit" form="employee-deactivate-form">Deactivate</button>
+        <% } else { %>
+          <span></span>
+        <% } %>
+        <div class="flex flex-wrap gap-2">
+          <a href="<%= isEdit ? '/accounting/payroll/employees/' + employee.id : '/accounting/payroll' %>" class="btn btn-secondary">Cancel</a>
+          <button class="btn btn-primary" type="submit"><%= isEdit ? 'Save employee' : 'Add employee' %></button>
+        </div>
+      </div>
+    </div>
+  </form>
+  <% if (isEdit) { %>
+    <form id="employee-deactivate-form" method="post" action="/accounting/payroll/employees/<%= employee.id %>/deactivate"></form>
+  <% } %>
+</div>
+
+<%- include('../layouts/footer') %>

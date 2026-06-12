@@ -1,0 +1,337 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<%
+const employee = payroll.employee || {};
+const lines = payroll.lines || [];
+const activeTab = tab || 'job-pay';
+function value(field, fallback) {
+  const val = employee[field];
+  return val == null || val === '' ? (fallback || '-') : val;
+}
+function dateValue(field) {
+  return employee[field] ? String(employee[field]).slice(0, 10) : '-';
+}
+function rateLabel() {
+  if (employee.pay_rate_amount == null) return '-';
+  const period = employee.pay_rate_period ? '/' + String(employee.pay_rate_period).replace('pay_period', 'pay period') : '';
+  return money(employee.pay_rate_amount) + period;
+}
+function initials() {
+  return String(employee.display_name || '?')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(function(part) { return part.charAt(0).toUpperCase(); })
+    .join('') || '?';
+}
+function tabUrl(nextTab) {
+  return '/accounting/payroll/employees/' + employee.id + '?tab=' + nextTab;
+}
+const tabs = [
+  ['personal', 'Personal'],
+  ['job-pay', 'Job & pay'],
+  ['time-off', 'Time off'],
+  ['documents', 'Documents'],
+];
+%>
+
+<style>
+  .employee-profile-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  .employee-profile-title {
+    display: flex;
+    align-items: center;
+    gap: .85rem;
+  }
+  .employee-profile-avatar {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 999px;
+    background: #e6e7e9;
+    color: #777;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+  }
+  .employee-profile-tabs {
+    display: flex;
+    gap: 1.2rem;
+    border-bottom: 1px solid #d8d8d8;
+    margin-bottom: 1rem;
+  }
+  .employee-profile-tab {
+    padding: .7rem 0;
+    font-size: .84rem;
+    font-weight: 700;
+    color: #777;
+    border-bottom: 2px solid transparent;
+  }
+  .employee-profile-tab.active {
+    color: #1f1f1f;
+    border-color: #c0202b;
+  }
+  .employee-profile-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 16rem;
+    gap: 1rem;
+  }
+  .employee-card-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  .employee-card {
+    background: #fff;
+    border: 1px solid #e2e2e2;
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  }
+  .employee-card.wide { grid-column: span 2; }
+  .employee-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: .85rem 1rem;
+    border-bottom: 1px solid #ececec;
+    font-weight: 800;
+  }
+  .employee-card-body { padding: 1rem; }
+  .employee-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .9rem 1rem;
+  }
+  .employee-field-label {
+    display: block;
+    color: #888;
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    margin-bottom: .18rem;
+  }
+  .employee-field-value {
+    color: #242424;
+    font-size: .92rem;
+    font-weight: 600;
+    white-space: pre-wrap;
+  }
+  .employee-side-card {
+    background: #f5f6f7;
+    border: 1px solid #e1e1e1;
+    border-radius: 8px;
+    padding: 1rem;
+    align-self: start;
+  }
+  @media (max-width: 980px) {
+    .employee-profile-grid { grid-template-columns: 1fr; }
+    .employee-card-grid { grid-template-columns: 1fr; }
+    .employee-card.wide { grid-column: span 1; }
+    .employee-fields { grid-template-columns: 1fr; }
+  }
+</style>
+
+<div class="document-shell">
+  <div class="mb-4">
+    <a href="/accounting/payroll" class="text-sm text-recon-fog hover:text-recon-red">&larr; Employee list</a>
+  </div>
+
+  <div class="employee-profile-head">
+    <div class="employee-profile-title">
+      <span class="employee-profile-avatar"><%= initials() %></span>
+      <div>
+        <div class="flex flex-wrap items-center gap-2">
+          <h1 class="page-h1"><%= employee.display_name %></h1>
+          <span class="badge badge-draft"><%= employee.status %></span>
+        </div>
+        <p class="page-sub mt-1"><%= employee.role_title || employee.department || 'Employee' %></p>
+      </div>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <a href="/accounting/reports/paycheck-history?employee_id=<%= employee.id %>" class="btn btn-secondary">Paychecks</a>
+      <a href="/accounting/payroll/employees/<%= employee.id %>/edit" class="btn btn-primary">Edit employee</a>
+    </div>
+  </div>
+
+  <nav class="employee-profile-tabs">
+    <% tabs.forEach(function(item) { %>
+      <a href="<%= tabUrl(item[0]) %>" class="employee-profile-tab <%= activeTab === item[0] ? 'active' : '' %>"><%= item[1] %></a>
+    <% }); %>
+  </nav>
+
+  <div class="employee-profile-grid">
+    <main>
+      <% if (activeTab === 'personal') { %>
+        <div class="employee-card-grid">
+          <section class="employee-card">
+            <div class="employee-card-head">Personal info</div>
+            <div class="employee-card-body employee-fields">
+              <div><span class="employee-field-label">Name</span><span class="employee-field-value"><%= value('display_name') %></span></div>
+              <div><span class="employee-field-label">Preferred name</span><span class="employee-field-value"><%= value('preferred_name') %></span></div>
+              <div><span class="employee-field-label">Birthdate</span><span class="employee-field-value"><%= dateValue('birth_date') %></span></div>
+              <div><span class="employee-field-label">Gender</span><span class="employee-field-value"><%= value('gender') %></span></div>
+              <div><span class="employee-field-label">SSN</span><span class="employee-field-value"><%= employee.ssn_last4 ? '****-' + employee.ssn_last4 : '-' %></span></div>
+            </div>
+          </section>
+          <section class="employee-card">
+            <div class="employee-card-head">Contact info</div>
+            <div class="employee-card-body employee-fields">
+              <div><span class="employee-field-label">Email</span><span class="employee-field-value"><%= value('email') %></span></div>
+              <div><span class="employee-field-label">Mobile phone</span><span class="employee-field-value"><%= value('mobile_phone', employee.phone || '-') %></span></div>
+              <div><span class="employee-field-label">Home phone</span><span class="employee-field-value"><%= value('home_phone') %></span></div>
+              <div><span class="employee-field-label">Work phone</span><span class="employee-field-value"><%= value('work_phone') %></span></div>
+              <div class="md:col-span-2"><span class="employee-field-label">Address</span><span class="employee-field-value"><%= [employee.address, employee.city, employee.state, employee.zip].filter(Boolean).join(', ') || '-' %></span></div>
+            </div>
+          </section>
+          <section class="employee-card wide">
+            <div class="employee-card-head">Emergency contact</div>
+            <div class="employee-card-body employee-fields">
+              <div><span class="employee-field-label">Name</span><span class="employee-field-value"><%= value('emergency_contact_name') %></span></div>
+              <div><span class="employee-field-label">Relationship</span><span class="employee-field-value"><%= value('emergency_contact_relationship') %></span></div>
+              <div><span class="employee-field-label">Phone</span><span class="employee-field-value"><%= value('emergency_contact_phone') %></span></div>
+              <div><span class="employee-field-label">Email</span><span class="employee-field-value"><%= value('emergency_contact_email') %></span></div>
+            </div>
+          </section>
+        </div>
+      <% } else if (activeTab === 'time-off') { %>
+        <section class="employee-card">
+          <div class="employee-card-head">Time off</div>
+          <div class="employee-card-body">
+            <span class="employee-field-value"><%= value('time_off_notes', 'No time-off notes recorded.') %></span>
+          </div>
+        </section>
+      <% } else if (activeTab === 'documents') { %>
+        <section class="employee-card">
+          <div class="employee-card-head">Documents</div>
+          <div class="employee-card-body">
+            <span class="employee-field-value"><%= value('documents_notes', 'No document notes recorded.') %></span>
+          </div>
+        </section>
+      <% } else { %>
+        <div class="employee-card-grid">
+          <section class="employee-card">
+            <div class="employee-card-head">Employment details</div>
+            <div class="employee-card-body employee-fields">
+              <div><span class="employee-field-label">Hire date</span><span class="employee-field-value"><%= dateValue('hire_date') %></span></div>
+              <div><span class="employee-field-label">Pay schedule</span><span class="employee-field-value"><%= value('pay_schedule') %></span></div>
+              <div><span class="employee-field-label">Employee ID</span><span class="employee-field-value"><%= value('employee_identifier') %></span></div>
+              <div><span class="employee-field-label">Worker comp class</span><span class="employee-field-value"><%= value('worker_comp_class') %></span></div>
+              <div class="md:col-span-2"><span class="employee-field-label">Work location</span><span class="employee-field-value"><%= value('work_location') %></span></div>
+            </div>
+          </section>
+          <section class="employee-card">
+            <div class="employee-card-head">Job details</div>
+            <div class="employee-card-body employee-fields">
+              <div><span class="employee-field-label">Job title</span><span class="employee-field-value"><%= value('role_title') %></span></div>
+              <div><span class="employee-field-label">Status</span><span class="employee-field-value"><%= value('status') %></span></div>
+              <div><span class="employee-field-label">Employment type</span><span class="employee-field-value"><%= value('employment_type') %></span></div>
+              <div><span class="employee-field-label">Department</span><span class="employee-field-value"><%= value('department') %></span></div>
+              <div><span class="employee-field-label">Manager</span><span class="employee-field-value"><%= value('manager_name') %></span></div>
+            </div>
+          </section>
+          <section class="employee-card">
+            <div class="employee-card-head">Base pay</div>
+            <div class="employee-card-body employee-fields">
+              <div><span class="employee-field-label">Pay type</span><span class="employee-field-value"><%= value('pay_type') %></span></div>
+              <div><span class="employee-field-label">Rate</span><span class="employee-field-value"><%= rateLabel() %></span></div>
+              <div><span class="employee-field-label">Default weekly hours</span><span class="employee-field-value"><%= value('default_weekly_hours') %></span></div>
+              <div><span class="employee-field-label">Effective date</span><span class="employee-field-value"><%= dateValue('pay_effective_date') %></span></div>
+            </div>
+          </section>
+          <section class="employee-card">
+            <div class="employee-card-head">Payment method</div>
+            <div class="employee-card-body employee-fields">
+              <div><span class="employee-field-label">Method</span><span class="employee-field-value"><%= value('pay_method') %></span></div>
+              <div><span class="employee-field-label">Schedule</span><span class="employee-field-value"><%= value('pay_schedule') %></span></div>
+            </div>
+          </section>
+          <section class="employee-card">
+            <div class="employee-card-head">Tax withholdings</div>
+            <div class="employee-card-body employee-fields">
+              <div><span class="employee-field-label">Federal filing status</span><span class="employee-field-value"><%= value('federal_filing_status') %></span></div>
+              <div><span class="employee-field-label">State tax status</span><span class="employee-field-value"><%= value('state_tax_status') %></span></div>
+            </div>
+          </section>
+          <section class="employee-card">
+            <div class="employee-card-head">Deductions and contributions</div>
+            <div class="employee-card-body">
+              <span class="employee-field-value"><%= value('deductions_and_contributions', 'No deductions or contributions recorded.') %></span>
+            </div>
+          </section>
+          <section class="employee-card wide">
+            <div class="employee-card-head">Additional pay types</div>
+            <div class="employee-card-body">
+              <span class="employee-field-value"><%= value('additional_pay_types', 'No additional pay types recorded.') %></span>
+            </div>
+          </section>
+        </div>
+      <% } %>
+
+      <section class="employee-card mt-4">
+        <div class="employee-card-head">Payroll activity</div>
+        <div class="employee-card-body overflow-x-auto">
+          <% if (!lines.length) { %>
+            <div class="empty-state">No payroll run lines are linked to this employee yet.</div>
+          <% } else { %>
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>Pay date</th>
+                  <th>Run status</th>
+                  <th>Type</th>
+                  <th class="text-right">Hours</th>
+                  <th class="text-right">Gross</th>
+                  <th class="text-right">Net</th>
+                  <th class="text-right">Labor cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% lines.forEach(function(line) { const run = line.payroll_runs || {}; %>
+                  <tr>
+                    <td><%= run.pay_date || '-' %></td>
+                    <td><span class="badge badge-draft"><%= run.status || '-' %></span></td>
+                    <td><%= line.earning_type || '-' %></td>
+                    <td class="text-right font-mono"><%= Number(line.regular_hours || 0) + Number(line.overtime_hours || 0) %></td>
+                    <td class="text-right font-mono"><%= money(line.gross_pay) %></td>
+                    <td class="text-right font-mono"><%= money(line.net_pay) %></td>
+                    <td class="text-right font-mono"><%= money(line.labor_cost) %></td>
+                  </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          <% } %>
+        </div>
+      </section>
+    </main>
+
+    <aside class="employee-side-card">
+      <div class="text-xs uppercase tracking-wide text-recon-fog font-bold mb-3">Payroll summary</div>
+      <div class="space-y-3">
+        <div>
+          <span class="employee-field-label">Pay rate</span>
+          <span class="employee-field-value"><%= rateLabel() %></span>
+        </div>
+        <div>
+          <span class="employee-field-label">Hire date</span>
+          <span class="employee-field-value"><%= dateValue('hire_date') %></span>
+        </div>
+        <div>
+          <span class="employee-field-label">Work location</span>
+          <span class="employee-field-value"><%= value('work_location') %></span>
+        </div>
+        <div>
+          <span class="employee-field-label">Pay method</span>
+          <span class="employee-field-value"><%= value('pay_method') %></span>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<%- include('../layouts/footer') %>

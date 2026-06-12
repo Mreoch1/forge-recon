@@ -660,6 +660,9 @@ CREATE TABLE IF NOT EXISTS payroll_employees (
   quickbooks_employee_id TEXT,
   quickbooks_display_name TEXT,
   display_name TEXT NOT NULL,
+  first_name TEXT,
+  last_name TEXT,
+  preferred_name TEXT,
   email TEXT,
   role_title TEXT,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'terminated')),
@@ -668,6 +671,37 @@ CREATE TABLE IF NOT EXISTS payroll_employees (
   pay_rate_period TEXT CHECK (pay_rate_period IS NULL OR pay_rate_period IN ('year', 'hour', 'day', 'pay_period', 'other')),
   pay_method TEXT,
   pay_schedule TEXT,
+  phone TEXT,
+  mobile_phone TEXT,
+  home_phone TEXT,
+  work_phone TEXT,
+  address TEXT,
+  city TEXT,
+  state TEXT,
+  zip TEXT,
+  hire_date DATE,
+  birth_date DATE,
+  gender TEXT,
+  ssn_last4 TEXT CHECK (ssn_last4 IS NULL OR ssn_last4 ~ '^[0-9]{4}$'),
+  employee_identifier TEXT,
+  employment_type TEXT,
+  department TEXT,
+  manager_name TEXT,
+  work_location TEXT,
+  worker_comp_class TEXT,
+  default_weekly_hours NUMERIC(8,2),
+  pay_effective_date DATE,
+  federal_filing_status TEXT,
+  state_tax_status TEXT,
+  emergency_contact_name TEXT,
+  emergency_contact_relationship TEXT,
+  emergency_contact_phone TEXT,
+  emergency_contact_email TEXT,
+  additional_pay_types TEXT,
+  deductions_and_contributions TEXT,
+  documents_notes TEXT,
+  time_off_notes TEXT,
+  notes TEXT,
   imported_from TEXT,
   imported_at TIMESTAMPTZ,
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -865,6 +899,8 @@ CREATE INDEX IF NOT EXISTS idx_qb_webhook_events_entity ON quickbooks_webhook_ev
 
 CREATE INDEX IF NOT EXISTS idx_payroll_employees_status ON payroll_employees(status);
 CREATE INDEX IF NOT EXISTS idx_payroll_employees_user ON payroll_employees(user_id);
+CREATE INDEX IF NOT EXISTS idx_payroll_employees_display_name ON payroll_employees(display_name);
+CREATE INDEX IF NOT EXISTS idx_payroll_employees_pay_schedule ON payroll_employees(pay_schedule);
 CREATE INDEX IF NOT EXISTS idx_payroll_runs_pay_date ON payroll_runs(pay_date);
 CREATE INDEX IF NOT EXISTS idx_payroll_runs_status ON payroll_runs(status);
 CREATE INDEX IF NOT EXISTS idx_payroll_run_lines_run ON payroll_run_lines(payroll_run_id);

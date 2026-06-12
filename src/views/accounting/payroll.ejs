@@ -1,32 +1,149 @@
 <%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
 
 <%
+const filters = payroll.filters || {};
+const payrollStatuses = typeof statuses !== 'undefined' && Array.isArray(statuses) ? statuses : ['active', 'inactive', 'terminated'];
+const schedules = payroll.schedules || [];
 function rateLabel(employee) {
   if (employee.pay_rate_amount == null) return '-';
-  const period = employee.pay_rate_period ? '/' + employee.pay_rate_period.replace('pay_period', 'pay period') : '';
+  const period = employee.pay_rate_period ? '/' + String(employee.pay_rate_period).replace('pay_period', 'pay period') : '';
   return money(employee.pay_rate_amount) + period;
 }
+function initials(employee) {
+  return String(employee.display_name || '?')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(function(part) { return part.charAt(0).toUpperCase(); })
+    .join('') || '?';
+}
+function payrollUrl(overrides) {
+  const params = new URLSearchParams();
+  const next = Object.assign({}, filters, overrides || {});
+  if (next.q) params.set('q', next.q);
+  if (next.status && next.status !== 'active') params.set('status', next.status);
+  if (next.schedule && next.schedule !== 'all') params.set('schedule', next.schedule);
+  if (next.page && Number(next.page) > 1) params.set('page', next.page);
+  const qs = params.toString();
+  return '/accounting/payroll' + (qs ? '?' + qs : '');
+}
+function compactPages(current, total) {
+  const pages = [];
+  for (let i = 1; i <= total; i += 1) {
+    if (i === 1 || i === total || Math.abs(i - current) <= 2) pages.push(i);
+    else if (pages[pages.length - 1] !== '...') pages.push('...');
+  }
+  return pages;
+}
 %>
+
+<style>
+  .employee-table {
+    table-layout: fixed;
+    min-width: 78rem;
+  }
+  .employee-select-col { width: 3rem; }
+  .employee-name-col { width: 25%; }
+  .employee-email-col { width: 22%; }
+  .employee-status-col { width: 10%; }
+  .employee-rate-col { width: 14%; }
+  .employee-method-col { width: 13%; }
+  .employee-schedule-col { width: 13%; }
+  .employee-actions-col { width: 8rem; }
+  .employee-person {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    min-width: 0;
+  }
+  .employee-avatar {
+    display: inline-flex;
+    width: 2rem;
+    height: 2rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: #e9eaec;
+    color: #777;
+    font-weight: 800;
+    font-size: .82rem;
+    flex: 0 0 auto;
+  }
+  .employee-name {
+    display: block;
+    color: #1f1f1f;
+    font-weight: 800;
+    text-decoration: none;
+  }
+  .employee-name:hover { color: #c0202b; }
+  .employee-sub {
+    display: block;
+    color: #777;
+    font-size: .76rem;
+    margin-top: .1rem;
+  }
+  .employee-toolbar {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    flex-wrap: wrap;
+  }
+  .employee-toolbar .input { width: auto; min-width: 12rem; }
+  .employee-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .9rem 1rem;
+    border-top: 1px solid #ececec;
+    color: #777;
+    font-size: .82rem;
+  }
+  .employee-pages {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+  }
+  .employee-page-link {
+    display: inline-flex;
+    min-width: 2rem;
+    height: 2rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: .38rem;
+    color: #333;
+    font-weight: 700;
+  }
+  .employee-page-link.active {
+    background: #c0202b;
+    color: #fff;
+  }
+</style>
 
 <div class="ops-shell">
   <div class="ops-header">
     <div class="ops-title-block">
       <a href="/accounting" class="text-sm text-recon-fog hover:text-recon-red">&larr; Accounting</a>
-      <h1 class="page-h1 mt-3">Payroll</h1>
-      <p class="page-sub mt-1">Admin-only payroll mirror for labor costing. QuickBooks Payroll remains the source of truth.</p>
+      <h1 class="page-h1 mt-3">Employees</h1>
+      <p class="page-sub mt-1">Admin-only employee roster and payroll profile data. QuickBooks Payroll remains the source of truth for payroll runs and filings.</p>
+    </div>
+    <div class="ops-actions">
+      <a href="/accounting/reports/paycheck-history" class="btn btn-secondary">View paychecks</a>
+      <a href="/accounting/reports/payroll-summary" class="btn btn-secondary">Payroll reports</a>
+      <a href="/accounting/payroll/employees/new" class="btn btn-primary">Add employee</a>
     </div>
   </div>
 
   <div class="ops-summary">
     <div class="ops-summary-item">
-      <div class="ops-summary-label">Employees</div>
+      <div class="ops-summary-label">Total</div>
       <div class="ops-summary-value"><%= payroll.ready ? payroll.employeeCount : 0 %></div>
-      <div class="ops-summary-meta">staged roster</div>
+      <div class="ops-summary-meta">employees</div>
     </div>
     <div class="ops-summary-item">
       <div class="ops-summary-label">Active</div>
       <div class="ops-summary-value"><%= payroll.ready ? payroll.activeCount : 0 %></div>
-      <div class="ops-summary-meta">employees</div>
+      <div class="ops-summary-meta">on payroll roster</div>
     </div>
     <div class="ops-summary-item">
       <div class="ops-summary-label">Next payroll</div>
@@ -34,253 +151,94 @@ function rateLabel(employee) {
       <div class="ops-summary-meta"><%= payroll.nextPayDate ? String(payroll.nextPayDate).slice(0, 10) : 'not set' %></div>
     </div>
     <div class="ops-summary-item">
-      <div class="ops-summary-label">Payroll runs</div>
-      <div class="ops-summary-value"><%= payroll.ready ? payroll.runs.length : 0 %></div>
-      <div class="ops-summary-meta">recent staged</div>
+      <div class="ops-summary-label">Shown</div>
+      <div class="ops-summary-value"><%= payroll.ready ? payroll.filteredCount : 0 %></div>
+      <div class="ops-summary-meta">after filters</div>
     </div>
   </div>
 
   <% if (!payroll.ready) { %>
     <div class="card border border-yellow-200 bg-yellow-50 text-yellow-900 p-4 mb-4">
-      Payroll tables are not available yet. Deploy the latest migration before importing payroll.
+      Payroll tables are not available yet. Deploy the latest migration before using employee profiles.
       <% if (payroll.error) { %><span class="block text-xs mt-1">Database said: <%= payroll.error %></span><% } %>
     </div>
   <% } %>
 
-  <div class="ops-panel mb-4">
+  <form method="get" action="/accounting/payroll" class="employee-toolbar mb-4">
+    <input class="input" type="search" name="q" value="<%= filters.q || '' %>" placeholder="Search By Name">
+    <select class="input" name="status">
+      <option value="all" <%= filters.status === 'all' ? 'selected' : '' %>>All statuses</option>
+      <% payrollStatuses.forEach(function(status) { %>
+        <option value="<%= status %>" <%= filters.status === status ? 'selected' : '' %>><%= status %></option>
+      <% }); %>
+    </select>
+    <select class="input" name="schedule">
+      <option value="all" <%= filters.schedule === 'all' ? 'selected' : '' %>>All schedules</option>
+      <% schedules.forEach(function(schedule) { %>
+        <option value="<%= schedule %>" <%= filters.schedule === schedule ? 'selected' : '' %>><%= schedule %></option>
+      <% }); %>
+    </select>
+    <button class="btn btn-secondary" type="submit">Filter</button>
+    <% if ((filters.q || '') || filters.status !== 'active' || filters.schedule !== 'all') { %>
+      <a href="/accounting/payroll" class="text-sm text-recon-red font-semibold">Clear</a>
+    <% } %>
+  </form>
+
+  <div class="ops-panel ops-table">
     <div class="ops-panel-head">
-      <div class="ops-panel-title">Add employee</div>
-      <div class="text-xs text-recon-fog">Manual admin entry</div>
+      <div>
+        <div class="ops-panel-title">Employee list</div>
+        <div class="text-xs text-recon-fog mt-1">Pay rates and payroll records are visible to admins only.</div>
+      </div>
+      <div class="text-xs text-recon-fog"><%= payroll.ready ? payroll.filteredCount : 0 %> shown</div>
     </div>
-    <div class="p-4">
-      <% if (typeof employeeError !== 'undefined' && employeeError) { %>
-        <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"><%= employeeError %></div>
-      <% } %>
-      <form method="post" action="/accounting/payroll/employees" class="grid gap-4">
-        <div class="grid gap-4 md:grid-cols-3">
-          <label>
-            <span class="label">Employee name *</span>
-            <input class="input" name="display_name" value="<%= employeeForm.display_name || '' %>" required>
-          </label>
-          <label>
-            <span class="label">Email</span>
-            <input class="input" name="email" type="email" value="<%= employeeForm.email || '' %>">
-          </label>
-          <label>
-            <span class="label">Forge user link</span>
-            <select class="input" name="user_id">
-              <option value="">No linked user</option>
-              <% (payroll.users || []).forEach(function(user){ %>
-                <option value="<%= user.id %>" <%= String(employeeForm.user_id || '') === String(user.id) ? 'selected' : '' %>>
-                  <%= user.name %><%= user.email ? ' - ' + user.email : '' %>
-                </option>
-              <% }); %>
-            </select>
-          </label>
-        </div>
-
-        <div class="grid gap-4 md:grid-cols-4">
-          <label>
-            <span class="label">Role / title</span>
-            <input class="input" name="role_title" value="<%= employeeForm.role_title || '' %>" placeholder="Field rep, accountant, office">
-          </label>
-          <label>
-            <span class="label">Status</span>
-            <select class="input" name="status">
-              <% ['active', 'inactive', 'terminated'].forEach(function(status){ %>
-                <option value="<%= status %>" <%= (employeeForm.status || 'active') === status ? 'selected' : '' %>><%= status %></option>
-              <% }); %>
-            </select>
-          </label>
-          <label>
-            <span class="label">Pay type</span>
-            <select class="input" name="pay_type">
-              <% ['salary', 'hourly', 'contract', 'other'].forEach(function(type){ %>
-                <option value="<%= type %>" <%= (employeeForm.pay_type || 'salary') === type ? 'selected' : '' %>><%= type %></option>
-              <% }); %>
-            </select>
-          </label>
-          <label>
-            <span class="label">Pay method</span>
-            <input class="input" name="pay_method" value="<%= employeeForm.pay_method || '' %>" placeholder="Paper check, direct deposit">
-          </label>
-        </div>
-
-        <div class="grid gap-4 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end">
-          <label>
-            <span class="label">Pay rate</span>
-            <input class="input" name="pay_rate_amount" inputmode="decimal" value="<%= employeeForm.pay_rate_amount || '' %>" placeholder="70000.00">
-          </label>
-          <label>
-            <span class="label">Rate period</span>
-            <select class="input" name="pay_rate_period">
-              <option value="">Choose if rate entered</option>
-              <% [
-                ['year', 'per year'],
-                ['hour', 'per hour'],
-                ['day', 'per day'],
-                ['pay_period', 'per pay period'],
-                ['other', 'other']
-              ].forEach(function(option){ %>
-                <option value="<%= option[0] %>" <%= employeeForm.pay_rate_period === option[0] ? 'selected' : '' %>><%= option[1] %></option>
-              <% }); %>
-            </select>
-          </label>
-          <label>
-            <span class="label">Pay schedule</span>
-            <input class="input" name="pay_schedule" value="<%= employeeForm.pay_schedule || '' %>" placeholder="Every other Friday">
-          </label>
-          <button class="btn btn-primary" type="submit">Add employee</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <div class="ops-panel ops-table mb-4">
-    <div class="ops-panel-head">
-      <div class="ops-panel-title">Guardrails</div>
-      <div class="text-xs text-recon-fog">Admin/accounting only</div>
-    </div>
-    <div class="ops-panel-body">
-      <table class="data">
-        <tbody>
-          <tr>
-            <td class="font-semibold">Payroll source of truth</td>
-            <td class="text-recon-fog">Run payroll, tax filings, W-2s, and official checks in QuickBooks Payroll.</td>
-          </tr>
-          <tr>
-            <td class="font-semibold">Forge payroll purpose</td>
-            <td class="text-recon-fog">Import/review payroll data, allocate labor cost to projects and work orders, and feed profitability reporting.</td>
-          </tr>
-          <tr>
-            <td class="font-semibold">Privacy</td>
-            <td class="text-recon-fog">Pay rates and payroll runs stay behind admin-only accounting access.</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="ops-panel ops-table mb-4">
-    <div class="ops-panel-head">
-      <div class="ops-panel-title">Employee payroll roster</div>
-      <div class="text-xs text-recon-fog"><%= payroll.ready ? payroll.employees.length : 0 %> shown</div>
-    </div>
-    <div class="ops-panel-body">
+    <div class="ops-panel-body overflow-x-auto">
       <% if (!payroll.ready || payroll.employees.length === 0) { %>
-        <div class="empty-state">No payroll employees have been imported yet.</div>
+        <div class="empty-state">No employees match this view.</div>
       <% } else { %>
-        <table class="data">
+        <table class="data employee-table">
+          <colgroup>
+            <col class="employee-select-col">
+            <col class="employee-name-col">
+            <col class="employee-email-col">
+            <col class="employee-status-col">
+            <col class="employee-rate-col">
+            <col class="employee-method-col">
+            <col class="employee-schedule-col">
+            <col class="employee-actions-col">
+          </colgroup>
           <thead>
             <tr>
+              <th><input type="checkbox" aria-label="Select all employees" disabled></th>
               <th>Name</th>
-              <th>Role</th>
-              <th>Email</th>
+              <th>Email address</th>
               <th>Status</th>
               <th>Pay rate</th>
-              <th>Method</th>
-              <th>Schedule</th>
+              <th>Pay method</th>
+              <th>Pay schedule</th>
               <th class="text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
-            <% payroll.employees.forEach(function(employee){ %>
-              <tr>
-                <td class="font-semibold"><%= employee.display_name %></td>
-                <td class="text-recon-fog"><%= employee.role_title || '-' %></td>
+            <% payroll.employees.forEach(function(employee) { %>
+              <tr class="row-link" data-href="/accounting/payroll/employees/<%= employee.id %>">
+                <td><input type="checkbox" aria-label="Select <%= employee.display_name %>" disabled></td>
+                <td>
+                  <div class="employee-person">
+                    <span class="employee-avatar"><%= initials(employee) %></span>
+                    <span class="min-w-0">
+                      <a href="/accounting/payroll/employees/<%= employee.id %>" class="employee-name"><%= employee.display_name %></a>
+                      <span class="employee-sub"><%= employee.role_title || employee.department || '-' %></span>
+                    </span>
+                  </div>
+                </td>
                 <td class="text-recon-fog"><%= employee.email || '-' %></td>
                 <td><span class="badge badge-draft"><%= employee.status %></span></td>
                 <td class="font-mono"><%= rateLabel(employee) %></td>
                 <td><%= employee.pay_method || '-' %></td>
                 <td><%= employee.pay_schedule || '-' %></td>
                 <td class="text-right">
-                  <details class="inline-block text-left">
-                    <summary class="btn btn-secondary cursor-pointer list-none">Edit</summary>
-                    <div class="mt-2 w-[min(44rem,calc(100vw-2rem))] rounded-lg border border-recon-mist bg-white p-4 text-left shadow-xl">
-                      <form method="post" action="/accounting/payroll/employees/<%= employee.id %>" class="grid gap-3">
-                        <div class="grid gap-3 md:grid-cols-2">
-                          <label>
-                            <span class="label">Employee name *</span>
-                            <input class="input" name="display_name" value="<%= employee.display_name || '' %>" required>
-                          </label>
-                          <label>
-                            <span class="label">Email</span>
-                            <input class="input" name="email" type="email" value="<%= employee.email || '' %>">
-                          </label>
-                        </div>
-                        <div class="grid gap-3 md:grid-cols-2">
-                          <label>
-                            <span class="label">Forge user link</span>
-                            <select class="input" name="user_id">
-                              <option value="">No linked user</option>
-                              <% (payroll.users || []).forEach(function(user){ %>
-                                <option value="<%= user.id %>" <%= String(employee.user_id || '') === String(user.id) ? 'selected' : '' %>>
-                                  <%= user.name %><%= user.email ? ' - ' + user.email : '' %>
-                                </option>
-                              <% }); %>
-                            </select>
-                          </label>
-                          <label>
-                            <span class="label">Role / title</span>
-                            <input class="input" name="role_title" value="<%= employee.role_title || '' %>">
-                          </label>
-                        </div>
-                        <div class="grid gap-3 md:grid-cols-3">
-                          <label>
-                            <span class="label">Status</span>
-                            <select class="input" name="status">
-                              <% ['active', 'inactive', 'terminated'].forEach(function(status){ %>
-                                <option value="<%= status %>" <%= employee.status === status ? 'selected' : '' %>><%= status %></option>
-                              <% }); %>
-                            </select>
-                          </label>
-                          <label>
-                            <span class="label">Pay type</span>
-                            <select class="input" name="pay_type">
-                              <% ['salary', 'hourly', 'contract', 'other'].forEach(function(type){ %>
-                                <option value="<%= type %>" <%= employee.pay_type === type ? 'selected' : '' %>><%= type %></option>
-                              <% }); %>
-                            </select>
-                          </label>
-                          <label>
-                            <span class="label">Pay method</span>
-                            <input class="input" name="pay_method" value="<%= employee.pay_method || '' %>">
-                          </label>
-                        </div>
-                        <div class="grid gap-3 md:grid-cols-3">
-                          <label>
-                            <span class="label">Pay rate</span>
-                            <input class="input" name="pay_rate_amount" inputmode="decimal" value="<%= employee.pay_rate_amount == null ? '' : employee.pay_rate_amount %>">
-                          </label>
-                          <label>
-                            <span class="label">Rate period</span>
-                            <select class="input" name="pay_rate_period">
-                              <option value="">Choose if rate entered</option>
-                              <% [
-                                ['year', 'per year'],
-                                ['hour', 'per hour'],
-                                ['day', 'per day'],
-                                ['pay_period', 'per pay period'],
-                                ['other', 'other']
-                              ].forEach(function(option){ %>
-                                <option value="<%= option[0] %>" <%= employee.pay_rate_period === option[0] ? 'selected' : '' %>><%= option[1] %></option>
-                              <% }); %>
-                            </select>
-                          </label>
-                          <label>
-                            <span class="label">Pay schedule</span>
-                            <input class="input" name="pay_schedule" value="<%= employee.pay_schedule || '' %>">
-                          </label>
-                        </div>
-                        <div class="flex flex-wrap items-center justify-end gap-2">
-                          <button class="btn btn-primary" type="submit">Save employee</button>
-                        </div>
-                      </form>
-                      <form method="post" action="/accounting/payroll/employees/<%= employee.id %>/deactivate" class="mt-2 flex justify-end">
-                        <button class="btn btn-danger" type="submit">Deactivate</button>
-                      </form>
-                    </div>
-                  </details>
+                  <a href="/accounting/payroll/employees/<%= employee.id %>/edit" class="btn btn-secondary text-xs">Edit</a>
                 </td>
               </tr>
             <% }); %>
@@ -288,12 +246,37 @@ function rateLabel(employee) {
         </table>
       <% } %>
     </div>
+    <% if (payroll.ready && payroll.totalPages > 1) { %>
+      <div class="employee-pagination">
+        <div>
+          Page <%= payroll.page %> of <%= payroll.totalPages %>
+          <% if (payroll.filteredCount) { %>
+            <span> · <%= payroll.filteredCount %> employees</span>
+          <% } %>
+        </div>
+        <div class="employee-pages">
+          <% if (payroll.page > 1) { %>
+            <a class="employee-page-link" href="<%= payrollUrl({ page: payroll.page - 1 }) %>">&larr;</a>
+          <% } %>
+          <% compactPages(payroll.page, payroll.totalPages).forEach(function(page) { %>
+            <% if (page === '...') { %>
+              <span class="px-2">...</span>
+            <% } else { %>
+              <a class="employee-page-link <%= page === payroll.page ? 'active' : '' %>" href="<%= payrollUrl({ page: page }) %>"><%= page %></a>
+            <% } %>
+          <% }); %>
+          <% if (payroll.page < payroll.totalPages) { %>
+            <a class="employee-page-link" href="<%= payrollUrl({ page: payroll.page + 1 }) %>">&rarr;</a>
+          <% } %>
+        </div>
+      </div>
+    <% } %>
   </div>
 
-  <div class="ops-panel ops-table">
+  <div class="ops-panel ops-table mt-4">
     <div class="ops-panel-head">
-      <div class="ops-panel-title">Payroll runs</div>
-      <div class="text-xs text-recon-fog">For labor-cost review and allocation</div>
+      <div class="ops-panel-title">Recent payroll runs</div>
+      <div class="text-xs text-recon-fog">Labor-cost review and allocation</div>
     </div>
     <div class="ops-panel-body">
       <% if (!payroll.ready || payroll.runs.length === 0) { %>
@@ -312,7 +295,7 @@ function rateLabel(employee) {
             </tr>
           </thead>
           <tbody>
-            <% payroll.runs.forEach(function(run){ %>
+            <% payroll.runs.forEach(function(run) { %>
               <tr>
                 <td class="font-semibold"><%= run.pay_date || '-' %></td>
                 <td class="text-recon-fog"><%= [run.pay_period_start, run.pay_period_end].filter(Boolean).join(' - ') || '-' %></td>
