@@ -311,6 +311,35 @@ test('admin payroll employees use QuickBooks-style editable profile workflow', (
   assert.match(migration, /ALTER TABLE public\.payroll_employees ENABLE ROW LEVEL SECURITY/);
 });
 
+test('users can update their password from settings with a one-time login prompt', () => {
+  const auth = read('src/routes/auth.js');
+  const middleware = read('src/middleware/auth.js');
+  const settings = read('src/routes/settings.js');
+  const settingsView = read('src/views/settings/index.ejs');
+  const header = read('src/views/layouts/header.ejs');
+  const prompt = read('src/views/layouts/_password_update_prompt_modal.ejs');
+  const schema = read('src/db/schema-postgres.sql');
+  const migration = read('supabase/migrations/20260612113000_password_update_prompt_seen_at.sql');
+
+  assert.match(auth, /req\.session\.showPasswordUpdatePrompt = true/);
+  assert.match(auth, /delete req\.session\.showPasswordUpdatePrompt/);
+  assert.match(auth, /password_update_prompt_seen_at: changedAt/);
+  assert.match(middleware, /password_update_prompt_seen_at/);
+  assert.match(middleware, /res\.locals\.showPasswordUpdatePrompt/);
+  assert.match(settings, /async function markPasswordPromptSeen\(req\)/);
+  assert.match(settings, /router\.post\('\/password-prompt\/update'/);
+  assert.match(settings, /router\.post\('\/password-prompt\/dismiss'/);
+  assert.match(settings, /password_update_prompt_seen_at: changedAt/);
+  assert.match(settingsView, /id="change-password"/);
+  assert.match(settingsView, /window\.location\.hash !== '#change-password'/);
+  assert.match(header, /_password_update_prompt_modal/);
+  assert.match(prompt, /showPasswordUpdatePrompt/);
+  assert.match(prompt, /action="\/settings\/password-prompt\/update"/);
+  assert.match(prompt, /action="\/settings\/password-prompt\/dismiss"/);
+  assert.match(schema, /password_update_prompt_seen_at TIMESTAMPTZ/);
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS password_update_prompt_seen_at TIMESTAMPTZ/);
+});
+
 test('project RFP export loader only selects real project columns', () => {
   const routes = read('src/routes/rfp.js');
   assert.match(routes, /\.from\('jobs'\)\s*\.select\('id, title'\)/);

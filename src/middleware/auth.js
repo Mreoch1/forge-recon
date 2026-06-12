@@ -88,6 +88,7 @@ const loadCurrentUser = asyncHandler(async (req, res, next) => {
   res.locals.announcement = null;
   res.locals.sessionAck = !!(req.session && req.session.acknowledged_email_warning);
   res.locals.sessionAckTutorial = !!(req.session && req.session.tutorial_dismissed);
+  res.locals.showPasswordUpdatePrompt = false;
   if (req.session) delete req.session.flash;
 
   // D-090: Load the active banner inside the request so views can reliably render it.
@@ -99,7 +100,7 @@ const loadCurrentUser = asyncHandler(async (req, res, next) => {
   if (req.session && req.session.userId) {
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, email, name, role, default_landing, acknowledged_live_email_warning_at, completed_onboarding_at')
+      .select('id, email, name, role, default_landing, acknowledged_live_email_warning_at, completed_onboarding_at, password_update_prompt_seen_at')
       .eq('id', req.session.userId)
       .eq('active', 1)
       .maybeSingle();
@@ -113,6 +114,7 @@ const loadCurrentUser = asyncHandler(async (req, res, next) => {
         if (req.session) req.session.role = 'admin';
       }
       res.locals.currentUser = user;
+      res.locals.showPasswordUpdatePrompt = !!req.session.showPasswordUpdatePrompt && !user.password_update_prompt_seen_at;
       res.locals.canSeePrices = ['admin', 'manager'].includes(user.role);
       res.locals.isWorker = user.role === 'worker';
       // D-081: detect FORGE route for minimal header

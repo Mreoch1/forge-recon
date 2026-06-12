@@ -15,6 +15,18 @@ const { emptyToNullFormattedPhone } = require('../services/phone');
 
 const router = express.Router();
 
+async function markPasswordPromptSeen(req) {
+  if (!req.session || !req.session.userId) return null;
+  const seenAt = new Date().toISOString();
+  const { error } = await supabase
+    .from('users')
+    .update({ password_update_prompt_seen_at: seenAt, updated_at: seenAt })
+    .eq('id', req.session.userId);
+  if (error) throw error;
+  delete req.session.showPasswordUpdatePrompt;
+  return seenAt;
+}
+
 router.get('/', async (req, res) => {
   const userId = req.session.userId;
   const role = req.session.role;
@@ -150,11 +162,17 @@ router.post('/password', async (req, res) => {
   }
 
   const hash = await bcrypt.hash(newPassword, 10);
+  const changedAt = new Date().toISOString();
   const { error: updErr } = await supabase
     .from('users')
-    .update({ password_hash: hash, updated_at: new Date().toISOString() })
+    .update({
+      password_hash: hash,
+      password_update_prompt_seen_at: changedAt,
+      updated_at: changedAt,
+    })
     .eq('id', userId);
   if (updErr) throw updErr;
+  delete req.session.showPasswordUpdatePrompt;
 
   try {
     const { writeAudit } = require('../services/audit');
@@ -166,6 +184,17 @@ router.post('/password', async (req, res) => {
 
   setFlash(req, 'success', 'Password changed.');
   res.redirect('/settings');
+});
+
+router.post('/password-prompt/update', async (req, res) => {
+  await markPasswordPromptSeen(req);
+  res.redirect('/settings#change-password');
+});
+
+router.post('/password-prompt/dismiss', async (req, res) => {
+  await markPasswordPromptSeen(req);
+  setFlash(req, 'info', 'Password reminder dismissed.');
+  res.redirect(req.get('referer') || '/');
 });
 
 module.exports = router;

@@ -113,6 +113,11 @@ router.post('/login', async (req, res) => {
 
   req.session.userId = user.id;
   req.session.role = user.role;
+  if (user.password_update_prompt_seen_at) {
+    delete req.session.showPasswordUpdatePrompt;
+  } else {
+    req.session.showPasswordUpdatePrompt = true;
+  }
   setFlash(req, 'success', `Welcome back, ${user.name}.`);
   res.redirect('/');
 });
@@ -244,9 +249,14 @@ router.post('/reset-password/:token', async (req, res) => {
   }
 
   const hash = await bcrypt.hash(password, 10);
+  const changedAt = new Date().toISOString();
   const { error: updateUserError } = await supabase
     .from('users')
-    .update({ password_hash: hash })
+    .update({
+      password_hash: hash,
+      password_update_prompt_seen_at: changedAt,
+      updated_at: changedAt,
+    })
     .eq('id', row.user_id);
   if (updateUserError) throw updateUserError;
   const { error: updateTokenError } = await supabase
