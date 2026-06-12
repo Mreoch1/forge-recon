@@ -980,11 +980,7 @@ router.get('/:id', async (req, res) => {
       const isImage = mime.startsWith('image/');
       let url = '#';
       try {
-        if (isImage) {
-          url = await storage.getPublicUrl('wo-photos', p.filename);
-        } else {
-          url = await storage.getSignedUrl('wo-photos', p.filename, 3600);
-        }
+        url = await storage.getSignedUrl('wo-photos', p.filename, 3600);
       } catch (e) { console.warn('[wo-files] failed to resolve URL for', p.filename); }
       return { ...p, url, is_image: isImage, user_name: nameById[p.user_id] || null };
     }));

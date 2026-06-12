@@ -11,6 +11,9 @@
     <% if (typeof error !== 'undefined' && error) { %>
       <div class="mb-4 p-3 rounded bg-red-50 border border-red-200 text-red-800 text-sm">
         <%= error %>
+        <% if (typeof showResendVerification !== 'undefined' && showResendVerification) { %>
+          <a href="/resend-verification" class="underline">Resend verification email</a>.
+        <% } %>
       </div>
     <% } %>
 

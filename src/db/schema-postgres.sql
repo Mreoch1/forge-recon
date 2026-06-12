@@ -797,6 +797,7 @@ CREATE TABLE IF NOT EXISTS project_chat_messages (
   message TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE project_chat_messages ENABLE ROW LEVEL SECURITY;
 CREATE INDEX IF NOT EXISTS idx_project_chat_job ON project_chat_messages(job_id, created_at);
 
 -- ========== PROJECT MATERIALS ==========
@@ -806,6 +807,7 @@ CREATE TABLE IF NOT EXISTS project_material_vendors (
   name TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE project_material_vendors ENABLE ROW LEVEL SECURITY;
 CREATE TABLE IF NOT EXISTS project_material_categories (
   id BIGSERIAL PRIMARY KEY,
   job_id BIGINT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
@@ -813,6 +815,7 @@ CREATE TABLE IF NOT EXISTS project_material_categories (
   name TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE project_material_categories ENABLE ROW LEVEL SECURITY;
 CREATE TABLE IF NOT EXISTS project_material_items (
   id BIGSERIAL PRIMARY KEY,
   category_id BIGINT NOT NULL REFERENCES project_material_categories(id) ON DELETE CASCADE,
@@ -824,6 +827,7 @@ CREATE TABLE IF NOT EXISTS project_material_items (
   approved BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE project_material_items ENABLE ROW LEVEL SECURITY;
 
 CREATE INDEX IF NOT EXISTS idx_wo_job ON work_orders(job_id);
 CREATE INDEX IF NOT EXISTS idx_wo_status ON work_orders(status);

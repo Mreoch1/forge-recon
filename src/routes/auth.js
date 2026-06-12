@@ -106,7 +106,8 @@ router.post('/login', async (req, res) => {
   if (!user.email_verified) {
     return res.status(401).render('auth/login', {
       title: 'Sign in',
-      error: 'Please verify your email before signing in. <a href="/resend-verification" class="underline">Resend verification email</a>.',
+      error: 'Please verify your email before signing in.',
+      showResendVerification: true,
       email
     });
   }

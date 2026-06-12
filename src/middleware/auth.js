@@ -3,14 +3,12 @@
  *
  * Roles:
  *   admin   — full access
- *   manager — operations access: work orders, estimates, scheduling, and customers.
- *   worker  — limited: WO list (own + assigned), edit WO, notes/photos. NEVER prices.
+ *   manager — operations/sales access: work orders, estimates, invoices,
+ *             scheduling, customers, projects, vendors, contractors, and intake.
+ *   worker  — limited: assigned/visible work orders, notes/photos/files. NEVER prices.
  *
  * Money-blind workers: routes that expose pricing or estimates/invoices use
- * requireManager. Customer CRUD and estimate CRUD sit behind requireManager.
- * The dashboard, project CRUD, invoice CRUD, and admin pages remain admin-only.
- * Workers only see /work-orders
- * and a worker-specific dashboard (Round 4 work).
+ * requireManager. Accounting, payroll, bills, and admin settings remain admin-only.
  */
 
 const supabase = require('../db/supabase');

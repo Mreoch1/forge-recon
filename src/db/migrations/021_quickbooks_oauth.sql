@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS quickbooks_tokens (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE quickbooks_tokens ENABLE ROW LEVEL SECURITY;
 
 -- Sync log: track what was imported and when
 CREATE TABLE IF NOT EXISTS quickbooks_sync_log (
@@ -24,3 +25,4 @@ CREATE TABLE IF NOT EXISTS quickbooks_sync_log (
   details JSONB,                             -- error details or sync metadata
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE quickbooks_sync_log ENABLE ROW LEVEL SECURITY;

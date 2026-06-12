@@ -1,10 +1,10 @@
 /**
  * Supabase Storage wrapper.
  *
- * Uploads files to Supabase Storage buckets, returns public or signed URLs.
+ * Uploads files to Supabase Storage buckets, returns signed URLs.
  *
  * Buckets:
- *   wo-photos    — public read + signed URLs (WO photos & files gallery)
+ *   wo-photos    — private, signed URLs (WO photos & files gallery)
  *   entity-files — private, signed URLs (/files/:id/view)
  *   bills        — private, signed URLs (bill attachments)
  */
@@ -12,11 +12,11 @@ const { createClient } = require('@supabase/supabase-js');
 const WebSocket = require('ws');
 
 const SUPA_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY;
+const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
 const supa = SUPA_URL && SUPA_KEY ? createClient(SUPA_URL, SUPA_KEY, { realtime: { transport: WebSocket } }) : null;
 
 async function uploadBuffer(bucket, key, buffer, contentType) {
-  if (!supa) throw new Error('Supabase not configured (SUPABASE_URL + key required)');
+  if (!supa) throw new Error('Supabase Storage not configured (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY required)');
   const { error } = await supa.storage.from(bucket).upload(key, buffer, { contentType, upsert: false });
   if (error) throw error;
   return { bucket, key };
