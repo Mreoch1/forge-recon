@@ -264,13 +264,13 @@
                     <button type="submit" form="<%= itemDelFormId %>" class="text-recon-fog hover:text-recon-red text-xs">&times;</button>
                   </td>
                 </tr>
-                <tr id="rfp-line-editor-<%= item.id %>" class="rfp-line-editor-row hidden border-l-4 border-recon-red/30">
-                  <td colspan="10" class="bg-recon-deeper/5 p-0">
-                    <div class="m-3 rounded border border-recon-mist bg-white shadow-sm" onclick="event.stopPropagation();">
+                <tr id="rfp-line-editor-<%= item.id %>" class="rfp-line-editor-modal hidden fixed inset-0 z-[80] block bg-black/50">
+                  <td colspan="10" class="block h-screen overflow-y-auto p-4 sm:p-6" onclick="closeRfpLineEditor('<%= item.id %>');">
+                    <div class="mx-auto my-8 w-full max-w-6xl rounded-lg border border-recon-mist bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="rfp-line-editor-title-<%= item.id %>" onclick="event.stopPropagation();">
                       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-recon-mist px-4 py-3">
                         <div>
                           <div class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Line item editor</div>
-                          <div class="font-semibold text-sm">Vendor / contractor pricing</div>
+                          <div id="rfp-line-editor-title-<%= item.id %>" class="font-semibold text-sm">Vendor / contractor pricing</div>
                         </div>
                         <div class="flex items-center gap-2">
                           <span class="text-xs text-recon-fog"><%= liApprovedSubs %> of <%= liSubCount %> approved</span>
@@ -415,8 +415,8 @@
 <style>
   /* D-120: field-sizing ensures textareas start at rows="1" even inside hidden containers */
   .rfp-items-table textarea.input { field-sizing: content; min-height: 1.5rem; }
-  .rfp-line-editor-row label { min-width: 0; }
-  .rfp-line-editor-row .input { max-width: 100%; }
+  .rfp-line-editor-modal label { min-width: 0; }
+  .rfp-line-editor-modal .input { max-width: 100%; }
 </style>
 <script>
 (function(){
@@ -446,7 +446,7 @@
         animation: 150,
         draggable: '.rfp-li-row',
         handle: '.rfp-li-row',
-        filter: '.rfp-line-editor-row, input, textarea, select, button, a, form',
+        filter: '.rfp-line-editor-modal, input, textarea, select, button, a, form',
         preventOnFilter: false,
         onEnd: function(evt) {
           var ids = [];
@@ -510,6 +510,7 @@
     var row = document.getElementById('rfp-line-' + itemId);
     var editor = document.getElementById('rfp-line-editor-' + itemId);
     if (editor) editor.classList.add('hidden');
+    document.body.classList.remove('overflow-hidden');
     if (row) row.classList.remove('bg-recon-cloud/20');
     var chevron = row && row.querySelector('.rfp-li-chevron');
     if (chevron) chevron.style.transform = 'rotate(0deg)';
@@ -521,26 +522,24 @@
     var row = document.getElementById('rfp-line-' + itemId);
     var editor = document.getElementById('rfp-line-editor-' + itemId);
     if (!row || !editor) return row;
-    var tbody = row.closest('tbody');
-    if (tbody) {
-      tbody.querySelectorAll('.rfp-line-editor-row').forEach(function(other) {
-        if (other !== editor) {
-          other.classList.add('hidden');
-          var otherId = other.id.replace('rfp-line-editor-', '');
-          var otherRow = document.getElementById('rfp-line-' + otherId);
-          if (otherRow) {
-            otherRow.classList.remove('bg-recon-cloud/20');
-            var otherChevron = otherRow.querySelector('.rfp-li-chevron');
-            if (otherChevron) otherChevron.style.transform = 'rotate(0deg)';
-          }
+    document.querySelectorAll('.rfp-line-editor-modal').forEach(function(other) {
+      if (other !== editor) {
+        other.classList.add('hidden');
+        var otherId = other.id.replace('rfp-line-editor-', '');
+        var otherRow = document.getElementById('rfp-line-' + otherId);
+        if (otherRow) {
+          otherRow.classList.remove('bg-recon-cloud/20');
+          var otherChevron = otherRow.querySelector('.rfp-li-chevron');
+          if (otherChevron) otherChevron.style.transform = 'rotate(0deg)';
         }
-      });
-    }
+      }
+    });
     editor.classList.remove('hidden');
+    document.body.classList.add('overflow-hidden');
     row.classList.add('bg-recon-cloud/20');
     var chevron = row.querySelector('.rfp-li-chevron');
     if (chevron) chevron.style.transform = 'rotate(90deg)';
-    return editor;
+    return row;
   }
 
   window.closeRfpLineEditor = closeRfpLineEditor;
@@ -551,6 +550,12 @@
     if (editor.classList.contains('hidden')) return openRfpLineEditor(itemId);
     return closeRfpLineEditor(itemId);
   };
+  document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Escape') return;
+    var openEditor = document.querySelector('.rfp-line-editor-modal:not(.hidden)');
+    if (!openEditor) return;
+    closeRfpLineEditor(openEditor.id.replace('rfp-line-editor-', ''));
+  });
 
   (function restoreRfpPosition(){
     var params = new URLSearchParams(window.location.search);

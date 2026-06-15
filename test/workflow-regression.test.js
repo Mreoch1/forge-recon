@@ -428,7 +428,8 @@ test('RFP edits return users to the open category and line item', () => {
 test('RFP line items open a pricing editor instead of dropdown sub rows', () => {
   const view = read('src/views/jobs/rfp.ejs');
 
-  assert.match(view, /class="rfp-line-editor-row hidden/);
+  assert.match(view, /class="rfp-line-editor-modal hidden fixed inset-0/);
+  assert.match(view, /role="dialog" aria-modal="true"/);
   assert.match(view, /Vendor \/ contractor pricing/);
   assert.match(view, /Add vendor \/ contractor line/);
   assert.match(view, /Save line item/);

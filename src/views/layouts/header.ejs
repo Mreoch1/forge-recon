@@ -453,17 +453,6 @@
 </script>
 <% } %>
 
-<!-- D-090: FORGE announcement banner (dynamic) -->
-<% if (typeof announcement !== 'undefined' && announcement && announcement.message) { %>
-<div class="bg-gradient-to-r from-recon-red via-red-700 to-recon-red-dark text-white text-center text-sm py-2.5 px-4 shadow-md" style="background:linear-gradient(135deg,#c0202b 0%,#8a0e16 50%,#5a5a5a 100%)">
-  <div class="max-w-4xl mx-auto">
-    <span class="font-semibold tracking-wide"><%= announcement.message %></span>
-  </div>
-</div>
-<% } else { %>
-<!-- Fallback: no active announcement — no banner shown -->
-<% } %>
-
 <% if (typeof flash !== 'undefined' && flash) { %>
   <% if (flash.success) { %>
     <div data-toast="success" style="display:none"><%= flash.success %></div>
