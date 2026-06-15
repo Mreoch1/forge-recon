@@ -241,16 +241,16 @@
                 <% var liMarkup = liHasSubs ? (apprChildren.length === 0 ? '—' : (apprChildren.some(function(s){return Number(s.markup_pct||20) !== Number(apprChildren[0].markup_pct||20);}) ? 'mixed' : (Number(apprChildren[0].markup_pct||20)))) : (Number(item.markup_pct) || '—'); %>
                 <% var liGr = liHasSubs ? (apprChildren.length === 0 ? '—' : (apprChildren.some(function(s){return Number(s.general_requirements_pct||6) !== Number(apprChildren[0].general_requirements_pct||6);}) ? 'mixed' : (Number(apprChildren[0].general_requirements_pct||6)))) : (Number(item.general_requirements_pct) || '—'); %>
                 <% var liApproved = liHasSubs ? (apprChildren.length === children.length ? true : false) : !!item.approved; %>
-                <tr id="rfp-line-<%= item.id %>" class="rfp-li-row bg-recon-deeper/20 hover:bg-recon-cloud/20 border-t-2 border-recon-mist/40" style="cursor:pointer" onclick="var n=this.nextElementSibling;while(n&&n.classList.contains('rfp-sub-row')){n.style.display=n.style.display==='none'?'':'none';n=n.nextElementSibling;}var ch=this.querySelector('.rfp-li-chevron');if(ch)ch.style.transform=(this.nextElementSibling&&this.nextElementSibling.style.display==='none')?'rotate(0deg)':'rotate(90deg)';">
+                <tr id="rfp-line-<%= item.id %>" class="rfp-li-row bg-recon-deeper/20 hover:bg-recon-cloud/20 border-t-2 border-recon-mist/40" style="cursor:pointer" onclick="toggleRfpLineEditor('<%= item.id %>');">
                   <td>
                     <div class="flex items-start gap-1">
-                      <% if (liHasSubs) { %><span class="rfp-li-chevron text-recon-fog text-xs mt-1 select-none inline-block" style="transition:transform 0.15s; transform:rotate(0deg);">▸</span><% } else { %><span class="inline-block w-3"></span><% } %>
+                      <span class="rfp-li-chevron text-recon-fog text-xs mt-1 select-none inline-block" style="transition:transform 0.15s; transform:rotate(0deg);">▸</span>
                       <form id="<%= itemFormId %>" action="/projects/rfps/items/<%= item.id %>" method="POST" onclick="event.stopPropagation();"></form>
                       <textarea form="<%= itemFormId %>" name="description" class="input text-xs py-0.5 font-medium w-full" placeholder="Item description" rows="1" data-autosize
                                 data-rfp-autosave-item data-item-id="<%= item.id %>" data-field="description" data-original-value="<%= item.description || '' %>"><%= item.description %></textarea>
                     </div>
                   </td>
-                  <td class="text-right"><% if (liHasSubs) { %><span class="font-medium text-xs"><%= liQty %></span><% } else { %><input form="<%= itemFormId %>" name="quantity" type="number" step="any" value="<%= item.quantity != null ? item.quantity : '' %>" class="input text-xs py-0.5 w-16 text-right" data-rfp-autosave-item data-item-id="<%= item.id %>" data-field="quantity" data-original-value="<%= item.quantity != null ? item.quantity : '' %>"><% } %></td>
+                  <td class="text-right"><span class="font-medium text-xs"><%= liQty %></span></td>
                   <td class="text-right font-medium">$<%= (liHasSubs ? liDisplayBaseUnit : Number(item.unit_cost) || 0).toFixed(2) %></td>
                   <td class="text-right font-medium">$<%= (liHasSubs ? liTotalCost : Number(item.total_cost) || 0).toFixed(2) %></td>
                   <td class="text-right text-xs"><%= liMarkup %></td>
@@ -264,67 +264,118 @@
                     <button type="submit" form="<%= itemDelFormId %>" class="text-recon-fog hover:text-recon-red text-xs">&times;</button>
                   </td>
                 </tr>
-                <!-- D-105: Sub-line items under this line item (initially hidden, toggled by clicking parent) -->
-                <!-- D-105b: Add sub-line row + inline form (parent_id pre-filled) -->
-                <!-- D-138: collapse sub-rows by default so long RFPs stay scannable. Click parent to expand. -->
-                <tr class="rfp-sub-row bg-recon-deeper/5 border-l-4 border-recon-red/30" style="display:none">
-                  <td colspan="10" class="pl-4 py-2">
-                    <button type="button" onclick="document.getElementById('add-sub-<%= item.id %>').classList.toggle('hidden'); event.stopPropagation();" class="btn btn-secondary text-xs" style="padding:.3rem .7rem;">+ Add sub-line</button>
-                    <span class="text-[10px] text-recon-fog ml-2">under "<%= (item.description||'item').slice(0,60) %><%= (item.description||'').length>60?'…':'' %>"</span>
-                    <div id="add-sub-<%= item.id %>" class="hidden mt-2 p-2 bg-recon-cloud/10 border border-recon-mist rounded">
-                      <!-- D-137: column headers for the sub-line input row so users know what each field is -->
-                      <div class="rfp-sub-headers grid grid-cols-2 md:grid-cols-6 gap-2 mb-1 px-0.5 text-[10px] font-semibold uppercase tracking-wider text-recon-fog">
-                        <div>Vendor / Contractor</div>
-                        <div>Description</div>
-                        <div>Qty</div>
-                        <div>$ Unit Cost</div>
-                        <div class="flex gap-1"><span class="w-14">MU%</span><span class="w-14">GR%</span><span class="ml-1"></span></div>
-                        <div></div>
-                      </div>
-                      <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/items" method="POST" class="rfp-line-form grid grid-cols-2 md:grid-cols-6 gap-2 text-xs" onclick="event.stopPropagation();">
-                        <input name="vendor" class="input w-full" placeholder="Vendor or contractor" autocomplete="off" list="rfp-line-entity-options">
-                        <textarea name="description" placeholder="Sub-line description" class="input w-full" rows="1" data-autosize required></textarea>
-                        <input name="quantity" data-compute-input type="number" step="any" placeholder="Qty" class="input w-16">
-                        <input name="contractor_cost" data-compute-input type="number" step="any" placeholder="$ Unit cost" class="input w-20">
-                        <div class="flex gap-1 items-center">
-                          <input name="markup_pct" data-compute-input type="number" step="any" placeholder="MU%" value="20" class="input w-14">
-                          <input name="general_requirements_pct" data-compute-input type="number" step="any" placeholder="GR%" value="6" class="input w-14">
-                          <button type="submit" class="btn btn-primary text-xs ml-1">Add sub</button>
+                <tr id="rfp-line-editor-<%= item.id %>" class="rfp-line-editor-row hidden border-l-4 border-recon-red/30">
+                  <td colspan="10" class="bg-recon-deeper/5 p-0">
+                    <div class="m-3 rounded border border-recon-mist bg-white shadow-sm" onclick="event.stopPropagation();">
+                      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-recon-mist px-4 py-3">
+                        <div>
+                          <div class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Line item editor</div>
+                          <div class="font-semibold text-sm">Vendor / contractor pricing</div>
                         </div>
-                        <input name="parent_id" type="hidden" value="<%= item.id %>">
-                      </form>
+                        <div class="flex items-center gap-2">
+                          <span class="text-xs text-recon-fog"><%= liApprovedSubs %> of <%= liSubCount %> approved</span>
+                          <button type="submit" form="<%= itemFormId %>" class="btn btn-secondary text-xs">Save line item</button>
+                          <button type="button" class="btn btn-secondary text-xs" onclick="closeRfpLineEditor('<%= item.id %>')">Close</button>
+                        </div>
+                      </div>
+
+                      <div class="grid gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_9rem]">
+                        <label class="block">
+                          <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Main line item description</span>
+                          <textarea form="<%= itemFormId %>" name="description" class="input mt-1 w-full text-sm" rows="2" data-autosize
+                                    data-rfp-autosave-item data-item-id="<%= item.id %>" data-field="description" data-original-value="<%= item.description || '' %>"><%= item.description %></textarea>
+                        </label>
+                        <label class="block">
+                          <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Main qty</span>
+                          <input form="<%= itemFormId %>" name="quantity" type="number" step="any" value="<%= item.quantity != null ? item.quantity : '' %>" class="input mt-1 w-full text-right"
+                                 data-rfp-autosave-item data-item-id="<%= item.id %>" data-field="quantity" data-original-value="<%= item.quantity != null ? item.quantity : '' %>">
+                        </label>
+                      </div>
+
+                      <div class="px-4 pb-4">
+                        <div class="mb-2 flex items-center justify-between gap-3">
+                          <div class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Vendor / contractor lines</div>
+                          <div class="text-xs text-recon-fog">Approved lines roll up to the main line item.</div>
+                        </div>
+
+                        <% if (children.length === 0) { %>
+                          <div class="mb-3 rounded border border-dashed border-recon-mist bg-recon-cloud/10 p-3 text-sm text-recon-fog">No vendor or contractor pricing lines yet. Add one below.</div>
+                        <% } %>
+
+                        <div class="space-y-3">
+                          <% children.forEach(function(sub){ %>
+                            <% var subFid = 'rfp-sub-form-' + sub.id; var subDid = 'rfp-sub-del-' + sub.id; %>
+                            <form id="<%= subFid %>" action="/projects/rfps/items/<%= sub.id %>" method="POST"></form>
+                            <div class="rounded border border-recon-mist bg-recon-cloud/5 p-3">
+                              <div class="grid gap-2 md:grid-cols-[minmax(10rem,1fr)_minmax(14rem,2fr)_5rem_7rem_5rem_5rem_7rem_7rem_5rem_auto] md:items-end">
+                                <label class="block">
+                                  <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Vendor / contractor</span>
+                                  <input form="<%= subFid %>" name="vendor" value="<%= sub.vendor || '' %>"
+                                         class="input mt-1 w-full text-xs" placeholder="Vendor or contractor"
+                                         list="rfp-line-entity-options" autocomplete="off"
+                                         data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="vendor" data-original-value="<%= sub.vendor || '' %>">
+                                </label>
+                                <label class="block">
+                                  <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Scope / description</span>
+                                  <textarea form="<%= subFid %>" name="description" class="input mt-1 w-full text-xs" placeholder="Pricing line description" rows="1" data-autosize
+                                            data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="description" data-original-value="<%= sub.description || '' %>"><%= sub.description %></textarea>
+                                </label>
+                                <label class="block">
+                                  <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Qty</span>
+                                  <input form="<%= subFid %>" name="quantity" type="number" step="any" value="<%= sub.quantity != null ? sub.quantity : '' %>" class="input mt-1 w-full text-right text-xs" data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="quantity" data-original-value="<%= sub.quantity != null ? sub.quantity : '' %>">
+                                </label>
+                                <label class="block">
+                                  <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Unit cost</span>
+                                  <input form="<%= subFid %>" name="contractor_cost" type="number" step="any" value="<%= sub.contractor_cost != null ? sub.contractor_cost : '' %>" class="input mt-1 w-full text-right text-xs" placeholder="$ Unit" data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="contractor_cost" data-original-value="<%= sub.contractor_cost != null ? sub.contractor_cost : '' %>">
+                                </label>
+                                <label class="block">
+                                  <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">MU%</span>
+                                  <input form="<%= subFid %>" name="markup_pct" type="number" step="any" value="<%= sub.markup_pct != null ? sub.markup_pct : '20' %>" class="input mt-1 w-full text-right text-xs" data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="markup_pct" data-original-value="<%= sub.markup_pct != null ? sub.markup_pct : '20' %>">
+                                </label>
+                                <label class="block">
+                                  <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">GR%</span>
+                                  <input form="<%= subFid %>" name="general_requirements_pct" type="number" step="any" value="<%= sub.general_requirements_pct != null ? sub.general_requirements_pct : '6' %>" class="input mt-1 w-full text-right text-xs" data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="general_requirements_pct" data-original-value="<%= sub.general_requirements_pct != null ? sub.general_requirements_pct : '6' %>">
+                                </label>
+                                <div>
+                                  <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Total cost</span>
+                                  <div class="mt-2 text-right font-semibold"><%= sub.total_cost != null ? '$' + Number(sub.total_cost).toFixed(2) : '-' %></div>
+                                </div>
+                                <div>
+                                  <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Total w/ MU</span>
+                                  <div class="mt-2 text-right font-semibold"><%= sub.total_with_markup != null ? '$' + Number(sub.total_with_markup).toFixed(2) : '-' %></div>
+                                </div>
+                                <label class="flex items-center gap-2 pb-2">
+                                  <input form="<%= subFid %>" type="hidden" name="approved" value="0">
+                                  <input form="<%= subFid %>" type="checkbox" name="approved" value="1" <%= sub.approved ? 'checked' : '' %> data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="approved" data-original-value="<%= sub.approved ? '1' : '0' %>">
+                                  <span class="text-xs">Approved</span>
+                                </label>
+                                <div class="flex items-center justify-end gap-2 pb-1">
+                                  <button type="submit" form="<%= subFid %>" class="btn btn-secondary text-xs">Save</button>
+                                  <form id="<%= subDid %>" action="/projects/rfps/items/<%= sub.id %>/delete" method="POST" onsubmit="return confirm('Delete this vendor/contractor line?')"></form>
+                                  <button type="submit" form="<%= subDid %>" class="text-recon-fog hover:text-recon-red text-sm">&times;</button>
+                                </div>
+                              </div>
+                            </div>
+                          <% }); %>
+                        </div>
+
+                        <div id="add-sub-<%= item.id %>" class="mt-4 rounded border border-recon-mist bg-white p-3">
+                          <div class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Add vendor / contractor line</div>
+                          <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/items" method="POST" class="rfp-line-form grid gap-2 text-xs md:grid-cols-[minmax(10rem,1fr)_minmax(14rem,2fr)_5rem_7rem_5rem_5rem_auto]" onclick="event.stopPropagation();">
+                            <input name="vendor" class="input w-full" placeholder="Vendor or contractor" autocomplete="off" list="rfp-line-entity-options">
+                            <textarea name="description" placeholder="Pricing line description" class="input w-full" rows="1" data-autosize required></textarea>
+                            <input name="quantity" data-compute-input type="number" step="any" placeholder="Qty" class="input w-full text-right">
+                            <input name="contractor_cost" data-compute-input type="number" step="any" placeholder="$ Unit cost" class="input w-full text-right">
+                            <input name="markup_pct" data-compute-input type="number" step="any" placeholder="MU%" value="20" class="input w-full text-right">
+                            <input name="general_requirements_pct" data-compute-input type="number" step="any" placeholder="GR%" value="6" class="input w-full text-right">
+                            <button type="submit" class="btn btn-primary text-xs">Add line</button>
+                            <input name="parent_id" type="hidden" value="<%= item.id %>">
+                          </form>
+                        </div>
+                      </div>
                     </div>
                   </td>
                 </tr>
-                <% children.forEach(function(sub){ %>
-                  <% var subFid = 'rfp-sub-form-' + sub.id; var subDid = 'rfp-sub-del-' + sub.id; %>
-                  <tr class="rfp-sub-row border-l-4 border-recon-red/30" style="display:none">
-                    <td class="pl-6 text-recon-fog text-xs">
-                      <form id="<%= subFid %>" action="/projects/rfps/items/<%= sub.id %>" method="POST" style="display:contents">
-                      <div class="flex flex-col gap-1">
-                        <input name="vendor" value="<%= sub.vendor || '' %>"
-                               class="input text-xs py-0.5 w-full" placeholder="Vendor or contractor"
-                               list="rfp-line-entity-options" autocomplete="off"
-                               data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="vendor" data-original-value="<%= sub.vendor || '' %>">
-                        <textarea name="description" class="input text-xs py-0.5 w-full" placeholder="Sub-line description" rows="1" data-autosize
-                                  data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="description" data-original-value="<%= sub.description || '' %>"><%= sub.description %></textarea>
-                      </div></form></td>
-                    <td class="text-right"><input form="<%= subFid %>" name="quantity" type="number" step="any" value="<%= sub.quantity != null ? sub.quantity : '' %>" class="input text-xs py-0.5 w-16 text-right" data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="quantity" data-original-value="<%= sub.quantity != null ? sub.quantity : '' %>"></td>
-                    <td class="text-right">
-                      <input form="<%= subFid %>" name="contractor_cost" type="number" step="any" value="<%= sub.contractor_cost != null ? sub.contractor_cost : '' %>" class="input text-xs py-0.5 w-20 text-right" placeholder="$ Unit cost" data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="contractor_cost" data-original-value="<%= sub.contractor_cost != null ? sub.contractor_cost : '' %>">
-                    </td>
-                    <td class="text-right"><%= sub.total_cost != null ? '$' + Number(sub.total_cost).toFixed(2) : '-' %></td>
-                    <td class="text-right"><input form="<%= subFid %>" name="markup_pct" type="number" step="any" value="<%= sub.markup_pct != null ? sub.markup_pct : '20' %>" class="input text-xs py-0.5 w-14 text-right" data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="markup_pct" data-original-value="<%= sub.markup_pct != null ? sub.markup_pct : '20' %>"></td>
-                    <td class="text-right"><input form="<%= subFid %>" name="general_requirements_pct" type="number" step="any" value="<%= sub.general_requirements_pct != null ? sub.general_requirements_pct : '6' %>" class="input text-xs py-0.5 w-14 text-right" data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="general_requirements_pct" data-original-value="<%= sub.general_requirements_pct != null ? sub.general_requirements_pct : '6' %>"></td>
-                    <td class="text-right font-medium"><%= sub.total_with_markup != null ? '$' + Number(sub.total_with_markup).toFixed(2) : '-' %></td>
-                    <td class="text-right font-medium"><%= sub.final_unit_cost != null ? '$' + Number(sub.final_unit_cost).toFixed(2) : '-' %></td>
-                    <td class="text-center"><input form="<%= subFid %>" type="hidden" name="approved" value="0"><input form="<%= subFid %>" type="checkbox" name="approved" value="1" <%= sub.approved ? 'checked' : '' %> data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="approved" data-original-value="<%= sub.approved ? '1' : '0' %>"></td>
-                    <td class="text-right flex gap-1">
-                      <form id="<%= subDid %>" action="/projects/rfps/items/<%= sub.id %>/delete" method="POST" onsubmit="return confirm('Delete?')"></form>
-                      <button type="submit" form="<%= subDid %>" class="text-recon-fog hover:text-recon-red text-xs">&times;</button>
-                    </td>
-                  </tr>
-                <% }); %>
               <% }); %>
               <% if (items.length === 0) { %>
                 <tr><td colspan="10" class="text-center text-recon-fog py-4">No line items yet. Click + Add item to add one.</td></tr>
@@ -351,6 +402,8 @@
 <style>
   /* D-120: field-sizing ensures textareas start at rows="1" even inside hidden containers */
   .rfp-items-table textarea.input { field-sizing: content; min-height: 1.5rem; }
+  .rfp-line-editor-row label { min-width: 0; }
+  .rfp-line-editor-row .input { max-width: 100%; }
 </style>
 <script>
 (function(){
@@ -378,10 +431,13 @@
     tbodies.forEach(function(tbody){
       new Sortable(tbody, {
         animation: 150,
-        handle: 'tr',
+        draggable: '.rfp-li-row',
+        handle: '.rfp-li-row',
+        filter: '.rfp-line-editor-row, input, textarea, select, button, a, form',
+        preventOnFilter: false,
         onEnd: function(evt) {
           var ids = [];
-          tbody.querySelectorAll('tr').forEach(function(tr){
+          tbody.querySelectorAll('.rfp-li-row').forEach(function(tr){
             var form = tr.querySelector('form[id^=rfp-li-form-]');
             if (form) ids.push(form.action.split('/').pop());
           });
@@ -436,19 +492,52 @@
     return document.getElementById('rfp-row-' + rfpId) || section;
   }
 
-  function expandLineItem(itemId) {
+  function closeRfpLineEditor(itemId) {
     if (!itemId) return null;
     var row = document.getElementById('rfp-line-' + itemId);
-    if (!row) return null;
-    var next = row.nextElementSibling;
-    while (next && next.classList.contains('rfp-sub-row')) {
-      next.style.display = '';
-      next = next.nextElementSibling;
-    }
-    var chevron = row.querySelector('.rfp-li-chevron');
-    if (chevron) chevron.style.transform = 'rotate(90deg)';
+    var editor = document.getElementById('rfp-line-editor-' + itemId);
+    if (editor) editor.classList.add('hidden');
+    if (row) row.classList.remove('bg-recon-cloud/20');
+    var chevron = row && row.querySelector('.rfp-li-chevron');
+    if (chevron) chevron.style.transform = 'rotate(0deg)';
     return row;
   }
+
+  function openRfpLineEditor(itemId) {
+    if (!itemId) return null;
+    var row = document.getElementById('rfp-line-' + itemId);
+    var editor = document.getElementById('rfp-line-editor-' + itemId);
+    if (!row || !editor) return row;
+    var tbody = row.closest('tbody');
+    if (tbody) {
+      tbody.querySelectorAll('.rfp-line-editor-row').forEach(function(other) {
+        if (other !== editor) {
+          other.classList.add('hidden');
+          var otherId = other.id.replace('rfp-line-editor-', '');
+          var otherRow = document.getElementById('rfp-line-' + otherId);
+          if (otherRow) {
+            otherRow.classList.remove('bg-recon-cloud/20');
+            var otherChevron = otherRow.querySelector('.rfp-li-chevron');
+            if (otherChevron) otherChevron.style.transform = 'rotate(0deg)';
+          }
+        }
+      });
+    }
+    editor.classList.remove('hidden');
+    row.classList.add('bg-recon-cloud/20');
+    var chevron = row.querySelector('.rfp-li-chevron');
+    if (chevron) chevron.style.transform = 'rotate(90deg)';
+    return editor;
+  }
+
+  window.closeRfpLineEditor = closeRfpLineEditor;
+  window.openRfpLineEditor = openRfpLineEditor;
+  window.toggleRfpLineEditor = function(itemId) {
+    var editor = document.getElementById('rfp-line-editor-' + itemId);
+    if (!editor) return null;
+    if (editor.classList.contains('hidden')) return openRfpLineEditor(itemId);
+    return closeRfpLineEditor(itemId);
+  };
 
   (function restoreRfpPosition(){
     var params = new URLSearchParams(window.location.search);
@@ -458,11 +547,10 @@
     if (!rfpId && !itemId && !showSubForm) return;
 
     var target = expandRfp(rfpId);
-    if (itemId) target = expandLineItem(itemId) || target;
+    if (itemId) target = openRfpLineEditor(itemId) || target;
     if (showSubForm) {
       var subForm = document.getElementById('add-sub-' + showSubForm);
       if (subForm) {
-        subForm.classList.remove('hidden');
         target = subForm;
       }
     }
@@ -481,10 +569,6 @@
 <script>
 (function(){
   var timers = new WeakMap();
-
-  document.querySelectorAll('form[id^="rfp-li-form-"], form[id^="rfp-sub-form-"]').forEach(function(form) {
-    form.addEventListener('submit', function(e) { e.preventDefault(); });
-  });
 
   function fieldValue(el) {
     if (el.type === 'checkbox') return el.checked ? '1' : '0';

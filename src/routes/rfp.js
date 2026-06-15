@@ -414,10 +414,19 @@ router.post('/projects/:id/rfps/:rId/items', requireRfpEditAccess, async (req, r
   const gr = parseFloat(req.body.general_requirements_pct);
   const grPct = isFinite(gr) ? gr : 6;
 
-  // D-140: Markup and GR are ADDITIVE percentages applied once — not compounding.
-  //   total_with_markup = total_cost × (1 + (markup% + gr%) / 100)
-  const baseCost = tCost || (uCost * qty) || (cCost + vCost);
-  const withMarkup = baseCost * (1 + (markup + grPct) / 100);
+  const computed = computeSubLineTotals({ quantity, contractor_cost, vendor_cost, markup_pct, general_requirements_pct: grPct });
+  const computedUnit = computed.unit_cost;
+  let baseCost = computed.total_cost;
+  let withMarkup = computed.total_with_markup;
+  let finalUnitCost = computed.final_unit_cost;
+
+  if (!parent_id) {
+    // D-140: Markup and GR are ADDITIVE percentages applied once — not compounding.
+    //   total_with_markup = total_cost × (1 + (markup% + gr%) / 100)
+    baseCost = tCost || (uCost * qty) || computed.total_cost;
+    withMarkup = baseCost * (1 + (markup + grPct) / 100);
+    finalUnitCost = baseCost > 0 ? withMarkup / (qty || 1) : 0;
+  }
 
   const { data, error } = await supabase
     .from('rfp_line_items')
@@ -429,12 +438,12 @@ router.post('/projects/:id/rfps/:rId/items', requireRfpEditAccess, async (req, r
       quantity: qty || null,
       contractor_cost: cCost || null,
       vendor_cost: vCost || null,
-      unit_cost: uCost || null,
+      unit_cost: parent_id ? (computedUnit || null) : (uCost || computedUnit || null),
       total_cost: baseCost || null,
       markup_pct: markup,
       general_requirements_pct: grPct,
       total_with_markup: withMarkup,
-      final_unit_cost: baseCost > 0 ? withMarkup / (qty || 1) : 0,
+      final_unit_cost: finalUnitCost,
     })
     .select()
     .single();

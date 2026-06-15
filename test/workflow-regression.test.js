@@ -384,10 +384,26 @@ test('RFP edits return users to the open category and line item', () => {
 
   assert.match(view, /id="rfp-row-<%= rfp\.id %>"/);
   assert.match(view, /id="rfp-line-<%= item\.id %>"/);
+  assert.match(view, /id="rfp-line-editor-<%= item\.id %>"/);
   assert.match(view, /function restoreRfpPosition\(\)/);
+  assert.match(view, /function openRfpLineEditor\(itemId\)/);
+  assert.match(view, /window\.toggleRfpLineEditor/);
   assert.match(view, /params\.get\('open_rfp'\)/);
   assert.match(view, /params\.get\('open_item'\)/);
   assert.match(view, /params\.get\('show_sub_form'\)/);
+});
+
+test('RFP line items open a pricing editor instead of dropdown sub rows', () => {
+  const view = read('src/views/jobs/rfp.ejs');
+
+  assert.match(view, /class="rfp-line-editor-row hidden/);
+  assert.match(view, /Vendor \/ contractor pricing/);
+  assert.match(view, /Add vendor \/ contractor line/);
+  assert.match(view, /Save line item/);
+  assert.match(view, /type="submit" form="<%= subFid %>" class="btn btn-secondary text-xs">Save/);
+  assert.doesNotMatch(view, /class="rfp-sub-row/);
+  assert.doesNotMatch(view, /while\s*\(next && next\.classList\.contains\('rfp-sub-row'\)\)/);
+  assert.doesNotMatch(view, /form\.addEventListener\('submit', function\(e\) \{ e\.preventDefault\(\); \}\)/);
 });
 
 test('RFP category and parent line-item deletes remove children', () => {
@@ -432,6 +448,14 @@ test('RFP parent rows roll up approved sub-lines only', () => {
   assert.match(view, /var liDisplayBaseUnit = liHasSubs \? \(liQty > 0 \? liTotalCost \/ liQty : 0\) : \(Number\(item\.unit_cost\) \|\| 0\)/);
   assert.doesNotMatch(view, /apprChildren\.length > 0 \? apprChildren\.reduce[\s\S]*: children\.reduce/);
   assert.doesNotMatch(view, /liTotal \|\| \(Number\(item\.total_with_markup\)/);
+});
+
+test('RFP sub-line inserts calculate total from quantity and unit cost', () => {
+  const routes = read('src/routes/rfp.js');
+
+  assert.match(routes, /const computed = computeSubLineTotals\(\{ quantity, contractor_cost, vendor_cost, markup_pct, general_requirements_pct: grPct \}\)/);
+  assert.match(routes, /unit_cost: parent_id \? \(computedUnit \|\| null\) : \(uCost \|\| computedUnit \|\| null\)/);
+  assert.doesNotMatch(routes, /const baseCost = tCost \|\| \(uCost \* qty\) \|\| \(cCost \+ vCost\)/);
 });
 
 test('customer detail exposes customer projects and project creation path', () => {
