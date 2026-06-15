@@ -1,16 +1,22 @@
 <%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
 <div class="ops-shell">
+  <% const contextQuery = folderContext ? '?context=' + encodeURIComponent(folderContext) : ''; %>
   <div class="flex items-baseline justify-between mb-4 flex-wrap gap-2">
     <div>
-      <div class="mb-2">
-<% const bucketKey = entityType === 'work_order' ? 'project' : entityType === 'user' ? 'worker' : entityType; %>
-        <a href="/files/<%= bucketKey %>s" class="text-sm text-recon-fog hover:text-recon-red">&larr; <%= (bucketKey || '').charAt(0).toUpperCase() + (bucketKey || '').slice(1) %>s</a>
-        <% if (folder && folder.parent_folder_id) { %>
-          &middot; <a href="/files/folders/<%= folder.parent_folder_id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; <%= parentFolderName || 'Parent folder' %></a>
-        <% } %>
-      </div>
+      <% const trail = Array.isArray(breadcrumb) && breadcrumb.length ? breadcrumb : [{ label: 'Files', href: '/files' }, { label: entityName || 'Folder', href: null }]; %>
+      <nav class="mb-2 text-sm text-recon-fog flex flex-wrap items-center gap-1" aria-label="Folder path">
+        <% trail.forEach(function(crumb, index){ %>
+          <% const isLast = index === trail.length - 1; %>
+          <% if (index > 0) { %><span class="text-recon-fog/70">/</span><% } %>
+          <% if (!isLast && crumb.href) { %>
+            <a href="<%= crumb.href %>" class="hover:text-recon-red"><%= crumb.label %></a>
+          <% } else { %>
+            <span class="<%= isLast ? 'text-recon-charcoal font-medium' : '' %>"><%= crumb.label %></span>
+          <% } %>
+        <% }); %>
+      </nav>
       <h1 class="page-h1 mb-1"><%= entityName %></h1>
-      <p class="page-sub">Folder contents</p>
+      <p class="page-sub">Files and folders</p>
     </div>
     <div class="flex flex-wrap gap-2">
       <% if (currentUser.role === 'admin' || currentUser.role === 'manager') { %>
@@ -83,7 +89,7 @@
       <h2 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-2">Subfolders</h2>
       <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
         <% contents.subfolders.forEach(function(sf){ %>
-          <a href="/files/folders/<%= sf.id %>" class="card p-4 hover:shadow-md transition block">
+          <a href="/files/folders/<%= sf.id %><%= contextQuery %>" class="card p-4 hover:shadow-md transition block">
             <div class="font-medium text-recon-charcoal">📁 <%= sf.name %></div>
           </a>
         <% }); %>
@@ -98,7 +104,7 @@
           <tbody>
             <% contents.files.forEach(function(f){ %>
               <tr>
-                <td class="font-medium"><a href="/files/<%= f.id %>/view" target="_blank" class="hover:text-recon-red"><%= f.original_filename %></a></td>
+                <td class="font-medium"><a href="/files/<%= f.id %>/view<%= contextQuery %>" target="_blank" class="hover:text-recon-red"><%= f.original_filename %></a></td>
                 <td class="text-sm text-recon-fog"><%= f.mime_type || '—' %></td>
                 <td class="text-sm text-recon-fog"><%= f.size_bytes ? (f.size_bytes / 1024).toFixed(1) + ' KB' : '—' %></td>
                 <td class="text-sm text-recon-fog"><%= (f.created_at || '').slice(0,10) %></td>

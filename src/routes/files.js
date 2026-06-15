@@ -82,8 +82,20 @@ function workerCanAccessEntity(req, entityType, entityId) {
 
 function normalizeEntityType(value) {
   const normalized = String(value || '').replace(/s$/, '').replace(/-/g, '_');
-  if (normalized === 'work_order') return 'project';
   return normalized;
+}
+
+function normalizeFolderContext(value) {
+  const normalized = normalizeEntityType(value);
+  return ['project', 'work_order', 'customer', 'vendor', 'contractor', 'worker', 'user', 'global'].includes(normalized)
+    ? normalized
+    : null;
+}
+
+function withFolderContext(href, contextKey) {
+  if (!href || !contextKey) return href;
+  const separator = href.includes('?') ? '&' : '?';
+  return `${href}${separator}context=${encodeURIComponent(contextKey)}`;
 }
 
 function fileDisplayName(file) {
@@ -105,6 +117,127 @@ function getPreviewType(file) {
   if (mimeType === 'application/pdf' || ext === '.pdf') return 'pdf';
   if (mimeType.startsWith('text/') || ['.txt', '.csv', '.log', '.md'].includes(ext)) return 'text';
   return 'download';
+}
+
+function folderBucketLabel(entityType, isProjectFolder) {
+  if (isProjectFolder) return 'Projects';
+  if (entityType === 'work_order') return 'Work Orders';
+  if (entityType === 'user') return 'Workers';
+  return `${String(entityType || 'file').charAt(0).toUpperCase()}${String(entityType || 'file').slice(1)}s`;
+}
+
+function folderRootPath(entityType, entityId, isProjectFolder) {
+  if (isProjectFolder) return `/files/projects/${entityId}`;
+  if (entityType === 'work_order') return `/files/work_order/${entityId}`;
+  if (entityType === 'user') return `/files/workers/${entityId}`;
+  return `/files/${entityType}s/${entityId}`;
+}
+
+async function getEntityDisplayContext(entityType, entityId, requestedEntityType) {
+  if (requestedEntityType === 'project' || entityType === 'project' || (!requestedEntityType && entityType === 'work_order')) {
+    const { data: job } = await checkedFileRouteRead(
+      supabase.from('jobs').select('id, title').eq('id', entityId).maybeSingle(),
+      'file project name read failed'
+    );
+    if (job) {
+      return {
+        entityName: job.title || `Project #${entityId}`,
+        entityType: 'project',
+        entityId,
+        isProjectFolder: true,
+        bucketLabel: 'Projects',
+        bucketHref: '/projects',
+        rootHref: `/files/projects/${entityId}`,
+      };
+    }
+  }
+
+  if (requestedEntityType === 'work_order' || entityType === 'work_order') {
+    const { data: wo } = await checkedFileRouteRead(
+      supabase.from('work_orders').select('id, display_number, jobs!left(title), customers!left(name)').eq('id', entityId).maybeSingle(),
+      'file work order name read failed'
+    );
+    if (wo) {
+      const labelParts = [`WO-${wo.display_number || entityId}`];
+      if (wo.jobs?.title) labelParts.push(wo.jobs.title);
+      else if (wo.customers?.name) labelParts.push(wo.customers.name);
+      return {
+        entityName: labelParts.join(' - '),
+        entityType: 'work_order',
+        entityId,
+        isProjectFolder: false,
+        bucketLabel: 'Work Orders',
+        bucketHref: '/work-orders',
+        rootHref: `/files/work_order/${entityId}`,
+      };
+    }
+  }
+
+  if (entityType === 'customer') {
+    const { data: c } = await checkedFileRouteRead(supabase.from('customers').select('name').eq('id', entityId).maybeSingle(), 'file customer name read failed');
+    return { entityName: c ? c.name : `Customer #${entityId}`, entityType, entityId, isProjectFolder: false, bucketLabel: 'Customers', bucketHref: '/customers', rootHref: `/files/customers/${entityId}` };
+  }
+  if (entityType === 'vendor') {
+    const { data: v } = await checkedFileRouteRead(supabase.from('vendors').select('name').eq('id', entityId).maybeSingle(), 'file vendor name read failed');
+    return { entityName: v ? v.name : `Vendor #${entityId}`, entityType, entityId, isProjectFolder: false, bucketLabel: 'Vendors', bucketHref: '/vendors', rootHref: `/files/vendors/${entityId}` };
+  }
+  if (entityType === 'contractor') {
+    const { data: c } = await checkedFileRouteRead(supabase.from('contractors').select('name').eq('id', entityId).maybeSingle(), 'file contractor name read failed');
+    return { entityName: c ? c.name : `Contractor #${entityId}`, entityType, entityId, isProjectFolder: false, bucketLabel: 'Contractors', bucketHref: '/contractors', rootHref: `/files/contractors/${entityId}` };
+  }
+  if (entityType === 'user' || entityType === 'worker') {
+    const { data: u } = await checkedFileRouteRead(supabase.from('users').select('name').eq('id', entityId).maybeSingle(), 'file worker name read failed');
+    return { entityName: u ? u.name : `Worker #${entityId}`, entityType: 'user', entityId, isProjectFolder: false, bucketLabel: 'Workers', bucketHref: '/files/workers', rootHref: `/files/workers/${entityId}` };
+  }
+  if (entityType === 'global') {
+    return { entityName: 'Global files', entityType, entityId, isProjectFolder: false, bucketLabel: 'Files', bucketHref: '/files', rootHref: `/files/global/${entityId}` };
+  }
+
+  return {
+    entityName: `${folderBucketLabel(entityType, false).replace(/s$/, '')} #${entityId}`,
+    entityType,
+    entityId,
+    isProjectFolder: false,
+    bucketLabel: folderBucketLabel(entityType, false),
+    bucketHref: '/files',
+    rootHref: folderRootPath(entityType, entityId, false),
+  };
+}
+
+async function buildFolderDisplay(folder, requestedEntityType) {
+  const folderChain = [];
+  let cursor = folder;
+  while (cursor) {
+    folderChain.unshift(cursor);
+    if (!cursor.parent_folder_id) break;
+    const { data: parent } = await checkedFileRouteRead(
+      supabase.from('folders').select('*').eq('id', cursor.parent_folder_id).maybeSingle(),
+      'file parent folder read failed'
+    );
+    cursor = parent || null;
+  }
+
+  const rootFolder = folderChain[0] || folder;
+  const context = await getEntityDisplayContext(
+    rootFolder.entity_type,
+    rootFolder.entity_id,
+    requestedEntityType
+  );
+  const contextKey = context.entityType === 'user' ? 'worker' : context.entityType;
+  const breadcrumb = [
+    { label: context.bucketLabel, href: context.bucketHref },
+    { label: context.entityName, href: context.rootHref },
+  ];
+  folderChain.slice(1).forEach(part => {
+    breadcrumb.push({ label: part.name, href: withFolderContext(`/files/folders/${part.id}`, contextKey) });
+  });
+
+  return {
+    ...context,
+    currentFolderName: folder.id === rootFolder.id ? context.entityName : folder.name,
+    breadcrumb,
+    contextKey,
+  };
 }
 
 function assertFileRouteRead(result, label) {
@@ -219,25 +352,17 @@ router.get('/folders/:folderId', requireAuth, async (req, res) => {
   if (!folder) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Folder not found.' });
   if (!workerCanAccessEntity(req, folder.entity_type, folder.entity_id)) return workerForbidden(res);
   const contents = await filesService.getFolderContents(folder.id);
-  // D-130: load parent folder name for breadcrumb
-  let parentFolderName = null;
-  if (folder.parent_folder_id) {
-    const { data: parentFolder } = await supabase
-      .from('folders')
-      .select('name')
-      .eq('id', folder.parent_folder_id)
-      .maybeSingle();
-    if (parentFolder) parentFolderName = parentFolder.name;
-  }
+  const folderDisplay = await buildFolderDisplay(folder, normalizeFolderContext(req.query.context));
   res.render('files/folder', {
-    title: folder.name + ' - Files',
+    title: folderDisplay.currentFolderName + ' - Files',
     activeNav: 'files',
     folder,
     contents,
-    entityName: folder.name,
-    entityType: folder.entity_type,
-    entityId: folder.entity_id,
-    parentFolderName,
+    entityName: folderDisplay.currentFolderName,
+    entityType: folderDisplay.entityType,
+    entityId: folderDisplay.entityId,
+    breadcrumb: folderDisplay.breadcrumb,
+    folderContext: folderDisplay.contextKey,
   });
 });
 
@@ -514,6 +639,7 @@ router.get('/:id/view', requireAuth, async (req, res) => {
   const currentIndex = siblings.findIndex(f => Number(f.id) === Number(file.id));
   const previousFile = currentIndex > 0 ? siblings[currentIndex - 1] : null;
   const nextFile = currentIndex >= 0 && currentIndex < siblings.length - 1 ? siblings[currentIndex + 1] : null;
+  const folderDisplay = await buildFolderDisplay(folder, normalizeFolderContext(req.query.context));
 
   try {
     const signedUrl = await storage.getSignedUrl('entity-files', file.storage_path || file.name, 3600);
@@ -528,6 +654,8 @@ router.get('/:id/view', requireAuth, async (req, res) => {
       currentIndex,
       previousFile,
       nextFile,
+      breadcrumb: folderDisplay.breadcrumb.concat([{ label: fileDisplayName(file), href: null }]),
+      folderContext: folderDisplay.contextKey,
     });
   } catch (e) {
     return res.status(500).render('error', { title: 'Storage error', code: 500, message: 'Failed to access file: ' + e.message });
@@ -536,10 +664,10 @@ router.get('/:id/view', requireAuth, async (req, res) => {
 
 // GET /:entityType/:entityId — show root folder contents (GENERIC — MUST BE LAST)
 router.get('/:entityType/:entityId', requireAuth, async (req, res) => {
-  const entityType = normalizeEntityType(req.params.entityType);
+  const requestedEntityType = normalizeEntityType(req.params.entityType);
   const entityId = parseInt(req.params.entityId, 10);
-  const mappedType = entityType === 'project' ? 'work_order' : entityType === 'worker' ? 'user' : entityType;
-  if (!workerCanAccessEntity(req, entityType, entityId)) return workerForbidden(res);
+  const mappedType = requestedEntityType === 'project' ? 'work_order' : requestedEntityType === 'worker' ? 'user' : requestedEntityType;
+  if (!workerCanAccessEntity(req, requestedEntityType, entityId)) return workerForbidden(res);
 
   let folder = await filesService.getRootFolder(mappedType, entityId);
   if (!folder) {
@@ -551,33 +679,18 @@ router.get('/:entityType/:entityId', requireAuth, async (req, res) => {
   }
 
   const contents = await filesService.getFolderContents(folder.id);
-
-  // Get entity name for display
-  let entityName = '';
-  if (entityType === 'customer') {
-    const { data: c } = await checkedFileRouteRead(supabase.from('customers').select('name').eq('id', entityId).maybeSingle(), 'file customer name read failed');
-    entityName = c ? c.name : 'Customer #' + entityId;
-  } else if (entityType === 'vendor') {
-    const { data: v } = await checkedFileRouteRead(supabase.from('vendors').select('name').eq('id', entityId).maybeSingle(), 'file vendor name read failed');
-    entityName = v ? v.name : 'Vendor #' + entityId;
-  } else if (entityType === 'worker') {
-    const { data: u } = await checkedFileRouteRead(supabase.from('users').select('name').eq('id', entityId).maybeSingle(), 'file worker name read failed');
-    entityName = u ? u.name : 'Worker #' + entityId;
-  } else if (entityType === 'project') {
-    const { data: wo } = await checkedFileRouteRead(supabase.from('work_orders').select('display_number').eq('id', entityId).maybeSingle(), 'file work order name read failed');
-    entityName = wo ? 'WO-' + wo.display_number : 'Project #' + entityId;
-  } else if (entityType === 'global') {
-    entityName = 'Global files';
-  }
+  const folderDisplay = await buildFolderDisplay(folder, requestedEntityType);
 
   res.render('files/folder', {
-    title: entityName + ' - Files',
+    title: folderDisplay.currentFolderName + ' - Files',
     activeNav: 'files',
     folder,
     contents,
-    entityName,
-    entityType,
-    entityId,
+    entityName: folderDisplay.currentFolderName,
+    entityType: folderDisplay.entityType,
+    entityId: folderDisplay.entityId,
+    breadcrumb: folderDisplay.breadcrumb,
+    folderContext: folderDisplay.contextKey,
   });
 });
 

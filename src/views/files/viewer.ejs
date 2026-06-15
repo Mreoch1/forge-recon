@@ -51,11 +51,21 @@
   }
 </style>
 <div class="ops-shell">
+  <% const contextQuery = folderContext ? '?context=' + encodeURIComponent(folderContext) : ''; %>
   <div class="flex items-start justify-between mb-4 gap-3 flex-wrap">
     <div>
-      <div class="mb-2">
-        <a href="/files/folders/<%= folder.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; Back to folder</a>
-      </div>
+      <% const trail = Array.isArray(breadcrumb) && breadcrumb.length ? breadcrumb : [{ label: 'Folder', href: '/files/folders/' + folder.id }, { label: displayName, href: null }]; %>
+      <nav class="mb-2 text-sm text-recon-fog flex flex-wrap items-center gap-1" aria-label="Folder path">
+        <% trail.forEach(function(crumb, index){ %>
+          <% const isLast = index === trail.length - 1; %>
+          <% if (index > 0) { %><span class="text-recon-fog/70">/</span><% } %>
+          <% if (!isLast && crumb.href) { %>
+            <a href="<%= crumb.href %>" class="hover:text-recon-red"><%= crumb.label %></a>
+          <% } else { %>
+            <span class="<%= isLast ? 'text-recon-charcoal font-medium' : '' %>"><%= crumb.label %></span>
+          <% } %>
+        <% }); %>
+      </nav>
       <h1 class="page-h1 mb-1"><%= displayName %></h1>
       <p class="page-sub">
         <%= siblings.length ? (currentIndex >= 0 ? currentIndex + 1 : 1) : 1 %> of <%= siblings.length || 1 %>
@@ -64,12 +74,12 @@
     </div>
     <div class="flex flex-wrap gap-2 items-center">
       <% if (previousFile) { %>
-        <a class="btn btn-secondary text-sm" href="/files/<%= previousFile.id %>/view">Previous</a>
+        <a class="btn btn-secondary text-sm" href="/files/<%= previousFile.id %>/view<%= contextQuery %>">Previous</a>
       <% } else { %>
         <span class="btn btn-secondary text-sm opacity-40 cursor-not-allowed">Previous</span>
       <% } %>
       <% if (nextFile) { %>
-        <a class="btn btn-secondary text-sm" href="/files/<%= nextFile.id %>/view">Next</a>
+        <a class="btn btn-secondary text-sm" href="/files/<%= nextFile.id %>/view<%= contextQuery %>">Next</a>
       <% } else { %>
         <span class="btn btn-secondary text-sm opacity-40 cursor-not-allowed">Next</span>
       <% } %>
@@ -88,7 +98,7 @@
         <% siblings.forEach(function(sibling){ %>
           <% const siblingName = sibling.original_filename || sibling.name || 'File'; %>
           <a
-            href="/files/<%= sibling.id %>/view"
+            href="/files/<%= sibling.id %>/view<%= contextQuery %>"
             class="file-viewer-item <%= Number(sibling.id) === Number(file.id) ? 'is-active' : '' %>"
             <%= Number(sibling.id) === Number(file.id) ? 'aria-current="page"' : '' %>
           >
@@ -132,8 +142,11 @@
 </div>
 <script>
 (function(){
+  var contextQuery = <%- JSON.stringify(folderContext ? '?context=' + encodeURIComponent(folderContext) : '') %>;
   var previousHref = <%- JSON.stringify(previousFile ? '/files/' + previousFile.id + '/view' : null) %>;
   var nextHref = <%- JSON.stringify(nextFile ? '/files/' + nextFile.id + '/view' : null) %>;
+  if (previousHref) previousHref += contextQuery;
+  if (nextHref) nextHref += contextQuery;
   document.addEventListener('keydown', function(event){
     if (event.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return;
     if (event.key === 'ArrowLeft' && previousHref) window.location.href = previousHref;
