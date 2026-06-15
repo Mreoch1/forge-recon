@@ -424,6 +424,16 @@ test('RFP editing autosaves individual fields with conflict checks', () => {
   assert.match(migration, /CREATE TRIGGER set_rfp_line_items_updated_at/);
 });
 
+test('RFP parent rows roll up approved sub-lines only', () => {
+  const view = read('src/views/jobs/rfp.ejs');
+
+  assert.match(view, /var liRollupChildren = liHasSubs \? apprChildren : \[\]/);
+  assert.match(view, /var liDisplayTotal = liHasSubs \? liTotal : \(Number\(item\.total_with_markup\) \|\| 0\)/);
+  assert.match(view, /var liDisplayBaseUnit = liHasSubs \? \(liQty > 0 \? liTotalCost \/ liQty : 0\) : \(Number\(item\.unit_cost\) \|\| 0\)/);
+  assert.doesNotMatch(view, /apprChildren\.length > 0 \? apprChildren\.reduce[\s\S]*: children\.reduce/);
+  assert.doesNotMatch(view, /liTotal \|\| \(Number\(item\.total_with_markup\)/);
+});
+
 test('customer detail exposes customer projects and project creation path', () => {
   const routes = read('src/routes/customers.js');
   const show = read('src/views/customers/show.ejs');
