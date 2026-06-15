@@ -79,6 +79,72 @@ function isMissingOptionalRfpTable(error) {
   );
 }
 
+function isMissingScopeTypeSchema(error) {
+  const message = String(error?.message || error || '').toLowerCase();
+  return message.includes('scope_type') || message.includes('schema cache');
+}
+
+async function insertRfpLineItem(payload) {
+  const result = await supabase
+    .from('rfp_line_items')
+    .insert(payload)
+    .select()
+    .single();
+
+  if (result.error && payload.scope_type && isMissingScopeTypeSchema(result.error)) {
+    const { scope_type, ...fallbackPayload } = payload;
+    console.warn('[rfp] scope_type column missing; inserting line item without material sync classification.');
+    return supabase
+      .from('rfp_line_items')
+      .insert(fallbackPayload)
+      .select()
+      .single();
+  }
+
+  return result;
+}
+
+async function updateRfpLineItem(itemId, updateData) {
+  let result = await supabase
+    .from('rfp_line_items')
+    .update(updateData)
+    .eq('id', itemId);
+
+  if (result.error && updateData.scope_type && isMissingScopeTypeSchema(result.error)) {
+    const { scope_type, ...fallbackUpdate } = updateData;
+    console.warn('[rfp] scope_type column missing; updating line item without material sync classification.');
+    result = await supabase
+      .from('rfp_line_items')
+      .update(fallbackUpdate)
+      .eq('id', itemId);
+  }
+
+  return result;
+}
+
+async function updateRfpLineItemAndSelect(itemId, updateData, selectColumns) {
+  let result = await supabase
+    .from('rfp_line_items')
+    .update(updateData)
+    .eq('id', itemId)
+    .select(selectColumns)
+    .single();
+
+  if (result.error && updateData.scope_type && isMissingScopeTypeSchema(result.error)) {
+    const { scope_type, ...fallbackUpdate } = updateData;
+    console.warn('[rfp] scope_type column missing; autosaved line item without material sync classification.');
+    result = await supabase
+      .from('rfp_line_items')
+      .update(fallbackUpdate)
+      .eq('id', itemId)
+      .select(selectColumns.replace(/,\s*scope_type/g, ''))
+      .single();
+    if (result.data && !('scope_type' in result.data)) result.data.scope_type = 'contractor';
+  }
+
+  return result;
+}
+
 function rfpRedirect(jobId, params = {}) {
   const search = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
@@ -164,6 +230,7 @@ function autosaveValuesMatch(field, a, b) {
 
 function parseAutosaveField(field, value) {
   if (field === 'approved') return normalizeAutosaveValue(field, value);
+  if (field === 'scope_type') return normalizeScopeType(value);
   if (['quantity', 'contractor_cost', 'vendor_cost', 'markup_pct', 'general_requirements_pct'].includes(field)) {
     const n = parseFloat(value);
     return Number.isFinite(n) ? n : null;
@@ -179,10 +246,14 @@ async function userCanEditRfpJob(req, job) {
   return !!access.canSeeOperations;
 }
 
+function normalizeScopeType(value) {
+  return String(value || '').toLowerCase() === 'supplier' ? 'supplier' : 'contractor';
+}
+
 async function loadRfpItemWithJob(itemId) {
   const { data, error } = await supabase
     .from('rfp_line_items')
-    .select('id, rfp_id, parent_line_item_id, vendor, description, quantity, contractor_cost, vendor_cost, unit_cost, total_cost, markup_pct, general_requirements_pct, total_with_markup, final_unit_cost, approved, updated_at, project_rfps!inner(id, job_id, jobs!inner(id, project_manager_user_id, assigned_to_user_id))')
+    .select('id, rfp_id, parent_line_item_id, vendor, description, quantity, contractor_cost, vendor_cost, unit_cost, total_cost, markup_pct, general_requirements_pct, total_with_markup, final_unit_cost, approved, scope_type, updated_at, project_rfps!inner(id, job_id, jobs!inner(id, project_manager_user_id, assigned_to_user_id))')
     .eq('id', itemId)
     .maybeSingle();
   if (error) throw error;
@@ -190,7 +261,7 @@ async function loadRfpItemWithJob(itemId) {
 }
 
 function buildLineItemAutosaveUpdate(item, field, value) {
-  const allowed = ['vendor', 'description', 'quantity', 'contractor_cost', 'vendor_cost', 'markup_pct', 'general_requirements_pct', 'approved'];
+  const allowed = ['vendor', 'description', 'quantity', 'contractor_cost', 'vendor_cost', 'markup_pct', 'general_requirements_pct', 'approved', 'scope_type'];
   if (!allowed.includes(field)) return null;
 
   const parsed = parseAutosaveField(field, value);
@@ -387,7 +458,7 @@ router.patch('/projects/:id/rfps/:rId/autosave', requireAuth, requireRfpEditAcce
 // ── POST /projects/:id/rfps/:rId/items — add line item ──
 router.post('/projects/:id/rfps/:rId/items', requireRfpEditAccess, async (req, res) => {
   const { vendor, description, quantity, contractor_cost, vendor_cost,
-          unit_cost, total_cost, markup_pct, parent_id } = req.body;
+          unit_cost, total_cost, markup_pct, parent_id, scope_type } = req.body;
 
   // D-132: reject creating a child of a child (sub-sub-line)
   if (parent_id) {
@@ -428,25 +499,22 @@ router.post('/projects/:id/rfps/:rId/items', requireRfpEditAccess, async (req, r
     finalUnitCost = baseCost > 0 ? withMarkup / (qty || 1) : 0;
   }
 
-  const { data, error } = await supabase
-    .from('rfp_line_items')
-    .insert({
-      rfp_id: req.params.rId,
-      parent_line_item_id: parent_id || null,
-      vendor: vendor || null,
-      description: description || '',
-      quantity: qty || null,
-      contractor_cost: cCost || null,
-      vendor_cost: vCost || null,
-      unit_cost: parent_id ? (computedUnit || null) : (uCost || computedUnit || null),
-      total_cost: baseCost || null,
-      markup_pct: markup,
-      general_requirements_pct: grPct,
-      total_with_markup: withMarkup,
-      final_unit_cost: finalUnitCost,
-    })
-    .select()
-    .single();
+  const { data, error } = await insertRfpLineItem({
+    rfp_id: req.params.rId,
+    parent_line_item_id: parent_id || null,
+    vendor: vendor || null,
+    description: description || '',
+    quantity: qty || null,
+    contractor_cost: cCost || null,
+    vendor_cost: vCost || null,
+    unit_cost: parent_id ? (computedUnit || null) : (uCost || computedUnit || null),
+    total_cost: baseCost || null,
+    markup_pct: markup,
+    general_requirements_pct: grPct,
+    total_with_markup: withMarkup,
+    final_unit_cost: finalUnitCost,
+    scope_type: parent_id ? normalizeScopeType(scope_type) : 'contractor',
+  });
   if (error) throw error;
   res.redirect(rfpRedirect(req.params.id, {
     open_rfp: req.params.rId,
@@ -517,6 +585,7 @@ router.post('/projects/rfps/items/:itemId', requireRfpEditAccess, async (req, re
   const total_cost = lastOf(req.body.total_cost);
   const markup_pct = lastOf(req.body.markup_pct);
   const approved = lastOf(req.body.approved);
+  const scope_type = lastOf(req.body.scope_type);
   let gr = req.body.general_requirements_pct;
   if (Array.isArray(gr)) gr = gr[gr.length - 1];
 
@@ -543,26 +612,24 @@ router.post('/projects/rfps/items/:itemId', requireRfpEditAccess, async (req, re
     .single();
   if (fetchError) throw fetchError;
 
-  const { error } = await supabase
-    .from('rfp_line_items')
-    .update({
-      vendor: vendor || null,
-      description: description || '',
-      quantity: qty || null,
-      contractor_cost: cCost || null,
-      unit_cost: computedUnit || null,
-      total_cost: baseCost || null,
-      markup_pct: markup,
-      total_with_markup: withMarkup,
-      final_unit_cost: baseCost > 0 ? withMarkup / (qty || 1) : 0,
-      approved: approved === '1' || approved === 'true' || approved === 'on',
-      general_requirements_pct: gr !== undefined ? (parseFloat(gr) || 6) : undefined,
-      ...(req.body.vendor_cost !== undefined ? { vendor_cost: parseFloat(vendor_cost) || 0 } : {}),
-      location: req.body.location || undefined,
-      sort_order: req.body.sort_order !== undefined ? parseInt(req.body.sort_order) : undefined,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', req.params.itemId);
+  const { error } = await updateRfpLineItem(req.params.itemId, {
+    vendor: vendor || null,
+    description: description || '',
+    quantity: qty || null,
+    contractor_cost: cCost || null,
+    unit_cost: computedUnit || null,
+    total_cost: baseCost || null,
+    markup_pct: markup,
+    total_with_markup: withMarkup,
+    final_unit_cost: baseCost > 0 ? withMarkup / (qty || 1) : 0,
+    approved: approved === '1' || approved === 'true' || approved === 'on',
+    ...(scope_type !== undefined ? { scope_type: normalizeScopeType(scope_type) } : {}),
+    general_requirements_pct: gr !== undefined ? (parseFloat(gr) || 6) : undefined,
+    ...(req.body.vendor_cost !== undefined ? { vendor_cost: parseFloat(vendor_cost) || 0 } : {}),
+    location: req.body.location || undefined,
+    sort_order: req.body.sort_order !== undefined ? parseInt(req.body.sort_order) : undefined,
+    updated_at: new Date().toISOString(),
+  });
   if (error) throw error;
 
   // Get the RFP's job_id for redirect
@@ -612,12 +679,11 @@ router.patch('/projects/rfps/items/:itemId/autosave', requireAuth, async (req, r
   }
 
   const nextUpdateData = buildLineItemAutosaveUpdate(item, field, value);
-  const { data: updated, error } = await supabase
-    .from('rfp_line_items')
-    .update(nextUpdateData)
-    .eq('id', itemId)
-    .select('id, vendor, description, quantity, contractor_cost, vendor_cost, unit_cost, total_cost, markup_pct, general_requirements_pct, total_with_markup, final_unit_cost, approved, updated_at')
-    .single();
+  const { data: updated, error } = await updateRfpLineItemAndSelect(
+    itemId,
+    nextUpdateData,
+    'id, vendor, description, quantity, contractor_cost, vendor_cost, unit_cost, total_cost, markup_pct, general_requirements_pct, total_with_markup, final_unit_cost, approved, scope_type, updated_at'
+  );
   if (error) return res.status(500).json({ ok: false, error: error.message });
 
   res.json({ ok: true, item: updated });

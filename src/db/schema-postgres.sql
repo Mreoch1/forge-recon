@@ -824,6 +824,13 @@ CREATE TABLE IF NOT EXISTS project_material_items (
   quantity NUMERIC(12,2) NOT NULL DEFAULT 1,
   unit_price NUMERIC(12,2) NOT NULL DEFAULT 0,
   vendor TEXT,
+  rfp_line_item_id BIGINT,
+  rfp_parent_line_item_id BIGINT,
+  source TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('manual', 'rfp')),
+  unit TEXT,
+  notes TEXT,
+  needed_by DATE,
+  status TEXT NOT NULL DEFAULT 'planned' CHECK (status IN ('planned', 'quoted', 'ordered', 'received', 'cancelled')),
   approved BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

@@ -406,6 +406,24 @@ test('RFP line items open a pricing editor instead of dropdown sub rows', () => 
   assert.doesNotMatch(view, /form\.addEventListener\('submit', function\(e\) \{ e\.preventDefault\(\); \}\)/);
 });
 
+test('RFP supplier lines sync into project materials', () => {
+  const materials = read('src/routes/materials.js');
+  const rfpRoutes = read('src/routes/rfp.js');
+  const rfpView = read('src/views/jobs/rfp.ejs');
+  const materialsView = read('src/views/jobs/materials.ejs');
+  const migration = read('supabase/migrations/20260615120000_rfp_material_sync.sql');
+
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS scope_type/);
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS rfp_line_item_id/);
+  assert.match(rfpRoutes, /scope_type/);
+  assert.match(rfpView, /Supplier \/ Material/);
+  assert.match(materials, /async function syncRfpSupplierLinesToMaterials\(jobId\)/);
+  assert.match(materials, /line\.scope_type === 'supplier'/);
+  assert.match(materials, /rfp_line_item_id/);
+  assert.match(materials, /source: 'rfp'/);
+  assert.match(materialsView, /From RFP/);
+});
+
 test('RFP category and parent line-item deletes remove children', () => {
   const routes = read('src/routes/rfp.js');
 

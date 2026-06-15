@@ -295,7 +295,7 @@
                       <div class="px-4 pb-4">
                         <div class="mb-2 flex items-center justify-between gap-3">
                           <div class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Vendor / contractor lines</div>
-                          <div class="text-xs text-recon-fog">Approved lines roll up to the main line item.</div>
+                          <div class="text-xs text-recon-fog">Approved lines roll up to the main line item. Supplier/material lines also sync to the Materials page.</div>
                         </div>
 
                         <% if (children.length === 0) { %>
@@ -307,9 +307,18 @@
                             <% var subFid = 'rfp-sub-form-' + sub.id; var subDid = 'rfp-sub-del-' + sub.id; %>
                             <form id="<%= subFid %>" action="/projects/rfps/items/<%= sub.id %>" method="POST"></form>
                             <div class="rounded border border-recon-mist bg-recon-cloud/5 p-3">
-                              <div class="grid gap-2 md:grid-cols-[minmax(10rem,1fr)_minmax(14rem,2fr)_5rem_7rem_5rem_5rem_7rem_7rem_5rem_auto] md:items-end">
+                              <div class="grid gap-2 md:grid-cols-[8rem_minmax(10rem,1fr)_minmax(14rem,2fr)_5rem_7rem_5rem_5rem_7rem_7rem_5rem_auto] md:items-end">
                                 <label class="block">
-                                  <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Vendor / contractor</span>
+                                  <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Type</span>
+                                  <select form="<%= subFid %>" name="scope_type" class="input mt-1 w-full text-xs"
+                                          data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="scope_type"
+                                          data-original-value="<%= sub.scope_type || 'contractor' %>">
+                                    <option value="contractor" <%= (sub.scope_type || 'contractor') === 'contractor' ? 'selected' : '' %>>Contractor / Labor</option>
+                                    <option value="supplier" <%= sub.scope_type === 'supplier' ? 'selected' : '' %>>Supplier / Material</option>
+                                  </select>
+                                </label>
+                                <label class="block">
+                                  <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Company</span>
                                   <input form="<%= subFid %>" name="vendor" value="<%= sub.vendor || '' %>"
                                          class="input mt-1 w-full text-xs" placeholder="Vendor or contractor"
                                          list="rfp-line-entity-options" autocomplete="off"
@@ -361,7 +370,11 @@
 
                         <div id="add-sub-<%= item.id %>" class="mt-4 rounded border border-recon-mist bg-white p-3">
                           <div class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Add vendor / contractor line</div>
-                          <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/items" method="POST" class="rfp-line-form grid gap-2 text-xs md:grid-cols-[minmax(10rem,1fr)_minmax(14rem,2fr)_5rem_7rem_5rem_5rem_auto]" onclick="event.stopPropagation();">
+                          <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/items" method="POST" class="rfp-line-form grid gap-2 text-xs md:grid-cols-[8rem_minmax(10rem,1fr)_minmax(14rem,2fr)_5rem_7rem_5rem_5rem_auto]" onclick="event.stopPropagation();">
+                            <select name="scope_type" class="input w-full">
+                              <option value="contractor">Contractor / Labor</option>
+                              <option value="supplier">Supplier / Material</option>
+                            </select>
                             <input name="vendor" class="input w-full" placeholder="Vendor or contractor" autocomplete="off" list="rfp-line-entity-options">
                             <textarea name="description" placeholder="Pricing line description" class="input w-full" rows="1" data-autosize required></textarea>
                             <input name="quantity" data-compute-input type="number" step="any" placeholder="Qty" class="input w-full text-right">

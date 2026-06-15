@@ -97,11 +97,25 @@
                 </div>
                 <div>
                   <label style="font-size:.65rem;color:#888">Qty</label>
-                  <input type="number" name="quantity" class="input" style="width:60px;padding:.25rem .4rem;font-size:.78rem" value="1" min="0" step="1">
+                  <input type="number" name="quantity" class="input" style="width:60px;padding:.25rem .4rem;font-size:.78rem" value="1" min="0" step="any">
+                </div>
+                <div>
+                  <label style="font-size:.65rem;color:#888">Unit</label>
+                  <input type="text" name="unit" class="input" style="width:70px;padding:.25rem .4rem;font-size:.78rem" placeholder="ea">
                 </div>
                 <div>
                   <label style="font-size:.65rem;color:#888">Price ea</label>
                   <input type="number" name="unit_price" class="input" style="width:75px;padding:.25rem .4rem;font-size:.78rem" value="0" min="0" step="0.01">
+                </div>
+                <div>
+                  <label style="font-size:.65rem;color:#888">Status</label>
+                  <select name="status" class="input" style="width:92px;padding:.25rem .4rem;font-size:.78rem">
+                    <option value="planned">Planned</option>
+                    <option value="quoted">Quoted</option>
+                    <option value="ordered">Ordered</option>
+                    <option value="received">Received</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
                 </div>
                 <button type="submit" class="btn btn-primary" style="font-size:.78rem;padding:.25rem .6rem">Add</button>
               </form>
@@ -117,7 +131,9 @@
                     <th class="text-left">Item</th>
                     <th class="text-left">Model #</th>
                     <th class="text-right">Qty</th>
+                    <th class="text-left">Unit</th>
                     <th class="text-right">Price ea</th>
+                    <th class="text-left">Status</th>
                     <th class="text-right">Total</th>
                     <th style="width:55px"></th>
                   </tr>
@@ -127,20 +143,27 @@
                   <% var lt = (Number(it.quantity)||0)*(Number(it.unit_price)||0); %>
                   <tr class="<%= it.approved ? '' : 'opacity-60' %>">
                     <td><input type="checkbox" <%= it.approved ? 'checked' : '' %> onchange="toggleApprove(<%= it.id %>, this.checked)" class="accent-recon-red"></td>
-                    <td><%= it.item_name %></td>
+                    <td>
+                      <div class="font-medium"><%= it.item_name %></div>
+                      <% if (it.source === 'rfp') { %>
+                        <div class="mt-1 inline-flex rounded bg-recon-red/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-recon-red">From RFP</div>
+                      <% } %>
+                    </td>
                     <td class="text-recon-fog"><%= it.model_number || '—' %></td>
                     <td class="text-right"><%= Number(it.quantity) %></td>
+                    <td class="text-recon-fog"><%= it.unit || '—' %></td>
                     <td class="text-right">$<%= (Number(it.unit_price)||0).toFixed(2) %></td>
+                    <td><span class="badge"><%= it.status || 'planned' %></span></td>
                     <td class="text-right font-medium">$<%= lt.toFixed(2) %></td>
                     <td class="text-right">
-                      <button type="button" class="text-recon-fog hover:text-recon-red" style="font-size:.7rem;background:none;border:none;cursor:pointer" onclick="editItem(<%= it.id %>, '<%= it.item_name.replace(/'/g, "\\'") %>', '<%= (it.model_number||'').replace(/'/g, "\\'") %>', <%= it.quantity %>, <%= Number(it.unit_price)||0 %>, <%= it.approved %>)" title="Edit">✎</button>
+                      <button type="button" class="text-recon-fog hover:text-recon-red" style="font-size:.7rem;background:none;border:none;cursor:pointer" onclick='editItem(<%- JSON.stringify({ id: it.id, item_name: it.item_name || "", model_number: it.model_number || "", quantity: Number(it.quantity) || 0, unit_price: Number(it.unit_price) || 0, unit: it.unit || "", status: it.status || "planned", needed_by: it.needed_by || "", notes: it.notes || "", approved: !!it.approved }) %>)' title="Edit">✎</button>
                       <button type="button" class="text-recon-fog hover:text-recon-red" style="font-size:.7rem;background:none;border:none;cursor:pointer" onclick="if(confirm('Delete this item?'))deleteItem(<%= it.id %>)" title="Delete">✕</button>
                     </td>
                   </tr>
                   <% }); %>
                 </tbody>
                 <tfoot class="bg-recon-cloud">
-                  <tr><td></td><td colspan="4" class="text-right text-sm font-medium">Category approved</td><td class="text-right font-semibold">$<%= catApproved.toFixed(2) %></td><td></td></tr>
+                  <tr><td></td><td colspan="6" class="text-right text-sm font-medium">Category approved</td><td class="text-right font-semibold">$<%= catApproved.toFixed(2) %></td><td></td></tr>
                 </tfoot>
               </table>
               <% } %>
@@ -161,8 +184,21 @@
       <input type="hidden" id="edit-item-id">
       <div class="mb-3"><label class="label" for="edit-name">Item name</label><input type="text" id="edit-name" class="input" required></div>
       <div class="mb-3"><label class="label" for="edit-model">Model #</label><input type="text" id="edit-model" class="input"></div>
-      <div class="mb-3"><label class="label" for="edit-qty">Quantity</label><input type="number" id="edit-qty" class="input" min="0" step="1" required></div>
+      <div class="mb-3"><label class="label" for="edit-qty">Quantity</label><input type="number" id="edit-qty" class="input" min="0" step="any" required></div>
+      <div class="mb-3"><label class="label" for="edit-unit">Unit</label><input type="text" id="edit-unit" class="input" placeholder="ea, box, case"></div>
       <div class="mb-3"><label class="label" for="edit-price">Price ea</label><input type="number" id="edit-price" class="input" min="0" step="0.01" value="0"></div>
+      <div class="mb-3">
+        <label class="label" for="edit-status">Status</label>
+        <select id="edit-status" class="input">
+          <option value="planned">Planned</option>
+          <option value="quoted">Quoted</option>
+          <option value="ordered">Ordered</option>
+          <option value="received">Received</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+      <div class="mb-3"><label class="label" for="edit-needed-by">Needed by</label><input type="date" id="edit-needed-by" class="input"></div>
+      <div class="mb-3"><label class="label" for="edit-notes">Notes</label><textarea id="edit-notes" class="input" rows="3" placeholder="Order notes, lead time, quote number, substitutions..."></textarea></div>
       <div class="mb-4"><label class="label flex items-center gap-2"><input type="checkbox" id="edit-approved" class="accent-recon-red"> <span>Approved</span></label></div>
       <div class="flex gap-2 justify-end">
         <button type="button" class="btn btn-ghost text-sm" onclick="closeEdit()">Cancel</button>
@@ -285,13 +321,17 @@ async function addItem(e, catId) {
   return false;
 }
 
-function editItem(id, name, model, qty, price, approved) {
-  document.getElementById('edit-item-id').value = id;
-  document.getElementById('edit-name').value = name;
-  document.getElementById('edit-model').value = model;
-  document.getElementById('edit-qty').value = qty;
-  document.getElementById('edit-price').value = price || 0;
-  document.getElementById('edit-approved').checked = !!approved;
+function editItem(item) {
+  document.getElementById('edit-item-id').value = item.id;
+  document.getElementById('edit-name').value = item.item_name || '';
+  document.getElementById('edit-model').value = item.model_number || '';
+  document.getElementById('edit-qty').value = item.quantity || 0;
+  document.getElementById('edit-unit').value = item.unit || '';
+  document.getElementById('edit-price').value = item.unit_price || 0;
+  document.getElementById('edit-status').value = item.status || 'planned';
+  document.getElementById('edit-needed-by').value = item.needed_by || '';
+  document.getElementById('edit-notes').value = item.notes || '';
+  document.getElementById('edit-approved').checked = !!item.approved;
   document.getElementById('edit-modal').classList.remove('hidden');
 }
 
@@ -300,16 +340,21 @@ function closeEdit() { document.getElementById('edit-modal').classList.add('hidd
 async function saveEdit(e) {
   e.preventDefault();
   var id = document.getElementById('edit-item-id').value;
-  var body = 'item_name=' + encodeURIComponent(document.getElementById('edit-name').value.trim()) +
-    '&model_number=' + encodeURIComponent(document.getElementById('edit-model').value.trim()) +
-    '&quantity=' + encodeURIComponent(document.getElementById('edit-qty').value) +
-    '&unit_price=' + encodeURIComponent(document.getElementById('edit-price').value) +
-    '&approved=' + (document.getElementById('edit-approved').checked ? 'true' : 'false');
   if (!document.getElementById('edit-name').value.trim()) return false;
+  var params = new URLSearchParams();
+  params.set('item_name', document.getElementById('edit-name').value.trim());
+  params.set('model_number', document.getElementById('edit-model').value.trim());
+  params.set('quantity', document.getElementById('edit-qty').value);
+  params.set('unit', document.getElementById('edit-unit').value.trim());
+  params.set('unit_price', document.getElementById('edit-price').value);
+  params.set('status', document.getElementById('edit-status').value);
+  params.set('needed_by', document.getElementById('edit-needed-by').value);
+  params.set('notes', document.getElementById('edit-notes').value.trim());
+  params.set('approved', document.getElementById('edit-approved').checked ? 'true' : 'false');
   var res = await fetch('/projects/materials/items/' + id, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body,
+    body: params.toString(),
   });
   var data = await res.json();
   if (data.ok) window.location.reload();
