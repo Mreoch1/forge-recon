@@ -1,0 +1,146 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<% const displayName = file.original_filename || file.name || 'File'; %>
+<style>
+  .file-viewer-grid {
+    display: grid;
+    grid-template-columns: minmax(14rem, 20rem) minmax(0, 1fr);
+    gap: 1rem;
+    min-height: calc(100vh - 16rem);
+  }
+  .file-viewer-rail {
+    max-height: calc(100vh - 15rem);
+    overflow-y: auto;
+  }
+  .file-viewer-item {
+    display: block;
+    padding: .65rem .75rem;
+    border-bottom: 1px solid var(--line);
+    color: var(--charcoal);
+  }
+  .file-viewer-item:hover { color: var(--red); background: #fafafa; }
+  .file-viewer-item.is-active {
+    border-left: 3px solid var(--red);
+    background: #fff5f5;
+    font-weight: 700;
+  }
+  .file-preview-frame {
+    width: 100%;
+    height: calc(100vh - 18rem);
+    min-height: 38rem;
+    border: 0;
+    background: #f8f8f8;
+  }
+  .file-preview-image {
+    max-width: 100%;
+    max-height: calc(100vh - 18rem);
+    display: block;
+    margin: 0 auto;
+    object-fit: contain;
+  }
+  .file-preview-empty {
+    min-height: 28rem;
+    display: grid;
+    place-items: center;
+    text-align: center;
+    padding: 2rem;
+  }
+  @media (max-width: 900px) {
+    .file-viewer-grid { grid-template-columns: 1fr; }
+    .file-viewer-rail { max-height: 16rem; }
+    .file-preview-frame { height: 70vh; min-height: 28rem; }
+  }
+</style>
+<div class="ops-shell">
+  <div class="flex items-start justify-between mb-4 gap-3 flex-wrap">
+    <div>
+      <div class="mb-2">
+        <a href="/files/folders/<%= folder.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; Back to folder</a>
+      </div>
+      <h1 class="page-h1 mb-1"><%= displayName %></h1>
+      <p class="page-sub">
+        <%= siblings.length ? (currentIndex >= 0 ? currentIndex + 1 : 1) : 1 %> of <%= siblings.length || 1 %>
+        <% if (file.mime_type) { %> &middot; <%= file.mime_type %><% } %>
+      </p>
+    </div>
+    <div class="flex flex-wrap gap-2 items-center">
+      <% if (previousFile) { %>
+        <a class="btn btn-secondary text-sm" href="/files/<%= previousFile.id %>/view">Previous</a>
+      <% } else { %>
+        <span class="btn btn-secondary text-sm opacity-40 cursor-not-allowed">Previous</span>
+      <% } %>
+      <% if (nextFile) { %>
+        <a class="btn btn-secondary text-sm" href="/files/<%= nextFile.id %>/view">Next</a>
+      <% } else { %>
+        <span class="btn btn-secondary text-sm opacity-40 cursor-not-allowed">Next</span>
+      <% } %>
+      <a class="btn btn-ghost text-sm" href="/files/<%= file.id %>/raw" target="_blank" rel="noopener">Open original</a>
+      <a class="btn btn-primary text-sm" href="/files/<%= file.id %>/download">Download</a>
+    </div>
+  </div>
+
+  <div class="file-viewer-grid">
+    <aside class="card overflow-hidden">
+      <div class="px-4 py-3 border-b border-recon-line flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-recon-charcoal">Folder files</h2>
+        <span class="text-xs text-recon-fog"><%= siblings.length %></span>
+      </div>
+      <div class="file-viewer-rail" id="file-viewer-rail">
+        <% siblings.forEach(function(sibling){ %>
+          <% const siblingName = sibling.original_filename || sibling.name || 'File'; %>
+          <a
+            href="/files/<%= sibling.id %>/view"
+            class="file-viewer-item <%= Number(sibling.id) === Number(file.id) ? 'is-active' : '' %>"
+            <%= Number(sibling.id) === Number(file.id) ? 'aria-current="page"' : '' %>
+          >
+            <div class="truncate"><%= siblingName %></div>
+            <div class="text-xs text-recon-fog mt-1">
+              <%= sibling.size_bytes ? (sibling.size_bytes / 1024).toFixed(1) + ' KB' : 'Unknown size' %>
+              <% if (sibling.created_at) { %> &middot; <%= sibling.created_at.slice(0, 10) %><% } %>
+            </div>
+          </a>
+        <% }); %>
+      </div>
+    </aside>
+
+    <main class="card overflow-hidden">
+      <div class="px-4 py-3 border-b border-recon-line flex items-center justify-between gap-2">
+        <div class="min-w-0">
+          <h2 class="text-sm font-semibold text-recon-charcoal truncate"><%= displayName %></h2>
+          <p class="text-xs text-recon-fog">Use Previous / Next or your keyboard arrow keys to move through this folder.</p>
+        </div>
+      </div>
+      <% if (previewType === 'image') { %>
+        <div class="p-4 bg-white">
+          <img class="file-preview-image" src="<%= signedUrl %>" alt="<%= displayName %>">
+        </div>
+      <% } else if (previewType === 'pdf' || previewType === 'text') { %>
+        <iframe class="file-preview-frame" src="<%= signedUrl %>" title="<%= displayName %>"></iframe>
+      <% } else { %>
+        <div class="file-preview-empty">
+          <div>
+            <h3 class="text-lg font-semibold text-recon-charcoal mb-2">Preview not available</h3>
+            <p class="text-sm text-recon-fog mb-4">This file type cannot be previewed in the browser. Open or download it to review.</p>
+            <div class="flex justify-center gap-2 flex-wrap">
+              <a class="btn btn-secondary text-sm" href="/files/<%= file.id %>/raw" target="_blank" rel="noopener">Open original</a>
+              <a class="btn btn-primary text-sm" href="/files/<%= file.id %>/download">Download</a>
+            </div>
+          </div>
+        </div>
+      <% } %>
+    </main>
+  </div>
+</div>
+<script>
+(function(){
+  var previousHref = <%- JSON.stringify(previousFile ? '/files/' + previousFile.id + '/view' : null) %>;
+  var nextHref = <%- JSON.stringify(nextFile ? '/files/' + nextFile.id + '/view' : null) %>;
+  document.addEventListener('keydown', function(event){
+    if (event.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return;
+    if (event.key === 'ArrowLeft' && previousHref) window.location.href = previousHref;
+    if (event.key === 'ArrowRight' && nextHref) window.location.href = nextHref;
+  });
+  var active = document.querySelector('.file-viewer-item.is-active');
+  if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest' });
+})();
+</script>
+<%- include('../layouts/footer') %>

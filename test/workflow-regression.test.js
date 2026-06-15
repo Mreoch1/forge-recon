@@ -182,6 +182,24 @@ test('managers can create and send invoices while admin keeps accounting control
   assert.match(header, /_canManageMobile[\s\S]*href="\/invoices"/);
 });
 
+test('project files open in a Forge viewer with sibling navigation', () => {
+  const fileRoutes = read('src/routes/files.js');
+  const folderView = read('src/views/files/folder.ejs');
+  const viewer = read('src/views/files/viewer.ejs');
+
+  assert.match(fileRoutes, /router\.get\('\/:id\/view'/);
+  assert.match(fileRoutes, /router\.get\('\/:id\/raw'/);
+  assert.match(fileRoutes, /router\.get\('\/:id\/download'/);
+  assert.match(fileRoutes, /res\.render\('files\/viewer'/);
+  assert.match(fileRoutes, /previousFile/);
+  assert.match(fileRoutes, /nextFile/);
+  assert.match(folderView, /href="\/files\/<%= f\.id %>\/view"/);
+  assert.match(viewer, /file-viewer-rail/);
+  assert.match(viewer, /Folder files/);
+  assert.match(viewer, /ArrowLeft/);
+  assert.match(viewer, /ArrowRight/);
+});
+
 test('QuickBooks flow uses CSV export instead of live API sync', () => {
   const app = read('src/app.js');
   const accountingIndex = read('src/views/accounting/index.ejs');

@@ -86,6 +86,27 @@ function normalizeEntityType(value) {
   return normalized;
 }
 
+function fileDisplayName(file) {
+  return file?.original_filename || file?.name || 'File';
+}
+
+function safeAttachmentName(file) {
+  return fileDisplayName(file).replace(/[\r\n"]/g, '_');
+}
+
+function fileExtension(file) {
+  return path.extname(fileDisplayName(file)).toLowerCase();
+}
+
+function getPreviewType(file) {
+  const mimeType = String(file?.mime_type || '').toLowerCase();
+  const ext = fileExtension(file);
+  if (mimeType.startsWith('image/') || ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'].includes(ext)) return 'image';
+  if (mimeType === 'application/pdf' || ext === '.pdf') return 'pdf';
+  if (mimeType.startsWith('text/') || ['.txt', '.csv', '.log', '.md'].includes(ext)) return 'text';
+  return 'download';
+}
+
 function assertFileRouteRead(result, label) {
   if (result?.error) {
     const err = new Error(`${label}: ${result.error.message}`);
@@ -447,13 +468,67 @@ router.post('/:id/delete', requireAuth, async (req, res) => {
   res.redirect('/files/folders/' + file.folder_id);
 });
 
-// GET /:id/view — inline preview via signed URL
-router.get('/:id/view', requireAuth, async (req, res) => {
+// GET /:id/raw — direct signed URL for inline browser preview
+router.get('/:id/raw', requireAuth, async (req, res) => {
   const { data: file } = await checkedFileRouteRead(supabase.from('files').select('*').eq('id', req.params.id).maybeSingle(), 'file view read failed');
   if (!file) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'File not found.' });
+  const { data: folder } = await checkedFileRouteRead(supabase.from('folders').select('*').eq('id', file.folder_id).maybeSingle(), 'file view folder read failed');
+  if (!folder) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Folder not found.' });
+  if (!workerCanAccessEntity(req, folder.entity_type, folder.entity_id)) return workerForbidden(res);
   try {
     const signedUrl = await storage.getSignedUrl('entity-files', file.storage_path || file.name, 3600);
     return res.redirect(signedUrl);
+  } catch (e) {
+    return res.status(500).render('error', { title: 'Storage error', code: 500, message: 'Failed to access file: ' + e.message });
+  }
+});
+
+// GET /:id/download — force file download through Forge
+router.get('/:id/download', requireAuth, async (req, res) => {
+  const { data: file } = await checkedFileRouteRead(supabase.from('files').select('*').eq('id', req.params.id).maybeSingle(), 'file download read failed');
+  if (!file) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'File not found.' });
+  const { data: folder } = await checkedFileRouteRead(supabase.from('folders').select('*').eq('id', file.folder_id).maybeSingle(), 'file download folder read failed');
+  if (!folder) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Folder not found.' });
+  if (!workerCanAccessEntity(req, folder.entity_type, folder.entity_id)) return workerForbidden(res);
+
+  try {
+    const buffer = await storage.downloadBuffer('entity-files', file.storage_path || file.name);
+    res.setHeader('Content-Type', file.mime_type || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeAttachmentName(file)}"`);
+    return res.send(buffer);
+  } catch (e) {
+    return res.status(500).render('error', { title: 'Storage error', code: 500, message: 'Failed to download file: ' + e.message });
+  }
+});
+
+// GET /:id/view — Forge file viewer with sibling navigation
+router.get('/:id/view', requireAuth, async (req, res) => {
+  const { data: file } = await checkedFileRouteRead(supabase.from('files').select('*').eq('id', req.params.id).maybeSingle(), 'file view read failed');
+  if (!file) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'File not found.' });
+  const { data: folder } = await checkedFileRouteRead(supabase.from('folders').select('*').eq('id', file.folder_id).maybeSingle(), 'file view folder read failed');
+  if (!folder) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Folder not found.' });
+  if (!workerCanAccessEntity(req, folder.entity_type, folder.entity_id)) return workerForbidden(res);
+
+  const contents = await filesService.getFolderContents(folder.id);
+  const siblings = contents.files || [];
+  const currentIndex = siblings.findIndex(f => Number(f.id) === Number(file.id));
+  const previousFile = currentIndex > 0 ? siblings[currentIndex - 1] : null;
+  const nextFile = currentIndex >= 0 && currentIndex < siblings.length - 1 ? siblings[currentIndex + 1] : null;
+
+  try {
+    const signedUrl = await storage.getSignedUrl('entity-files', file.storage_path || file.name, 3600);
+    return res.render('files/viewer', {
+      title: fileDisplayName(file) + ' - Files',
+      activeNav: 'files',
+      folder,
+      file,
+      signedUrl,
+      previewType: getPreviewType(file),
+      siblings,
+      currentIndex,
+      previousFile,
+      nextFile,
+    });
   } catch (e) {
     return res.status(500).render('error', { title: 'Storage error', code: 500, message: 'Failed to access file: ' + e.message });
   }
