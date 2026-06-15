@@ -46,6 +46,31 @@ function fileIcon(mime) {
   if (mime.startsWith('audio/')) return '🎧';
   return '📎';
 }
+const woAttachments = (typeof photos !== 'undefined' && photos ? photos : []);
+const woImageAttachments = woAttachments.filter(function(p){ return p.is_image; });
+const woFileAttachments = woAttachments.filter(function(p){ return !p.is_image; });
+const woViewerAttachments = woImageAttachments.concat(woFileAttachments).map(function(p){
+  const name = p.original_filename || String(p.filename || '').split('/').pop();
+  const mime = String(p.mime_type || '').toLowerCase();
+  return {
+    id: p.id,
+    url: p.url,
+    name: name,
+    caption: p.caption || '',
+    mime_type: p.mime_type || '',
+    size: fmtSize(p.size_bytes),
+    user_name: p.user_name || '',
+    created_at: p.created_at ? String(p.created_at).slice(0,16).replace('T',' ') : '',
+    is_image: !!p.is_image,
+    is_pdf: mime.includes('pdf')
+  };
+});
+function safeJson(value) {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026');
+}
 %>
 
 <style>
@@ -120,6 +145,115 @@ function fileIcon(mime) {
   /* Empty states */
   .ws-empty { padding: 1rem 0; color: #aaa; font-size: .82rem; text-align: center; font-style: italic; }
 
+  /* Attachment viewer */
+  body.attachment-viewer-open { overflow: hidden; }
+  .attachment-trigger { cursor: zoom-in; }
+  .attachment-viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem;
+  }
+  .attachment-viewer.open { display: flex; }
+  .attachment-viewer-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(12, 12, 12, .82);
+  }
+  .attachment-viewer-panel {
+    position: relative;
+    z-index: 1;
+    width: min(1120px, 100%);
+    max-height: calc(100vh - 2.5rem);
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 24px 70px rgba(0,0,0,.38);
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    overflow: hidden;
+  }
+  .attachment-viewer-head,
+  .attachment-viewer-foot {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: .85rem 1rem;
+    border-bottom: 1px solid #ececec;
+  }
+  .attachment-viewer-foot {
+    border-top: 1px solid #ececec;
+    border-bottom: 0;
+    justify-content: space-between;
+  }
+  .attachment-viewer-title {
+    min-width: 0;
+    flex: 1;
+    font-weight: 700;
+    color: #1a1a1a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .attachment-viewer-meta { color: #777; font-size: .78rem; }
+  .attachment-viewer-body {
+    position: relative;
+    min-height: 320px;
+    background: #111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .attachment-viewer-body img {
+    max-width: 100%;
+    max-height: calc(100vh - 12.5rem);
+    object-fit: contain;
+  }
+  .attachment-viewer-body iframe {
+    width: 100%;
+    height: min(72vh, 760px);
+    border: 0;
+    background: #fff;
+  }
+  .attachment-viewer-file {
+    color: #fff;
+    text-align: center;
+    padding: 2rem;
+  }
+  .attachment-viewer-file-icon { font-size: 3rem; margin-bottom: .6rem; }
+  .attachment-viewer-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 42px;
+    height: 52px;
+    border: 0;
+    border-radius: 4px;
+    background: rgba(255,255,255,.92);
+    color: #1a1a1a;
+    font-size: 1.65rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .attachment-viewer-prev { left: .75rem; }
+  .attachment-viewer-next { right: .75rem; }
+  .attachment-viewer-close {
+    width: 34px;
+    height: 34px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+    color: #333;
+    font-size: 1.2rem;
+    cursor: pointer;
+  }
+
   /* === RESPONSIVE === */
   @media (max-width: 900px) {
     .ws-grid { grid-template-columns: 1fr !important; gap: 2rem !important; }
@@ -137,6 +271,10 @@ function fileIcon(mime) {
     .ws-items .qty-cell { width: auto; }
     .ws-items .unit-cell { width: auto; }
     .ws-back { font-size: .72rem; }
+    .attachment-viewer { padding: .5rem; }
+    .attachment-viewer-panel { max-height: calc(100vh - 1rem); }
+    .attachment-viewer-foot { align-items: flex-start; flex-direction: column; }
+    .attachment-viewer-body { min-height: 260px; }
   }
 </style>
 
@@ -327,15 +465,16 @@ function fileIcon(mime) {
           <button type="submit" class="btn btn-sm btn-primary whitespace-nowrap">Upload</button>
         </div>
       </form>
-      <% if (typeof photos !== 'undefined' && photos && photos.length) { %>
-        <% var hasImages = photos.some(function(p){ return p.is_image; }); %>
-        <% var hasFiles = photos.some(function(p){ return !p.is_image; }); %>
-        <% if (hasImages) { %>
+      <% if (woAttachments.length) { %>
+        <% if (woImageAttachments.length) { %>
           <h3 class="text-xs font-semibold text-recon-fog uppercase tracking-wider mb-2">Images</h3>
           <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
-            <% photos.filter(function(p){ return p.is_image; }).forEach(function(p){ %>
+            <% woImageAttachments.forEach(function(p, idx){ %>
               <div class="relative group">
-                <a href="<%= p.url %>" target="_blank">
+                <a href="<%= p.url %>" target="_blank" rel="noopener"
+                   class="attachment-trigger block"
+                   data-attachment-index="<%= idx %>"
+                   aria-label="Open attachment viewer for <%= p.original_filename || p.filename %>">
                   <img src="<%= p.url %>"
                        class="w-full h-24 object-cover rounded border"
                        loading="lazy"
@@ -352,14 +491,17 @@ function fileIcon(mime) {
             <% }); %>
           </div>
         <% } %>
-        <% if (hasFiles) { %>
+        <% if (woFileAttachments.length) { %>
           <h3 class="text-xs font-semibold text-recon-fog uppercase tracking-wider mb-2">Files</h3>
           <div class="space-y-1 mb-4">
-            <% photos.filter(function(p){ return !p.is_image; }).forEach(function(p){ %>
+            <% woFileAttachments.forEach(function(p, idx){ %>
+              <% var viewerIndex = woImageAttachments.length + idx; %>
               <div class="flex items-center justify-between py-2 px-2 -mx-2 rounded hover:bg-gray-50 group">
                 <div class="flex items-center gap-2 min-w-0">
                   <span class="text-base flex-shrink-0"><%= fileIcon(p.mime_type) %></span>
-                  <a href="<%= p.url %>" target="_blank" class="text-sm font-medium text-recon-charcoal hover:text-recon-red truncate"
+                  <a href="<%= p.url %>" target="_blank" rel="noopener"
+                     class="attachment-trigger text-sm font-medium text-recon-charcoal hover:text-recon-red truncate"
+                     data-attachment-index="<%= viewerIndex %>"
                      title="<%= p.original_filename || p.filename %>">
                     <%= p.original_filename || p.filename.split('/').pop() %>
                   </a>
@@ -486,5 +628,134 @@ function fileIcon(mime) {
     </details>
   <% } %>
 </div>
+
+<% if (woViewerAttachments.length) { %>
+  <div class="attachment-viewer" id="wo-attachment-viewer" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="wo-attachment-title">
+    <div class="attachment-viewer-backdrop" data-attachment-close></div>
+    <section class="attachment-viewer-panel">
+      <header class="attachment-viewer-head">
+        <div class="attachment-viewer-title" id="wo-attachment-title">Attachment</div>
+        <div class="attachment-viewer-meta" id="wo-attachment-counter"></div>
+        <button type="button" class="attachment-viewer-close" data-attachment-close aria-label="Close attachment viewer">&times;</button>
+      </header>
+      <div class="attachment-viewer-body" id="wo-attachment-body">
+        <button type="button" class="attachment-viewer-nav attachment-viewer-prev" id="wo-attachment-prev" aria-label="Previous attachment">&lsaquo;</button>
+        <button type="button" class="attachment-viewer-nav attachment-viewer-next" id="wo-attachment-next" aria-label="Next attachment">&rsaquo;</button>
+      </div>
+      <footer class="attachment-viewer-foot">
+        <div>
+          <div class="attachment-viewer-meta" id="wo-attachment-meta"></div>
+          <div class="text-sm text-recon-charcoal mt-1" id="wo-attachment-caption"></div>
+        </div>
+        <a href="#" target="_blank" rel="noopener" class="btn btn-secondary text-sm" id="wo-attachment-open">Open in new tab</a>
+      </footer>
+    </section>
+  </div>
+
+  <script id="wo-attachment-data" type="application/json"><%- safeJson(woViewerAttachments) %></script>
+  <script>
+    (function(){
+      const dataEl = document.getElementById('wo-attachment-data');
+      const viewer = document.getElementById('wo-attachment-viewer');
+      if (!dataEl || !viewer) return;
+
+      let items = [];
+      try {
+        items = JSON.parse(dataEl.textContent || '[]');
+      } catch (err) {
+        return;
+      }
+      if (!items.length) return;
+
+      const titleEl = document.getElementById('wo-attachment-title');
+      const counterEl = document.getElementById('wo-attachment-counter');
+      const bodyEl = document.getElementById('wo-attachment-body');
+      const metaEl = document.getElementById('wo-attachment-meta');
+      const captionEl = document.getElementById('wo-attachment-caption');
+      const openEl = document.getElementById('wo-attachment-open');
+      const prevEl = document.getElementById('wo-attachment-prev');
+      const nextEl = document.getElementById('wo-attachment-next');
+      let index = 0;
+
+      function clearPreview() {
+        Array.from(bodyEl.children).forEach(function(child){
+          if (!child.classList.contains('attachment-viewer-nav')) child.remove();
+        });
+      }
+
+      function render() {
+        const item = items[index];
+        clearPreview();
+        titleEl.textContent = item.name || 'Attachment';
+        counterEl.textContent = (index + 1) + ' / ' + items.length;
+        metaEl.textContent = [item.mime_type, item.size, item.user_name, item.created_at].filter(Boolean).join(' - ');
+        captionEl.textContent = item.caption || '';
+        openEl.href = item.url || '#';
+
+        if (item.is_image) {
+          const img = document.createElement('img');
+          img.src = item.url;
+          img.alt = item.name || 'Work order attachment';
+          bodyEl.appendChild(img);
+        } else if (item.is_pdf) {
+          const frame = document.createElement('iframe');
+          frame.src = item.url;
+          frame.title = item.name || 'PDF attachment';
+          bodyEl.appendChild(frame);
+        } else {
+          const fallback = document.createElement('div');
+          fallback.className = 'attachment-viewer-file';
+          const icon = document.createElement('div');
+          icon.className = 'attachment-viewer-file-icon';
+          icon.textContent = 'File';
+          const text = document.createElement('div');
+          text.textContent = 'Preview is not available for this file type. Open it in a new tab to view or download it.';
+          fallback.appendChild(icon);
+          fallback.appendChild(text);
+          bodyEl.appendChild(fallback);
+        }
+      }
+
+      function openViewer(nextIndex) {
+        index = Math.max(0, Math.min(items.length - 1, nextIndex));
+        render();
+        viewer.classList.add('open');
+        viewer.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('attachment-viewer-open');
+        const closeButton = viewer.querySelector('.attachment-viewer-close');
+        if (closeButton) closeButton.focus();
+      }
+
+      function closeViewer() {
+        viewer.classList.remove('open');
+        viewer.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('attachment-viewer-open');
+      }
+
+      function move(delta) {
+        index = (index + delta + items.length) % items.length;
+        render();
+      }
+
+      document.querySelectorAll('[data-attachment-index]').forEach(function(trigger){
+        trigger.addEventListener('click', function(event){
+          event.preventDefault();
+          openViewer(Number(trigger.getAttribute('data-attachment-index')) || 0);
+        });
+      });
+      viewer.querySelectorAll('[data-attachment-close]').forEach(function(trigger){
+        trigger.addEventListener('click', closeViewer);
+      });
+      prevEl.addEventListener('click', function(){ move(-1); });
+      nextEl.addEventListener('click', function(){ move(1); });
+      document.addEventListener('keydown', function(event){
+        if (!viewer.classList.contains('open')) return;
+        if (event.key === 'Escape') closeViewer();
+        if (event.key === 'ArrowLeft') move(-1);
+        if (event.key === 'ArrowRight') move(1);
+      });
+    })();
+  </script>
+<% } %>
 
 <%- include('../layouts/footer') %>
