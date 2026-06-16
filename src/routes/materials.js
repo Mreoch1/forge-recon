@@ -180,12 +180,33 @@ async function syncRfpSupplierLinesToMaterials(jobId) {
 
 // ── Access middleware ──
 
+async function resolveMaterialsJobId(req) {
+  if (req.params.id) return req.params.id;
+  if (!req.params.itemId) return null;
+
+  const { data: item, error: itemError } = await supabase
+    .from('project_material_items')
+    .select('id, category_id')
+    .eq('id', req.params.itemId)
+    .maybeSingle();
+  if (itemError) throw itemError;
+  if (!item?.category_id) return null;
+
+  const { data: category, error: categoryError } = await supabase
+    .from('project_material_categories')
+    .select('job_id')
+    .eq('id', item.category_id)
+    .maybeSingle();
+  if (categoryError) throw categoryError;
+  return category?.job_id || null;
+}
+
 async function requireMaterialsAccess(req, res, next) {
   const appRole = req.session?.role;
-  if (appRole === 'admin' || appRole === 'manager') return next();
-  const jobId = req.params.id;
-  if (!jobId) return denyProjectAccess(res, 'Project ID required.');
   try {
+    if (appRole === 'admin') return next();
+    const jobId = await resolveMaterialsJobId(req);
+    if (!jobId) return denyProjectAccess(res, 'Project ID required.');
     const { data: job } = await supabase.from('jobs').select('id, project_manager_user_id, assigned_to_user_id').eq('id', jobId).maybeSingle();
     if (!job) return denyProjectAccess(res, 'Project not found.');
     const access = await loadProjectAccess(req, job);

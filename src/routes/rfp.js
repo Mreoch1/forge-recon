@@ -176,15 +176,52 @@ async function deleteRfpLineItemTree(itemId, visited = new Set()) {
   if (error) throw error;
 }
 
+async function resolveRfpJobId(req) {
+  if (req.params.id) return req.params.id;
+
+  if (req.params.itemId) {
+    const { data: item, error } = await supabase
+      .from('rfp_line_items')
+      .select('id, rfp_id, project_rfps!inner(job_id)')
+      .eq('id', req.params.itemId)
+      .maybeSingle();
+    if (error) throw error;
+    return item?.project_rfps?.job_id || null;
+  }
+
+  if (req.body?.rfp_id) {
+    const { data: rfp, error } = await supabase
+      .from('project_rfps')
+      .select('job_id')
+      .eq('id', req.body.rfp_id)
+      .maybeSingle();
+    if (error) throw error;
+    return rfp?.job_id || null;
+  }
+
+  const firstItemId = Array.isArray(req.body?.items) && req.body.items.length ? req.body.items[0]?.id : null;
+  if (firstItemId) {
+    const { data: item, error } = await supabase
+      .from('rfp_line_items')
+      .select('id, project_rfps!inner(job_id)')
+      .eq('id', firstItemId)
+      .maybeSingle();
+    if (error) throw error;
+    return item?.project_rfps?.job_id || null;
+  }
+
+  return null;
+}
+
 // ── Project-level access middleware for RFP routes ──
-// Allows access if user is app admin/manager, or has project-level
-// operations access (superintendent, pre_construction, admin member role).
+// Allows access if user is app admin, or has project-level operations access
+// through assignment, project manager, or member role.
 async function requireRfpAccess(req, res, next) {
   const appRole = req.session?.role;
-  if (appRole === 'admin' || appRole === 'manager') return next();
-  const jobId = req.params.id;
-  if (!jobId) return denyProjectAccess(res, 'Project ID required.');
   try {
+    if (appRole === 'admin') return next();
+    const jobId = await resolveRfpJobId(req);
+    if (!jobId) return denyProjectAccess(res, 'Project ID required.');
     const { data: job } = await supabase.from('jobs').select('id, project_manager_user_id, assigned_to_user_id').eq('id', jobId).maybeSingle();
     if (!job) return denyProjectAccess(res, 'Project not found.');
     const access = await loadProjectAccess(req, job);
@@ -197,11 +234,10 @@ async function requireRfpAccess(req, res, next) {
 
 async function requireRfpEditAccess(req, res, next) {
   const appRole = req.session?.role;
-  if (appRole === 'admin' || appRole === 'manager') return next();
-  const jobId = req.params.id;
-  // Some routes use /projects/rfps/items/:itemId — extract job_id from item when needed
-  if (!jobId) return denyProjectAccess(res, 'Project ID required.');
   try {
+    if (appRole === 'admin') return next();
+    const jobId = await resolveRfpJobId(req);
+    if (!jobId) return denyProjectAccess(res, 'Project ID required.');
     const { data: job } = await supabase.from('jobs').select('id, project_manager_user_id, assigned_to_user_id').eq('id', jobId).maybeSingle();
     if (!job) return denyProjectAccess(res, 'Project not found.');
     const access = await loadProjectAccess(req, job);
@@ -241,7 +277,7 @@ function parseAutosaveField(field, value) {
 
 async function userCanEditRfpJob(req, job) {
   const appRole = req.session?.role;
-  if (appRole === 'admin' || appRole === 'manager') return true;
+  if (appRole === 'admin') return true;
   const access = await loadProjectAccess(req, job);
   return !!access.canSeeOperations;
 }

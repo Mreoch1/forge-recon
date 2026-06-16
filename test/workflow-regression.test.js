@@ -34,6 +34,36 @@ test('project subroutes enforce capability checks', () => {
   assert.match(routes, /requireProjectAccess\(req, res, id, 'manage'\)/);
 });
 
+test('project visibility is assignment scoped for non-admin users', () => {
+  const routes = read('src/routes/jobs.js');
+
+  assert.match(routes, /async function visibleProjectIdsForUser/);
+  assert.match(routes, /assigned_to_user_id\.eq/);
+  assert.match(routes, /project_manager_user_id\.eq/);
+  assert.match(routes, /\.from\('job_members'\)\s*\.select\('job_id'\)\s*\.eq\('user_id'/);
+  assert.match(routes, /if \(req\.session\.role !== 'admin'\)/);
+  assert.match(routes, /query = applyProjectVisibility\(query, visibleProjectIds\)/);
+  assert.match(routes, /countQuery = applyProjectVisibility\(countQuery, visibleProjectIds\)/);
+  assert.match(routes, /const appFull = appRole === 'admin'/);
+  assert.match(routes, /hasAnyProjectAccess\(access\)/);
+  assert.match(routes, /You are not assigned to this project/);
+  assert.match(routes, /upsert\(\{\s*job_id: newJob\.id,[\s\S]*role: 'admin'/);
+});
+
+test('project RFP and materials access follows project assignment for managers', () => {
+  const rfp = read('src/routes/rfp.js');
+  const materials = read('src/routes/materials.js');
+
+  assert.doesNotMatch(rfp, /appRole === 'admin' \|\| appRole === 'manager'/);
+  assert.doesNotMatch(materials, /appRole === 'admin' \|\| appRole === 'manager'/);
+  assert.match(rfp, /async function resolveRfpJobId/);
+  assert.match(rfp, /const jobId = await resolveRfpJobId\(req\)/);
+  assert.match(rfp, /const access = await loadProjectAccess\(req, job\)/);
+  assert.match(materials, /async function resolveMaterialsJobId/);
+  assert.match(materials, /\.from\('project_material_items'\)\s*\.select\('id, category_id'\)/);
+  assert.match(materials, /const access = await loadProjectAccess\(req, job\)/);
+});
+
 test('managers can access customers but cannot delete them', () => {
   const app = read('src/app.js');
   const customers = read('src/routes/customers.js');

@@ -44,6 +44,35 @@ function throwIfSupabaseError(result, label) {
   return result;
 }
 
+async function visibleProjectIdsForUser(userId) {
+  const id = Number(userId);
+  if (!id) return [];
+  const [directResult, memberResult] = await Promise.all([
+    supabase
+      .from('jobs')
+      .select('id')
+      .or(`assigned_to_user_id.eq.${id},project_manager_user_id.eq.${id}`),
+    supabase
+      .from('job_members')
+      .select('job_id')
+      .eq('user_id', id),
+  ]);
+  throwIfSupabaseError(directResult, 'Project visibility direct load failed');
+  throwIfSupabaseError(memberResult, 'Project visibility member load failed');
+  return Array.from(new Set([
+    ...(directResult.data || []).map(row => Number(row.id)),
+    ...(memberResult.data || []).map(row => Number(row.job_id)),
+  ].filter(Boolean)));
+}
+
+function applyProjectVisibility(query, visibleProjectIds) {
+  return visibleProjectIds.length ? query.in('id', visibleProjectIds) : query.in('id', [-1]);
+}
+
+function hasAnyProjectAccess(access) {
+  return !!(access && (access.canSeeBilling || access.canSeeOperations || access.canManageMembers));
+}
+
 function isMissingOptionalRfpTable(error) {
   const message = String(error?.message || '').toLowerCase();
   return error?.code === '42P01' ||
@@ -429,9 +458,11 @@ router.get('/', async (req, res) => {
     countQuery = countQuery.eq('status', status);
   }
 
-  // D-130: managers see their projects — filter is applied at the detail page level
-  // via requireManagerProjectAccess(). The index shows all projects so managers
-  // can find and navigate into the ones they're assigned to.
+  if (req.session.role !== 'admin') {
+    const visibleProjectIds = await visibleProjectIdsForUser(req.session.userId);
+    query = applyProjectVisibility(query, visibleProjectIds);
+    countQuery = applyProjectVisibility(countQuery, visibleProjectIds);
+  }
 
   // R37i: also surface the listing-query error (was being silently swallowed —
   // only countQuery.error was checked, masking PostgREST FK-resolution failures).
@@ -513,6 +544,16 @@ router.post('/', async (req, res) => {
     .select()
     .single();
   if (insertError) throw insertError;
+  if (req.session.role !== 'admin' && req.session.userId) {
+    const { error: memberError } = await supabase
+      .from('job_members')
+      .upsert({
+        job_id: newJob.id,
+        user_id: Number(req.session.userId),
+        role: 'admin',
+      }, { onConflict: 'job_id,user_id' });
+    if (memberError) throw memberError;
+  }
   setFlash(req, 'success', `Project "${data.title}" created.`);
   res.redirect(`/projects/${newJob.id}`);
 });
@@ -682,6 +723,9 @@ router.get('/:id', async (req, res) => {
     user_email: m.users?.email,
   }));
   const access = projectAccess({ req, job, members: normalizedMembers });
+  if (!hasAnyProjectAccess(access)) {
+    return denyProjectAccess(res, 'You are not assigned to this project.');
+  }
 
   // F-001: load decision assignees (multi-user)
   var decisionAssignees = {};
@@ -941,6 +985,8 @@ router.get('/:id/contracts/:contractorKey', async (req, res) => {
 
 router.get('/:id/edit', async (req, res) => {
   const id = req.params.id;
+  const allowed = await requireProjectAccess(req, res, id, 'manage');
+  if (!allowed) return;
   const [{ data: job }, { data: customers }, { data: users }] = await Promise.all([
     supabase.from('jobs').select('*').eq('id', id).maybeSingle(),
     supabase.from('customers').select('id, name').order('name'),
@@ -955,6 +1001,8 @@ router.get('/:id/edit', async (req, res) => {
 
 router.post('/:id', async (req, res) => {
   const id = req.params.id;
+  const allowed = await requireProjectAccess(req, res, id, 'manage');
+  if (!allowed) return;
   const { data: job, error: findError } = await supabase.from('jobs').select('id, title, project_manager_user_id, assigned_to_user_id').eq('id', id).maybeSingle();
   if (findError) throw findError;
   if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Project not found.' });
@@ -992,6 +1040,8 @@ router.post('/:id', async (req, res) => {
 
 router.post('/:id/delete', async (req, res) => {
   const id = req.params.id;
+  const allowed = await requireProjectAccess(req, res, id, 'manage');
+  if (!allowed) return;
   const { data: job, error: findError } = await supabase.from('jobs').select('id, title, project_manager_user_id, assigned_to_user_id').eq('id', id).maybeSingle();
   if (findError) throw findError;
   if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Project not found.' });
@@ -1029,7 +1079,7 @@ function normalizeProjectRole(role) {
 function projectAccess({ req, job, members }) {
   const userId = Number(req.session?.userId);
   const appRole = req.session?.role;
-  const appFull = appRole === 'admin' || appRole === 'manager';
+  const appFull = appRole === 'admin';
   const isProjectManager =
     userId &&
     (Number(job.project_manager_user_id) === userId || Number(job.assigned_to_user_id) === userId);
@@ -1074,9 +1124,11 @@ async function requireProjectAccess(req, res, id, capability) {
     capability === 'manage' ? access.canManageMembers :
     (access.canSeeBilling || access.canSeeOperations);
   if (!allowed) {
-    denyProjectAccess(res, capability === 'billing'
-      ? 'This project area contains billing or cost information.'
-      : 'This project area requires project admin access.');
+    const message =
+      capability === 'billing' ? 'This project area contains billing or cost information.' :
+      capability === 'manage' ? 'This project area requires project admin access.' :
+      'You are not assigned to this project.';
+    denyProjectAccess(res, message);
     return null;
   }
   return { job, access };
