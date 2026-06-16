@@ -307,8 +307,8 @@
                             <% var subFid = 'rfp-sub-form-' + sub.id; var subDid = 'rfp-sub-del-' + sub.id; %>
                             <form id="<%= subFid %>" action="/projects/rfps/items/<%= sub.id %>" method="POST"></form>
                             <div class="rounded border border-recon-mist bg-recon-cloud/5 p-3">
-                              <div class="grid gap-2 md:grid-cols-[8rem_minmax(10rem,1fr)_minmax(14rem,2fr)_5rem_7rem_5rem_5rem_7rem_7rem_5rem_auto] md:items-end">
-                                <label class="block">
+                              <div class="grid min-w-0 gap-3 lg:grid-cols-12 lg:items-end">
+                                <label class="block min-w-0 lg:col-span-2">
                                   <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Type</span>
                                   <select form="<%= subFid %>" name="scope_type" class="input mt-1 w-full text-xs"
                                           data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="scope_type"
@@ -317,51 +317,55 @@
                                     <option value="supplier" <%= sub.scope_type === 'supplier' ? 'selected' : '' %>>Supplier / Material</option>
                                   </select>
                                 </label>
-                                <label class="block">
+                                <label class="block min-w-0 lg:col-span-2">
                                   <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Company</span>
                                   <input form="<%= subFid %>" name="vendor" value="<%= sub.vendor || '' %>"
                                          class="input mt-1 w-full text-xs" placeholder="Vendor or contractor"
                                          list="rfp-line-entity-options" autocomplete="off"
                                          data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="vendor" data-original-value="<%= sub.vendor || '' %>">
                                 </label>
-                                <label class="block">
+                                <label class="block min-w-0 lg:col-span-4">
                                   <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Scope / description</span>
-                                  <textarea form="<%= subFid %>" name="description" class="input mt-1 w-full text-xs" placeholder="Pricing line description" rows="1" data-autosize
+                                  <textarea form="<%= subFid %>" name="description" class="input mt-1 w-full resize-y text-xs leading-snug" placeholder="Pricing line description" rows="2" data-autosize
                                             data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="description" data-original-value="<%= sub.description || '' %>"><%= sub.description %></textarea>
                                 </label>
-                                <label class="block">
+                                <label class="block min-w-0 sm:col-span-1 lg:col-span-1">
                                   <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Qty</span>
                                   <input form="<%= subFid %>" name="quantity" type="number" step="any" value="<%= sub.quantity != null ? sub.quantity : '' %>" class="input mt-1 w-full text-right text-xs" data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="quantity" data-original-value="<%= sub.quantity != null ? sub.quantity : '' %>">
                                 </label>
-                                <label class="block">
+                                <label class="block min-w-0 sm:col-span-1 lg:col-span-1">
                                   <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Unit cost</span>
                                   <input form="<%= subFid %>" name="contractor_cost" type="number" step="any" value="<%= sub.contractor_cost != null ? sub.contractor_cost : '' %>" class="input mt-1 w-full text-right text-xs" placeholder="$ Unit" data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="contractor_cost" data-original-value="<%= sub.contractor_cost != null ? sub.contractor_cost : '' %>">
                                 </label>
-                                <label class="block">
+                                <label class="block min-w-0 sm:col-span-1 lg:col-span-1">
                                   <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">MU%</span>
                                   <input form="<%= subFid %>" name="markup_pct" type="number" step="any" value="<%= sub.markup_pct != null ? sub.markup_pct : '20' %>" class="input mt-1 w-full text-right text-xs" data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="markup_pct" data-original-value="<%= sub.markup_pct != null ? sub.markup_pct : '20' %>">
                                 </label>
-                                <label class="block">
+                                <label class="block min-w-0 sm:col-span-1 lg:col-span-1">
                                   <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">GR%</span>
                                   <input form="<%= subFid %>" name="general_requirements_pct" type="number" step="any" value="<%= sub.general_requirements_pct != null ? sub.general_requirements_pct : '6' %>" class="input mt-1 w-full text-right text-xs" data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="general_requirements_pct" data-original-value="<%= sub.general_requirements_pct != null ? sub.general_requirements_pct : '6' %>">
                                 </label>
-                                <div>
-                                  <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Total cost</span>
-                                  <div class="mt-2 text-right font-semibold"><%= sub.total_cost != null ? '$' + Number(sub.total_cost).toFixed(2) : '-' %></div>
-                                </div>
-                                <div>
-                                  <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Total w/ MU</span>
-                                  <div class="mt-2 text-right font-semibold"><%= sub.total_with_markup != null ? '$' + Number(sub.total_with_markup).toFixed(2) : '-' %></div>
-                                </div>
-                                <label class="flex items-center gap-2 pb-2">
-                                  <input form="<%= subFid %>" type="hidden" name="approved" value="0">
-                                  <input form="<%= subFid %>" type="checkbox" name="approved" value="1" <%= sub.approved ? 'checked' : '' %> data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="approved" data-original-value="<%= sub.approved ? '1' : '0' %>">
-                                  <span class="text-xs">Approved</span>
-                                </label>
-                                <div class="flex items-center justify-end gap-2 pb-1">
-                                  <button type="submit" form="<%= subFid %>" class="btn btn-secondary text-xs">Save</button>
-                                  <form id="<%= subDid %>" action="/projects/rfps/items/<%= sub.id %>/delete" method="POST" onsubmit="return confirm('Delete this vendor/contractor line?')"></form>
-                                  <button type="submit" form="<%= subDid %>" class="text-recon-fog hover:text-recon-red text-sm">&times;</button>
+                                <div class="min-w-0 lg:col-span-12">
+                                  <div class="mt-1 flex flex-wrap items-center justify-end gap-x-5 gap-y-3 border-t border-recon-mist pt-3">
+                                    <div class="min-w-[7rem] text-right">
+                                      <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Total cost</span>
+                                      <div class="font-semibold"><%= sub.total_cost != null ? '$' + Number(sub.total_cost).toFixed(2) : '-' %></div>
+                                    </div>
+                                    <div class="min-w-[7rem] text-right">
+                                      <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Total w/ MU</span>
+                                      <div class="font-semibold"><%= sub.total_with_markup != null ? '$' + Number(sub.total_with_markup).toFixed(2) : '-' %></div>
+                                    </div>
+                                    <label class="flex items-center gap-2">
+                                      <input form="<%= subFid %>" type="hidden" name="approved" value="0">
+                                      <input form="<%= subFid %>" type="checkbox" name="approved" value="1" <%= sub.approved ? 'checked' : '' %> data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="approved" data-original-value="<%= sub.approved ? '1' : '0' %>">
+                                      <span class="text-xs">Approved</span>
+                                    </label>
+                                    <div class="flex items-center justify-end gap-2">
+                                      <button type="submit" form="<%= subFid %>" class="btn btn-secondary text-xs">Save</button>
+                                      <form id="<%= subDid %>" action="/projects/rfps/items/<%= sub.id %>/delete" method="POST" onsubmit="return confirm('Delete this vendor/contractor line?')"></form>
+                                      <button type="submit" form="<%= subDid %>" class="text-recon-fog hover:text-recon-red text-sm">&times;</button>
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -370,18 +374,41 @@
 
                         <div id="add-sub-<%= item.id %>" class="mt-4 rounded border border-recon-mist bg-white p-3">
                           <div class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Add vendor / contractor line</div>
-                          <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/items" method="POST" class="rfp-line-form grid gap-2 text-xs md:grid-cols-[8rem_minmax(10rem,1fr)_minmax(14rem,2fr)_5rem_7rem_5rem_5rem_auto]" onclick="event.stopPropagation();">
-                            <select name="scope_type" class="input w-full">
-                              <option value="contractor">Contractor / Labor</option>
-                              <option value="supplier">Supplier / Material</option>
-                            </select>
-                            <input name="vendor" class="input w-full" placeholder="Vendor or contractor" autocomplete="off" list="rfp-line-entity-options">
-                            <textarea name="description" placeholder="Pricing line description" class="input w-full" rows="1" data-autosize required></textarea>
-                            <input name="quantity" data-compute-input type="number" step="any" placeholder="Qty" class="input w-full text-right">
-                            <input name="contractor_cost" data-compute-input type="number" step="any" placeholder="$ Unit cost" class="input w-full text-right">
-                            <input name="markup_pct" data-compute-input type="number" step="any" placeholder="MU%" value="20" class="input w-full text-right">
-                            <input name="general_requirements_pct" data-compute-input type="number" step="any" placeholder="GR%" value="6" class="input w-full text-right">
-                            <button type="submit" class="btn btn-primary text-xs">Add line</button>
+                          <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/items" method="POST" class="rfp-line-form grid min-w-0 gap-3 text-xs lg:grid-cols-12 lg:items-end" onclick="event.stopPropagation();">
+                            <label class="block min-w-0 lg:col-span-2">
+                              <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Type</span>
+                              <select name="scope_type" class="input mt-1 w-full">
+                                <option value="contractor">Contractor / Labor</option>
+                                <option value="supplier">Supplier / Material</option>
+                              </select>
+                            </label>
+                            <label class="block min-w-0 lg:col-span-2">
+                              <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Company</span>
+                              <input name="vendor" class="input mt-1 w-full" placeholder="Vendor or contractor" autocomplete="off" list="rfp-line-entity-options">
+                            </label>
+                            <label class="block min-w-0 lg:col-span-4">
+                              <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Scope / description</span>
+                              <textarea name="description" placeholder="Pricing line description" class="input mt-1 w-full resize-y leading-snug" rows="2" data-autosize required></textarea>
+                            </label>
+                            <label class="block min-w-0 lg:col-span-1">
+                              <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Qty</span>
+                              <input name="quantity" data-compute-input type="number" step="any" placeholder="Qty" class="input mt-1 w-full text-right">
+                            </label>
+                            <label class="block min-w-0 lg:col-span-1">
+                              <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Unit cost</span>
+                              <input name="contractor_cost" data-compute-input type="number" step="any" placeholder="$ Unit" class="input mt-1 w-full text-right">
+                            </label>
+                            <label class="block min-w-0 lg:col-span-1">
+                              <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">MU%</span>
+                              <input name="markup_pct" data-compute-input type="number" step="any" placeholder="MU%" value="20" class="input mt-1 w-full text-right">
+                            </label>
+                            <label class="block min-w-0 lg:col-span-1">
+                              <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">GR%</span>
+                              <input name="general_requirements_pct" data-compute-input type="number" step="any" placeholder="GR%" value="6" class="input mt-1 w-full text-right">
+                            </label>
+                            <div class="lg:col-span-12 flex justify-end">
+                              <button type="submit" class="btn btn-primary text-xs">Add line</button>
+                            </div>
                             <input name="parent_id" type="hidden" value="<%= item.id %>">
                           </form>
                         </div>
