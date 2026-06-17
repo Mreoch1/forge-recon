@@ -76,9 +76,9 @@ function tabClass(name, href) {
   }
 </style>
 <nav class="doc-tabs" aria-label="Document workflow">
-  <% const woHref = tabs.woId ? '/work-orders/' + tabs.woId : null; %>
-  <% const estHref = tabs.estimateId ? '/estimates/' + tabs.estimateId : null; %>
-  <% const invHref = tabs.invoiceId ? '/invoices/' + tabs.invoiceId : null; %>
+  <% var woHref = tabs.woId ? '/work-orders/' + tabs.woId : null; %>
+  <% var estHref = tabs.estimateId ? '/estimates/' + tabs.estimateId : null; %>
+  <% var invHref = tabs.invoiceId ? '/invoices/' + tabs.invoiceId : null; %>
 
   <a class="<%= tabClass('work_order', woHref) %>" href="<%= woHref || '#' %>" aria-current="<%= activeTab === 'work_order' ? 'page' : 'false' %>">
     <span class="doc-tab-label">Work order</span>

@@ -161,7 +161,7 @@
           <% if (section === 'references') { %>
             <h2>References</h2>
             <p class="muted">Add up to three GC, owner, or property manager references.</p>
-            <% for (let i = 0; i < 3; i += 1) { const ref = refs[i] || {}; %>
+            <% for (var i = 0; i < 3; i += 1) { var ref = refs[i] || {}; %>
               <div class="card" style="box-shadow:none;margin-bottom:1rem;">
                 <div class="card-body">
                   <h2>Reference <%= i + 1 %></h2>
@@ -227,7 +227,7 @@
 
           <div class="actions">
             <div>
-              <% const idx = sections.indexOf(section); if (idx > 0) { %>
+              <% var idx = sections.indexOf(section); if (idx > 0) { %>
                 <a href="/vendor-intake/<%= intake.access_token %>/<%= sections[idx - 1] %>" class="btn btn-ghost">Back</a>
               <% } %>
             </div>
