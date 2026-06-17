@@ -650,7 +650,16 @@ test('project financials live on a dedicated billing tab', () => {
   assert.match(financials, /activeProjectTab: 'financials'/);
   assert.match(financials, /include\('_financial_panel'/);
   assert.match(financials, /Contractors &amp; Vendors/);
-  assert.match(financials, /include\('_vendor_invoices_table'/);
-  assert.match(financials, /include\('_payments_timeline'/);
-  assert.match(financials, /include\('_sov_table'/);
+  assert.doesNotMatch(financials, /include\('_vendor_invoices_table'/);
+  assert.doesNotMatch(financials, /include\('_payments_timeline'/);
+  assert.doesNotMatch(financials, /include\('_sov_table'/);
+  assert.match(financials, /No project bills or contractor\/vendor commitments are linked to this project yet/);
+});
+
+test('project contractor rollup includes bill-only vendors from Forge bills', () => {
+  const service = read('src/services/project-contractor-rollup.js');
+
+  assert.match(service, /\.from\('bills'\)[\s\S]*\.eq\('job_id', jobId\)[\s\S]*\.in\('status', \['draft', 'approved', 'paid'\]\)/);
+  assert.match(service, /Bill entered in Forge/);
+  assert.doesNotMatch(service, /if \(rfpIds\.length === 0\) return \[\]/);
 });

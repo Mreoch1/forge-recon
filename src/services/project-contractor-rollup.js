@@ -35,15 +35,18 @@ async function getProjectContractorRollup(jobId) {
     .eq('status', 'awarded');
   if (rfpErr) throw rfpErr;
   const rfpIds = (rfps || []).map(r => r.id);
-  if (rfpIds.length === 0) return [];
 
   // 2. Get approved line items grouped by vendor
-  const { data: lineItems, error: liErr } = await supabase
-    .from('rfp_line_items')
-    .select('vendor, description, total_with_markup')
-    .in('rfp_id', rfpIds)
-    .eq('approved', true);
-  if (liErr) throw liErr;
+  let lineItems = [];
+  if (rfpIds.length > 0) {
+    const { data, error: liErr } = await supabase
+      .from('rfp_line_items')
+      .select('vendor, description, total_with_markup')
+      .in('rfp_id', rfpIds)
+      .eq('approved', true);
+    if (liErr) throw liErr;
+    lineItems = data || [];
+  }
 
   // Group by vendor
   const vendorMap = {};
@@ -65,27 +68,13 @@ async function getProjectContractorRollup(jobId) {
     }
   }
 
-  const vendorNames = Object.keys(vendorMap);
-  if (vendorNames.length === 0) return [];
-
-  // 3. Try to match vendor names to vendors table
-  const { data: vendors, error: vErr } = await supabase
-    .from('vendors')
-    .select('id, name, email, phone')
-    .in('name', vendorNames);
-  if (vErr) throw vErr;
-
-  const vendorLookup = {};
-  (vendors || []).forEach(v => {
-    vendorLookup[vendorKey(v.name)] = v;
-  });
-
-  // 4. Get bills for this job
+  // 3. Get bills for this job. These are entered through Forge AP and are the
+  // source of truth for actual vendor/contractor spend.
   const { data: bills, error: bErr } = await supabase
     .from('bills')
     .select('id, bill_number, total, status, bill_date, vendor_id, vendors!left(name)')
     .eq('job_id', jobId)
-    .in('status', ['approved', 'paid']);
+    .in('status', ['draft', 'approved', 'paid']);
   if (bErr) throw bErr;
 
   // Group bills by vendor id and by normalized vendor name. RFP vendor names
@@ -111,6 +100,32 @@ async function getProjectContractorRollup(jobId) {
       if (!billsByVendorName[key]) billsByVendorName[key] = [];
       billsByVendorName[key].push(billRow);
     }
+  });
+
+  (bills || []).forEach(b => {
+    const billVendor = b.vendors?.name || 'Unknown vendor';
+    const existingName = Object.keys(vendorMap).find(name => vendorKey(name) === vendorKey(billVendor));
+    if (existingName) return;
+    vendorMap[billVendor] = {
+      vendor: billVendor,
+      contract_value: 0,
+      description_lines: ['Bill entered in Forge'],
+    };
+  });
+
+  const vendorNames = Object.keys(vendorMap);
+  if (vendorNames.length === 0) return [];
+
+  // 4. Try to match vendor names to vendors table
+  const { data: vendors, error: vErr } = await supabase
+    .from('vendors')
+    .select('id, name, email, phone')
+    .in('name', vendorNames);
+  if (vErr) throw vErr;
+
+  const vendorLookup = {};
+  (vendors || []).forEach(v => {
+    vendorLookup[vendorKey(v.name)] = v;
   });
 
   // 5. Build result array

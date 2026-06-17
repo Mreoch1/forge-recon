@@ -28,16 +28,11 @@ function ff(v) {
           <h3 class="font-semibold">Contractors &amp; Vendors</h3>
           <p class="text-xs text-recon-fog mt-0.5">Contract commitments, billing, remaining budget, and invoice detail.</p>
         </div>
-        <div class="text-xs text-recon-fog">
-          <%= contractorRollup.length %> contract<%= contractorRollup.length === 1 ? '' : 's' %>
-          <% if (typeof vendorInvoiceCount !== 'undefined') { %>
-            &middot; <%= vendorInvoiceCount %> invoice<%= vendorInvoiceCount === 1 ? '' : 's' %>
-          <% } %>
-        </div>
+        <div class="text-xs text-recon-fog"><%= contractorRollup.length %> vendor<%= contractorRollup.length === 1 ? '' : 's' %></div>
       </header>
 
       <% if (!contractorRollup.length) { %>
-        <div class="p-6 text-center text-sm text-recon-fog">No contractor or vendor commitments are linked to this project yet.</div>
+        <div class="p-6 text-center text-sm text-recon-fog">No project bills or contractor/vendor commitments are linked to this project yet.</div>
       <% } else { %>
         <table class="data">
           <thead>
@@ -100,25 +95,6 @@ function ff(v) {
       <% } %>
     </section>
 
-    <%- include('_vendor_invoices_table', {
-      jobId: job.id,
-      vendorSpend: vendorSpend,
-      vendorInvoiceGrandTotal: vendorInvoiceGrandTotal,
-      vendorInvoiceCount: vendorInvoiceCount,
-      projectContractors: projectContractors
-    }) %>
-
-    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-      <%- include('_payments_timeline', { jobId: job.id, payments: payments, paymentTotal: paymentTotal }) %>
-      <%- include('_sov_table', {
-        jobId: job.id,
-        sovItems: sovItems,
-        sovTotalScheduled: sovTotalScheduled,
-        sovTotalPrev: sovTotalPrev,
-        sovTotalCurrent: sovTotalCurrent,
-        sovFmt: sovFmt
-      }) %>
-    </div>
   <% } %>
 </div>
 
