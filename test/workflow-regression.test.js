@@ -654,6 +654,8 @@ test('project financials live on a dedicated billing tab', () => {
   assert.doesNotMatch(financials, /include\('_payments_timeline'/);
   assert.doesNotMatch(financials, /include\('_sov_table'/);
   assert.match(financials, /No project bills or contractor\/vendor commitments are linked to this project yet/);
+  assert.match(financials, /<table class="w-full table-fixed text-xs">/);
+  assert.match(financials, /<col style="width: 34%;">[\s\S]*<th class="px-4 py-3 text-right">Amount<\/th>/);
 });
 
 test('project contractor rollup includes bill-only vendors from Forge bills', () => {
