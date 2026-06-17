@@ -45,6 +45,11 @@
     .summary { display:grid; grid-template-columns:1fr 1fr; gap:.75rem; }
     .summary div { border:1px solid #eee; border-radius:6px; padding:.75rem; }
     .summary span { display:block; color:#777; font-size:.7rem; text-transform:uppercase; letter-spacing:.08em; font-weight:800; margin-bottom:.2rem; }
+    .alert-error { border: 1px solid #f3b4ba; background: #fff5f6; color: #9f1722; border-radius: 6px; padding: .7rem .8rem; font-size: .9rem; font-weight: 700; margin: .75rem 0; }
+    .ack { border: 1px solid #e5e5e5; border-radius: 8px; padding: 1rem; margin-top: 1rem; background: #fafafa; }
+    .ack-intro { margin: .35rem 0 .85rem; color: #444; line-height: 1.45; }
+    .ack-check { display: flex; align-items: flex-start; gap: .6rem; border: 1px solid #e5e5e5; background: white; border-radius: 6px; padding: .75rem; margin: .55rem 0; font-size: .9rem; font-weight: 600; line-height: 1.45; color: #222; }
+    .ack-check input { width: auto; margin-top: .2rem; flex: 0 0 auto; }
     @media (max-width:760px) { .grid,.thirds,.summary { grid-template-columns:1fr; } .checks { grid-template-columns:1fr; } .steps { grid-template-columns:1fr; } }
   </style>
 </head>
@@ -200,6 +205,23 @@
                 </div>
               </div>
             <% } %>
+            <div class="ack">
+              <h2>Bid Participation Acknowledgment</h2>
+              <p class="ack-intro">By submitting this form, I acknowledge that any project opportunity, bid package, scope of work, drawings, specifications, walkthrough information, schedule, GC contact, owner contact, pricing request, or related project information provided by Recon Enterprises Inc. is confidential and is provided only for the purpose of bidding or performing work through Recon Enterprises Inc.</p>
+              <% if (errors && errors.bid_acknowledgment) { %><div class="alert-error"><%= errors.bid_acknowledgment %></div><% } %>
+              <label class="ack-check">
+                <input type="checkbox" name="bid_non_circumvention_acknowledged" value="true" <%= intake.bid_non_circumvention_acknowledged ? 'checked' : '' %>>
+                <span>I agree not to bypass Recon Enterprises Inc., submit direct pricing, or accept direct award for the same project or scope from any owner, GC, construction manager, property manager, or project contact introduced through Recon without prior written approval.</span>
+              </label>
+              <label class="ack-check">
+                <input type="checkbox" name="bid_direct_contact_acknowledged" value="true" <%= intake.bid_direct_contact_acknowledged ? 'checked' : '' %>>
+                <span>If contacted directly regarding a Recon-introduced project, I agree to notify Recon and route all pricing, revisions, questions, and project communication back through Recon.</span>
+              </label>
+              <label class="ack-check">
+                <input type="checkbox" name="bid_future_agreement_acknowledged" value="true" <%= intake.bid_future_agreement_acknowledged ? 'checked' : '' %>>
+                <span>I understand that Recon may require a signed Subcontractor Bid Participation and Non-Circumvention Agreement before releasing future bid packages, drawings, scopes, or project details.</span>
+              </label>
+            </div>
             <p class="muted" style="margin-top:1rem;">After you submit, Recon can keep this information on file and may contact you when projects match your trade and service area. You can still use this link later to update your information.</p>
           <% } %>
 

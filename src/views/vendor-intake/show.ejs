@@ -83,6 +83,21 @@
         </div>
       </div>
 
+      <div class="card p-5">
+        <% const bidAccepted = intake.bid_non_circumvention_acknowledged && intake.bid_direct_contact_acknowledged && intake.bid_future_agreement_acknowledged; %>
+        <h2 class="font-semibold mb-3">Bid Participation Acknowledgment</h2>
+        <div class="text-sm mb-4">
+          <div><strong>Status:</strong> <span class="<%= bidAccepted ? 'text-green-700' : 'text-red-600' %>"><%= bidAccepted ? 'Accepted' : 'Incomplete' %></span></div>
+          <div class="text-recon-fog">Acknowledged: <%= (intake.bid_participation_acknowledged_at || intake.submitted_at || '').slice(0,16).replace('T',' ') || '-' %></div>
+        </div>
+        <p class="text-sm whitespace-pre-wrap mb-4">By submitting this form, I acknowledge that any project opportunity, bid package, scope of work, drawings, specifications, walkthrough information, schedule, GC contact, owner contact, pricing request, or related project information provided by Recon Enterprises Inc. is confidential and is provided only for the purpose of bidding or performing work through Recon Enterprises Inc.</p>
+        <div class="space-y-3 text-sm">
+          <div><strong><%= intake.bid_non_circumvention_acknowledged ? 'Accepted' : 'Missing' %>:</strong> I agree not to bypass Recon Enterprises Inc., submit direct pricing, or accept direct award for the same project or scope from any owner, GC, construction manager, property manager, or project contact introduced through Recon without prior written approval.</div>
+          <div><strong><%= intake.bid_direct_contact_acknowledged ? 'Accepted' : 'Missing' %>:</strong> If contacted directly regarding a Recon-introduced project, I agree to notify Recon and route all pricing, revisions, questions, and project communication back through Recon.</div>
+          <div><strong><%= intake.bid_future_agreement_acknowledged ? 'Accepted' : 'Missing' %>:</strong> I understand that Recon may require a signed Subcontractor Bid Participation and Non-Circumvention Agreement before releasing future bid packages, drawings, scopes, or project details.</div>
+        </div>
+      </div>
+
       <div class="card overflow-hidden">
         <div class="p-4 border-b"><h2 class="font-semibold">References</h2></div>
         <% const refs = Array.isArray(intake.references_json) ? intake.references_json : []; %>

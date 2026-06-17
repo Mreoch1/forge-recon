@@ -56,6 +56,11 @@ CREATE TABLE IF NOT EXISTS public.contractor_vendor_intakes (
   certifications TEXT,
   safety_notes TEXT,
   documents_notes TEXT,
+  bid_participation_acknowledged BOOLEAN NOT NULL DEFAULT FALSE,
+  bid_non_circumvention_acknowledged BOOLEAN NOT NULL DEFAULT FALSE,
+  bid_direct_contact_acknowledged BOOLEAN NOT NULL DEFAULT FALSE,
+  bid_future_agreement_acknowledged BOOLEAN NOT NULL DEFAULT FALSE,
+  bid_participation_acknowledged_at TIMESTAMPTZ,
 
   internal_notes TEXT,
   rating INTEGER CHECK (rating BETWEEN 1 AND 5),

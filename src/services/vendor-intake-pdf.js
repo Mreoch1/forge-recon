@@ -153,6 +153,16 @@ function generateVendorIntakePDF(intake, notes, stream) {
   field(doc, 'Safety notes', intake.safety_notes);
   field(doc, 'Documents available', intake.documents_notes);
 
+  section(doc, 'Bid Participation Acknowledgment');
+  field(doc, 'Project information confidentiality', 'By submitting this form, I acknowledge that any project opportunity, bid package, scope of work, drawings, specifications, walkthrough information, schedule, GC contact, owner contact, pricing request, or related project information provided by Recon Enterprises Inc. is confidential and is provided only for the purpose of bidding or performing work through Recon Enterprises Inc.');
+  twoColumnFields(doc, [
+    [['Non-circumvention', boolText(intake.bid_non_circumvention_acknowledged)], ['Direct contact routing', boolText(intake.bid_direct_contact_acknowledged)]],
+    [['Future agreement', boolText(intake.bid_future_agreement_acknowledged)], ['Acknowledged at', dateText(intake.bid_participation_acknowledged_at || intake.submitted_at)]],
+  ]);
+  field(doc, 'Non-circumvention terms', 'I agree not to bypass Recon Enterprises Inc., submit direct pricing, or accept direct award for the same project or scope from any owner, GC, construction manager, property manager, or project contact introduced through Recon without prior written approval.');
+  field(doc, 'Direct contact terms', 'If contacted directly regarding a Recon-introduced project, I agree to notify Recon and route all pricing, revisions, questions, and project communication back through Recon.');
+  field(doc, 'Future agreement terms', 'I understand that Recon may require a signed Subcontractor Bid Participation and Non-Circumvention Agreement before releasing future bid packages, drawings, scopes, or project details.');
+
   section(doc, 'References');
   const refs = Array.isArray(intake.references_json) ? intake.references_json : [];
   if (!refs.length) {

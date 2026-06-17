@@ -50,6 +50,16 @@ function toBool(value) {
   return null;
 }
 
+function checkboxBool(value) {
+  return value === true || value === 'true' || value === 'on' || value === '1';
+}
+
+function bidAcknowledgmentAccepted(update) {
+  return update.bid_non_circumvention_acknowledged
+    && update.bid_direct_contact_acknowledged
+    && update.bid_future_agreement_acknowledged;
+}
+
 function token() {
   return crypto.randomBytes(24).toString('hex');
 }
@@ -189,6 +199,13 @@ function updateForSection(section, body) {
   }
   if (section === 'references') {
     return { references_json: referencesFromBody(body) };
+  }
+  if (section === 'review') {
+    return {
+      bid_non_circumvention_acknowledged: checkboxBool(body.bid_non_circumvention_acknowledged),
+      bid_direct_contact_acknowledged: checkboxBool(body.bid_direct_contact_acknowledged),
+      bid_future_agreement_acknowledged: checkboxBool(body.bid_future_agreement_acknowledged),
+    };
   }
   return {};
 }
@@ -457,11 +474,22 @@ router.post('/:token/:section', async (req, res) => {
   const intake = await findByToken(req.params.token);
   if (!intake) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Intake link not found.' });
   const section = currentSection(req.params.section);
-  const update = { ...updateForSection(section, req.body), updated_at: new Date().toISOString() };
+  const sectionUpdate = updateForSection(section, req.body);
+  if (section === 'review' && req.body.intent === 'submit' && !bidAcknowledgmentAccepted(sectionUpdate)) {
+    return renderPublic(res.status(400), 'form', {
+      intake: { ...intake, ...sectionUpdate },
+      section,
+      publicUrl: publicLink(req, intake),
+      errors: { bid_acknowledgment: 'Please accept all bid participation acknowledgments before submitting.' },
+    });
+  }
+  const update = { ...sectionUpdate, updated_at: new Date().toISOString() };
   if (section === 'review' && req.body.intent === 'submit') {
     update.status = 'submitted';
     update.submitted_at = intake.submitted_at || new Date().toISOString();
     update.next_update_due_at = nextUpdateDate();
+    update.bid_participation_acknowledged = true;
+    update.bid_participation_acknowledged_at = intake.bid_participation_acknowledged_at || new Date().toISOString();
   }
   const { data: updated, error } = await supabase
     .from('contractor_vendor_intakes')

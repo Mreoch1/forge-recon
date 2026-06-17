@@ -141,6 +141,7 @@ test('trade intake has public start form and manager-only directory', () => {
   const show = read('src/views/vendor-intake/show.ejs');
   const header = read('src/views/layouts/header.ejs');
   const migration = read('supabase/migrations/20260608110353_contractor_vendor_intake.sql');
+  const ackMigration = read('supabase/migrations/20260617140016_vendor_intake_bid_participation_acknowledgment.sql');
 
   assert.match(app, /const vendorIntakeRoutes = require\('\.\/routes\/vendor-intake'\)/);
   assert.match(app, /app\.use\('\/vendor-intake', vendorIntakeRoutes\)/);
@@ -153,10 +154,16 @@ test('trade intake has public start form and manager-only directory', () => {
   assert.match(routes, /generateVendorIntakePDF/);
   assert.match(routes, /access_token/);
   assert.match(routes, /next_update_due_at/);
+  assert.match(routes, /bidAcknowledgmentAccepted/);
   assert.ok(routes.includes('ref_${i}_notes'));
   assert.match(form, /name="ref_<%= i %>_notes"/);
   assert.match(form, /ref\.notes/);
+  assert.match(form, /Bid Participation Acknowledgment/);
+  assert.match(form, /bid_non_circumvention_acknowledged/);
+  assert.match(form, /bid_direct_contact_acknowledged/);
+  assert.match(form, /bid_future_agreement_acknowledged/);
   assert.match(show, /ref\.notes/);
+  assert.match(show, /Bid Participation Acknowledgment/);
   assert.match(show, /window\.print\(\)/);
   assert.match(show, /\/vendor-intake\/directory\/<%= intake\.id %>\.pdf/);
   [
@@ -173,13 +180,21 @@ test('trade intake has public start form and manager-only directory', () => {
     'section3_notes',
     'certifications',
     'safety_notes',
-    'documents_notes'
+    'documents_notes',
+    'bid_participation_acknowledged',
+    'bid_non_circumvention_acknowledged',
+    'bid_direct_contact_acknowledged',
+    'bid_future_agreement_acknowledged'
   ].forEach(field => assert.match(show, new RegExp(`intake\\.${field}`)));
   assert.match(header, /href="\/vendor-intake\/directory"/);
   assert.match(header, /activeNav === 'intake'/);
   assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.contractor_vendor_intakes/);
   assert.match(migration, /references_json JSONB NOT NULL DEFAULT '\[\]'::jsonb/);
   assert.match(migration, /ALTER TABLE public\.contractor_vendor_intakes ENABLE ROW LEVEL SECURITY/);
+  assert.match(ackMigration, /bid_participation_acknowledged/);
+  assert.match(ackMigration, /bid_non_circumvention_acknowledged/);
+  assert.match(ackMigration, /bid_direct_contact_acknowledged/);
+  assert.match(ackMigration, /bid_future_agreement_acknowledged/);
 });
 
 test('managers can create and send invoices while admin keeps accounting controls', () => {
