@@ -30,6 +30,7 @@ var headerAccess = typeof projectAccess !== 'undefined' ? projectAccess : { canS
         <a href="/projects/<%= job.id %>/schedule" class="btn btn-secondary">Schedule</a>
         <a href="/projects/<%= job.id %>/rfp" class="btn btn-secondary">RFP</a>
         <% if (headerAccess.canSeeBilling) { %>
+          <a href="/projects/<%= job.id %>/financials" class="btn btn-secondary">Financials</a>
           <a href="/projects/<%= job.id %>/contracts" class="btn btn-secondary">Contracts</a>
         <% } %>
         <a href="/projects/<%= job.id %>/edit" class="btn btn-secondary">Edit</a>

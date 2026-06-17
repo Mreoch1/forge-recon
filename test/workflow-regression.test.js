@@ -628,3 +628,29 @@ test('project chat stays inside the project content shell', () => {
   assert.doesNotMatch(chatPanelMarkup[0], /top\s*:\s*4rem/);
   assert.match(show, /Project communication and internal updates/);
 });
+
+test('project financials live on a dedicated billing tab', () => {
+  const routes = read('src/routes/jobs.js');
+  const show = read('src/views/jobs/show.ejs');
+  const header = read('src/views/jobs/_project_header.ejs');
+  const tabs = read('src/views/jobs/_project_tabs.ejs');
+  const financials = read('src/views/jobs/financials.ejs');
+
+  assert.match(routes, /router\.get\('\/:id\/financials'/);
+  assert.match(routes, /requireProjectAccess\(req, res, id, 'billing'\)/);
+  assert.match(routes, /res\.render\('jobs\/financials'/);
+
+  assert.match(header, /\/projects\/<%= job\.id %>\/financials/);
+  assert.match(tabs, /key: 'financials'/);
+  assert.match(tabs, /href: '\/projects\/' \+ job\.id \+ '\/financials'/);
+  assert.match(show, /include\('_project_tabs', \{ job: job, projectAccess: access, activeProjectTab: 'overview' \}\)/);
+  assert.doesNotMatch(show, /include\('_financial_panel'/);
+  assert.doesNotMatch(show, /Contractors &amp; Vendors/);
+
+  assert.match(financials, /activeProjectTab: 'financials'/);
+  assert.match(financials, /include\('_financial_panel'/);
+  assert.match(financials, /Contractors &amp; Vendors/);
+  assert.match(financials, /include\('_vendor_invoices_table'/);
+  assert.match(financials, /include\('_payments_timeline'/);
+  assert.match(financials, /include\('_sov_table'/);
+});

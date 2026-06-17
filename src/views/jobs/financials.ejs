@@ -1,0 +1,140 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<%
+var access = typeof projectAccess !== 'undefined' ? projectAccess : { canSeeBilling: true, canSeeOperations: true };
+function ff(v) {
+  var n = Number(v);
+  return isFinite(n) ? n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00';
+}
+%>
+
+<div class="ops-shell">
+  <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <a href="/projects/<%= job.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; Project overview</a>
+    <div class="flex flex-wrap gap-2">
+      <a href="/projects/<%= job.id %>/contracts" class="btn btn-secondary text-sm">Contracts</a>
+      <a href="/projects/<%= job.id %>/export.xlsx" class="btn btn-secondary text-sm">Export Excel</a>
+    </div>
+  </div>
+
+  <%- include('_project_header', { job: job, projectManager: projectManager, projectAccess: access }) %>
+  <%- include('_project_tabs', { job: job, projectAccess: access, activeProjectTab: 'financials' }) %>
+
+  <% if (access.canSeeBilling) { %>
+    <%- include('_financial_panel', { financials: projectFinancials, financialsError: projectFinancialsError }) %>
+
+    <section class="card mb-6 overflow-hidden">
+      <header class="px-5 py-3 border-b border-recon-mist flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 class="font-semibold">Contractors &amp; Vendors</h3>
+          <p class="text-xs text-recon-fog mt-0.5">Contract commitments, billing, remaining budget, and invoice detail.</p>
+        </div>
+        <div class="text-xs text-recon-fog">
+          <%= contractorRollup.length %> contract<%= contractorRollup.length === 1 ? '' : 's' %>
+          <% if (typeof vendorInvoiceCount !== 'undefined') { %>
+            &middot; <%= vendorInvoiceCount %> invoice<%= vendorInvoiceCount === 1 ? '' : 's' %>
+          <% } %>
+        </div>
+      </header>
+
+      <% if (!contractorRollup.length) { %>
+        <div class="p-6 text-center text-sm text-recon-fog">No contractor or vendor commitments are linked to this project yet.</div>
+      <% } else { %>
+        <table class="data">
+          <thead>
+            <tr>
+              <th>Contractor / vendor</th>
+              <th class="text-right">Contract</th>
+              <th class="text-right">Billed</th>
+              <th class="text-right">Remaining</th>
+              <th class="text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% contractorRollup.forEach(function(c, idx){ %>
+              <tr class="contractor-row cursor-pointer hover:bg-recon-cloud/50" data-target="contractor-detail-<%= idx %>">
+                <td class="font-medium">
+                  <span class="contractor-chevron text-recon-fog text-xs mr-1 inline-block">▶</span>
+                  <%= c.vendor %>
+                </td>
+                <td class="text-right">$<%= ff(c.contract_value) %></td>
+                <td class="text-right">$<%= ff(c.billed) %></td>
+                <td class="text-right font-medium <%= c.remaining >= 0 ? 'text-green-700' : 'text-recon-red' %>">$<%= ff(c.remaining) %></td>
+                <td class="text-right">
+                  <a href="/projects/<%= job.id %>/contracts/<%= c.contract_key %>" class="btn btn-secondary text-xs" onclick="event.stopPropagation()">Contract</a>
+                  <a href="/projects/<%= job.id %>/contracts/<%= c.contract_key %>.pdf" class="btn btn-secondary text-xs ml-1" target="_blank" onclick="event.stopPropagation()">PDF</a>
+                </td>
+              </tr>
+              <tr id="contractor-detail-<%= idx %>" class="contractor-detail hidden">
+                <td colspan="5" class="p-0">
+                  <div class="bg-recon-cloud p-3 text-sm">
+                    <% if (c.bills && c.bills.length) { %>
+                      <table class="w-full text-xs">
+                        <thead>
+                          <tr class="text-recon-fog">
+                            <th class="text-left">Bill #</th>
+                            <th class="text-left">Date</th>
+                            <th class="text-right">Amount</th>
+                            <th>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <% c.bills.forEach(function(b){ %>
+                            <tr>
+                              <td><a href="/bills/<%= b.id %>" class="text-recon-red hover:underline"><%= b.bill_number || '#' + b.id %></a></td>
+                              <td><%= b.bill_date ? String(b.bill_date).slice(0,10) : '—' %></td>
+                              <td class="text-right">$<%= ff(b.total) %></td>
+                              <td class="text-center"><span class="badge <%= b.status === 'paid' ? 'badge-success' : 'badge-info' %> text-xs"><%= b.status %></span></td>
+                            </tr>
+                          <% }); %>
+                        </tbody>
+                      </table>
+                    <% } else { %>
+                      <p class="text-xs text-recon-fog italic">No bills yet.</p>
+                    <% } %>
+                  </div>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      <% } %>
+    </section>
+
+    <%- include('_vendor_invoices_table', {
+      jobId: job.id,
+      vendorSpend: vendorSpend,
+      vendorInvoiceGrandTotal: vendorInvoiceGrandTotal,
+      vendorInvoiceCount: vendorInvoiceCount,
+      projectContractors: projectContractors
+    }) %>
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <%- include('_payments_timeline', { jobId: job.id, payments: payments, paymentTotal: paymentTotal }) %>
+      <%- include('_sov_table', {
+        jobId: job.id,
+        sovItems: sovItems,
+        sovTotalScheduled: sovTotalScheduled,
+        sovTotalPrev: sovTotalPrev,
+        sovTotalCurrent: sovTotalCurrent,
+        sovFmt: sovFmt
+      }) %>
+    </div>
+  <% } %>
+</div>
+
+<script>
+(function(){
+  document.querySelectorAll('.contractor-row').forEach(function(row){
+    row.addEventListener('click', function(){
+      var detail = document.getElementById(row.getAttribute('data-target'));
+      var chev = row.querySelector('.contractor-chevron');
+      if (!detail) return;
+      var open = !detail.classList.contains('hidden');
+      detail.classList.toggle('hidden', open);
+      if (chev) chev.textContent = open ? '▶' : '▼';
+    });
+  });
+})();
+</script>
+
+<%- include('../layouts/footer') %>

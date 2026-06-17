@@ -1,0 +1,22 @@
+<%
+var _activeProjectTab = typeof activeProjectTab !== 'undefined' ? activeProjectTab : 'overview';
+var tabsAccess = typeof projectAccess !== 'undefined' ? projectAccess : { canSeeBilling: true, canSeeOperations: true };
+var projectTabs = [
+  { key: 'overview', label: 'Overview', href: '/projects/' + job.id, show: true },
+  { key: 'financials', label: 'Financials', href: '/projects/' + job.id + '/financials', show: tabsAccess.canSeeBilling },
+  { key: 'rfp', label: 'RFP', href: '/projects/' + job.id + '/rfp', show: tabsAccess.canSeeOperations },
+  { key: 'materials', label: 'Materials', href: '/projects/' + job.id + '/materials', show: tabsAccess.canSeeOperations },
+  { key: 'files', label: 'Files', href: '/files/projects/' + job.id, show: tabsAccess.canSeeOperations },
+  { key: 'contracts', label: 'Contracts', href: '/projects/' + job.id + '/contracts', show: tabsAccess.canSeeBilling }
+];
+%>
+<nav class="card mb-6 overflow-hidden" aria-label="Project sections">
+  <div class="flex flex-wrap border-b border-recon-mist md:border-b-0">
+    <% projectTabs.filter(function(tab){ return tab.show; }).forEach(function(tab){ %>
+      <a href="<%= tab.href %>"
+         class="px-4 py-3 text-sm font-semibold border-r border-b md:border-b-0 border-recon-mist <%= _activeProjectTab === tab.key ? 'bg-recon-charcoal text-white' : 'text-recon-fog hover:text-recon-red hover:bg-recon-deeper/10' %>">
+        <%= tab.label %>
+      </a>
+    <% }); %>
+  </div>
+</nav>

@@ -906,6 +906,149 @@ router.get('/:id', async (req, res) => {
   });
 });
 
+router.get('/:id/financials', async (req, res) => {
+  const id = req.params.id;
+  const allowed = await requireProjectAccess(req, res, id, 'billing');
+  if (!allowed) return;
+
+  const { data: job, error: jError } = await supabase
+    .from('jobs')
+    .select('*, customers!left(id, name, email, phone, address, city, state, zip), users!jobs_assigned_to_user_id_fkey(name)')
+    .eq('id', id)
+    .maybeSingle();
+  if (jError) throw jError;
+  if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Project not found.' });
+
+  job.customer_name = job.customers?.name || job.client;
+  job.customer_email = job.customers?.email;
+  job.customer_phone = job.customers?.phone;
+  job.assigned_name = job.users?.name;
+  const access = allowed.access;
+
+  let projectManager = null;
+  if (job.project_manager_user_id) {
+    const { data: pm, error: pmError } = await supabase
+      .from('users')
+      .select('id, name, email')
+      .eq('id', job.project_manager_user_id)
+      .maybeSingle();
+    if (pmError) throw pmError;
+    projectManager = pm;
+  }
+
+  let projectFinancials = null;
+  let projectFinancialsError = null;
+  try {
+    const { getProjectFinancials } = require('../services/project-financials');
+    projectFinancials = await getProjectFinancials(id);
+  } catch (e) {
+    projectFinancialsError = e.message;
+    console.warn('[financials-page] failed to load for job', id, ':', e.message);
+  }
+
+  let contractorRollup = [];
+  try {
+    contractorRollup = await getProjectContractorRollup(id);
+  } catch (e) {
+    console.warn('[financials-page] contractor rollup failed for job', id, ':', e.message);
+  }
+
+  const [
+    vendorInvoicesResult,
+    projectContractorsResult,
+    paymentsResult,
+    sovItemsResult,
+  ] = await Promise.all([
+    supabase
+      .from('vendor_invoices')
+      .select('id, amount, description, invoice_number, vendor_id, created_at, vendors!left(name)')
+      .eq('job_id', id)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('project_contractors')
+      .select('id, vendor_id, contract_amount, contract_notes, vendors!left(name)')
+      .eq('job_id', id),
+    supabase
+      .from('project_payments')
+      .select('*')
+      .eq('job_id', id)
+      .order('payment_date', { ascending: false })
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('project_sov_items')
+      .select('*')
+      .eq('job_id', id)
+      .order('sort_order', { ascending: true })
+      .order('id', { ascending: true }),
+  ]);
+
+  throwIfSupabaseError(vendorInvoicesResult, 'Project vendor invoices load failed');
+  throwIfSupabaseError(projectContractorsResult, 'Project contractor links load failed');
+  throwIfSupabaseError(paymentsResult, 'Project payments load failed');
+  throwIfSupabaseError(sovItemsResult, 'Project SOV load failed');
+
+  const vendorInvoices = vendorInvoicesResult.data || [];
+  const projectContractorsRaw = projectContractorsResult.data || [];
+  const payments = paymentsResult.data || [];
+  const sovItems = sovItemsResult.data || [];
+
+  const invoicesByVendor = {};
+  vendorInvoices.forEach(vi => {
+    const vKey = vi.vendor_id || 0;
+    const vName = vi.vendors?.name || 'Unknown vendor';
+    if (!invoicesByVendor[vKey]) {
+      invoicesByVendor[vKey] = { vendor_id: vKey, vendor_name: vName, invoices: [], total: 0 };
+    }
+    invoicesByVendor[vKey].invoices.push({
+      id: vi.id,
+      amount: Number(vi.amount) || 0,
+      description: vi.description || '',
+      invoice_number: vi.invoice_number || '',
+      created_at: vi.created_at,
+    });
+    invoicesByVendor[vKey].total += Number(vi.amount) || 0;
+  });
+
+  const vendorSpend = Object.values(invoicesByVendor).sort((a, b) => b.total - a.total);
+  const vendorInvoiceGrandTotal = vendorSpend.reduce((s, v) => s + v.total, 0);
+  const contractorMap = {};
+  projectContractorsRaw.forEach(pc => {
+    if (pc.vendor_id) contractorMap[pc.vendor_id] = { contract_amount: pc.contract_amount || 0, contract_notes: pc.contract_notes || '' };
+  });
+  vendorSpend.forEach(vs => {
+    const c = contractorMap[vs.vendor_id];
+    vs.contract_amount = c ? Number(c.contract_amount) : 0;
+    vs.contract_notes = c ? c.contract_notes : '';
+    vs.remaining = Math.max(0, vs.contract_amount - vs.total);
+  });
+
+  res.render('jobs/financials', {
+    title: `${job.title} Financials`,
+    activeNav: 'projects',
+    job,
+    projectManager,
+    projectAccess: access,
+    projectFinancials,
+    projectFinancialsError,
+    contractorRollup: withContractKeys(contractorRollup),
+    vendorSpend,
+    vendorInvoiceGrandTotal,
+    vendorInvoiceCount: vendorInvoices.length,
+    projectContractors: projectContractorsRaw.map(pc => ({
+      id: pc.id,
+      vendor_id: pc.vendor_id,
+      vendor_name: pc.vendors?.name || '—',
+    })),
+    payments,
+    paymentTotal: payments.reduce((s, p) => s + Number(p.amount || 0), 0),
+    sovItems,
+    sovTotalScheduled: sovItems.reduce((s, i) => s + Number(i.scheduled_value || 0), 0),
+    sovTotalPrev: sovItems.reduce((s, i) => s + Number(i.previous_billed || 0), 0),
+    sovTotalCurrent: sovItems.reduce((s, i) => s + Number(i.current_billed || 0), 0),
+    sovFmt: function(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; },
+  });
+});
+
 router.get('/:id/contracts', async (req, res) => {
   const id = req.params.id;
   const allowed = await requireProjectAccess(req, res, id, 'billing');

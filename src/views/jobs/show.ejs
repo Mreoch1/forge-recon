@@ -20,6 +20,7 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
 
   <!-- D-007: Project header partial -->
   <%- include('_project_header', { job: job, projectManager: typeof projectManager !== 'undefined' ? projectManager : null, projectAccess: access }) %>
+  <%- include('_project_tabs', { job: job, projectAccess: access, activeProjectTab: 'overview' }) %>
 
   <% if (access.projectRole === 'accountant') { %>
     <div class="card p-4 mb-6 border-l-4 border-recon-red">
@@ -61,11 +62,6 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
     </div>
   </details>
 
-  <!-- D-007a: Financial Command Panel (replaces legacy Financial Overview) -->
-  <% if (access.canSeeBilling) { %>
-    <%- include('_financial_panel', { financials: projectFinancials, financialsError: projectFinancialsError }) %>
-  <% } %>
-
   <!-- D-141: Project Files tile -->
   <% if (access.canSeeOperations) { %>
   <div class="card mb-6">
@@ -96,75 +92,6 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
       <%- include('_decisions_log', { jobId: job.id, decisions: decisions, users: typeof users !== 'undefined' ? users : [] }) %>
     </div>
   </details>
-
-  <!-- F-011: Contractors & Vendors rollup -->
-  <% if (access.canSeeBilling && typeof contractorRollup !== 'undefined' && contractorRollup.length > 0) { %>
-  <details class="mb-6" open>
-    <summary class="cursor-pointer text-sm font-medium text-recon-fog mb-2 hover:text-recon-red">Contractors &amp; Vendors (<%= contractorRollup.length %>)</summary>
-    <div class="mt-3">
-      <div class="card overflow-hidden">
-        <table class="data">
-          <thead>
-            <tr>
-              <th>Contractor</th>
-              <th class="text-right">Contract</th>
-              <th class="text-right">Billed</th>
-              <th class="text-right">Remaining</th>
-              <th class="text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% contractorRollup.forEach(function(c){ %>
-              <tr class="contractor-row cursor-pointer hover:bg-recon-cloud/50" style="user-select:none">
-                <td class="font-medium">
-                  <span class="contractor-chevron text-recon-fog text-xs mr-1 inline-block transition-transform">▶</span>
-                  <%= c.vendor %>
-                </td>
-                <td class="text-right">$<%= Number(c.contract_value).toFixed(2) %></td>
-                <td class="text-right">$<%= Number(c.billed).toFixed(2) %></td>
-                <td class="text-right font-medium <%= c.remaining >= 0 ? 'text-green-700' : 'text-recon-red' %>">$<%= Number(c.remaining).toFixed(2) %></td>
-                <td class="text-right">
-                  <a href="/projects/<%= job.id %>/contracts/<%= c.contract_key %>" class="btn btn-secondary text-xs" onclick="event.stopPropagation()">Contract</a>
-                  <a href="/projects/<%= job.id %>/contracts/<%= c.contract_key %>.pdf" class="btn btn-secondary text-xs ml-1" target="_blank" onclick="event.stopPropagation()">PDF</a>
-                </td>
-              </tr>
-              <tr class="contractor-detail hidden">
-                <td colspan="5" class="p-0">
-                  <div class="bg-recon-cloud p-3 text-sm">
-                    <% if (c.bills && c.bills.length) { %>
-                      <table class="w-full text-xs">
-                        <thead>
-                          <tr class="text-recon-fog">
-                            <th class="text-left">Bill #</th>
-                            <th class="text-left">Date</th>
-                            <th class="text-right">Amount</th>
-                            <th>Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <% c.bills.forEach(function(b){ %>
-                            <tr>
-                              <td><a href="/bills/<%= b.id %>" class="text-recon-red hover:underline"><%= b.bill_number || '#' + b.id %></a></td>
-                              <td><%= b.bill_date ? String(b.bill_date).slice(0,10) : '—' %></td>
-                              <td class="text-right">$<%= Number(b.total).toFixed(2) %></td>
-                              <td class="text-center"><span class="badge <%= b.status === 'paid' ? 'badge-success' : 'badge-info' %> text-xs"><%= b.status %></span></td>
-                            </tr>
-                          <% }); %>
-                        </tbody>
-                      </table>
-                    <% } else { %>
-                      <p class="text-xs text-recon-fog italic">No bills yet.</p>
-                    <% } %>
-                  </div>
-                </td>
-              </tr>
-            <% }); %>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </details>
-  <% } %>
 
   <!-- D-007: Members -->
   <% if (access.canSeeOperations) { %>
@@ -533,21 +460,5 @@ html.dark .chat-mention-option:focus { background: var(--dark-elevated); }
 html.dark .chat-mention-option strong { color: var(--dark-text); }
 html.dark .chat-mention-option small { color: var(--dark-muted); }
 </style>
-
-<script>
-// Contractor row click-to-expand
-document.querySelectorAll('.contractor-row').forEach(function(row){
-  row.addEventListener('click', function(e){
-    if (e.target.closest('a')) return;
-    var chevron = this.querySelector('.contractor-chevron');
-    var n = this.nextElementSibling;
-    while (n && n.classList.contains('contractor-detail')) {
-      n.classList.toggle('hidden');
-      n = n.nextElementSibling;
-    }
-    if (chevron) chevron.style.transform = chevron.style.transform === 'rotate(90deg)' ? '' : 'rotate(90deg)';
-  });
-});
-</script>
 
 <%- include('../layouts/footer') %>
