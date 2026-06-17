@@ -501,7 +501,7 @@ router.get('/preconstruction/projects/:projectId', async (req, res) => {
     loadProject(projectId),
     loadLists(),
     supabase.from('preconstruction_document_requirements')
-      .select('*, preconstruction_document_types(name,slug), contractors(name,email), vendors(name,email), generated_documents!preconstruction_document_requirements_generated_document_id_fkey(title,status,sent_to_email)')
+      .select('*, preconstruction_document_types(name,slug), contractors(name,email), vendors(name,email), generated_documents!pdr_generated_doc_fkey(title,status,sent_to_email)')
       .eq('project_id', projectId)
       .order('created_at', { ascending: true }),
     supabase.from('scope_release_logs').select('*, users(name,email)').eq('project_id', projectId).order('created_at', { ascending: false }).limit(20),
