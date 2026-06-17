@@ -1,7 +1,7 @@
 <%
-const _activity = typeof activity !== 'undefined' && activity ? activity : [];
-const _title = typeof activityTitle !== 'undefined' && activityTitle ? activityTitle : 'Activity';
-const _noteAction = typeof activityNoteAction !== 'undefined' ? activityNoteAction : null;
+var _activity = typeof activity !== 'undefined' && activity ? activity : [];
+var _title = typeof activityTitle !== 'undefined' && activityTitle ? activityTitle : 'Activity';
+var _noteAction = typeof activityNoteAction !== 'undefined' ? activityNoteAction : null;
 function activityTime(ts) {
   if (!ts) return '';
   return String(ts).slice(0,16).replace('T', ' ');

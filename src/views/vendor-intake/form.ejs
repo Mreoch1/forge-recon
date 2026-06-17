@@ -55,10 +55,10 @@
 </head>
 <body>
 <%
-  const sectionLabels = { company:'Company', experience:'Experience', compliance:'Insurance & compliance', references:'References', review:'Review' };
-  const refs = Array.isArray(intake.references_json) ? intake.references_json : [];
-  const boolVal = function(v){ return v === true ? 'true' : (v === false ? 'false' : ''); };
-  const tradeSelected = function(t){ return (intake.trades || []).includes(t); };
+  var sectionLabels = { company:'Company', experience:'Experience', compliance:'Insurance & compliance', references:'References', review:'Review' };
+  var refs = Array.isArray(intake.references_json) ? intake.references_json : [];
+  var boolVal = function(v){ return v === true ? 'true' : (v === false ? 'false' : ''); };
+  var tradeSelected = function(t){ return (intake.trades || []).includes(t); };
 %>
   <main class="shell">
     <div class="top">

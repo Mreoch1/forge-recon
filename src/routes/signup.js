@@ -147,6 +147,13 @@ router.get('/verify-email/:token', async (req, res) => {
   res.redirect('/login?verified=1');
 });
 
+router.get('/resend-verification', async (req, res) => {
+  res.render('auth/check-email', {
+    title: 'Resend verification — FORGE',
+    email: req.query.email || '',
+  });
+});
+
 router.post('/resend-verification', async (req, res) => {
   const email = (req.body.email || '').toLowerCase().trim();
   if (!email) {

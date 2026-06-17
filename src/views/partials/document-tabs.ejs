@@ -1,7 +1,7 @@
 <%
-const tabs = typeof documentTabs !== 'undefined' && documentTabs ? documentTabs : {};
-const activeTab = tabs.active || '';
-const baseNumber = tabs.displayNumber || tabs.woDisplayNumber || '';
+var tabs = typeof documentTabs !== 'undefined' && documentTabs ? documentTabs : {};
+var activeTab = tabs.active || '';
+var baseNumber = tabs.displayNumber || tabs.woDisplayNumber || '';
 function tabClass(name, href) {
   return [
     'doc-tab',
