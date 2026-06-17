@@ -63,18 +63,6 @@ const actionSections = [
     emptyText: 'No drafts waiting.',
   },
   {
-    label: 'Billing awaiting approval',
-    count: billsToApproveCount,
-    total: billsToApproveTotal,
-    items: billsToApprove.map(b => ({
-      href: '/bills/' + b.id,
-      number: b.bill_number || ('Bill #' + b.id),
-      meta: b.vendor_name,
-      amount: fmtMoney(b.total),
-    })),
-    emptyText: 'Inbox clear.',
-  },
-  {
     label: 'Stale quotes',
     count: staleEstimatesCount,
     sublabel: '7+ days',
@@ -462,7 +450,7 @@ const actionSections = [
 
         <h2 class="dv2-h-secondary flex items-baseline justify-between">
           <span>Needs you
-            <span class="ml-1 text-recon-fog cursor-help" title="Things that need someone's attention right now &mdash; overdue invoices, draft estimates to send, bills awaiting approval, and quotes going stale.">ⓘ</span>
+            <span class="ml-1 text-recon-fog cursor-help" title="Things that need someone's attention right now &mdash; overdue invoices, draft estimates to send, and quotes going stale.">ⓘ</span>
           </span>
           <span class="dv2-eyebrow">action queue</span>
         </h2>
@@ -471,7 +459,6 @@ const actionSections = [
           <% actionSections.forEach(function(sec){
                var secHint = sec.label === 'Overdue invoices' ? 'Invoices past their due date and not paid. Send a reminder or call the customer.'
                           : sec.label === 'Estimates to send' ? 'Estimates still in draft &mdash; not yet emailed to the customer.'
-                          : sec.label === 'Billing awaiting approval' ? 'Vendor bills sitting in draft, waiting for an admin to approve before payment.'
                           : sec.label === 'Stale quotes' ? 'Estimates sent 7+ days ago with no response. Time to follow up.'
                           : '';
           %>

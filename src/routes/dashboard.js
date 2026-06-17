@@ -228,23 +228,7 @@ router.get('/', async (req, res) => {
   }));
   const overdueTotal = (overdueSumData || []).reduce((s, r) => s + Number(r.total || 0) - Number(r.amount_paid || 0), 0);
 
-  // 3. Bills awaiting approval
-  const [
-    { count: billsToApproveCount },
-    { data: billsToApproveTotals },
-    { data: billsToApprove },
-  ] = await Promise.all([
-    checkedDashboardRead(supabase.from('bills').select('*', { count: 'exact', head: true }).eq('status', 'draft'), 'dashboard bills draft count failed'),
-    checkedDashboardRead(supabase.from('bills').select('total').eq('status', 'draft'), 'dashboard bills draft totals failed'),
-    checkedDashboardRead(supabase.from('bills').select('id, bill_number, total, due_date, vendors!inner(name)').eq('status', 'draft').order('created_at', { ascending: false }).limit(5), 'dashboard bills draft list failed'),
-  ]);
-  const billsToApproveTotal = (billsToApproveTotals || []).reduce((s, r) => s + Number(r.total || 0), 0);
-  const billsMapped = (billsToApprove || []).map(r => ({
-    id: r.id, bill_number: r.bill_number, total: r.total, due_date: r.due_date,
-    vendor_name: r.vendors?.name,
-  }));
-
-  // 4. Stale estimates
+  // 3. Stale estimates
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data: staleEstimates } = await checkedDashboardRead(supabase
     .from('estimates')
@@ -323,7 +307,6 @@ router.get('/', async (req, res) => {
     dayTimeline, tomorrowPreview, tomorrowCount, upcomingThisWeek: upcomingThisWeek || 0,
     estimatesToSend: estMapped, estimatesToSendCount: estimatesToSendCount || 0,
     overdueInvoices: invMapped, overdueInvoicesCount: overdueInvoicesCount || 0, overdueTotal,
-    billsToApprove: billsMapped, billsToApproveCount, billsToApproveTotal,
     staleEstimates: staleMapped, staleEstimatesCount,
     activity,
     arBalance, revenueThisMonth, revenueYTD, customerCount: customerCount || 0, workOrdersActive,

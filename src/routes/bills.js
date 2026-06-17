@@ -387,6 +387,7 @@ router.post('/', async (req, res) => {
       due_date: data.due_date,
       job_id: data.job_id,
       work_order_id: data.work_order_id,
+      status: 'draft',
       subtotal: data.subtotal,
       tax_amount: data.tax_amount,
       total: data.total,

@@ -142,7 +142,7 @@ async function getProjectFinancials(jobId) {
     .from('bills')
     .select('total, amount_paid')
     .eq('job_id', jobId)
-    .in('status', ['approved', 'paid']);
+    .in('status', ['draft', 'approved', 'paid']);
   if (vbError) throw vbError;
 
   const vendor_billed = (vendorBills || []).reduce(

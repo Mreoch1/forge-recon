@@ -668,12 +668,19 @@ test('project contractor rollup includes bill-only vendors from Forge bills', ()
 
 test('bills are entered without a visible approval status step', () => {
   const routes = read('src/routes/bills.js');
+  const dashboardRoutes = read('src/routes/dashboard.js');
+  const dashboardView = read('src/views/dashboard/v2.ejs');
   const index = read('src/views/bills/index.ejs');
   const show = read('src/views/bills/show.ejs');
   const newView = read('src/views/bills/new.ejs');
   const financials = read('src/views/jobs/financials.ejs');
+  const projectFinancials = read('src/services/project-financials.js');
+  const postgresSchema = read('src/db/schema-postgres.sql');
+  const accountingSchema = read('src/db/schema-accounting.sql');
+  const migration = read('supabase/migrations/20260617235208_entered_bills_are_approved.sql');
 
   assert.match(routes, /await approveBillIfNeeded\(newId, req\.session\.userId\)/);
+  assert.match(routes, /status: 'draft'/);
   assert.match(routes, /after: \{ status: 'approved', total: data\.total \}/);
   assert.match(routes, /await approveBillIfNeeded\(id, req\.session\.userId\)/);
 
@@ -686,4 +693,13 @@ test('bills are entered without a visible approval status step', () => {
   assert.doesNotMatch(show, /badge-<%= bill\.status %>/);
   assert.doesNotMatch(financials, /<th>Status<\/th>/);
   assert.doesNotMatch(financials, /b\.status/);
+  assert.match(projectFinancials, /\.in\('status', \['draft', 'approved', 'paid'\]\)/);
+  assert.match(postgresSchema, /CREATE TABLE IF NOT EXISTS bills \([\s\S]*status TEXT NOT NULL DEFAULT 'approved'/);
+  assert.match(accountingSchema, /CREATE TABLE IF NOT EXISTS bills \([\s\S]*status TEXT NOT NULL DEFAULT 'approved'/);
+  assert.match(migration, /alter column status set default 'approved'/);
+  assert.match(migration, /where status = 'draft'/);
+  assert.doesNotMatch(dashboardRoutes, /billsToApprove/);
+  assert.doesNotMatch(dashboardRoutes, /dashboard bills draft/);
+  assert.doesNotMatch(dashboardView, /Billing awaiting approval/);
+  assert.doesNotMatch(dashboardView, /bills awaiting approval/);
 });
