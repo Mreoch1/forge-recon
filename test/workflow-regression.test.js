@@ -663,3 +663,25 @@ test('project contractor rollup includes bill-only vendors from Forge bills', ()
   assert.match(service, /Bill entered in Forge/);
   assert.doesNotMatch(service, /if \(rfpIds\.length === 0\) return \[\]/);
 });
+
+test('bills are entered without a visible approval status step', () => {
+  const routes = read('src/routes/bills.js');
+  const index = read('src/views/bills/index.ejs');
+  const show = read('src/views/bills/show.ejs');
+  const newView = read('src/views/bills/new.ejs');
+  const financials = read('src/views/jobs/financials.ejs');
+
+  assert.match(routes, /await approveBillIfNeeded\(newId, req\.session\.userId\)/);
+  assert.match(routes, /after: \{ status: 'approved', total: data\.total \}/);
+  assert.match(routes, /await approveBillIfNeeded\(id, req\.session\.userId\)/);
+
+  assert.match(newView, /submitLabel: 'Create bill'/);
+  assert.doesNotMatch(newView, /Create draft bill/);
+  assert.doesNotMatch(index, /All statuses/);
+  assert.doesNotMatch(index, /<th>Status<\/th>/);
+  assert.doesNotMatch(index, /badge-<%= b\.status %>/);
+  assert.doesNotMatch(show, /Approve this bill/);
+  assert.doesNotMatch(show, /badge-<%= bill\.status %>/);
+  assert.doesNotMatch(financials, /<th>Status<\/th>/);
+  assert.doesNotMatch(financials, /b\.status/);
+});

@@ -1,18 +1,17 @@
 /**
  * Bills (vendor invoices) CRUD — Supabase SDK.
  *
- * Status flow:  draft -> approved -> paid
- *               draft -> void
+ * Status flow:  entered -> paid
+ *               entered -> void
  *               approved -> void  (with reversing JE)
  *
  * Routes (mounted at /bills under requireManager):
  *   GET   /                       list with vendor filter
  *   GET   /new[?vendor_id=N]      new manual bill
- *   POST  /                       create draft
+ *   POST  /                       create approved bill
  *   GET   /:id                    show
- *   GET   /:id/edit               edit (draft only)
- *   POST  /:id                    update (draft only)
- *   POST  /:id/approve            draft -> approved + post JE (DR Expense per line / CR AP)
+ *   GET   /:id/edit               edit legacy draft only
+ *   POST  /:id                    update legacy draft only
  *   POST  /:id/pay                approved -> paid (full or partial) + post JE (DR AP / CR Cash)
  *   POST  /:id/void               any non-paid -> void (with reversing JE if approved)
  *   POST  /:id/delete             draft or void only
@@ -211,6 +210,24 @@ async function loadBill(id) {
   return bill;
 }
 
+async function approveBillIfNeeded(billId, userId) {
+  const bill = await loadBill(billId);
+  if (!bill || bill.status !== 'draft') return bill;
+
+  const { error: rpcErr } = await supabase.rpc('approve_bill', {
+    bill_id: parseInt(billId, 10),
+    user_id: userId || null,
+  });
+  if (rpcErr) throw rpcErr;
+
+  try {
+    await posting.postBillApproved(bill, bill.lines, { userId });
+  } catch (e) {
+    console.error('JE post failed (bill approve) — continuing:', e.message);
+  }
+  return loadBill(billId);
+}
+
 function blankBill() {
   return {
     id: null, vendor_id: null, bill_number: '', bill_date: '', due_date: '',
@@ -400,10 +417,12 @@ router.post('/', async (req, res) => {
     await writeAudit({
       entityType: 'bill', entityId: newId, action: 'create',
       before: null,
-      after: { status: 'draft', total: data.total },
+      after: { status: 'approved', total: data.total },
       source: 'user', userId: req.session.userId,
     });
   } catch (e) { /* best-effort */ }
+
+  await approveBillIfNeeded(newId, req.session.userId);
 
   let paperwork = null;
   if (data.work_order_id) {
@@ -415,9 +434,9 @@ router.post('/', async (req, res) => {
   }
 
   if (paperwork && !paperwork.skipped) {
-    setFlash(req, 'success', `Bill draft created. Draft estimate #${paperwork.estimate_id} and invoice #${paperwork.invoice_id} are ready to edit before sending.`);
+    setFlash(req, 'success', `Bill entered. Draft estimate #${paperwork.estimate_id} and invoice #${paperwork.invoice_id} are ready to edit before sending.`);
   } else {
-    setFlash(req, 'success', `Bill draft created.`);
+    setFlash(req, 'success', `Bill entered.`);
   }
   res.redirect(`/bills/${newId}`);
 });
@@ -544,6 +563,7 @@ router.post('/:id/approve', async (req, res) => {
 
 router.post('/:id/pay', async (req, res) => {
   const id = parseInt(req.params.id, 10);
+  await approveBillIfNeeded(id, req.session.userId);
   const { data: bill, error: findErr } = await supabase
     .from('bills')
     .select('*')

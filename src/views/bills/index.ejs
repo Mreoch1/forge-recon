@@ -2,8 +2,7 @@
 <%
 const pageTotal = (bills || []).reduce(function(s, b){ return s + (Number(b.total) || 0); }, 0);
 const pagePaid = (bills || []).reduce(function(s, b){ return s + (Number(b.amount_paid) || 0); }, 0);
-const approvedCount = (bills || []).filter(function(b){ return b.status === 'approved'; }).length;
-const draftCount = (bills || []).filter(function(b){ return b.status === 'draft'; }).length;
+const paidCount = (bills || []).filter(function(b){ return b.status === 'paid'; }).length;
 %>
 <div class="ops-shell">
   <div class="ops-header">
@@ -12,18 +11,11 @@ const draftCount = (bills || []).filter(function(b){ return b.status === 'draft'
   </div>
   <div class="ops-summary">
     <div class="ops-summary-item"><div class="ops-summary-label">Total</div><div class="ops-summary-value"><%= total %></div><div class="ops-summary-meta">bills</div></div>
-    <div class="ops-summary-item"><div class="ops-summary-label">Draft</div><div class="ops-summary-value"><%= draftCount %></div><div class="ops-summary-meta">needs approval</div></div>
-    <div class="ops-summary-item"><div class="ops-summary-label">Approved</div><div class="ops-summary-value"><%= approvedCount %></div><div class="ops-summary-meta">ready to pay</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">Paid</div><div class="ops-summary-value"><%= paidCount %></div><div class="ops-summary-meta">closed bills shown</div></div>
     <div class="ops-summary-item"><div class="ops-summary-label">Open balance</div><div class="ops-summary-value">$<%= (pageTotal - pagePaid).toFixed(2) %></div><div class="ops-summary-meta">$<%= pageTotal.toFixed(2) %> billed shown</div></div>
   </div>
   <form method="get" class="list-utility-bar">
     <input type="text" name="q" value="<%= q || '' %>" placeholder="Search bill #, vendor..." class="list-search">
-    <select name="status" class="list-filter">
-      <option value="">All statuses</option>
-      <% statuses.forEach(function(s) { %>
-        <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s %></option>
-      <% }); %>
-    </select>
     <select name="vendor_id" class="list-filter">
       <option value="">All vendors</option>
       <% vendors.forEach(function(v) { %>
@@ -48,7 +40,7 @@ const draftCount = (bills || []).filter(function(b){ return b.status === 'draft'
       <table class="data">
         <thead>
           <tr>
-            <th>Bill #</th><th>Vendor</th><th>Status</th><th class="text-right">Total</th>
+            <th>Bill #</th><th>Vendor</th><th class="text-right">Total</th>
             <th class="text-right">Paid</th><th class="text-right">Balance</th>
             <th>Date</th><th>Due</th>
           </tr>
@@ -56,16 +48,9 @@ const draftCount = (bills || []).filter(function(b){ return b.status === 'draft'
         <tbody>
           <% bills.forEach(function(b) { %>
             <% const bal = (Number(b.total) || 0) - (Number(b.amount_paid) || 0); %>
-            <% const billStatusHint = b.status === 'draft' ? 'Awaiting approval. Edit freely.'
-                                   : b.status === 'pending' ? 'Awaiting approval before it can be paid.'
-                                   : b.status === 'approved' ? 'Cleared to pay. Counted in AP.'
-                                   : b.status === 'paid' ? 'Full payment recorded. Read-only.'
-                                   : b.status === 'void' ? 'Cancelled. Does not count toward AP.'
-                                   : b.status; %>
             <tr class="row-link" data-href="/bills/<%= b.id %>">
               <td><%= b.bill_number || '#' + b.id %></td>
               <td><%= b.vendor_name || '-' %></td>
-              <td><span class="badge badge-<%= b.status %>" title="<%= billStatusHint %>"><%= b.status %></span></td>
               <td class="text-right">$<%= Number(b.total).toFixed(2) %></td>
               <td class="text-right">$<%= (Number(b.amount_paid) || 0).toFixed(2) %></td>
               <td class="text-right <%= bal > 0 ? 'text-recon-red font-medium' : '' %>">$<%= bal.toFixed(2) %></td>

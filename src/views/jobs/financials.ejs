@@ -69,7 +69,6 @@ function ff(v) {
                             <th class="text-left">Bill #</th>
                             <th class="text-left">Date</th>
                             <th class="text-right">Amount</th>
-                            <th>Status</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -78,7 +77,6 @@ function ff(v) {
                               <td><a href="/bills/<%= b.id %>" class="text-recon-red hover:underline"><%= b.bill_number || '#' + b.id %></a></td>
                               <td><%= b.bill_date ? String(b.bill_date).slice(0,10) : '—' %></td>
                               <td class="text-right">$<%= ff(b.total) %></td>
-                              <td class="text-center"><span class="badge <%= b.status === 'paid' ? 'badge-success' : 'badge-info' %> text-xs"><%= b.status %></span></td>
                             </tr>
                           <% }); %>
                         </tbody>
