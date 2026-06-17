@@ -182,11 +182,46 @@ router.get('/:id', async (req, res) => {
     console.warn('[contractors:show] scope load failed:', e.message);
   }
 
+  let projectDocuments = [];
+  try {
+    const { data: docs, error: docsError } = await supabase
+      .from('generated_documents')
+      .select('id,title,status,project_id,scope_name,sent_at,signed_at,completed_at,created_at')
+      .eq('contractor_id', id)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (docsError) throw docsError;
+
+    const projectIds = [...new Set((docs || []).map(d => d.project_id).filter(Boolean))];
+    const projectsById = {};
+    if (projectIds.length) {
+      const { data: projects, error: projectsError } = await supabase
+        .from('jobs')
+        .select('id,title,address,city,state')
+        .in('id', projectIds);
+      if (projectsError) throw projectsError;
+      (projects || []).forEach(project => { projectsById[project.id] = project; });
+    }
+
+    const grouped = new Map();
+    (docs || []).forEach((doc) => {
+      const key = doc.project_id || 'none';
+      if (!grouped.has(key)) {
+        grouped.set(key, { project: projectsById[doc.project_id] || null, documents: [] });
+      }
+      grouped.get(key).documents.push(doc);
+    });
+    projectDocuments = Array.from(grouped.values());
+  } catch (e) {
+    console.warn('[contractors:show] documents load failed:', e.message);
+  }
+
   res.render('contractors/show', {
     title: contractor.name, activeNav: 'contractors',
     contractor, fileCount,
     rootFolder, folders, files,
     scopeProjects,
+    projectDocuments,
   });
 });
 

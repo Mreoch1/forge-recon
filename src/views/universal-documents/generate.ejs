@@ -1,0 +1,75 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<div class="document-shell">
+  <div class="mb-4"><a href="/universal-documents" class="text-sm text-recon-fog hover:text-recon-red">&larr; Universal Documents</a></div>
+  <h1 class="page-h1 mb-5">Generate Document</h1>
+
+  <form method="post" action="/universal-documents/generate" class="card p-5 space-y-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <label class="block md:col-span-2">
+        <span class="label">Template</span>
+        <select class="input" name="template_id" required>
+          <option value="">Choose template</option>
+          <% templates.forEach(function(template) { %>
+            <option value="<%= template.id %>" <%= String(values.template_id || '') === String(template.id) ? 'selected' : '' %>><%= template.title %></option>
+          <% }); %>
+        </select>
+      </label>
+      <label class="block">
+        <span class="label">Project</span>
+        <select class="input" name="project_id">
+          <option value="">No project</option>
+          <% projects.forEach(function(project) { %>
+            <option value="<%= project.id %>" <%= String(values.project_id || '') === String(project.id) ? 'selected' : '' %>><%= project.title %></option>
+          <% }); %>
+        </select>
+      </label>
+      <label class="block">
+        <span class="label">RFP / bid package</span>
+        <select class="input" name="project_rfp_id">
+          <option value="">No RFP</option>
+          <% rfps.forEach(function(rfp) { %>
+            <option value="<%= rfp.id %>" <%= String(values.project_rfp_id || '') === String(rfp.id) ? 'selected' : '' %>><%= rfp.jobs ? rfp.jobs.title + ' - ' : '' %><%= rfp.contractor_name || ('RFP #' + rfp.id) %></option>
+          <% }); %>
+        </select>
+      </label>
+      <label class="block">
+        <span class="label">Contractor</span>
+        <select class="input" name="contractor_id">
+          <option value="">No contractor</option>
+          <% contractors.forEach(function(contractor) { %>
+            <option value="<%= contractor.id %>" <%= String(values.contractor_id || '') === String(contractor.id) ? 'selected' : '' %>><%= contractor.name %></option>
+          <% }); %>
+        </select>
+      </label>
+      <label class="block">
+        <span class="label">Vendor</span>
+        <select class="input" name="vendor_id">
+          <option value="">No vendor</option>
+          <% vendors.forEach(function(vendor) { %>
+            <option value="<%= vendor.id %>" <%= String(values.vendor_id || '') === String(vendor.id) ? 'selected' : '' %>><%= vendor.name %></option>
+          <% }); %>
+        </select>
+      </label>
+      <label class="block">
+        <span class="label">Scope / trade</span>
+        <input class="input" name="scope_name" value="<%= values.scope_name || '' %>" placeholder="Painting, plumbing, drywall...">
+      </label>
+      <label class="block">
+        <span class="label">Recipient email</span>
+        <input class="input" name="sent_to_email" value="<%= values.sent_to_email || '' %>" type="email">
+      </label>
+      <label class="block md:col-span-2">
+        <span class="label">Document title</span>
+        <input class="input" name="title" value="<%= values.title || '' %>" placeholder="Defaults to template title">
+      </label>
+    </div>
+
+    <div class="border-t pt-4 flex gap-2">
+      <button class="btn btn-primary" type="submit">Generate</button>
+      <a class="btn btn-secondary" href="/universal-documents">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<%- include('../layouts/footer') %>

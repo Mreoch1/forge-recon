@@ -1,0 +1,57 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+
+<div class="document-edit-shell">
+  <div class="mb-4"><a href="/universal-documents" class="text-sm text-recon-fog hover:text-recon-red">&larr; Universal Documents</a></div>
+  <h1 class="page-h1 mb-5"><%= mode === 'edit' ? 'Edit template' : 'New template' %></h1>
+
+  <form method="post" action="<%= mode === 'edit' ? '/universal-documents/templates/' + template.id : '/universal-documents/templates' %>" class="card p-5 space-y-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <label class="block md:col-span-2">
+        <span class="label">Title</span>
+        <input class="input" name="title" value="<%= template.title || '' %>" required>
+        <% if (errors && errors.title) { %><span class="text-sm text-recon-red"><%= errors.title %></span><% } %>
+      </label>
+      <label class="block">
+        <span class="label">Version</span>
+        <input class="input" name="version" value="<%= template.version || '1.0' %>">
+      </label>
+      <label class="block">
+        <span class="label">Slug</span>
+        <input class="input" name="slug" value="<%= template.slug || '' %>" placeholder="auto-created if blank">
+      </label>
+      <label class="block">
+        <span class="label">Category</span>
+        <input class="input" name="category" value="<%= template.category || 'general' %>">
+      </label>
+      <label class="block md:col-span-3">
+        <span class="label">Description</span>
+        <input class="input" name="description" value="<%= template.description || '' %>">
+      </label>
+    </div>
+
+    <label class="block">
+      <span class="label">Template body</span>
+      <textarea class="input font-mono text-sm" name="body" rows="18"><%= template.body || '' %></textarea>
+    </label>
+
+    <label class="block">
+      <span class="label">Merge fields</span>
+      <textarea class="input font-mono text-sm" name="merge_fields" rows="5"><%= Array.isArray(template.merge_fields) ? template.merge_fields.join('\n') : (template.merge_fields || '') %></textarea>
+    </label>
+
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-3 text-sm">
+      <label><input type="checkbox" name="is_active" value="1" <%= template.is_active !== false ? 'checked' : '' %>> Active</label>
+      <label><input type="checkbox" name="signature_required" value="1" <%= template.signature_required ? 'checked' : '' %>> Signature required</label>
+      <label><input type="checkbox" name="internal_only" value="1" <%= template.internal_only ? 'checked' : '' %>> Internal only</label>
+      <label><input type="checkbox" name="contractor_facing" value="1" <%= template.contractor_facing !== false ? 'checked' : '' %>> Contractor facing</label>
+      <label><input type="checkbox" name="project_facing" value="1" <%= template.project_facing !== false ? 'checked' : '' %>> Project facing</label>
+    </div>
+
+    <div class="border-t pt-4 flex gap-2">
+      <button class="btn btn-primary" type="submit"><%= mode === 'edit' ? 'Save template' : 'Create template' %></button>
+      <a class="btn btn-secondary" href="/universal-documents">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<%- include('../layouts/footer') %>

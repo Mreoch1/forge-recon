@@ -67,6 +67,60 @@
     </div>
   </details>
 
+  <details class="mb-6" <%= (typeof projectDocuments !== 'undefined' && projectDocuments.length > 0) ? 'open' : '' %>>
+    <summary class="cursor-pointer text-sm font-medium text-recon-fog mb-2 hover:text-recon-red">
+      Project Documents
+      <% if (typeof projectDocuments !== 'undefined' && projectDocuments.length > 0) { %>
+        <span class="text-xs text-recon-fog">(<%= projectDocuments.reduce(function(sum, group){ return sum + group.documents.length; }, 0) %>)</span>
+      <% } %>
+    </summary>
+    <div class="card p-4 mt-2">
+      <% if (typeof projectDocuments === 'undefined' || projectDocuments.length === 0) { %>
+        <p class="text-recon-fog text-sm">No generated project documents yet.</p>
+      <% } else { %>
+        <% projectDocuments.forEach(function(group) { %>
+          <div class="mb-4 last:mb-0">
+            <div class="flex items-center justify-between mb-2">
+              <div>
+                <% if (group.project) { %>
+                  <a href="/projects/<%= group.project.id %>" class="font-semibold hover:text-recon-red"><%= group.project.title %></a>
+                  <div class="text-xs text-recon-fog"><%= [group.project.address, group.project.city, group.project.state].filter(Boolean).join(', ') || '-' %></div>
+                <% } else { %>
+                  <div class="font-semibold">No project</div>
+                <% } %>
+              </div>
+            </div>
+            <table class="data text-sm">
+              <thead>
+                <tr>
+                  <th>Document</th>
+                  <th>Status</th>
+                  <th>Scope</th>
+                  <th>Updated</th>
+                  <th class="text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% group.documents.forEach(function(doc) { %>
+                  <tr>
+                    <td><%= doc.title %></td>
+                    <td><span class="badge"><%= doc.status %></span></td>
+                    <td class="text-recon-fog"><%= doc.scope_name || '-' %></td>
+                    <td class="text-xs text-recon-fog"><%= (doc.completed_at || doc.signed_at || doc.sent_at || doc.created_at || '').slice(0, 10) %></td>
+                    <td class="text-right">
+                      <a class="btn btn-secondary text-xs" href="/universal-documents/generated/<%= doc.id %>">Open</a>
+                      <a class="btn btn-secondary text-xs" href="/universal-documents/generated/<%= doc.id %>/pdf" target="_blank">PDF</a>
+                    </td>
+                  </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          </div>
+        <% }); %>
+      <% } %>
+    </div>
+  </details>
+
   <!-- Work orders can be linked once the scheduling/assignment model adds contractor_id. -->
   <div class="card p-4 mb-6"><h3 class="font-semibold mb-3">Work Orders</h3>
     <p class="text-recon-fog text-sm">Work order assignment links are not wired to contractors yet.</p>
