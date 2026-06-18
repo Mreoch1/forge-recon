@@ -97,7 +97,6 @@
                   <th>Status</th>
                   <th>Scope</th>
                   <th>Updated</th>
-                  <th class="text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -107,10 +106,6 @@
                     <td><span class="badge"><%= doc.status %></span></td>
                     <td class="text-recon-fog"><%= doc.scope_name || '-' %></td>
                     <td class="text-xs text-recon-fog"><%= (doc.completed_at || doc.signed_at || doc.sent_at || doc.created_at || '').slice(0, 10) %></td>
-                    <td class="text-right">
-                      <a class="btn btn-secondary text-xs" href="/universal-documents/generated/<%= doc.id %>">Open</a>
-                      <a class="btn btn-secondary text-xs" href="/universal-documents/generated/<%= doc.id %>/pdf" target="_blank">PDF</a>
-                    </td>
                   </tr>
                 <% }); %>
               </tbody>

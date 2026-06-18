@@ -299,10 +299,6 @@
                 <a href="/contractors" class="more-menu-link<%= typeof activeNav !== 'undefined' && activeNav === 'contractors' ? ' active' : '' %>">Contractors</a>
                 <a href="/vendor-intake/directory" class="more-menu-link<%= typeof activeNav !== 'undefined' && activeNav === 'intake' ? ' active' : '' %>">Trade intake</a>
               </div>
-              <div class="more-menu-section">
-                <div class="more-menu-heading">Documents</div>
-                <a href="/universal-documents" class="more-menu-link<%= typeof activeNav !== 'undefined' && activeNav === 'documents' ? ' active' : '' %>">Universal documents</a>
-              </div>
               <% if (_isAdminNav) { %>
                 <div class="more-menu-section">
                   <div class="more-menu-heading">Accounting</div>
@@ -381,10 +377,6 @@
           <a href="/vendors" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'vendors' ? ' active' : '' %>">Vendors</a>
           <a href="/contractors" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'contractors' ? ' active' : '' %>">Contractors</a>
           <a href="/vendor-intake/directory" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'intake' ? ' active' : '' %>">Trade intake</a>
-        <% } %>
-        <% if (_canManageMobile) { %>
-          <div class="mobile-menu-heading">Documents</div>
-          <a href="/universal-documents" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'documents' ? ' active' : '' %>">Universal documents</a>
         <% } %>
         <% if (_isAdminMobile) { %>
           <div class="mobile-menu-heading">Accounting</div>

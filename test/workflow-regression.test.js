@@ -703,3 +703,18 @@ test('bills are entered without a visible approval status step', () => {
   assert.doesNotMatch(dashboardView, /Billing awaiting approval/);
   assert.doesNotMatch(dashboardView, /bills awaiting approval/);
 });
+
+test('universal documents page is not exposed in the app', () => {
+  const app = read('src/app.js');
+  const header = read('src/views/layouts/header.ejs');
+  const projectShow = read('src/views/jobs/show.ejs');
+  const contractorShow = read('src/views/contractors/show.ejs');
+
+  assert.doesNotMatch(app, /universalDocumentsRoutes/);
+  assert.doesNotMatch(app, /\/universal-documents/);
+  assert.doesNotMatch(header, /\/universal-documents/);
+  assert.doesNotMatch(header, /Universal documents/);
+  assert.doesNotMatch(projectShow, /Pre-con docs/);
+  assert.doesNotMatch(projectShow, /\/universal-documents/);
+  assert.doesNotMatch(contractorShow, /\/universal-documents/);
+});
