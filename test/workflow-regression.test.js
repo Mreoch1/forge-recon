@@ -214,7 +214,14 @@ test('managers can create and send invoices while admin keeps accounting control
   assert.match(invoiceShow, /const isAdmin = currentUser && currentUser\.role === 'admin'/);
   assert.match(invoiceShow, /isAdmin && \(invoice\.status === 'sent' \|\| invoice\.status === 'overdue'\)/);
   assert.match(invoiceShow, /href="\/invoices\/<%= invoice\.id %>\/csv"/);
+  assert.match(invoiceShow, /action="\/invoices\/<%= invoice\.id %>\/mark-sent"/);
+  assert.match(invoiceShow, /action="\/invoices\/<%= invoice\.id %>\/status"/);
+  assert.match(invoiceShow, /Manual invoice status/);
   assert.match(invoiceShow, /action="\/invoices\/<%= invoice\.id %>\/billing-complete"/);
+  assert.match(invoices, /async function refreshPastDueInvoices\(\)/);
+  assert.match(invoices, /status_auto_overdue/);
+  assert.match(invoices, /router\.post\('\/:id\/mark-sent'/);
+  assert.match(invoices, /router\.post\('\/:id\/status', requireAdmin,/);
   assert.match(invoices, /router\.post\('\/:id\/mark-paid', requireAdmin,/);
   assert.match(invoices, /router\.post\('\/:id\/billing-complete', requireAdmin,/);
   assert.match(invoices, /router\.get\('\/:id\/csv'/);
@@ -274,6 +281,7 @@ test('QuickBooks flow uses CSV export instead of live API sync', () => {
   assert.match(invoiceIndex, /formaction="\/invoices\/batch-csv"/);
   assert.match(invoiceShow, /href="\/invoices\/<%= invoice\.id %>\/csv"/);
   assert.match(invoiceShow, /billing-complete/);
+  assert.match(read('src/services/quickbooks-sync.js'), /saveInvoiceSync\(invoice, connection, qboInvoice, payload, 'billing_complete'\)/);
 });
 
 test('bank transactions and account defaults are wired for accounting categorization', () => {

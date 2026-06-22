@@ -11,6 +11,8 @@
  *   GET   /:id/edit            edit open invoices
  *   POST  /:id                 update
  *   POST  /:id/send            email PDF to billing_email
+ *   POST  /:id/mark-sent       draft -> sent without emailing
+ *   POST  /:id/status          admin manual status correction
  *   POST  /:id/mark-paid       sent|overdue -> paid (or partial; stays sent)
  *   POST  /:id/void            any non-paid -> void
  *   GET   /:id/pdf             PDF
@@ -32,6 +34,7 @@ const router = express.Router();
 
 const PAGE_SIZE = 25;
 const VALID_STATUSES = ['draft', 'sent', 'paid', 'billing_complete', 'overdue', 'void'];
+const MANUAL_STATUSES = ['draft', 'sent', 'overdue', 'billing_complete'];
 const VALID_UNITS = ['ea', 'hr', 'sqft', 'lf', 'ton', 'lot'];
 const PAYMENT_TERMS_PRESETS = ['Due on receipt', 'Net 15', 'Net 30', 'Net 45', 'Net 60'];
 
@@ -60,6 +63,52 @@ function escapeHtml(value) {
 function fmtMoney(value) {
   const num = Number(value);
   return `$${(Number.isFinite(num) ? num : 0).toFixed(2)}`;
+}
+
+function invoiceBalance(invoice) {
+  return (Number(invoice.total) || 0) - (Number(invoice.amount_paid) || 0);
+}
+
+function isInvoicePastDue(invoice) {
+  if (!invoice || invoice.status !== 'sent' || !invoice.due_date || invoiceBalance(invoice) <= 0) return false;
+  const dueAt = new Date(`${String(invoice.due_date).slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(dueAt.getTime())) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return dueAt < today;
+}
+
+async function markInvoiceOverdue(invoice, req) {
+  if (!isInvoicePastDue(invoice)) return invoice;
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from('invoices')
+    .update({ status: 'overdue', updated_at: now })
+    .eq('id', invoice.id)
+    .eq('status', 'sent');
+  if (error) throw error;
+  try {
+    await writeAudit({
+      entityType: 'invoice',
+      entityId: invoice.id,
+      action: 'status_auto_overdue',
+      before: { status: 'sent' },
+      after: { status: 'overdue', due_date: invoice.due_date },
+      source: 'system',
+      userId: req?.session?.userId || null,
+    });
+  } catch (e) { /* best-effort */ }
+  return { ...invoice, status: 'overdue', updated_at: now };
+}
+
+async function refreshPastDueInvoices() {
+  const today = new Date().toISOString().slice(0, 10);
+  const { error } = await supabase
+    .from('invoices')
+    .update({ status: 'overdue', updated_at: new Date().toISOString() })
+    .eq('status', 'sent')
+    .lt('due_date', today);
+  if (error) throw error;
 }
 
 function paymentTermsFromBody(body, fallback = 'Net 30') {
@@ -272,6 +321,8 @@ async function loadCompanySettings() {
 }
 
 router.get('/', async (req, res) => {
+  await refreshPastDueInvoices();
+
   // F4: sanitize before interpolating into PostgREST .or() filter.
   const q = sanitizePostgrestSearch((req.query.q || '').trim());
   const status = (req.query.status || '').trim();
@@ -400,13 +451,10 @@ router.get('/new', (req, res) => {
 // Defensive: constrain :id to digits so "new", "create", etc. never reach the
 // bigint cast. Anything non-numeric falls through to a 404 below.
 router.get('/:id(\\d+)', async (req, res) => {
-  const invoice = await loadInvoice(req.params.id);
+  let invoice = await loadInvoice(req.params.id);
   if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
+  invoice = await markInvoiceOverdue(invoice, req);
   let displayStatus = invoice.status;
-  if (invoice.status === 'sent' && invoice.due_date) {
-    const dueAt = new Date(String(invoice.due_date).slice(0, 10));
-    if (!isNaN(dueAt.getTime()) && dueAt < new Date()) displayStatus = 'overdue';
-  }
 
   // F-010: actual cost from linked vendor bills
   let actualCost = 0;
@@ -614,6 +662,108 @@ router.post('/:id/send', async (req, res, next) => {
     setFlash(req, 'success', `${invoice.display_number} email sent to ${recipient}.${note}`);
     res.redirect(`/invoices/${invoice.id}`);
   } catch (err) { next(err); }
+});
+
+// Mark sent manually without emailing the customer.
+router.post('/:id/mark-sent', async (req, res) => {
+  const invoice = await loadInvoice(req.params.id);
+  if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
+  if (invoice.status !== 'draft') {
+    setFlash(req, 'error', `${invoice.display_number} is "${invoice.status}" - only draft invoices can be marked sent.`);
+    return res.redirect(`/invoices/${invoice.id}`);
+  }
+
+  const now = new Date().toISOString();
+  const recipient = invoice.customer_billing_email || invoice.customer_email || null;
+  const { error: updErr } = await supabase
+    .from('invoices')
+    .update({
+      sent_at: now,
+      sent_by_user_id: req.session.userId,
+      sent_to_email: recipient,
+      sent_to_name: invoice.customer_name || null,
+      status: 'sent',
+      updated_at: now,
+    })
+    .eq('id', invoice.id);
+  if (updErr) throw updErr;
+
+  try {
+    await writeAudit({
+      entityType: 'invoice',
+      entityId: invoice.id,
+      action: 'marked_sent_manually',
+      before: { status: invoice.status },
+      after: { status: 'sent', sent_at: now, recipient },
+      source: 'user',
+      userId: req.session.userId,
+    });
+  } catch (e) { /* best-effort */ }
+
+  try {
+    await posting.postInvoiceSent(invoice, { userId: req.session.userId });
+  } catch (e) {
+    console.error('JE post failed (invoice mark sent) - continuing:', e.message);
+  }
+
+  setFlash(req, 'success', `${invoice.display_number} marked sent. No email was sent.`);
+  res.redirect(`/invoices/${invoice.id}`);
+});
+
+router.post('/:id/status', requireAdmin, async (req, res) => {
+  const invoice = await loadInvoice(req.params.id);
+  if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
+  const nextStatus = String(req.body.status || '').trim();
+  if (!MANUAL_STATUSES.includes(nextStatus)) {
+    setFlash(req, 'error', 'Choose a valid invoice status.');
+    return res.redirect(`/invoices/${invoice.id}`);
+  }
+  if (invoice.status === 'paid' && nextStatus !== 'billing_complete') {
+    setFlash(req, 'error', 'Paid invoices can only move to billing complete from the manual status control.');
+    return res.redirect(`/invoices/${invoice.id}`);
+  }
+  if (invoice.status === nextStatus) {
+    setFlash(req, 'success', `${invoice.display_number} is already ${nextStatus.replace(/_/g, ' ')}.`);
+    return res.redirect(`/invoices/${invoice.id}`);
+  }
+
+  const now = new Date().toISOString();
+  const updates = { status: nextStatus, updated_at: now };
+  if (invoice.status === 'draft' && nextStatus === 'sent') {
+    updates.sent_at = now;
+    updates.sent_by_user_id = req.session.userId;
+    updates.sent_to_email = invoice.customer_billing_email || invoice.customer_email || null;
+    updates.sent_to_name = invoice.customer_name || null;
+  }
+
+  const { error: updateErr } = await supabase
+    .from('invoices')
+    .update(updates)
+    .eq('id', invoice.id);
+  if (updateErr) throw updateErr;
+
+  try {
+    await writeAudit({
+      entityType: 'invoice',
+      entityId: invoice.id,
+      action: 'status_changed_manually',
+      before: { status: invoice.status },
+      after: { status: nextStatus },
+      source: 'user',
+      userId: req.session.userId,
+    });
+  } catch (e) { /* best-effort */ }
+
+  if (invoice.status === 'draft' && nextStatus === 'sent') {
+    try {
+      await posting.postInvoiceSent(invoice, { userId: req.session.userId });
+    } catch (e) {
+      console.error('JE post failed (invoice manual status) - continuing:', e.message);
+    }
+  }
+
+  setFlash(req, 'success', `${invoice.display_number} status changed to ${nextStatus.replace(/_/g, ' ')}.`);
+  res.redirect(`/invoices/${invoice.id}`);
 });
 
 // GET /:id/csv — download invoice as QuickBooks-compatible CSV

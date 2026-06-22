@@ -10,6 +10,7 @@ const margin = subtotal - costTotal;
 const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '—';
 const invoiceStatusLabel = (displayStatus || invoice.status || '').replace(/_/g, ' ');
 const isAdmin = currentUser && currentUser.role === 'admin';
+const manualStatuses = invoice.status === 'paid' ? ['billing_complete'] : ['draft', 'sent', 'overdue', 'billing_complete'];
 %>
 
 <div class="document-shell">
@@ -40,6 +41,12 @@ const isAdmin = currentUser && currentUser.role === 'admin';
         <form action="/invoices/<%= invoice.id %>/send" method="post" class="m-0 inline">
           <button class="btn btn-secondary" title="Email this invoice to the customer billing email with the PDF attached."><%= invoice.sent_at ? 'Send again' : 'Send invoice email' %></button>
         </form>
+        <% if (invoice.status === 'draft') { %>
+          <form action="/invoices/<%= invoice.id %>/mark-sent" method="post" class="m-0 inline"
+                onsubmit="return confirm('Mark <%= invoice.display_number %> sent without emailing the customer?');">
+            <button class="btn btn-secondary" title="Change this invoice to sent without sending an email.">Mark sent</button>
+          </form>
+        <% } %>
         <a href="/invoices/<%= invoice.id %>/csv" class="btn btn-ghost text-sm" title="Download CSV for QuickBooks import">CSV</a>
         <% if (isAdmin && (invoice.status === 'sent' || invoice.status === 'overdue')) { %>
           <button type="button" onclick="document.getElementById('mark-paid-form').classList.toggle('hidden')" class="btn btn-primary"
@@ -56,6 +63,17 @@ const isAdmin = currentUser && currentUser.role === 'admin';
         <form action="/invoices/<%= invoice.id %>/reopen-billing" method="post" class="m-0 inline"
               onsubmit="return confirm('Reopen billing for <%= invoice.display_number %>?');">
           <button class="btn btn-secondary" title="Move this invoice back to sent if billing was completed by mistake.">Reopen billing</button>
+        </form>
+      <% } %>
+      <% if (isAdmin) { %>
+        <form action="/invoices/<%= invoice.id %>/status" method="post" class="m-0 inline-flex items-center gap-2"
+              onsubmit="return confirm('Change <%= invoice.display_number %> status manually?');">
+          <select name="status" class="input text-sm py-1.5 w-auto" title="Manual invoice status">
+            <% manualStatuses.forEach(function(statusOption) { %>
+              <option value="<%= statusOption %>" <%= invoice.status === statusOption ? 'selected' : '' %>><%= statusOption.replace(/_/g, ' ') %></option>
+            <% }); %>
+          </select>
+          <button class="btn btn-secondary" title="Manually update the invoice status. Payments and voids still use their dedicated controls.">Update status</button>
         </form>
       <% } %>
     </div>
