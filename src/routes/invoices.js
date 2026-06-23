@@ -203,21 +203,24 @@ function validateLineItem(li) {
   const description = emptyToNull(li.description);
   const unit = emptyToNull(li.unit) || 'ea';
   const quantity = parseFloat(li.quantity);
-  const unitPrice = parseFloat(li.unit_price);
-  const cost = parseFloat(li.cost);
   const laborCost = parseFloat(li.labor_cost);
   const materialCost = parseFloat(li.material_cost);
   const markupPct = parseFloat(li.markup_pct);
+  const labor = isFinite(laborCost) && laborCost >= 0 ? laborCost : 0;
+  const material = isFinite(materialCost) && materialCost >= 0 ? materialCost : 0;
+  const markup = isFinite(markupPct) && markupPct >= 0 ? markupPct : 25;
+  const cost = calc.round2(labor + material);
+  const unitPrice = calc.round2(cost * (1 + markup / 100));
   return {
     data: {
       description,
       quantity: isFinite(quantity) && quantity >= 0 ? quantity : 0,
       unit: VALID_UNITS.includes(unit) ? unit : 'ea',
-      unit_price: isFinite(unitPrice) && unitPrice >= 0 ? unitPrice : 0,
-      cost: isFinite(cost) && cost >= 0 ? cost : 0,
-      labor_cost: isFinite(laborCost) && laborCost >= 0 ? laborCost : 0,
-      material_cost: isFinite(materialCost) && materialCost >= 0 ? materialCost : 0,
-      markup_pct: isFinite(markupPct) && markupPct >= 0 ? markupPct : 25,
+      unit_price: unitPrice,
+      cost,
+      labor_cost: labor,
+      material_cost: material,
+      markup_pct: markup,
     }
   };
 }
