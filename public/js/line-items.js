@@ -26,6 +26,11 @@
     return num.toFixed(2);
   }
 
+  function numberOr(value, fallback) {
+    const num = parseFloat(value);
+    return isFinite(num) ? num : fallback;
+  }
+
   function reindexRows(table) {
     const rows = $$('.line-row', table);
     rows.forEach((row, idx) => {
@@ -40,13 +45,19 @@
   // D-112: compute row totals from labor + material + markup directly
   // Also handles bill form: qty × unit_price (when unit_price exists without labor_cost)
   function calcRow(row) {
-    const q = parseFloat($('[data-field=quantity]', row).value) || 0;
-    const labor = parseFloat($('[data-field=labor_cost]', row).value);
-    const material = parseFloat($('[data-field=material_cost]', row).value);
-    const unitPrice = parseFloat($('[data-field=unit_price]', row).value) || 0;
-    const markup = parseFloat($('[data-field=markup_pct]', row).value) || 25;
+    const qtyInput = $('[data-field=quantity]', row);
+    const laborInput = $('[data-field=labor_cost]', row);
+    const materialInput = $('[data-field=material_cost]', row);
+    const unitPriceInput = $('[data-field=unit_price]', row);
+    const markupInput = $('[data-field=markup_pct]', row);
+    const q = numberOr(qtyInput ? qtyInput.value : 0, 0);
+    const hasInternalCostFields = !!(laborInput || materialInput);
+    const labor = numberOr(laborInput ? laborInput.value : 0, 0);
+    const material = numberOr(materialInput ? materialInput.value : 0, 0);
+    const unitPrice = numberOr(unitPriceInput ? unitPriceInput.value : 0, 0);
+    const markup = numberOr(markupInput ? markupInput.value : 25, 25);
     let cost, p, total;
-    if (!isNaN(labor) && !isNaN(material)) {
+    if (hasInternalCostFields) {
       // Estimate/WO style: labor + material + markup
       cost = labor + material;
       p = cost * (1 + markup / 100);
@@ -61,16 +72,21 @@
     const costInput = $('[data-field=cost]', row);
     if (costInput) costInput.value = fmtMoney(cost);
     const priceInput = $('[data-field=unit_price]', row);
-    if (priceInput && !isNaN(labor) && !isNaN(material)) priceInput.value = fmtMoney(p);
+    if (priceInput && hasInternalCostFields) priceInput.value = fmtMoney(p);
     const totalInput = $('[data-field=line_total]', row);
     if (totalInput) totalInput.value = fmtMoney(total);
     return total;
   }
 
   function calcCost(row) {
-    const q = parseFloat($('[data-field=quantity]', row).value) || 0;
-    const labor = parseFloat($('[data-field=labor_cost]', row).value) || 0;
-    const material = parseFloat($('[data-field=material_cost]', row).value) || 0;
+    const qtyInput = $('[data-field=quantity]', row);
+    const laborInput = $('[data-field=labor_cost]', row);
+    const materialInput = $('[data-field=material_cost]', row);
+    const unitPriceInput = $('[data-field=unit_price]', row);
+    const q = numberOr(qtyInput ? qtyInput.value : 0, 0);
+    if (!laborInput && !materialInput) return q * numberOr(unitPriceInput ? unitPriceInput.value : 0, 0);
+    const labor = numberOr(laborInput ? laborInput.value : 0, 0);
+    const material = numberOr(materialInput ? materialInput.value : 0, 0);
     return q * (labor + material);
   }
 

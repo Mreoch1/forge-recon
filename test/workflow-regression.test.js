@@ -712,6 +712,19 @@ test('bills are entered without a visible approval status step', () => {
   assert.doesNotMatch(dashboardView, /bills awaiting approval/);
 });
 
+test('invoice line item totals update with blank labor and zero markup', () => {
+  const lineItems = read('public/js/line-items.js');
+  const invoiceEdit = read('src/views/invoices/edit.ejs');
+
+  assert.match(invoiceEdit, /<script src="\/js\/line-items\.js"><\/script>/);
+  assert.match(lineItems, /function numberOr\(value, fallback\)/);
+  assert.match(lineItems, /const hasInternalCostFields = !!\(laborInput \|\| materialInput\)/);
+  assert.match(lineItems, /const labor = numberOr\(laborInput \? laborInput\.value : 0, 0\)/);
+  assert.match(lineItems, /const material = numberOr\(materialInput \? materialInput\.value : 0, 0\)/);
+  assert.match(lineItems, /const markup = numberOr\(markupInput \? markupInput\.value : 25, 25\)/);
+  assert.doesNotMatch(lineItems, /parseFloat\(markupInput \? markupInput\.value : 25\) \|\| 25/);
+});
+
 test('universal documents page is not exposed in the app', () => {
   const app = read('src/app.js');
   const header = read('src/views/layouts/header.ejs');
