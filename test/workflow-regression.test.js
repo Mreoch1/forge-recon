@@ -202,7 +202,10 @@ test('managers can create and send invoices while admin keeps accounting control
   const estimates = read('src/routes/estimates.js');
   const invoices = read('src/routes/invoices.js');
   const estimateShow = read('src/views/estimates/show.ejs');
+  const estimateSend = read('src/views/estimates/send-confirm.ejs');
   const invoiceShow = read('src/views/invoices/show.ejs');
+  const invoiceSend = read('src/views/invoices/send-confirm.ejs');
+  const estimateEmail = read('src/services/estimate-email.js');
   const header = read('src/views/layouts/header.ejs');
 
   assert.match(app, /app\.use\('\/invoices', requireAuth, requireManager, invoicesRoutes\)/);
@@ -211,8 +214,10 @@ test('managers can create and send invoices while admin keeps accounting control
   assert.match(estimates, /router\.post\('\/:id\/generate-invoice', requireManager,/);
   assert.match(estimateShow, /const canManageInvoices = currentUser && \['admin', 'manager'\]\.includes\(currentUser\.role\)/);
   assert.match(estimateShow, /canManageInvoices && !invoice && estimate\.lines\.length > 0/);
+  assert.match(estimateShow, /href="\/estimates\/<%= estimate\.id %>\/send"/);
   assert.match(invoiceShow, /const isAdmin = currentUser && currentUser\.role === 'admin'/);
   assert.match(invoiceShow, /isAdmin && \(invoice\.status === 'sent' \|\| invoice\.status === 'overdue'\)/);
+  assert.match(invoiceShow, /href="\/invoices\/<%= invoice\.id %>\/send"/);
   assert.match(invoiceShow, /href="\/invoices\/<%= invoice\.id %>\/csv"/);
   assert.match(invoiceShow, /action="\/invoices\/<%= invoice\.id %>\/mark-sent"/);
   assert.match(invoiceShow, /action="\/invoices\/<%= invoice\.id %>\/status"/);
@@ -220,6 +225,23 @@ test('managers can create and send invoices while admin keeps accounting control
   assert.match(invoiceShow, /action="\/invoices\/<%= invoice\.id %>\/billing-complete"/);
   assert.match(invoices, /async function refreshPastDueInvoices\(\)/);
   assert.match(invoices, /status_auto_overdue/);
+  assert.match(estimates, /router\.get\('\/:id\/send'/);
+  assert.match(estimates, /res\.render\('estimates\/send-confirm'/);
+  assert.match(estimates, /parseSendRecipients\(req\.body\)/);
+  assert.match(invoices, /router\.get\('\/:id\/send'/);
+  assert.match(invoices, /res\.render\('invoices\/send-confirm'/);
+  assert.match(invoices, /parseSendRecipients\(req\.body\)/);
+  assert.match(invoices, /cc: ccEmails/);
+  assert.match(estimateEmail, /async function sendEstimateEmail\(estimateId, options = \{\}\)/);
+  assert.match(estimateEmail, /to: recipient,[\s\S]*cc,/);
+  assert.match(estimateSend, /class="document-shell"/);
+  assert.match(estimateSend, /name="to_email"/);
+  assert.match(estimateSend, /name="cc_emails"/);
+  assert.match(estimateSend, /Confirm send/);
+  assert.match(invoiceSend, /class="document-shell"/);
+  assert.match(invoiceSend, /name="to_email"/);
+  assert.match(invoiceSend, /name="cc_emails"/);
+  assert.match(invoiceSend, /Confirm send/);
   assert.match(invoices, /router\.post\('\/:id\/mark-sent'/);
   assert.match(invoices, /router\.post\('\/:id\/status', requireAdmin,/);
   assert.match(invoices, /router\.post\('\/:id\/mark-paid', requireAdmin,/);

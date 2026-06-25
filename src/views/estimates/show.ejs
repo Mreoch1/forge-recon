@@ -92,9 +92,8 @@ const customerLabel = estimate.customer_name || 'Customer';
                 onsubmit="return confirm('Mark <%= estimate.display_number %> as sent without firing the email?');">
             <button class="btn btn-secondary" title="Mark sent manually — no email is fired. Use when the customer was emailed/printed/delivered outside FORGE.">Mark sent</button>
           </form>
-          <form action="/estimates/<%= estimate.id %>/send" method="post" class="m-0 inline">
-            <button class="btn btn-primary" title="Email this estimate to the customer's primary email with the PDF attached.">Send email</button>
-          </form>
+          <a href="/estimates/<%= estimate.id %>/send" class="btn btn-primary"
+             title="Review recipients and confirm before emailing this estimate with the PDF attached.">Send email</a>
         <% } else if (estimate.status === 'sent') { %>
           <form action="/estimates/<%= estimate.id %>/mark-pending" method="post" class="m-0 inline">
             <button class="btn btn-primary" title="Mark as pending — awaiting customer approval decision.">Mark pending</button>

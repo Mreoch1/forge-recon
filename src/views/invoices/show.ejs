@@ -38,9 +38,8 @@ const manualStatuses = invoice.status === 'paid' ? ['billing_complete'] : ['draf
         <span class="hidden md:inline text-recon-mist px-1" aria-hidden="true">|</span>
 
         <a href="/invoices/<%= invoice.id %>/edit" class="btn btn-secondary">Edit</a>
-        <form action="/invoices/<%= invoice.id %>/send" method="post" class="m-0 inline">
-          <button class="btn btn-secondary" title="Email this invoice to the customer billing email with the PDF attached."><%= invoice.sent_at ? 'Send again' : 'Send invoice email' %></button>
-        </form>
+        <a href="/invoices/<%= invoice.id %>/send" class="btn btn-secondary"
+           title="Review recipients and confirm before emailing this invoice with the PDF attached."><%= invoice.sent_at ? 'Send again' : 'Send invoice email' %></a>
         <% if (invoice.status === 'draft') { %>
           <form action="/invoices/<%= invoice.id %>/mark-sent" method="post" class="m-0 inline"
                 onsubmit="return confirm('Mark <%= invoice.display_number %> sent without emailing the customer?');">

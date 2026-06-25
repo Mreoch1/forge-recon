@@ -44,6 +44,38 @@ function emptyToNull(v) {
   return t === '' ? null : t;
 }
 
+function splitEmailList(value) {
+  return String(value || '')
+    .split(/[,\n;]/)
+    .map(emailAddress => emailAddress.trim())
+    .filter(Boolean);
+}
+
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+}
+
+function parseSendRecipients(body) {
+  const toEmail = emptyToNull(body.to_email);
+  const ccEmails = splitEmailList(body.cc_emails);
+  const errors = {};
+  if (!toEmail || !isValidEmail(toEmail)) {
+    errors.to_email = 'Enter a valid recipient email address.';
+  }
+  const invalidCc = ccEmails.find(emailAddress => !isValidEmail(emailAddress));
+  if (invalidCc) {
+    errors.cc_emails = `Invalid additional recipient: ${invalidCc}`;
+  }
+  return { toEmail, ccEmails, errors };
+}
+
+function estimateSendFormDefaults(estimate) {
+  return {
+    to_email: estimate.customer_billing_email || estimate.customer_email || '',
+    cc_emails: '',
+  };
+}
+
 function asArray(input) {
   if (!input) return [];
   if (Array.isArray(input)) return input;
@@ -567,6 +599,22 @@ async function statusTransition(req, res, fromStatus, toStatus, timestampField) 
   res.redirect(`/estimates/${est.id}`);
 }
 
+router.get('/:id/send', async (req, res) => {
+  const estimate = await loadEstimate(req.params.id);
+  if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
+  if (estimate.status !== 'draft' && estimate.status !== 'new') {
+    setFlash(req, 'error', `${estimate.display_number} is "${estimate.status}" - already sent.`);
+    return res.redirect(`/estimates/${estimate.id}`);
+  }
+  res.render('estimates/send-confirm', {
+    title: `Send ${estimate.display_number}`,
+    activeNav: 'estimates',
+    estimate,
+    form: estimateSendFormDefaults(estimate),
+    errors: {},
+  });
+});
+
 // Send: generate PDF, write .eml to mail-outbox/, transition draft -> sent
 router.post('/:id/send', async (req, res, next) => {
   const estimate = await loadEstimate(req.params.id);
@@ -575,15 +623,23 @@ router.post('/:id/send', async (req, res, next) => {
     setFlash(req, 'error', `${estimate.display_number} is "${estimate.status}" — already sent.`);
     return res.redirect(`/estimates/${estimate.id}`);
   }
-  // Pre-check for recipient email to avoid an unhandled 500
-  if (!estimate.customer_billing_email && !estimate.customer_email) {
-    setFlash(req, 'error', `${estimate.display_number} cannot be emailed because the customer has no email address on file. Edit the customer to add an email, or use "Mark sent" to record delivery outside FORGE.`);
-    return res.redirect(`/estimates/${estimate.id}`);
+  const { toEmail, ccEmails, errors } = parseSendRecipients(req.body);
+  if (Object.keys(errors).length > 0) {
+    return res.status(400).render('estimates/send-confirm', {
+      title: `Send ${estimate.display_number}`,
+      activeNav: 'estimates',
+      estimate,
+      form: {
+        to_email: req.body.to_email || '',
+        cc_emails: req.body.cc_emails || '',
+      },
+      errors,
+    });
   }
   try {
     const emailService = require('../services/estimate-email');
-    const result = await emailService.sendEstimateEmail(estimate.id);
-    const sentToEmail = result.to || estimate.customer_billing_email || estimate.customer_email;
+    const result = await emailService.sendEstimateEmail(estimate.id, { to: toEmail, cc: ccEmails });
+    const sentToEmail = result.to || toEmail;
     const sentToName = result.toName || estimate.customer_name || 'Unknown';
     await updateEstimate(estimate.id, {
       status: 'sent', sent_at: new Date().toISOString(),
@@ -592,10 +648,11 @@ router.post('/:id/send', async (req, res, next) => {
     }, { optionalFields: ['sent_to_email', 'sent_to_name'] });
     try {
       const { writeAudit } = require('../services/audit');
-      writeAudit({ entityType: 'estimate', entityId: estimate.id, action: 'sent', before: { status: 'draft' }, after: { status: 'sent' }, source: 'user', userId: req.session.userId });
+      writeAudit({ entityType: 'estimate', entityId: estimate.id, action: 'sent', before: { status: 'draft' }, after: { status: 'sent', recipient: sentToEmail, cc: ccEmails }, source: 'user', userId: req.session.userId });
     } catch(e) { console.error('audit failed:', e.message); }
     const note = result.mode === 'file' && result.filepath ? ` Email saved to ${result.filepath}.` : '';
-    setFlash(req, 'success', `${estimate.display_number} sent.${note}`);
+    const ccNote = ccEmails.length ? ` with ${ccEmails.length} additional recipient${ccEmails.length === 1 ? '' : 's'}` : '';
+    setFlash(req, 'success', `${estimate.display_number} sent to ${sentToEmail}${ccNote}.${note}`);
     res.redirect(`/estimates/${estimate.id}`);
   } catch (err) { next(err); }
 });

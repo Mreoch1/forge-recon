@@ -112,18 +112,20 @@ function buildEstimateEmailBody(est, company = {}) {
 /**
  * Generate the estimate PDF, compose an email, and send it.
  * @param {number} estimateId
+ * @param {{to?: string, cc?: string[]}} [options]
  * @returns {Promise<{sent: boolean}>}
  */
-async function sendEstimateEmail(estimateId) {
+async function sendEstimateEmail(estimateId, options = {}) {
   const est = await loadEstimateForEmail(estimateId);
   if (!est) throw new Error(`Estimate #${estimateId} not found.`);
-  if (est.status !== 'draft') throw new Error(`Estimate ${est.display_number} is "${est.status}" — must be draft to send.`);
+  if (est.status !== 'draft' && est.status !== 'new') throw new Error(`Estimate ${est.display_number} is "${est.status}" — must be draft or new to send.`);
 
   const { data: company } = await supabase.from('company_settings').select('*').eq('id', 1).maybeSingle();
   const c = company || {};
   const customerEstimate = customerFacingEstimate(est);
   const buf = await pdf.renderToBuffer(pdf.generateEstimatePDF, { ...customerEstimate, estimate_number: est.display_number }, c);
-  const recipient = est.customer_billing_email || est.customer_email;
+  const recipient = options.to || est.customer_billing_email || est.customer_email;
+  const cc = Array.isArray(options.cc) ? options.cc.filter(Boolean) : [];
   if (!recipient) throw new Error(`Estimate ${est.display_number} cannot be sent because the customer has no email address.`);
   const subject = `Estimate ${est.display_number} from ${c.company_name || 'Recon Enterprises'}`;
   const text = [
@@ -140,6 +142,7 @@ async function sendEstimateEmail(estimateId) {
 
   const result = await email.sendEmail({
     to: recipient,
+    cc,
     subject,
     text,
     htmlBody: buildEstimateEmailBody(est, c),
@@ -150,7 +153,7 @@ async function sendEstimateEmail(estimateId) {
     }]
   });
 
-  return { sent: true, mode: result.mode || 'email', to: recipient, toName: est.customer_name || null };
+  return { sent: true, mode: result.mode || 'email', to: recipient, cc, toName: est.customer_name || null };
 }
 
 /**

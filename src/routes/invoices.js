@@ -44,6 +44,38 @@ function emptyToNull(v) {
   return t === '' ? null : t;
 }
 
+function splitEmailList(value) {
+  return String(value || '')
+    .split(/[,\n;]/)
+    .map(emailAddress => emailAddress.trim())
+    .filter(Boolean);
+}
+
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+}
+
+function parseSendRecipients(body) {
+  const toEmail = emptyToNull(body.to_email);
+  const ccEmails = splitEmailList(body.cc_emails);
+  const errors = {};
+  if (!toEmail || !isValidEmail(toEmail)) {
+    errors.to_email = 'Enter a valid recipient email address.';
+  }
+  const invalidCc = ccEmails.find(emailAddress => !isValidEmail(emailAddress));
+  if (invalidCc) {
+    errors.cc_emails = `Invalid additional recipient: ${invalidCc}`;
+  }
+  return { toEmail, ccEmails, errors };
+}
+
+function invoiceSendFormDefaults(invoice) {
+  return {
+    to_email: invoice.customer_billing_email || invoice.customer_email || '',
+    cc_emails: '',
+  };
+}
+
 function asArray(input) {
   if (!input) return [];
   if (Array.isArray(input)) return input;
@@ -607,6 +639,22 @@ router.post('/:id', async (req, res) => {
   res.redirect(`/invoices/${existing.id}`);
 });
 
+router.get('/:id/send', async (req, res) => {
+  const invoice = await loadInvoice(req.params.id);
+  if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
+  if (!['draft', 'sent', 'overdue'].includes(invoice.status)) {
+    setFlash(req, 'error', `${invoice.display_number} is "${invoice.status}" - cannot send email.`);
+    return res.redirect(`/invoices/${invoice.id}`);
+  }
+  res.render('invoices/send-confirm', {
+    title: `Send ${invoice.display_number}`,
+    activeNav: 'invoices',
+    invoice,
+    form: invoiceSendFormDefaults(invoice),
+    errors: {},
+  });
+});
+
 router.post('/:id/send', async (req, res, next) => {
   const invoice = await loadInvoice(req.params.id);
   if (!invoice) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Invoice not found.' });
@@ -614,17 +662,30 @@ router.post('/:id/send', async (req, res, next) => {
     setFlash(req, 'error', `${invoice.display_number} is "${invoice.status}" - cannot send email.`);
     return res.redirect(`/invoices/${invoice.id}`);
   }
+  const { toEmail, ccEmails, errors } = parseSendRecipients(req.body);
+  if (Object.keys(errors).length > 0) {
+    return res.status(400).render('invoices/send-confirm', {
+      title: `Send ${invoice.display_number}`,
+      activeNav: 'invoices',
+      invoice,
+      form: {
+        to_email: req.body.to_email || '',
+        cc_emails: req.body.cc_emails || '',
+      },
+      errors,
+    });
+  }
   try {
     const company = await loadCompanySettings();
     const customerInvoice = customerFacingInvoice(invoice);
     const buf = await pdf.renderToBuffer(pdf.generateInvoicePDF, { ...customerInvoice, invoice_number: invoice.display_number }, company);
-    const recipient = invoice.customer_billing_email || invoice.customer_email;
-    if (!recipient) throw new Error(`Invoice ${invoice.display_number} cannot be sent because the customer has no email address.`);
+    const recipient = toEmail;
     const subject = `Invoice ${invoice.display_number} from ${company.company_name || 'Recon Enterprises'}`;
     const dueLine = invoice.due_date ? `Due: ${String(invoice.due_date).slice(0, 10)}` : '';
     const text = `Hello ${invoice.customer_name || ''},\n\nPlease find attached invoice ${invoice.display_number}.\nAmount due: $${((Number(invoice.total) || 0) - (Number(invoice.amount_paid) || 0)).toFixed(2)}\nTerms: ${invoice.payment_terms || company.default_payment_terms || 'Net 30'}\n${dueLine}\n\nThanks.\n${company.company_name || 'Recon Enterprises'}`;
     const sent = await email.sendEmail({
       to: recipient,
+      cc: ccEmails,
       subject,
       text,
       htmlBody: buildInvoiceEmailBody(invoice, company),
@@ -648,7 +709,7 @@ router.post('/:id/send', async (req, res, next) => {
       await writeAudit({
         entityType: 'invoice', entityId: invoice.id, action: invoice.sent_at ? 'resend' : 'send',
         before: { status: invoice.status },
-        after: { status: 'sent', recipient, sent_at: new Date().toISOString() },
+        after: { status: 'sent', recipient, cc: ccEmails, sent_at: new Date().toISOString() },
         source: 'user', userId: req.session.userId,
       });
     } catch (e) { /* best-effort */ }
@@ -662,7 +723,8 @@ router.post('/:id/send', async (req, res, next) => {
     }
 
     const note = sent.mode === 'file' ? ` Email saved to ${sent.filepath}.` : '';
-    setFlash(req, 'success', `${invoice.display_number} email sent to ${recipient}.${note}`);
+    const ccNote = ccEmails.length ? ` with ${ccEmails.length} additional recipient${ccEmails.length === 1 ? '' : 's'}` : '';
+    setFlash(req, 'success', `${invoice.display_number} email sent to ${recipient}${ccNote}.${note}`);
     res.redirect(`/invoices/${invoice.id}`);
   } catch (err) { next(err); }
 });
