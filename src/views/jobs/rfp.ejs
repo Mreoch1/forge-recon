@@ -148,7 +148,7 @@
                   <option value="declined" <%= rfp.status === 'declined' ? 'selected' : '' %>>Declined</option>
                 </select>
               </td>
-              <td class="text-right font-semibold <%= rfp.status === 'awarded' ? 'text-green-700' : '' %>">$<%= rfpTotals[rfp.id].toFixed(2) %></td>
+              <td class="text-right font-semibold <%= rfp.status === 'awarded' ? 'text-green-700' : '' %>" data-rfp-summary-total="<%= rfp.id %>">$<%= rfpTotals[rfp.id].toFixed(2) %></td>
               <td class="text-right">
                 <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/delete" method="POST" onclick="event.stopPropagation()"
                       onsubmit="return confirm('Delete this category and all its line items?')" class="inline">
@@ -241,7 +241,7 @@
                 <% var liMarkup = liHasSubs ? (apprChildren.length === 0 ? '—' : (apprChildren.some(function(s){return Number(s.markup_pct||20) !== Number(apprChildren[0].markup_pct||20);}) ? 'mixed' : (Number(apprChildren[0].markup_pct||20)))) : (Number(item.markup_pct) || '—'); %>
                 <% var liGr = liHasSubs ? (apprChildren.length === 0 ? '—' : (apprChildren.some(function(s){return Number(s.general_requirements_pct||6) !== Number(apprChildren[0].general_requirements_pct||6);}) ? 'mixed' : (Number(apprChildren[0].general_requirements_pct||6)))) : (Number(item.general_requirements_pct) || '—'); %>
                 <% var liApproved = liHasSubs ? (apprChildren.length === children.length ? true : false) : !!item.approved; %>
-                <tr id="rfp-line-<%= item.id %>" class="rfp-li-row bg-recon-deeper/20 hover:bg-recon-cloud/20 border-t-2 border-recon-mist/40" style="cursor:pointer" onclick="toggleRfpLineEditor('<%= item.id %>');">
+                <tr id="rfp-line-<%= item.id %>" class="rfp-li-row bg-recon-deeper/20 hover:bg-recon-cloud/20 border-t-2 border-recon-mist/40" style="cursor:pointer" data-rfp-line-total="<%= liDisplayTotal.toFixed(2) %>" onclick="toggleRfpLineEditor('<%= item.id %>');">
                   <td>
                     <div class="flex items-start gap-1">
                       <span class="rfp-li-chevron text-recon-fog text-xs mt-1 select-none inline-block" style="transition:transform 0.15s; transform:rotate(0deg);">▸</span>
@@ -426,7 +426,7 @@
             <tfoot>
               <tr class="font-semibold bg-recon-deeper/50">
                 <td colspan="8" class="text-right">Grand Total (approved)</td>
-                <td class="text-right text-recon-red">$<%= grandTotal.toFixed(2) %></td>
+                <td class="text-right text-recon-red" data-rfp-grand-total="<%= rfp.id %>">$<%= grandTotal.toFixed(2) %></td>
                 <td></td>
               </tr>
             </tfoot>
@@ -673,6 +673,31 @@
     el.style.display = 'none';
   }
 
+  function moneyText(value) {
+    var num = Number(value);
+    return '$' + (isFinite(num) ? num : 0).toFixed(2);
+  }
+
+  function refreshApprovedTotalsFor(el) {
+    var table = el.closest('.rfp-items-table');
+    if (!table) return;
+    var rfpId = table.getAttribute('data-rfp-id');
+    var total = 0;
+    table.querySelectorAll('.rfp-li-row').forEach(function(row) {
+      var rowTotal = parseFloat(row.getAttribute('data-rfp-line-total')) || 0;
+      var checkbox = row.querySelector('input[type="checkbox"][data-field="approved"]');
+      if (checkbox) {
+        if (checkbox.checked) total += rowTotal;
+      } else {
+        total += rowTotal;
+      }
+    });
+    var summary = document.querySelector('[data-rfp-summary-total="' + rfpId + '"]');
+    var grand = document.querySelector('[data-rfp-grand-total="' + rfpId + '"]');
+    if (summary) summary.textContent = moneyText(total);
+    if (grand) grand.textContent = moneyText(total);
+  }
+
   function applySuccessfulSave(el, data) {
     var saved = fieldValue(el);
     if (data && data.rfp && el.dataset.field === 'contractor_name') {
@@ -695,6 +720,7 @@
     }
     el.dataset.originalValue = saved == null ? '' : String(saved);
     clearFieldState(el);
+    if (el.dataset.field === 'approved') refreshApprovedTotalsFor(el);
     showAutosaveStatus('Saved just now', 'success');
   }
 

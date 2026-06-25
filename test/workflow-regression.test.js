@@ -490,6 +490,11 @@ test('RFP line items open a pricing editor instead of dropdown sub rows', () => 
   assert.match(view, /<th class="text-right">Lines<\/th>/);
   assert.match(view, /Approved vendor \/ contractor lines/);
   assert.match(view, /<td class="text-center" onclick="event\.stopPropagation\(\);">/);
+  assert.match(view, /data-rfp-summary-total="<%= rfp\.id %>"/);
+  assert.match(view, /data-rfp-line-total="<%= liDisplayTotal\.toFixed\(2\) %>"/);
+  assert.match(view, /data-rfp-grand-total="<%= rfp\.id %>"/);
+  assert.match(view, /function refreshApprovedTotalsFor\(el\)/);
+  assert.match(view, /if \(el\.dataset\.field === 'approved'\) refreshApprovedTotalsFor\(el\)/);
   assert.doesNotMatch(view, /<td class="text-right flex gap-1 items-center">/);
   assert.match(view, /type="submit" form="<%= subFid %>" class="btn btn-secondary text-xs">Save/);
   assert.doesNotMatch(view, /class="rfp-sub-row/);
