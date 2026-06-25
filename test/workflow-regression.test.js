@@ -512,6 +512,26 @@ test('RFP line items open a pricing editor instead of dropdown sub rows', () => 
   assert.doesNotMatch(view, /form\.addEventListener\('submit', function\(e\) \{ e\.preventDefault\(\); \}\)/);
 });
 
+test('RFP page filters categories and approved-only line items client-side', () => {
+  const view = read('src/views/jobs/rfp.ejs');
+
+  assert.match(view, /id="rfp-filter-search"/);
+  assert.match(view, /id="rfp-filter-status"/);
+  assert.match(view, /id="rfp-filter-approved-only"/);
+  assert.match(view, /Show approved only/);
+  assert.match(view, /data-rfp-category-row/);
+  assert.match(view, /data-rfp-status="<%= rfp\.status \|\| 'pending' %>"/);
+  assert.match(view, /data-rfp-approved-count="<%= rfpApprovedCounts\[rfp\.id\] %>"/);
+  assert.match(view, /data-rfp-line-approved="/);
+  assert.match(view, /function approvedRfpCount\(items\)/);
+  assert.match(view, /function applyRfpFilters\(\)/);
+  assert.match(view, /rowStatus === 'awarded' && approvedCount > 0/);
+  assert.match(view, /\(!approvedOnly \|\| lineApproved\) && searchMatch/);
+  assert.match(view, /window\.applyRfpFilters = applyRfpFilters/);
+  assert.match(view, /categoryRow\.setAttribute\('data-rfp-status', saved \|\| 'pending'\)/);
+  assert.match(view, /categoryRow\.setAttribute\('data-rfp-approved-count', String\(approvedCount\)\)/);
+});
+
 test('RFP supplier lines sync into project materials', () => {
   const materials = read('src/routes/materials.js');
   const rfpRoutes = read('src/routes/rfp.js');
