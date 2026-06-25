@@ -476,6 +476,8 @@ test('RFP edits return users to the open category and line item', () => {
   assert.match(view, /params\.get\('open_rfp'\)/);
   assert.match(view, /params\.get\('open_item'\)/);
   assert.match(view, /params\.get\('show_sub_form'\)/);
+  assert.match(view, /document\.getElementById\('rfp-line-' \+ itemId\)/);
+  assert.doesNotMatch(view, /if \(itemId\) target = openRfpLineEditor\(itemId\) \|\| target/);
 });
 
 test('RFP line items open a pricing editor instead of dropdown sub rows', () => {

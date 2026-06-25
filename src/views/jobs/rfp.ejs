@@ -594,7 +594,10 @@
     if (!rfpId && !itemId && !showSubForm) return;
 
     var target = expandRfp(rfpId);
-    if (itemId) target = openRfpLineEditor(itemId) || target;
+    if (itemId) {
+      var itemRow = document.getElementById('rfp-line-' + itemId);
+      if (itemRow) target = itemRow;
+    }
     if (showSubForm) {
       var subForm = document.getElementById('add-sub-' + showSubForm);
       if (subForm) {
