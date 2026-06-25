@@ -207,7 +207,7 @@
               <col class="w-[10%]">
               <col class="w-[8%]">
               <col class="w-10">
-              <col class="w-[6%]">
+              <col class="w-20">
             </colgroup>
             <thead>
               <tr>
@@ -220,7 +220,7 @@
                 <th class="text-right">Total w/ Markup</th>
                 <th class="text-right">Final Unit</th>
                 <th class="text-center">✓</th>
-                <th></th>
+                <th class="text-right">Lines</th>
               </tr>
             </thead>
             <tbody>
@@ -258,10 +258,12 @@
                   <td class="text-right font-medium">$<%= liDisplayTotal.toFixed(2) %></td>
                   <td class="text-right text-xs">$<%= liDisplayUnit.toFixed(2) %></td>
                   <td class="text-center"><% if (liHasSubs) { %><span class="text-xs <%= liApproved ? 'text-green-600' : 'text-recon-fog' %>"><%= liApproved ? '✓' : '○' %></span><% } else { %><input form="<%= itemFormId %>" type="hidden" name="approved" value="0"><input form="<%= itemFormId %>" type="checkbox" name="approved" value="1" <%= item.approved ? 'checked' : '' %> data-rfp-autosave-item data-item-id="<%= item.id %>" data-field="approved" data-original-value="<%= item.approved ? '1' : '0' %>"><% } %></td>
-                  <td class="text-right flex gap-1 items-center">
-                    <span class="text-xs text-recon-fog mr-1" title="Approved sub-lines"><%= liApprovedSubs %>/<%= liSubCount %></span>
+                  <td class="text-right align-middle whitespace-nowrap">
+                    <span class="inline-flex items-center justify-end gap-1 rounded bg-recon-deeper/40 px-2 py-1 text-xs text-recon-fog" title="Approved vendor / contractor lines">
+                      <%= liApprovedSubs %>/<%= liSubCount %>
+                    </span>
                     <form id="<%= itemDelFormId %>" action="/projects/rfps/items/<%= item.id %>/delete" method="POST" onclick="event.stopPropagation();" onsubmit="return confirm('Delete?')"></form>
-                    <button type="submit" form="<%= itemDelFormId %>" class="text-recon-fog hover:text-recon-red text-xs">&times;</button>
+                    <button type="submit" form="<%= itemDelFormId %>" class="ml-1 text-recon-fog hover:text-recon-red text-xs">&times;</button>
                   </td>
                 </tr>
                 <tr id="rfp-line-editor-<%= item.id %>" class="rfp-line-editor-modal hidden fixed inset-0 z-[80] bg-black/50">

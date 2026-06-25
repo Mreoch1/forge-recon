@@ -487,6 +487,9 @@ test('RFP line items open a pricing editor instead of dropdown sub rows', () => 
   assert.match(view, /Vendor \/ contractor pricing/);
   assert.match(view, /Add vendor \/ contractor line/);
   assert.match(view, /Save line item/);
+  assert.match(view, /<th class="text-right">Lines<\/th>/);
+  assert.match(view, /Approved vendor \/ contractor lines/);
+  assert.doesNotMatch(view, /<td class="text-right flex gap-1 items-center">/);
   assert.match(view, /type="submit" form="<%= subFid %>" class="btn btn-secondary text-xs">Save/);
   assert.doesNotMatch(view, /class="rfp-sub-row/);
   assert.doesNotMatch(view, /while\s*\(next && next\.classList\.contains\('rfp-sub-row'\)\)/);
