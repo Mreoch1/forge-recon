@@ -257,7 +257,7 @@
                   <td class="text-right text-xs"><%= liGr %></td>
                   <td class="text-right font-medium">$<%= liDisplayTotal.toFixed(2) %></td>
                   <td class="text-right text-xs">$<%= liDisplayUnit.toFixed(2) %></td>
-                  <td class="text-center"><% if (liHasSubs) { %><span class="text-xs <%= liApproved ? 'text-green-600' : 'text-recon-fog' %>"><%= liApproved ? '✓' : '○' %></span><% } else { %><input form="<%= itemFormId %>" type="hidden" name="approved" value="0"><input form="<%= itemFormId %>" type="checkbox" name="approved" value="1" <%= item.approved ? 'checked' : '' %> data-rfp-autosave-item data-item-id="<%= item.id %>" data-field="approved" data-original-value="<%= item.approved ? '1' : '0' %>"><% } %></td>
+                  <td class="text-center" onclick="event.stopPropagation();"><% if (liHasSubs) { %><span class="text-xs <%= liApproved ? 'text-green-600' : 'text-recon-fog' %>"><%= liApproved ? '✓' : '○' %></span><% } else { %><input form="<%= itemFormId %>" type="hidden" name="approved" value="0"><input form="<%= itemFormId %>" type="checkbox" name="approved" value="1" <%= item.approved ? 'checked' : '' %> data-rfp-autosave-item data-item-id="<%= item.id %>" data-field="approved" data-original-value="<%= item.approved ? '1' : '0' %>"><% } %></td>
                   <td class="text-right align-middle whitespace-nowrap">
                     <span class="inline-flex items-center justify-end gap-1 rounded bg-recon-deeper/40 px-2 py-1 text-xs text-recon-fog" title="Approved vendor / contractor lines">
                       <%= liApprovedSubs %>/<%= liSubCount %>
