@@ -50,8 +50,8 @@ function buildEstimateEmailBody(est, company = {}) {
   const safeJobCSZ = escapeHtml([est.job_city || est.customer_city, est.job_state || est.customer_state, est.job_zip || est.customer_zip].filter(Boolean).join(', '));
   const rows = (est.lines || []).map(li => `
     <tr>
-      <td style="padding:10px 0;border-bottom:1px solid #eeeeee;">${escapeHtml(li.description || '')}</td>
-      <td style="padding:10px 0;border-bottom:1px solid #eeeeee;text-align:right;white-space:nowrap;">${escapeHtml(li.quantity || 0)} ${escapeHtml(li.unit || '')}</td>
+      <td style="padding:10px 12px 10px 0;border-bottom:1px solid #eeeeee;">${escapeHtml(li.description || '')}</td>
+      <td style="padding:10px 22px 10px 0;border-bottom:1px solid #eeeeee;text-align:right;white-space:nowrap;width:84px;">${escapeHtml(li.quantity || 0)} ${escapeHtml(li.unit || '')}</td>
       <td style="padding:10px 0;border-bottom:1px solid #eeeeee;text-align:right;white-space:nowrap;">${fmtMoney(li.line_total)}</td>
     </tr>
   `).join('');
@@ -86,8 +86,8 @@ function buildEstimateEmailBody(est, company = {}) {
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:18px 0;">
         <thead>
           <tr>
-            <th align="left" style="color:#777;font-size:11px;text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid #dddddd;padding-bottom:8px;">Item</th>
-            <th align="right" style="color:#777;font-size:11px;text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid #dddddd;padding-bottom:8px;">Qty</th>
+            <th align="left" style="color:#777;font-size:11px;text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid #dddddd;padding:0 12px 8px 0;">Item</th>
+            <th align="right" style="color:#777;font-size:11px;text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid #dddddd;padding:0 22px 8px 0;width:84px;">Qty</th>
             <th align="right" style="color:#777;font-size:11px;text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid #dddddd;padding-bottom:8px;">Amount</th>
           </tr>
         </thead>
