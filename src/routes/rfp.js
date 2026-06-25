@@ -495,6 +495,7 @@ router.patch('/projects/:id/rfps/:rId/autosave', requireAuth, requireRfpEditAcce
 router.post('/projects/:id/rfps/:rId/items', requireRfpEditAccess, async (req, res) => {
   const { vendor, description, quantity, contractor_cost, vendor_cost,
           unit_cost, total_cost, markup_pct, parent_id, scope_type } = req.body;
+  const approvedInput = Array.isArray(req.body.approved) ? req.body.approved[req.body.approved.length - 1] : req.body.approved;
 
   // D-132: reject creating a child of a child (sub-sub-line)
   if (parent_id) {
@@ -535,7 +536,7 @@ router.post('/projects/:id/rfps/:rId/items', requireRfpEditAccess, async (req, r
     finalUnitCost = baseCost > 0 ? withMarkup / (qty || 1) : 0;
   }
 
-  const { data, error } = await insertRfpLineItem({
+  const insertPayload = {
     rfp_id: req.params.rId,
     parent_line_item_id: parent_id || null,
     vendor: vendor || null,
@@ -550,7 +551,12 @@ router.post('/projects/:id/rfps/:rId/items', requireRfpEditAccess, async (req, r
     total_with_markup: withMarkup,
     final_unit_cost: finalUnitCost,
     scope_type: parent_id ? normalizeScopeType(scope_type) : 'contractor',
-  });
+  };
+  if (parent_id) {
+    insertPayload.approved = approvedInput === undefined ? true : (approvedInput === '1' || approvedInput === 'true' || approvedInput === true || approvedInput === 'on');
+  }
+
+  const { data, error } = await insertRfpLineItem(insertPayload);
   if (error) throw error;
   res.redirect(rfpRedirect(req.params.id, {
     open_rfp: req.params.rId,

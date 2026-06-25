@@ -482,6 +482,7 @@ test('RFP edits return users to the open category and line item', () => {
 
 test('RFP line items open a pricing editor instead of dropdown sub rows', () => {
   const view = read('src/views/jobs/rfp.ejs');
+  const routes = read('src/routes/rfp.js');
 
   assert.match(view, /class="rfp-line-editor-modal hidden fixed inset-0/);
   assert.doesNotMatch(view, /class="rfp-line-editor-modal hidden fixed inset-0[^"]*\bblock\b/);
@@ -497,6 +498,13 @@ test('RFP line items open a pricing editor instead of dropdown sub rows', () => 
   assert.match(view, /data-rfp-grand-total="<%= rfp\.id %>"/);
   assert.match(view, /function refreshApprovedTotalsFor\(el\)/);
   assert.match(view, /if \(el\.dataset\.field === 'approved'\) refreshApprovedTotalsFor\(el\)/);
+  assert.match(view, /onclick="saveRfpLineEditor\('<%= item\.id %>'\)">Save line item/);
+  assert.match(view, /id="rfp-add-sub-form-<%= item\.id %>"/);
+  assert.match(view, /<input name="approved" type="hidden" value="1">/);
+  assert.match(view, /function rfpAddLineFormHasData\(form\)/);
+  assert.match(view, /addForm\.requestSubmit\(\)/);
+  assert.match(view, /window\.saveRfpLineEditor = saveRfpLineEditor/);
+  assert.match(routes, /insertPayload\.approved = approvedInput === undefined \? true/);
   assert.doesNotMatch(view, /<td class="text-right flex gap-1 items-center">/);
   assert.match(view, /type="submit" form="<%= subFid %>" class="btn btn-secondary text-xs">Save/);
   assert.doesNotMatch(view, /class="rfp-sub-row/);

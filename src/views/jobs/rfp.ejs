@@ -276,7 +276,7 @@
                         </div>
                         <div class="flex items-center gap-2">
                           <span class="text-xs text-recon-fog"><%= liApprovedSubs %> of <%= liSubCount %> approved</span>
-                          <button type="submit" form="<%= itemFormId %>" class="btn btn-secondary text-xs">Save line item</button>
+                          <button type="button" class="btn btn-secondary text-xs" onclick="saveRfpLineEditor('<%= item.id %>')">Save line item</button>
                           <button type="button" class="btn btn-secondary text-xs" onclick="closeRfpLineEditor('<%= item.id %>')">Close</button>
                         </div>
                       </div>
@@ -376,7 +376,7 @@
 
                         <div id="add-sub-<%= item.id %>" class="mt-4 rounded border border-recon-mist bg-white p-3">
                           <div class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Add vendor / contractor line</div>
-                          <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/items" method="POST" class="rfp-line-form grid min-w-0 gap-3 text-xs lg:grid-cols-12 lg:items-end" onclick="event.stopPropagation();">
+                          <form id="rfp-add-sub-form-<%= item.id %>" action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/items" method="POST" class="rfp-line-form grid min-w-0 gap-3 text-xs lg:grid-cols-12 lg:items-end" onclick="event.stopPropagation();">
                             <label class="block min-w-0 lg:col-span-2">
                               <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Type</span>
                               <select name="scope_type" class="input mt-1 w-full">
@@ -412,6 +412,7 @@
                               <button type="submit" class="btn btn-primary text-xs">Add line</button>
                             </div>
                             <input name="parent_id" type="hidden" value="<%= item.id %>">
+                            <input name="approved" type="hidden" value="1">
                           </form>
                         </div>
                       </div>
@@ -571,8 +572,28 @@
     return row;
   }
 
+  function rfpAddLineFormHasData(form) {
+    if (!form) return false;
+    var fields = ['vendor', 'description', 'quantity', 'contractor_cost'];
+    return fields.some(function(name) {
+      var el = form.querySelector('[name="' + name + '"]');
+      return el && String(el.value || '').trim() !== '';
+    });
+  }
+
+  function saveRfpLineEditor(itemId) {
+    var addForm = document.getElementById('rfp-add-sub-form-' + itemId);
+    if (rfpAddLineFormHasData(addForm)) {
+      addForm.requestSubmit();
+      return;
+    }
+    var editForm = document.getElementById('rfp-li-form-' + itemId);
+    if (editForm) editForm.requestSubmit();
+  }
+
   window.closeRfpLineEditor = closeRfpLineEditor;
   window.openRfpLineEditor = openRfpLineEditor;
+  window.saveRfpLineEditor = saveRfpLineEditor;
   window.toggleRfpLineEditor = function(itemId) {
     var editor = document.getElementById('rfp-line-editor-' + itemId);
     if (!editor) return null;
