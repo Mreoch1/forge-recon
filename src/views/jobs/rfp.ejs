@@ -264,7 +264,7 @@
                     <button type="submit" form="<%= itemDelFormId %>" class="text-recon-fog hover:text-recon-red text-xs">&times;</button>
                   </td>
                 </tr>
-                <tr id="rfp-line-editor-<%= item.id %>" class="rfp-line-editor-modal hidden fixed inset-0 z-[80] block bg-black/50">
+                <tr id="rfp-line-editor-<%= item.id %>" class="rfp-line-editor-modal hidden fixed inset-0 z-[80] bg-black/50">
                   <td colspan="10" class="block h-screen overflow-y-auto p-4 sm:p-6" onclick="closeRfpLineEditor('<%= item.id %>');">
                     <div class="mx-auto my-8 w-full max-w-6xl rounded-lg border border-recon-mist bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="rfp-line-editor-title-<%= item.id %>" onclick="event.stopPropagation();">
                       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-recon-mist px-4 py-3">
