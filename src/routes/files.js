@@ -103,7 +103,12 @@ function fileDisplayName(file) {
 }
 
 function safeAttachmentName(file) {
-  return fileDisplayName(file).replace(/[\r\n"]/g, '_');
+  return fileDisplayName(file).replace(/[\r\n"\\]/g, '_');
+}
+
+function contentDisposition(disposition, file) {
+  const filename = safeAttachmentName(file);
+  return `${disposition}; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }
 
 function fileExtension(file) {
@@ -593,7 +598,7 @@ router.post('/:id/delete', requireAuth, async (req, res) => {
   res.redirect('/files/folders/' + file.folder_id);
 });
 
-// GET /:id/raw — direct signed URL for inline browser preview
+// GET /:id/raw — inline original file response that preserves the upload filename
 router.get('/:id/raw', requireAuth, async (req, res) => {
   const { data: file } = await checkedFileRouteRead(supabase.from('files').select('*').eq('id', req.params.id).maybeSingle(), 'file view read failed');
   if (!file) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'File not found.' });
@@ -601,8 +606,10 @@ router.get('/:id/raw', requireAuth, async (req, res) => {
   if (!folder) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Folder not found.' });
   if (!workerCanAccessEntity(req, folder.entity_type, folder.entity_id)) return workerForbidden(res);
   try {
-    const signedUrl = await storage.getSignedUrl('entity-files', file.storage_path || file.name, 3600);
-    return res.redirect(signedUrl);
+    const buffer = await storage.downloadBuffer('entity-files', file.storage_path || file.name);
+    res.setHeader('Content-Type', file.mime_type || mime.lookup(fileDisplayName(file)) || 'application/octet-stream');
+    res.setHeader('Content-Disposition', contentDisposition('inline', file));
+    return res.send(buffer);
   } catch (e) {
     return res.status(500).render('error', { title: 'Storage error', code: 500, message: 'Failed to access file: ' + e.message });
   }
@@ -619,7 +626,7 @@ router.get('/:id/download', requireAuth, async (req, res) => {
   try {
     const buffer = await storage.downloadBuffer('entity-files', file.storage_path || file.name);
     res.setHeader('Content-Type', file.mime_type || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${safeAttachmentName(file)}"`);
+    res.setHeader('Content-Disposition', contentDisposition('attachment', file));
     return res.send(buffer);
   } catch (e) {
     return res.status(500).render('error', { title: 'Storage error', code: 500, message: 'Failed to download file: ' + e.message });

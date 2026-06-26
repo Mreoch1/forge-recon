@@ -270,7 +270,11 @@ test('project files open in a Forge viewer with sibling navigation', () => {
   assert.match(fileRoutes, /buildFolderDisplay\(folder, normalizeFolderContext\(req\.query\.context\)\)/);
   assert.match(fileRoutes, /router\.get\('\/:id\/view'/);
   assert.match(fileRoutes, /router\.get\('\/:id\/raw'/);
+  assert.match(fileRoutes, /contentDisposition\('inline', file\)/);
+  assert.doesNotMatch(fileRoutes, /return res\.redirect\(signedUrl\)/);
+  assert.match(fileRoutes, /filename\*=UTF-8''/);
   assert.match(fileRoutes, /router\.get\('\/:id\/download'/);
+  assert.match(fileRoutes, /contentDisposition\('attachment', file\)/);
   assert.match(fileRoutes, /res\.render\('files\/viewer'/);
   assert.match(fileRoutes, /previousFile/);
   assert.match(fileRoutes, /nextFile/);
