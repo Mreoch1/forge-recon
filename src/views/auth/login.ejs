@@ -41,6 +41,15 @@
         <input type="password" name="password" id="password" required
                class="input" autocomplete="current-password">
       </div>
+      <label class="flex items-start gap-3 text-sm text-recon-charcoal">
+        <input type="checkbox" name="keep_logged_in" value="1"
+               class="mt-1 h-4 w-4 rounded border-recon-line text-recon-red focus:ring-recon-red"
+               <%= typeof keepLoggedIn !== 'undefined' && keepLoggedIn ? 'checked' : '' %>>
+        <span>
+          <span class="font-medium">Keep me logged in</span>
+          <span class="block text-xs text-recon-fog">Use only on a trusted device.</span>
+        </span>
+      </label>
       <button type="submit" class="btn btn-primary w-full justify-center">
         Sign in
       </button>

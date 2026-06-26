@@ -80,6 +80,8 @@ const SESSION_SECRET = process.env.SESSION_SECRET;
 const SESSIONS_DIR = process.env.NODE_ENV === 'production'
   ? '/tmp/forge-sessions'
   : path.join(__dirname, '..', 'sessions');
+const DEFAULT_SESSION_MAX_AGE_MS = 8 * 3600 * 1000;
+const REMEMBER_SESSION_MAX_AGE_MS = 30 * 24 * 3600 * 1000;
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const VIEWS_DIR = path.join(__dirname, 'views');
 
@@ -166,7 +168,7 @@ app.use(async (req, res, next) => {
       sessionMiddleware = cookieSession({
         name: 'forge_sid',
         secret: SESSION_SECRET,
-        maxAge: 8 * 3600 * 1000, // 8 hours
+        maxAge: DEFAULT_SESSION_MAX_AGE_MS,
         httpOnly: true,
         sameSite: 'lax',
         secure: true,
@@ -181,12 +183,15 @@ app.use(async (req, res, next) => {
         secret: SESSION_SECRET,
         resave: false,
         saveUninitialized: false,
-        cookie: { secure: false, httpOnly: true, sameSite: 'lax', maxAge: 8 * 3600 * 1000 }
+        cookie: { secure: false, httpOnly: true, sameSite: 'lax', maxAge: DEFAULT_SESSION_MAX_AGE_MS }
       });
     }
   }
   sessionMiddleware(req, res, next);
 });
+
+app.locals.DEFAULT_SESSION_MAX_AGE_MS = DEFAULT_SESSION_MAX_AGE_MS;
+app.locals.REMEMBER_SESSION_MAX_AGE_MS = REMEMBER_SESSION_MAX_AGE_MS;
 
 app.use(loadCurrentUser);
 

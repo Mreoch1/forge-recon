@@ -423,15 +423,26 @@ test('admin payroll employees use QuickBooks-style editable profile workflow', (
 });
 
 test('users can update their password from settings with a one-time login prompt', () => {
+  const app = read('src/app.js');
   const auth = read('src/routes/auth.js');
   const middleware = read('src/middleware/auth.js');
   const settings = read('src/routes/settings.js');
   const settingsView = read('src/views/settings/index.ejs');
+  const loginView = read('src/views/auth/login.ejs');
   const header = read('src/views/layouts/header.ejs');
   const prompt = read('src/views/layouts/_password_update_prompt_modal.ejs');
   const schema = read('src/db/schema-postgres.sql');
   const migration = read('supabase/migrations/20260612113000_password_update_prompt_seen_at.sql');
 
+  assert.match(app, /DEFAULT_SESSION_MAX_AGE_MS = 8 \* 3600 \* 1000/);
+  assert.match(app, /REMEMBER_SESSION_MAX_AGE_MS = 30 \* 24 \* 3600 \* 1000/);
+  assert.match(auth, /function wantsPersistentSession\(body\)/);
+  assert.match(auth, /function applySessionLifetime\(req, keepLoggedIn\)/);
+  assert.match(auth, /req\.sessionOptions\.maxAge = maxAge/);
+  assert.match(auth, /req\.session\.cookie\.maxAge = maxAge/);
+  assert.match(auth, /applySessionLifetime\(req, keepLoggedIn\)/);
+  assert.match(loginView, /name="keep_logged_in"/);
+  assert.match(loginView, /Keep me logged in/);
   assert.match(auth, /req\.session\.showPasswordUpdatePrompt = true/);
   assert.match(auth, /delete req\.session\.showPasswordUpdatePrompt/);
   assert.match(auth, /password_update_prompt_seen_at: changedAt/);

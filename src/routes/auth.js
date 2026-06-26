@@ -25,6 +25,20 @@ const HOST = process.env.APP_HOST || null; // resolved per-request when null
 // the same ~80-120ms a real compare takes, masking the absence of a user row.
 const DUMMY_BCRYPT_HASH = '$2b$10$CwTycUXWue0Thq9StjUM0uJ8.OZi/HfksZSAGgaJTNZWmHmiyOXKK';
 
+function wantsPersistentSession(body) {
+  return ['1', 'true', 'on', 'yes'].includes(String(body.keep_logged_in || '').toLowerCase());
+}
+
+function applySessionLifetime(req, keepLoggedIn) {
+  const defaultMaxAge = req.app?.locals?.DEFAULT_SESSION_MAX_AGE_MS || 8 * 3600 * 1000;
+  const rememberMaxAge = req.app?.locals?.REMEMBER_SESSION_MAX_AGE_MS || 30 * 24 * 3600 * 1000;
+  const maxAge = keepLoggedIn ? rememberMaxAge : defaultMaxAge;
+  if (req.sessionOptions) req.sessionOptions.maxAge = maxAge;
+  if (req.session?.cookie) req.session.cookie.maxAge = maxAge;
+  if (req.session) req.session.keepLoggedIn = !!keepLoggedIn;
+  return maxAge;
+}
+
 // ── Login ─────────────────────────────────────────────────────────────────────
 
 router.get('/login', async (req, res) => {
@@ -33,6 +47,7 @@ router.get('/login', async (req, res) => {
     title: 'Sign in',
     error: null,
     email: '',
+    keepLoggedIn: false,
     verified: req.query.verified === '1',
     alreadyVerified: req.query.already_verified === '1'
   });
@@ -41,12 +56,14 @@ router.get('/login', async (req, res) => {
 router.post('/login', async (req, res) => {
   const email = (req.body.email || '').toLowerCase().trim();
   const password = req.body.password || '';
+  const keepLoggedIn = wantsPersistentSession(req.body);
 
   if (!email || !password) {
     return res.status(400).render('auth/login', {
       title: 'Sign in',
       error: 'Email and password are required.',
-      email
+      email,
+      keepLoggedIn
     });
   }
 
@@ -55,7 +72,8 @@ router.post('/login', async (req, res) => {
     return res.status(401).render('auth/login', {
       title: 'Sign in',
       error: 'Invalid email or password.',
-      email
+      email,
+      keepLoggedIn
     });
   }
 
@@ -99,7 +117,8 @@ router.post('/login', async (req, res) => {
     return res.status(401).render('auth/login', {
       title: 'Sign in',
       error: 'Invalid email or password.',
-      email
+      email,
+      keepLoggedIn
     });
   }
 
@@ -108,10 +127,12 @@ router.post('/login', async (req, res) => {
       title: 'Sign in',
       error: 'Please verify your email before signing in.',
       showResendVerification: true,
-      email
+      email,
+      keepLoggedIn
     });
   }
 
+  applySessionLifetime(req, keepLoggedIn);
   req.session.userId = user.id;
   req.session.role = user.role;
   if (user.password_update_prompt_seen_at) {
