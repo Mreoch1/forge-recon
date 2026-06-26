@@ -718,6 +718,16 @@ test('RFP markup and GR calculations preserve explicit zero values', () => {
   assert.doesNotMatch(view, /general_requirements_pct\|\|6/);
 });
 
+test('RFP parent markup and GR show actual approved values instead of mixed', () => {
+  const view = read('src/views/jobs/rfp.ejs');
+
+  assert.match(view, /function rfpPercentSummary\(lines, field, fallback\)/);
+  assert.ok(view.includes("return values.length ? values.join(' / ') : '—';"));
+  assert.match(view, /var liMarkup = liHasSubs \? rfpPercentSummary\(apprChildren, 'markup_pct', 20\)/);
+  assert.match(view, /var liGr = liHasSubs \? rfpPercentSummary\(apprChildren, 'general_requirements_pct', 6\)/);
+  assert.doesNotMatch(view, /'mixed'/);
+});
+
 test('customer detail exposes customer projects and project creation path', () => {
   const routes = read('src/routes/customers.js');
   const show = read('src/views/customers/show.ejs');

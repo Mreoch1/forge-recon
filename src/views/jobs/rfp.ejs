@@ -136,6 +136,20 @@
       var gr = numberOrDefault(line && line.general_requirements_pct, 6);
       return totalCost * (1 + ((markup + gr) / 100));
     }
+    function formatPercentValue(value) {
+      var n = Number(value);
+      if (!Number.isFinite(n)) return '';
+      return Number.isInteger(n) ? String(n) : String(parseFloat(n.toFixed(4)));
+    }
+    function rfpPercentSummary(lines, field, fallback) {
+      if (!lines || !lines.length) return '—';
+      var values = [];
+      lines.forEach(function(line) {
+        var display = formatPercentValue(numberOrDefault(line && line[field], fallback));
+        if (display !== '' && values.indexOf(display) === -1) values.push(display);
+      });
+      return values.length ? values.join(' / ') : '—';
+    }
     var rfpTotals = {};
     var rfpApprovedCounts = {};
     rfps.forEach(function(r) { 
@@ -302,8 +316,8 @@
                 <% var liDisplayTotal = liHasSubs ? liTotal : (Number(item.total_with_markup) || 0); %>
                 <% var liDisplayUnit = liHasSubs ? (liQty > 0 ? liTotal / liQty : 0) : (Number(item.final_unit_cost) || 0); %>
                 <% var liDisplayBaseUnit = liHasSubs ? (liQty > 0 ? liTotalCost / liQty : 0) : (Number(item.unit_cost) || 0); %>
-                <% var liMarkup = liHasSubs ? (apprChildren.length === 0 ? '—' : (apprChildren.some(function(s){return numberOrDefault(s.markup_pct, 20) !== numberOrDefault(apprChildren[0].markup_pct, 20);}) ? 'mixed' : numberOrDefault(apprChildren[0].markup_pct, 20))) : (item.markup_pct == null ? '—' : numberOrDefault(item.markup_pct, 0)); %>
-                <% var liGr = liHasSubs ? (apprChildren.length === 0 ? '—' : (apprChildren.some(function(s){return numberOrDefault(s.general_requirements_pct, 6) !== numberOrDefault(apprChildren[0].general_requirements_pct, 6);}) ? 'mixed' : numberOrDefault(apprChildren[0].general_requirements_pct, 6))) : (item.general_requirements_pct == null ? '—' : numberOrDefault(item.general_requirements_pct, 0)); %>
+                <% var liMarkup = liHasSubs ? rfpPercentSummary(apprChildren, 'markup_pct', 20) : (item.markup_pct == null ? '—' : formatPercentValue(numberOrDefault(item.markup_pct, 0))); %>
+                <% var liGr = liHasSubs ? rfpPercentSummary(apprChildren, 'general_requirements_pct', 6) : (item.general_requirements_pct == null ? '—' : formatPercentValue(numberOrDefault(item.general_requirements_pct, 0))); %>
                 <% var liApproved = liHasSubs ? (apprChildren.length === children.length ? true : false) : !!item.approved; %>
                 <tr id="rfp-line-<%= item.id %>" class="rfp-li-row bg-recon-deeper/20 hover:bg-recon-cloud/20 border-t-2 border-recon-mist/40" style="cursor:pointer" data-rfp-line-total="<%= liDisplayTotal.toFixed(2) %>" data-rfp-line-approved="<%= liHasSubs ? (liApprovedSubs > 0 ? '1' : '0') : (item.approved ? '1' : '0') %>" data-rfp-line-search="<%= (item.description || '').toLowerCase() %>" onclick="toggleRfpLineEditor('<%= item.id %>');">
                   <td>
