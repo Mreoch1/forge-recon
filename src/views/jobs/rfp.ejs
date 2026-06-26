@@ -120,6 +120,22 @@
       if (!childQtys.length) return parentQty > 0 ? parentQty : 0;
       return childQtys.reduce(function(max, q) { return q > max ? q : max; }, 0);
     }
+    function numberOrDefault(value, fallback) {
+      var n = Number(value);
+      return Number.isFinite(n) ? n : fallback;
+    }
+    function rfpComputedTotalCost(line) {
+      var qty = numberOrDefault(line && line.quantity, 0);
+      var splitUnit = numberOrDefault(line && line.contractor_cost, 0) + numberOrDefault(line && line.vendor_cost, 0);
+      var unit = splitUnit > 0 ? splitUnit : numberOrDefault(line && line.unit_cost, 0);
+      return unit * qty;
+    }
+    function rfpComputedTotalWithMarkup(line) {
+      var totalCost = rfpComputedTotalCost(line);
+      var markup = numberOrDefault(line && line.markup_pct, 20);
+      var gr = numberOrDefault(line && line.general_requirements_pct, 6);
+      return totalCost * (1 + ((markup + gr) / 100));
+    }
     var rfpTotals = {};
     var rfpApprovedCounts = {};
     rfps.forEach(function(r) { 
@@ -278,16 +294,16 @@
                 <% var apprChildren = children.filter(function(s){return s.approved;}); %>
                 <% var liRollupChildren = liHasSubs ? apprChildren : []; %>
                 <% var liQty = liHasSubs ? rfpParentRollupQty(item, liRollupChildren) : (Number(item.quantity) || 0); %>
-                <% var liTotalCost = liRollupChildren.reduce(function(s,c){return s + (Number(c.total_cost||0));},0); %>
-                <% var liTotal = liRollupChildren.reduce(function(s,c){return s + (Number(c.total_with_markup||0));},0); %>
+                <% var liTotalCost = liRollupChildren.reduce(function(s,c){return s + rfpComputedTotalCost(c);},0); %>
+                <% var liTotal = liRollupChildren.reduce(function(s,c){return s + rfpComputedTotalWithMarkup(c);},0); %>
                 <!-- D-105: Line item container row — Item name + auto-rolled-up totals from approved sub-lines.
                      Falls back to direct values on the line item itself when no sub-lines exist (legacy data). -->
                 <% var liSubCount = children.length; var liApprovedSubs = apprChildren.length; %>
                 <% var liDisplayTotal = liHasSubs ? liTotal : (Number(item.total_with_markup) || 0); %>
                 <% var liDisplayUnit = liHasSubs ? (liQty > 0 ? liTotal / liQty : 0) : (Number(item.final_unit_cost) || 0); %>
                 <% var liDisplayBaseUnit = liHasSubs ? (liQty > 0 ? liTotalCost / liQty : 0) : (Number(item.unit_cost) || 0); %>
-                <% var liMarkup = liHasSubs ? (apprChildren.length === 0 ? '—' : (apprChildren.some(function(s){return Number(s.markup_pct||20) !== Number(apprChildren[0].markup_pct||20);}) ? 'mixed' : (Number(apprChildren[0].markup_pct||20)))) : (Number(item.markup_pct) || '—'); %>
-                <% var liGr = liHasSubs ? (apprChildren.length === 0 ? '—' : (apprChildren.some(function(s){return Number(s.general_requirements_pct||6) !== Number(apprChildren[0].general_requirements_pct||6);}) ? 'mixed' : (Number(apprChildren[0].general_requirements_pct||6)))) : (Number(item.general_requirements_pct) || '—'); %>
+                <% var liMarkup = liHasSubs ? (apprChildren.length === 0 ? '—' : (apprChildren.some(function(s){return numberOrDefault(s.markup_pct, 20) !== numberOrDefault(apprChildren[0].markup_pct, 20);}) ? 'mixed' : numberOrDefault(apprChildren[0].markup_pct, 20))) : (item.markup_pct == null ? '—' : numberOrDefault(item.markup_pct, 0)); %>
+                <% var liGr = liHasSubs ? (apprChildren.length === 0 ? '—' : (apprChildren.some(function(s){return numberOrDefault(s.general_requirements_pct, 6) !== numberOrDefault(apprChildren[0].general_requirements_pct, 6);}) ? 'mixed' : numberOrDefault(apprChildren[0].general_requirements_pct, 6))) : (item.general_requirements_pct == null ? '—' : numberOrDefault(item.general_requirements_pct, 0)); %>
                 <% var liApproved = liHasSubs ? (apprChildren.length === children.length ? true : false) : !!item.approved; %>
                 <tr id="rfp-line-<%= item.id %>" class="rfp-li-row bg-recon-deeper/20 hover:bg-recon-cloud/20 border-t-2 border-recon-mist/40" style="cursor:pointer" data-rfp-line-total="<%= liDisplayTotal.toFixed(2) %>" data-rfp-line-approved="<%= liHasSubs ? (liApprovedSubs > 0 ? '1' : '0') : (item.approved ? '1' : '0') %>" data-rfp-line-search="<%= (item.description || '').toLowerCase() %>" onclick="toggleRfpLineEditor('<%= item.id %>');">
                   <td>
@@ -355,6 +371,8 @@
                         <div class="space-y-3">
                           <% children.forEach(function(sub){ %>
                             <% var subFid = 'rfp-sub-form-' + sub.id; var subDid = 'rfp-sub-del-' + sub.id; %>
+                            <% var subDisplayTotalCost = rfpComputedTotalCost(sub); %>
+                            <% var subDisplayTotalWithMarkup = rfpComputedTotalWithMarkup(sub); %>
                             <form id="<%= subFid %>" action="/projects/rfps/items/<%= sub.id %>" method="POST"></form>
                             <div class="rounded border border-recon-mist bg-recon-cloud/5 p-3">
                               <div class="grid min-w-0 gap-3 lg:grid-cols-12 lg:items-end">
@@ -399,11 +417,11 @@
                                   <div class="mt-1 flex flex-wrap items-center justify-end gap-x-5 gap-y-3 border-t border-recon-mist pt-3">
                                     <div class="min-w-[7rem] text-right">
                                       <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Total cost</span>
-                                      <div class="font-semibold"><%= sub.total_cost != null ? '$' + Number(sub.total_cost).toFixed(2) : '-' %></div>
+                                      <div class="font-semibold">$<%= subDisplayTotalCost.toFixed(2) %></div>
                                     </div>
                                     <div class="min-w-[7rem] text-right">
                                       <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Total w/ MU</span>
-                                      <div class="font-semibold"><%= sub.total_with_markup != null ? '$' + Number(sub.total_with_markup).toFixed(2) : '-' %></div>
+                                      <div class="font-semibold">$<%= subDisplayTotalWithMarkup.toFixed(2) %></div>
                                     </div>
                                     <label class="flex items-center gap-2">
                                       <input form="<%= subFid %>" type="hidden" name="approved" value="0">
@@ -557,7 +575,8 @@
       var qty = parseFloat(form.querySelector('[name="quantity"]')?.value) || 0;
       var cCost = parseFloat(form.querySelector('[name="contractor_cost"]')?.value) || 0;
       var vCost = parseFloat(form.querySelector('[name="vendor_cost"]')?.value) || 0;
-      var markup = parseFloat(form.querySelector('[name="markup_pct"]')?.value) || 20;
+      var markupRaw = parseFloat(form.querySelector('[name="markup_pct"]')?.value);
+      var markup = isFinite(markupRaw) ? markupRaw : 20;
       var grRaw = parseFloat(form.querySelector('[name="general_requirements_pct"]')?.value);
       var gr = isFinite(grRaw) ? grRaw : 6;
       var unit = cCost + vCost;

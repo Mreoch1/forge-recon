@@ -699,6 +699,25 @@ test('RFP sub-line inserts calculate total from quantity and unit cost', () => {
   assert.doesNotMatch(routes, /const baseCost = tCost \|\| \(uCost \* qty\) \|\| \(cCost \+ vCost\)/);
 });
 
+test('RFP markup and GR calculations preserve explicit zero values', () => {
+  const routes = read('src/routes/rfp.js');
+  const view = read('src/views/jobs/rfp.ejs');
+
+  assert.match(routes, /function parseNumberOrDefault\(value, fallback\)/);
+  assert.match(routes, /const markup = parseNumberOrDefault\(params\.markup_pct, 20\)/);
+  assert.match(routes, /const gr = parseNumberOrDefault\(params\.general_requirements_pct, 6\)/);
+  assert.doesNotMatch(routes, /parseFloat\(markup_pct\) \|\| 20/);
+  assert.doesNotMatch(routes, /parseFloat\(params\.markup_pct\) \|\| 20/);
+  assert.doesNotMatch(routes, /parseFloat\(params\.general_requirements_pct\)[^\n]*\|\| 6/);
+
+  assert.match(view, /function numberOrDefault\(value, fallback\)/);
+  assert.match(view, /var markup = isFinite\(markupRaw\) \? markupRaw : 20/);
+  assert.match(view, /numberOrDefault\(line && line\.markup_pct, 20\)/);
+  assert.match(view, /numberOrDefault\(line && line\.general_requirements_pct, 6\)/);
+  assert.doesNotMatch(view, /markup_pct\|\|20/);
+  assert.doesNotMatch(view, /general_requirements_pct\|\|6/);
+});
+
 test('customer detail exposes customer projects and project creation path', () => {
   const routes = read('src/routes/customers.js');
   const show = read('src/views/customers/show.ejs');

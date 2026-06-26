@@ -80,6 +80,25 @@ function parentRollupQty(item, approvedChildren) {
   return childQtys.reduce((max, qty) => Math.max(max, qty), 0);
 }
 
+function numberOrDefault(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function computedLineTotalCost(line) {
+  const qty = numberOrDefault(line && line.quantity, 0);
+  const splitUnit = numberOrDefault(line && line.contractor_cost, 0) + numberOrDefault(line && line.vendor_cost, 0);
+  const unit = splitUnit > 0 ? splitUnit : numberOrDefault(line && line.unit_cost, 0);
+  return unit * qty;
+}
+
+function computedLineTotalWithMarkup(line) {
+  const totalCost = computedLineTotalCost(line);
+  const markup = numberOrDefault(line && line.markup_pct, 20);
+  const gr = numberOrDefault(line && line.general_requirements_pct, 6);
+  return totalCost * (1 + ((markup + gr) / 100));
+}
+
 function measurePdfText(doc, text, width, font, fontSize, options = {}) {
   doc.font(font).fontSize(fontSize);
   return doc.heightOfString(pdfText(text), { width, align: options.align || 'left', lineGap: options.lineGap || 1 });
@@ -112,10 +131,10 @@ function buildExportRows(items, subItemsMap) {
 
     // Rollup from approved sub-lines
     const rollupTotal = hasSubs
-      ? approvedChildren.reduce((s, c) => s + (Number(c.total_with_markup) || 0), 0)
+      ? approvedChildren.reduce((s, c) => s + computedLineTotalWithMarkup(c), 0)
       : (Number(item.total_with_markup) || 0);
     const rollupTotalCost = hasSubs
-      ? children.reduce((s, c) => s + (Number(c.total_cost) || 0), 0)
+      ? approvedChildren.reduce((s, c) => s + computedLineTotalCost(c), 0)
       : (Number(item.total_cost) || 0);
     const rollupQty = hasSubs
       ? parentRollupQty(item, approvedChildren)
@@ -157,12 +176,12 @@ function buildExportRows(items, subItemsMap) {
         vendor: sub.vendor || '',
         description: sub.description || '',
         qty: Number(sub.quantity) || 0,
-        unit_cost: Number(sub.unit_cost) || 0,
-        total_cost: Number(sub.total_cost) || 0,
+        unit_cost: (numberOrDefault(sub.contractor_cost, 0) + numberOrDefault(sub.vendor_cost, 0)) || numberOrDefault(sub.unit_cost, 0),
+        total_cost: computedLineTotalCost(sub),
         markup_pct: sub.markup_pct,
         general_requirements_pct: sub.general_requirements_pct,
-        total_with_markup: Number(sub.total_with_markup) || 0,
-        final_unit_cost: Number(sub.final_unit_cost) || 0,
+        total_with_markup: computedLineTotalWithMarkup(sub),
+        final_unit_cost: (Number(sub.quantity) || 0) > 0 ? computedLineTotalWithMarkup(sub) / (Number(sub.quantity) || 0) : 0,
         approved: !!sub.approved,
         sort_order: sub.sort_order,
         raw: sub,
@@ -184,7 +203,7 @@ function computeGrandTotal(items, subItemsMap) {
     if (item.parent_line_item_id) return;
     const children = (subItemsMap && subItemsMap[item.id]) || [];
     if (children.length > 0) {
-      total += children.reduce((s, c) => s + (c.approved ? (Number(c.total_with_markup) || 0) : 0), 0);
+      total += children.reduce((s, c) => s + (c.approved ? computedLineTotalWithMarkup(c) : 0), 0);
     } else {
       total += (item.approved ? (Number(item.total_with_markup) || 0) : 0);
     }

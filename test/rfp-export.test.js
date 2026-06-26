@@ -126,6 +126,48 @@ test('project RFP exports derive parent quantity from approved sub-line quantity
   assert.match(csv, /184698\.24,1112\.64/);
 });
 
+test('project RFP exports recompute child totals when zero markup and GR are saved', () => {
+  const rfps = [{ id: 18, contractor_name: 'Resilient Flooring', status: 'pending' }];
+  const itemsByRfp = {
+    18: {
+      items: [{
+        id: 468,
+        description: 'Dumpster',
+        quantity: 1,
+        unit_cost: 0,
+        total_cost: 0,
+        total_with_markup: 0,
+        final_unit_cost: 0,
+        approved: false,
+      }],
+      subItemsMap: {
+        468: [
+          {
+            id: 469,
+            parent_line_item_id: 468,
+            vendor: 'Recon',
+            description: 'Supply 3 months dumpster',
+            quantity: 3,
+            unit_cost: 1000,
+            total_cost: 3000,
+            markup_pct: 0,
+            general_requirements_pct: 0,
+            total_with_markup: 3780,
+            final_unit_cost: 1260,
+            approved: true,
+          },
+        ],
+      },
+    },
+  };
+
+  const csv = rfpExport.renderProjectCsv({ title: 'Midway Square Apartments' }, rfps, itemsByRfp);
+
+  assert.match(csv, /Resilient Flooring,pending,Line item,,Dumpster,3\.00,1000\.00,3000\.00/);
+  assert.match(csv, /3000\.00,1000\.00/);
+  assert.doesNotMatch(csv, /3780\.00|1260\.00/);
+});
+
 test('project RFP PDF normalizes copied line-item whitespace', async () => {
   assert.equal(
     rfpExport._internal.pdfText('\r\nProvide and install new sink, trim and faucet in kitchens'),
