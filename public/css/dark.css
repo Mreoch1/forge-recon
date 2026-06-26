@@ -435,7 +435,16 @@ html.dark .wol-customer {
 }
 html.dark .wol-sub,
 html.dark .wol-job-title,
-html.dark .wol-meta {
+html.dark .wol-meta,
+html.dark .wol-detail-line {
+  color: var(--dark-text-muted) !important;
+}
+html.dark .wol-description {
+  color: var(--dark-text) !important;
+}
+html.dark .wol-chip {
+  background: var(--dark-elevated) !important;
+  border-color: var(--dark-border-strong) !important;
   color: var(--dark-text-muted) !important;
 }
 /* Light cream table head — flip to elevated surface */
