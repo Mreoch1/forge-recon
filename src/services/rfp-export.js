@@ -70,6 +70,16 @@ function approvalText(approved) {
   return approved ? 'Yes' : 'No';
 }
 
+function parentRollupQty(item, approvedChildren) {
+  const parentQty = Number(item && item.quantity);
+  const childQtys = (approvedChildren || [])
+    .map(child => Number(child.quantity) || 0)
+    .filter(qty => qty > 0);
+  if (parentQty > 0 && parentQty !== 1) return parentQty;
+  if (!childQtys.length) return parentQty > 0 ? parentQty : 0;
+  return childQtys.reduce((max, qty) => Math.max(max, qty), 0);
+}
+
 function measurePdfText(doc, text, width, font, fontSize, options = {}) {
   doc.font(font).fontSize(fontSize);
   return doc.heightOfString(pdfText(text), { width, align: options.align || 'left', lineGap: options.lineGap || 1 });
@@ -104,15 +114,15 @@ function buildExportRows(items, subItemsMap) {
     const rollupTotal = hasSubs
       ? approvedChildren.reduce((s, c) => s + (Number(c.total_with_markup) || 0), 0)
       : (Number(item.total_with_markup) || 0);
-    const rollupUnit = hasSubs
-      ? children.reduce((s, c) => s + (Number(c.contractor_cost || 0) + Number(c.vendor_cost || 0)), 0)
-      : (Number(item.unit_cost) || 0);
     const rollupTotalCost = hasSubs
       ? children.reduce((s, c) => s + (Number(c.total_cost) || 0), 0)
       : (Number(item.total_cost) || 0);
     const rollupQty = hasSubs
-      ? (Number(item.quantity) || 1)
+      ? parentRollupQty(item, approvedChildren)
       : (Number(item.quantity) || 0);
+    const rollupUnit = hasSubs
+      ? (rollupQty > 0 ? rollupTotalCost / rollupQty : 0)
+      : (Number(item.unit_cost) || 0);
     const rollupFinalUnit = rollupQty > 0 ? rollupTotal / rollupQty : 0;
 
     // Parent row (rollup)

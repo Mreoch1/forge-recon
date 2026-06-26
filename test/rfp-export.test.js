@@ -71,6 +71,61 @@ test('project RFP CSV export includes all categories and line items', () => {
   assert.doesNotMatch(csv, /parent_id|category_status|markup_pct|approved\r/);
 });
 
+test('project RFP exports derive parent quantity from approved sub-line quantity', () => {
+  const rfps = [{ id: 18, contractor_name: 'Resilient Flooring', status: 'pending' }];
+  const itemsByRfp = {
+    18: {
+      items: [{
+        id: 116,
+        description: 'R&R LVP Kitchen',
+        quantity: 1,
+        unit_cost: 0,
+        total_cost: 0,
+        total_with_markup: 0,
+        final_unit_cost: 0,
+        approved: false,
+      }],
+      subItemsMap: {
+        116: [
+          {
+            id: 201,
+            parent_line_item_id: 116,
+            vendor: 'Main Flooring',
+            description: 'Install kitchen LVP flooring',
+            quantity: 166,
+            unit_cost: 608,
+            total_cost: 100928,
+            markup_pct: 18,
+            general_requirements_pct: 4,
+            total_with_markup: 123132.16,
+            final_unit_cost: 741.76,
+            approved: true,
+          },
+          {
+            id: 202,
+            parent_line_item_id: 116,
+            vendor: 'Main Flooring',
+            description: 'Supply Kitchen LVT',
+            quantity: 166,
+            unit_cost: 304,
+            total_cost: 50464,
+            markup_pct: 18,
+            general_requirements_pct: 4,
+            total_with_markup: 61566.08,
+            final_unit_cost: 370.88,
+            approved: true,
+          },
+        ],
+      },
+    },
+  };
+
+  const csv = rfpExport.renderProjectCsv({ title: 'Midway Square Apartments' }, rfps, itemsByRfp);
+
+  assert.match(csv, /Resilient Flooring,pending,Line item,,R&R LVP Kitchen,166\.00,912\.00,151392\.00/);
+  assert.match(csv, /184698\.24,1112\.64/);
+});
+
 test('project RFP PDF normalizes copied line-item whitespace', async () => {
   assert.equal(
     rfpExport._internal.pdfText('\r\nProvide and install new sink, trim and faucet in kitchens'),

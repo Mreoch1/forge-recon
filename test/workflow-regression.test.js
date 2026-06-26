@@ -682,8 +682,11 @@ test('RFP parent rows roll up approved sub-lines only', () => {
   const view = read('src/views/jobs/rfp.ejs');
 
   assert.match(view, /var liRollupChildren = liHasSubs \? apprChildren : \[\]/);
+  assert.match(view, /function rfpParentRollupQty\(item, approvedChildren\)/);
+  assert.match(view, /var liQty = liHasSubs \? rfpParentRollupQty\(item, liRollupChildren\) : \(Number\(item\.quantity\) \|\| 0\)/);
   assert.match(view, /var liDisplayTotal = liHasSubs \? liTotal : \(Number\(item\.total_with_markup\) \|\| 0\)/);
   assert.match(view, /var liDisplayBaseUnit = liHasSubs \? \(liQty > 0 \? liTotalCost \/ liQty : 0\) : \(Number\(item\.unit_cost\) \|\| 0\)/);
+  assert.doesNotMatch(view, /var liQty = liHasSubs \? \(Number\(item\.quantity\) \|\| 1\)/);
   assert.doesNotMatch(view, /apprChildren\.length > 0 \? apprChildren\.reduce[\s\S]*: children\.reduce/);
   assert.doesNotMatch(view, /liTotal \|\| \(Number\(item\.total_with_markup\)/);
 });
