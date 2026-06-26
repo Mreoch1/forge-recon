@@ -494,6 +494,8 @@ test('managers can edit open work orders and access WO files from show page', ()
   assert.match(show, /wo-file-row/);
   assert.match(show, /wo-file-row:hover/);
   assert.match(show, /wo-file-link/);
+  assert.match(show, /can_preview: !!p\.is_image \|\| mime\.includes\('pdf'\)/);
+  assert.match(show, /if \(!item \|\| !item\.can_preview\) return/);
   assert.doesNotMatch(show, /hover:bg-gray-50 group/);
   assert.doesNotMatch(show, /Work order files/);
 });

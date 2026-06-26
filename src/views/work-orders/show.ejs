@@ -62,7 +62,8 @@ const woViewerAttachments = woImageAttachments.concat(woFileAttachments).map(fun
     user_name: p.user_name || '',
     created_at: p.created_at ? String(p.created_at).slice(0,16).replace('T',' ') : '',
     is_image: !!p.is_image,
-    is_pdf: mime.includes('pdf')
+    is_pdf: mime.includes('pdf'),
+    can_preview: !!p.is_image || mime.includes('pdf')
   };
 });
 function safeJson(value) {
@@ -745,8 +746,11 @@ function safeJson(value) {
 
       document.querySelectorAll('[data-attachment-index]').forEach(function(trigger){
         trigger.addEventListener('click', function(event){
+          const nextIndex = Number(trigger.getAttribute('data-attachment-index')) || 0;
+          const item = items[nextIndex];
+          if (!item || !item.can_preview) return;
           event.preventDefault();
-          openViewer(Number(trigger.getAttribute('data-attachment-index')) || 0);
+          openViewer(nextIndex);
         });
       });
       viewer.querySelectorAll('[data-attachment-close]').forEach(function(trigger){
