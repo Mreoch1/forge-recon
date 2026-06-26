@@ -506,12 +506,21 @@ test('project RFP export loader only selects real project columns', () => {
 test('work order row links do not depend on the More menu', () => {
   const header = read('src/views/layouts/header.ejs');
   const workOrderIndex = read('src/views/work-orders/index.ejs');
+  const routes = read('src/routes/work-orders.js');
 
   const rowLinkScript = header.match(/\(function\(\)\{\s*\/\/ Full-row click for list tables[\s\S]*?\}\)\(\);/);
   assert.ok(rowLinkScript, 'row-link click handler should be in its own script block');
   assert.doesNotMatch(rowLinkScript[0], /moreBtn|moreMenu/);
   assert.match(workOrderIndex, /<a href="\/work-orders\/<%= w\.id %>" class="wol-num/);
   assert.match(workOrderIndex, /<a href="\/work-orders\/<%= w\.id %>" class="wol-customer/);
+  assert.match(routes, /scheduled_time, scheduled_end_time/);
+  assert.match(routes, /unit_number, description/);
+  assert.match(routes, /customers!left\(id, name, address, city, state\)/);
+  assert.match(routes, /jobs!left\(id, title, address, city, state/);
+  assert.match(workOrderIndex, /Work order details/);
+  assert.match(workOrderIndex, /wol-description/);
+  assert.match(workOrderIndex, /Unit \/ area:/);
+  assert.match(workOrderIndex, /function scheduleLabel\(w\)/);
 });
 
 test('managers can edit open work orders and access WO files from show page', () => {

@@ -15,6 +15,10 @@
   .wol-num { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; font-size: .85rem; color: #1a1a1a; }
   .wol-customer { font-weight: 600; color: #1a1a1a; }
   .wol-job-title { font-size: .78rem; color: #666; margin-top: .1rem; }
+  .wol-description { color: #111827; font-size: .82rem; margin-top: .25rem; line-height: 1.35; max-width: 62rem; }
+  .wol-detail-line { color: #4b5563; font-size: .78rem; margin-top: .18rem; line-height: 1.35; max-width: 62rem; }
+  .wol-chip-row { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .38rem; }
+  .wol-chip { display: inline-flex; align-items: center; max-width: 18rem; border: 1px solid rgba(148,163,184,.35); border-radius: 999px; padding: .12rem .45rem; font-size: .68rem; line-height: 1.2; color: #64748b; background: rgba(248,250,252,.85); }
   .wol-meta { font-family: ui-monospace, monospace; font-size: .8rem; color: #555; }
   .wol-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: .4rem; vertical-align: middle; }
   .wol-dot-live { background: #ea580c; box-shadow: 0 0 0 0 rgba(234,88,12,.5); animation: wol-pulse 2.4s infinite; }
@@ -50,6 +54,19 @@
     function woStatusLabel(s) {
       if (s === 'complete') return 'complete: no changes';
       return s ? String(s).replace('_', ' ') : '';
+    }
+    function shortText(value, max) {
+      var text = String(value || '').replace(/\s+/g, ' ').trim();
+      if (!text) return '';
+      if (text.length <= max) return text;
+      return text.slice(0, max - 1).trim() + '...';
+    }
+    function scheduleLabel(w) {
+      var date = w.scheduled_date ? String(w.scheduled_date).slice(0, 10) : '';
+      var start = w.scheduled_time ? String(w.scheduled_time).slice(0, 5) : '';
+      var end = w.scheduled_end_time ? String(w.scheduled_end_time).slice(0, 5) : '';
+      if (!date && !start && !end) return '-';
+      return date + (start ? ' ' + start : '') + (end ? '-' + end : '');
     }
   %>
   <div class="ops-summary">
@@ -109,15 +126,15 @@
         <div class="text-xs text-recon-fog"><%= workOrders.length %> shown</div>
       </div>
       <div class="ops-panel-body">
-    <table class="wol-table" style="min-width: 720px;">
+    <table class="wol-table" style="min-width: 980px;">
       <thead>
         <tr>
           <th style="width:1.5rem;"></th>
           <th style="width:9rem;">Number</th>
-          <th>Customer · Work order</th>
+          <th>Work order details</th>
           <th style="width:7rem;">Status</th>
-          <th style="width:7rem;">Scheduled</th>
-          <th style="width:7rem;">Assigned</th>
+          <th style="width:10rem;">Scheduled</th>
+          <th style="width:9rem;">Assigned</th>
           <th style="width:6rem;">Created</th>
         </tr>
       </thead>
@@ -142,12 +159,22 @@
             <td><span class="wol-dot <%= dotClass %>"></span></td>
             <td><a href="/work-orders/<%= w.id %>" class="wol-num hover:text-recon-red">WO-<%= w.display_number %></a></td>
             <td>
-            <a href="/work-orders/<%= w.id %>" class="wol-customer hover:text-recon-red"><%= w.project_title || w.customer_name %></a>
-            <div class="wol-job-title"><%= w.project_title ? w.customer_name : '' %></div>
+              <a href="/work-orders/<%= w.id %>" class="wol-customer hover:text-recon-red"><%= w.project_title || w.customer_name || 'Work order' %></a>
+              <div class="wol-job-title"><%= [w.customer_name, w.project_address || w.customer_address].filter(Boolean).join(' · ') %></div>
+              <% if (w.description) { %>
+                <div class="wol-description"><%= shortText(w.description, 180) %></div>
+              <% } else { %>
+                <div class="wol-detail-line">No scope description entered.</div>
+              <% } %>
+              <div class="wol-chip-row">
+                <% if (w.unit_number) { %><span class="wol-chip">Unit / area: <%= w.unit_number %></span><% } %>
+                <% if (w.parent_wo_id) { %><span class="wol-chip">Sub work order</span><% } %>
+                <% if (w.completed_date) { %><span class="wol-chip">Completed <%= String(w.completed_date).slice(0,10) %></span><% } %>
+              </div>
             </td>
             <td><span class="badge badge-<%= w.status %>" title="<%= statusHint %>"><%= woStatusLabel(w.status) %></span></td>
-            <td class="wol-meta"><%= (w.scheduled_date || '—').slice(0,10) %></td>
-            <td class="wol-meta"><%= w.assigned_to || '—' %></td>
+            <td class="wol-meta"><%= scheduleLabel(w) %></td>
+            <td class="wol-meta"><%= w.assigned_to || '-' %></td>
             <td class="wol-meta"><%= (w.created_at || '').slice(0,10) %></td>
           </tr>
         <% }); %>

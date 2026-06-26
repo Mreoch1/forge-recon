@@ -500,9 +500,9 @@ router.get('/', async (req, res) => {
     .from('work_orders')
     .select(`
       id, display_number, wo_number_main, wo_number_sub, parent_wo_id,
-      status, scheduled_date, completed_date, created_at, unit_number,
-      customer_id, customers!left(id, name),
-      job_id, jobs!left(id, title, customers!left(id, name)),
+      status, scheduled_date, scheduled_time, scheduled_end_time, completed_date, created_at, unit_number, description,
+      customer_id, customers!left(id, name, address, city, state),
+      job_id, jobs!left(id, title, address, city, state, customers!left(id, name, address, city, state)),
       assigned_to_user_id, users!left(name),
       work_order_assignees(users!work_order_assignees_user_id_fkey(id, name))
     `, { count: 'exact', head: false });
@@ -545,13 +545,18 @@ router.get('/', async (req, res) => {
     parent_wo_id: r.parent_wo_id,
     status: r.status,
     scheduled_date: r.scheduled_date,
+    scheduled_time: r.scheduled_time,
+    scheduled_end_time: r.scheduled_end_time,
     completed_date: r.completed_date,
     created_at: r.created_at,
     unit_number: r.unit_number,
+    description: r.description,
     customer_id: r.customer_id || (r.jobs && r.jobs.customers ? r.jobs.customers.id : null),
     customer_name: r.customers?.name || (r.jobs && r.jobs.customers ? r.jobs.customers.name : null),
     project_id: r.job_id,
     project_title: r.jobs?.title || null,
+    project_address: [r.jobs?.address, r.jobs?.city, r.jobs?.state].filter(Boolean).join(', '),
+    customer_address: [r.customers?.address || r.jobs?.customers?.address, r.customers?.city || r.jobs?.customers?.city, r.customers?.state || r.jobs?.customers?.state].filter(Boolean).join(', '),
     assignees: (r.work_order_assignees || []).map(a => ({ id: a.users?.id, name: a.users?.name })).filter(a => a.id),
     assigned_name: r.users ? r.users.name : null,
     assigned_to: (r.work_order_assignees || []).map(a => a.users?.name).filter(Boolean).join(', ') || (r.users ? r.users.name : null),
