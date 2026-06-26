@@ -13,6 +13,7 @@ const { sanitizePostgrestSearch } = require('../services/sanitize');
 const { getProjectContractorRollup } = require('../services/project-contractor-rollup');
 const { renderSubcontractAgreementPdf } = require('../services/contract-pdf');
 const { sendEmail } = require('../services/email');
+const numbering = require('../services/numbering');
 
 const router = express.Router();
 const PAGE_SIZE = 25;
@@ -34,6 +35,29 @@ function emptyToNumber(v) {
   if (v === undefined || v === null || v === '') return null;
   const n = Number(String(v).replace(/[$,]/g, ''));
   return isFinite(n) && n >= 0 ? n : null;
+}
+
+function cleanDate(value) {
+  const date = emptyToNull(value);
+  if (!date) return null;
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
+}
+
+function cleanTime(value) {
+  const time = emptyToNull(value);
+  if (!time) return null;
+  return /^\d{2}:\d{2}$/.test(time) ? time : null;
+}
+
+function normalizeProjectScheduleStatus(value, hasDate) {
+  const status = String(value || '').trim();
+  if (['open', 'scheduled', 'in_progress', 'complete', 'cancelled'].includes(status)) return status;
+  return hasDate ? 'scheduled' : 'open';
+}
+
+function formatScheduleTime(start, end) {
+  if (!start && !end) return '-';
+  return [start, end].filter(Boolean).join(' - ');
 }
 
 function throwIfSupabaseError(result, label) {
@@ -556,6 +580,248 @@ router.post('/', async (req, res) => {
   }
   setFlash(req, 'success', `Project "${data.title}" created.`);
   res.redirect(`/projects/${newJob.id}`);
+});
+
+router.get('/:id/schedule', async (req, res) => {
+  const id = req.params.id;
+  const accessContext = await requireProjectAccess(req, res, id, 'operations');
+  if (!accessContext) return;
+
+  const { data: job, error: jobError } = await supabase
+    .from('jobs')
+    .select('*, customers!left(id, name, email, phone, address, city, state, zip), users!jobs_assigned_to_user_id_fkey(name)')
+    .eq('id', id)
+    .maybeSingle();
+  if (jobError) throw jobError;
+  if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Project not found.' });
+
+  job.customer_name = job.customers?.name;
+  job.customer_email = job.customers?.email;
+  job.customer_phone = job.customers?.phone;
+  job.assigned_name = job.users?.name;
+
+  const [
+    workOrdersResult,
+    usersResult,
+    meetingsResult,
+  ] = await Promise.all([
+    supabase
+      .from('work_orders')
+      .select('id, display_number, status, scheduled_date, scheduled_time, scheduled_end_time, unit_number, description, assigned_to_user_id, assigned_to, created_at, users!left(name), work_order_assignees(users!work_order_assignees_user_id_fkey(id, name))')
+      .eq('job_id', id)
+      .order('scheduled_date', { ascending: true, nullsFirst: false })
+      .order('scheduled_time', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: false }),
+    supabase.from('users').select('id, name, email').eq('active', 1).order('name'),
+    supabase
+      .from('project_meetings')
+      .select('id, title, start_time, duration_minutes, location')
+      .eq('job_id', id)
+      .order('start_time', { ascending: true })
+      .limit(6),
+  ]);
+  throwIfSupabaseError(workOrdersResult, 'Project schedule load failed');
+  throwIfSupabaseError(usersResult, 'Project schedule users load failed');
+  throwIfSupabaseError(meetingsResult, 'Project meetings load failed');
+
+  let projectManager = null;
+  if (job.project_manager_user_id) {
+    const { data: pm, error: pmError } = await supabase
+      .from('users')
+      .select('id, name, email')
+      .eq('id', job.project_manager_user_id)
+      .maybeSingle();
+    if (pmError) throw pmError;
+    projectManager = pm;
+  }
+
+  const scheduleItems = (workOrdersResult.data || []).map(wo => ({
+    ...wo,
+    assigned_name:
+      (wo.work_order_assignees || []).map(a => a.users?.name).filter(Boolean).join(', ') ||
+      wo.users?.name ||
+      wo.assigned_to ||
+      '',
+    time_label: formatScheduleTime(wo.scheduled_time, wo.scheduled_end_time),
+  }));
+
+  res.render('jobs/schedule', {
+    title: `${job.title} Schedule`,
+    activeNav: 'projects',
+    job,
+    projectManager,
+    projectAccess: accessContext.access,
+    users: usersResult.data || [],
+    scheduleItems,
+    meetings: meetingsResult.data || [],
+    form: {},
+    errors: {},
+  });
+});
+
+router.post('/:id/schedule/items', async (req, res) => {
+  const id = req.params.id;
+  const accessContext = await requireProjectAccess(req, res, id, 'operations');
+  if (!accessContext) return;
+
+  const { data: job, error: jobError } = await supabase
+    .from('jobs')
+    .select('id, title, customer_id')
+    .eq('id', id)
+    .maybeSingle();
+  if (jobError) throw jobError;
+  if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Project not found.' });
+
+  const description = String(req.body.description || '').trim();
+  const scheduledDate = cleanDate(req.body.scheduled_date);
+  const scheduledTime = cleanTime(req.body.scheduled_time);
+  const scheduledEndTime = cleanTime(req.body.scheduled_end_time);
+  const assignedToUserId = parseInt(req.body.assigned_to_user_id, 10) || null;
+  const status = normalizeProjectScheduleStatus(req.body.status, !!scheduledDate);
+
+  if (!description) {
+    setFlash(req, 'error', 'Schedule item description is required.');
+    return res.redirect(`/projects/${id}/schedule`);
+  }
+  if (req.body.scheduled_date && !scheduledDate) {
+    setFlash(req, 'error', 'Use a valid schedule date.');
+    return res.redirect(`/projects/${id}/schedule`);
+  }
+
+  const users = await loadActiveUsers();
+  const assignee = users.find(u => Number(u.id) === Number(assignedToUserId));
+  const next = await numbering.nextRootWoNumber();
+  const insertPayload = {
+    customer_id: job.customer_id || null,
+    job_id: parseInt(id, 10),
+    parent_wo_id: null,
+    wo_number_main: next.main,
+    wo_number_sub: next.sub,
+    display_number: next.display,
+    status,
+    unit_number: String(req.body.unit_number || '').trim() || null,
+    description,
+    scheduled_date: scheduledDate,
+    scheduled_time: scheduledTime,
+    scheduled_end_time: scheduledEndTime,
+    assigned_to_user_id: assignee ? assignee.id : null,
+    assigned_to: assignee ? assignee.name : null,
+    notes: null,
+  };
+
+  const { data: created, error: createError } = await supabase
+    .from('work_orders')
+    .insert(insertPayload)
+    .select('id, display_number')
+    .single();
+  if (createError) throw createError;
+
+  if (assignee) {
+    const { error: assigneeError } = await supabase
+      .from('work_order_assignees')
+      .insert({
+        work_order_id: created.id,
+        user_id: assignee.id,
+        assigned_at: new Date().toISOString(),
+        assigned_by_user_id: req.session.userId || null,
+      });
+    if (assigneeError) console.warn('[project-schedule] assignee insert failed:', assigneeError.message);
+  }
+
+  await supabase.from('audit_logs').insert({
+    user_id: req.session.userId || null,
+    entity_type: 'work_order',
+    entity_id: created.id,
+    action: 'project_schedule_item_created',
+    before_json: null,
+    after_json: { project_id: Number(id), display_number: created.display_number, scheduled_date: scheduledDate },
+    source: 'user',
+  });
+
+  setFlash(req, 'success', `WO-${created.display_number} added to the project schedule.`);
+  res.redirect(`/projects/${id}/schedule`);
+});
+
+router.post('/:id/schedule/items/:woId', async (req, res) => {
+  const id = req.params.id;
+  const woId = req.params.woId;
+  const accessContext = await requireProjectAccess(req, res, id, 'operations');
+  if (!accessContext) return;
+
+  const { data: existing, error: existingError } = await supabase
+    .from('work_orders')
+    .select('id, display_number, job_id')
+    .eq('id', woId)
+    .eq('job_id', id)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (!existing) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Schedule item not found.' });
+
+  const description = String(req.body.description || '').trim();
+  const scheduledDate = cleanDate(req.body.scheduled_date);
+  const scheduledTime = cleanTime(req.body.scheduled_time);
+  const scheduledEndTime = cleanTime(req.body.scheduled_end_time);
+  const assignedToUserId = parseInt(req.body.assigned_to_user_id, 10) || null;
+  const status = normalizeProjectScheduleStatus(req.body.status, !!scheduledDate);
+
+  if (!description) {
+    setFlash(req, 'error', 'Schedule item description is required.');
+    return res.redirect(`/projects/${id}/schedule`);
+  }
+  if (req.body.scheduled_date && !scheduledDate) {
+    setFlash(req, 'error', 'Use a valid schedule date.');
+    return res.redirect(`/projects/${id}/schedule`);
+  }
+
+  const users = await loadActiveUsers();
+  const assignee = users.find(u => Number(u.id) === Number(assignedToUserId));
+  const updatePayload = {
+    status,
+    unit_number: String(req.body.unit_number || '').trim() || null,
+    description,
+    scheduled_date: scheduledDate,
+    scheduled_time: scheduledTime,
+    scheduled_end_time: scheduledEndTime,
+    assigned_to_user_id: assignee ? assignee.id : null,
+    assigned_to: assignee ? assignee.name : null,
+  };
+
+  const { error: updateError } = await supabase
+    .from('work_orders')
+    .update(updatePayload)
+    .eq('id', existing.id)
+    .eq('job_id', id);
+  if (updateError) throw updateError;
+
+  const { error: removeAssigneesError } = await supabase
+    .from('work_order_assignees')
+    .delete()
+    .eq('work_order_id', existing.id);
+  if (removeAssigneesError) throw removeAssigneesError;
+  if (assignee) {
+    const { error: assigneeError } = await supabase
+      .from('work_order_assignees')
+      .insert({
+        work_order_id: existing.id,
+        user_id: assignee.id,
+        assigned_at: new Date().toISOString(),
+        assigned_by_user_id: req.session.userId || null,
+      });
+    if (assigneeError) console.warn('[project-schedule] assignee update failed:', assigneeError.message);
+  }
+
+  await supabase.from('audit_logs').insert({
+    user_id: req.session.userId || null,
+    entity_type: 'work_order',
+    entity_id: existing.id,
+    action: 'project_schedule_item_updated',
+    before_json: null,
+    after_json: { project_id: Number(id), display_number: existing.display_number, ...updatePayload },
+    source: 'user',
+  });
+
+  setFlash(req, 'success', `WO-${existing.display_number} updated.`);
+  res.redirect(`/projects/${id}/schedule`);
 });
 
 router.get('/:id', async (req, res) => {

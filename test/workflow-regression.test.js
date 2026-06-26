@@ -34,6 +34,36 @@ test('project subroutes enforce capability checks', () => {
   assert.match(routes, /requireProjectAccess\(req, res, id, 'manage'\)/);
 });
 
+test('project schedule writes work orders that roll up to master schedule', () => {
+  const routes = read('src/routes/jobs.js');
+  const projectTabs = read('src/views/jobs/_project_tabs.ejs');
+  const projectSchedule = read('src/views/jobs/schedule.ejs');
+  const masterSchedule = read('src/routes/schedule.js');
+  const meetings = read('src/routes/meetings.js');
+
+  assert.match(routes, /router\.get\('\/:id\/schedule'/);
+  assert.match(routes, /router\.post\('\/:id\/schedule\/items'/);
+  assert.match(routes, /router\.post\('\/:id\/schedule\/items\/:woId'/);
+  assert.match(routes, /\.from\('work_orders'\)[\s\S]*\.insert\(insertPayload\)/);
+  assert.match(routes, /job_id: parseInt\(id, 10\)/);
+  assert.match(routes, /scheduled_date: scheduledDate/);
+  assert.match(routes, /scheduled_time: scheduledTime/);
+  assert.match(routes, /scheduled_end_time: scheduledEndTime/);
+  assert.match(routes, /assigned_to_user_id: assignee \? assignee\.id : null/);
+  assert.match(routes, /numbering\.nextRootWoNumber\(\)/);
+  assert.match(routes, /\.from\('work_order_assignees'\)/);
+  assert.match(projectTabs, /key: 'schedule'/);
+  assert.match(projectSchedule, /class="ops-shell"/);
+  assert.match(projectSchedule, /include\('_project_header'/);
+  assert.match(projectSchedule, /activeProjectTab: 'schedule'/);
+  assert.match(projectSchedule, /action="\/projects\/<%= job\.id %>\/schedule\/items"/);
+  assert.match(projectSchedule, /action="\/projects\/<%= job\.id %>\/schedule\/items\/<%= item\.id %>"/);
+  assert.match(projectSchedule, /href="\/schedule"/);
+  assert.match(masterSchedule, /\.from\('work_orders'\)[\s\S]*scheduled_date/);
+  assert.match(meetings, /router\.get\('\/projects\/:id\/meetings'/);
+  assert.doesNotMatch(meetings, /router\.get\('\/projects\/:id\/schedule'/);
+});
+
 test('project visibility is assignment scoped for non-admin users', () => {
   const routes = read('src/routes/jobs.js');
 

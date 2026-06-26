@@ -206,7 +206,7 @@ function fmtHourLabel(h) {
       <% if (dayMeetings.length > 0) { %>
         <span style="color:#888;white-space:nowrap"><%= day.label %> <%= day.num %>:
           <% dayMeetings.forEach(function(m, i){ %>
-            <a href="/projects/<%= m.job_id %>/schedule" style="color:#c0202b;text-decoration:none;font-weight:500" title="<%= m.title %><%= m.location ? ' · ' + m.location : '' %>"><%= fmtMeetingTime(m.start_time) %><%= fmtMeetingTime(m.start_time) ? ' ' : '' %><%= m.title %></a><%= i < dayMeetings.length - 1 ? ',' : '' %>
+            <a href="/projects/<%= m.job_id %>/meetings" style="color:#c0202b;text-decoration:none;font-weight:500" title="<%= m.title %><%= m.location ? ' · ' + m.location : '' %>"><%= fmtMeetingTime(m.start_time) %><%= fmtMeetingTime(m.start_time) ? ' ' : '' %><%= m.title %></a><%= i < dayMeetings.length - 1 ? ',' : '' %>
           <% }); %>
         </span>
       <% } %>

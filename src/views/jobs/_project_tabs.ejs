@@ -3,6 +3,7 @@ var _activeProjectTab = typeof activeProjectTab !== 'undefined' ? activeProjectT
 var tabsAccess = typeof projectAccess !== 'undefined' ? projectAccess : { canSeeBilling: true, canSeeOperations: true };
 var projectTabs = [
   { key: 'overview', label: 'Overview', href: '/projects/' + job.id, show: true },
+  { key: 'schedule', label: 'Schedule', href: '/projects/' + job.id + '/schedule', show: tabsAccess.canSeeOperations },
   { key: 'financials', label: 'Financials', href: '/projects/' + job.id + '/financials', show: tabsAccess.canSeeBilling },
   { key: 'rfp', label: 'RFP', href: '/projects/' + job.id + '/rfp', show: tabsAccess.canSeeOperations },
   { key: 'materials', label: 'Materials', href: '/projects/' + job.id + '/materials', show: tabsAccess.canSeeOperations },

@@ -1,12 +1,12 @@
 <%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
 <div class="ops-shell">
   <div class="mb-4">
-    <a href="/projects/<%= job.id %>/schedule" class="text-sm text-recon-fog hover:text-recon-red">&larr; Schedule</a>
+    <a href="/projects/<%= job.id %>/meetings" class="text-sm text-recon-fog hover:text-recon-red">&larr; Meetings</a>
   </div>
   <h1 class="page-h1 mb-6">New meeting</h1>
 
   <div class="card p-6 max-w-3xl">
-    <form method="post" action="/projects/<%= job.id %>/schedule" class="space-y-4">
+    <form method="post" action="/projects/<%= job.id %>/meetings" class="space-y-4">
       <!-- Title -->
       <div>
         <label class="label">Title <span class="text-recon-red">*</span></label>
@@ -89,7 +89,7 @@
 
       <div class="flex gap-3 pt-2">
         <button type="submit" class="btn btn-primary">Create meeting &amp; send invites</button>
-        <a href="/projects/<%= job.id %>/schedule" class="btn btn-secondary">Cancel</a>
+        <a href="/projects/<%= job.id %>/meetings" class="btn btn-secondary">Cancel</a>
       </div>
     </form>
   </div>

@@ -1,0 +1,214 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<%
+var access = typeof projectAccess !== 'undefined' ? projectAccess : { canSeeBilling: true, canSeeOperations: true };
+var scheduledItems = (scheduleItems || []).filter(function(item){ return item.scheduled_date; });
+var unscheduledItems = (scheduleItems || []).filter(function(item){ return !item.scheduled_date; });
+function dateValue(value) {
+  return value ? String(value).slice(0, 10) : '';
+}
+function timeValue(value) {
+  return value ? String(value).slice(0, 5) : '';
+}
+function dateLabel(value) {
+  if (!value) return 'Unscheduled';
+  var parts = String(value).slice(0, 10).split('-').map(Number);
+  var d = new Date(parts[0], parts[1] - 1, parts[2]);
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+function meetingDateTime(value) {
+  if (!value) return '-';
+  return new Date(value).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+%>
+
+<div class="ops-shell">
+  <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <a href="/projects/<%= job.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; Project overview</a>
+    <div class="flex flex-wrap gap-2">
+      <a href="/schedule" class="btn btn-secondary text-sm">Master schedule</a>
+      <a href="/projects/<%= job.id %>/meetings" class="btn btn-secondary text-sm">Meetings</a>
+      <a href="/work-orders/new?project_id=<%= job.id %>" class="btn btn-secondary text-sm">+ Work order</a>
+    </div>
+  </div>
+
+  <%- include('_project_header', { job: job, projectManager: projectManager, projectAccess: access }) %>
+  <%- include('_project_tabs', { job: job, projectAccess: access, activeProjectTab: 'schedule' }) %>
+
+  <section class="card mb-6 overflow-hidden">
+    <header class="px-5 py-3 border-b border-recon-mist flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h3 class="font-semibold">Project Schedule</h3>
+        <p class="text-xs text-recon-fog mt-0.5"><%= scheduledItems.length %> scheduled item<%= scheduledItems.length === 1 ? '' : 's' %> · <%= unscheduledItems.length %> unscheduled</p>
+      </div>
+    </header>
+    <div class="p-5 border-b border-recon-mist">
+      <form method="post" action="/projects/<%= job.id %>/schedule/items" class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
+        <div class="lg:col-span-4">
+          <label class="label" for="schedule-description">Schedule item</label>
+          <input id="schedule-description" type="text" name="description" class="input w-full" placeholder="Cabinet install" required>
+        </div>
+        <div class="lg:col-span-2">
+          <label class="label" for="schedule-date">Date</label>
+          <input id="schedule-date" type="date" name="scheduled_date" class="input w-full" required>
+        </div>
+        <div class="lg:col-span-1">
+          <label class="label" for="schedule-start">Start</label>
+          <input id="schedule-start" type="time" name="scheduled_time" class="input w-full">
+        </div>
+        <div class="lg:col-span-1">
+          <label class="label" for="schedule-end">End</label>
+          <input id="schedule-end" type="time" name="scheduled_end_time" class="input w-full">
+        </div>
+        <div class="lg:col-span-2">
+          <label class="label" for="schedule-assignee">Assigned to</label>
+          <select id="schedule-assignee" name="assigned_to_user_id" class="input w-full">
+            <option value="">Unassigned</option>
+            <% (users || []).forEach(function(user){ %>
+              <option value="<%= user.id %>"><%= user.name %></option>
+            <% }); %>
+          </select>
+        </div>
+        <div class="lg:col-span-1">
+          <label class="label" for="schedule-area">Area</label>
+          <input id="schedule-area" type="text" name="unit_number" class="input w-full" placeholder="Unit">
+        </div>
+        <div class="lg:col-span-1">
+          <button type="submit" class="btn btn-primary w-full">Add</button>
+        </div>
+      </form>
+    </div>
+
+    <% if (!scheduleItems.length) { %>
+      <div class="p-8 text-center text-sm text-recon-fog">No project schedule items yet.</div>
+    <% } else { %>
+      <table class="data">
+        <thead>
+          <tr>
+            <th style="width:12%">Date</th>
+            <th style="width:11%">Time</th>
+            <th>Item</th>
+            <th style="width:13%">Area</th>
+            <th style="width:14%">Assigned</th>
+            <th style="width:12%">Status</th>
+            <th class="text-right" style="width:14%">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% scheduledItems.forEach(function(item){ %>
+            <% var scheduleFormId = 'schedule-item-' + item.id; %>
+            <tr>
+              <td>
+                <input form="<%= scheduleFormId %>" type="date" name="scheduled_date" value="<%= dateValue(item.scheduled_date) %>" class="input w-full text-sm" aria-label="Scheduled date for WO-<%= item.display_number %>">
+                <div class="text-xs text-recon-fog mt-1"><%= dateLabel(item.scheduled_date) %></div>
+              </td>
+              <td>
+                <div class="grid grid-cols-2 gap-1">
+                  <input form="<%= scheduleFormId %>" type="time" name="scheduled_time" value="<%= timeValue(item.scheduled_time) %>" class="input w-full text-sm" aria-label="Start time">
+                  <input form="<%= scheduleFormId %>" type="time" name="scheduled_end_time" value="<%= timeValue(item.scheduled_end_time) %>" class="input w-full text-sm" aria-label="End time">
+                </div>
+              </td>
+              <td>
+                <input form="<%= scheduleFormId %>" type="text" name="description" value="<%= item.description || '' %>" class="input w-full text-sm" required>
+                <a href="/work-orders/<%= item.id %>" class="text-xs text-recon-red hover:underline">WO-<%= item.display_number %></a>
+              </td>
+              <td><input form="<%= scheduleFormId %>" type="text" name="unit_number" value="<%= item.unit_number || '' %>" class="input w-full text-sm"></td>
+              <td>
+                <select form="<%= scheduleFormId %>" name="assigned_to_user_id" class="input w-full text-sm">
+                  <option value="">Unassigned</option>
+                  <% (users || []).forEach(function(user){ %>
+                    <option value="<%= user.id %>" <%= Number(item.assigned_to_user_id) === Number(user.id) ? 'selected' : '' %>><%= user.name %></option>
+                  <% }); %>
+                </select>
+              </td>
+              <td>
+                <select form="<%= scheduleFormId %>" name="status" class="input w-full text-sm">
+                  <% ['open', 'scheduled', 'in_progress', 'complete', 'cancelled'].forEach(function(status){ %>
+                    <option value="<%= status %>" <%= item.status === status ? 'selected' : '' %>><%= status.replace('_', ' ') %></option>
+                  <% }); %>
+                </select>
+              </td>
+              <td class="text-right">
+                <form id="<%= scheduleFormId %>" method="post" action="/projects/<%= job.id %>/schedule/items/<%= item.id %>">
+                  <button type="submit" class="btn btn-secondary text-xs">Save</button>
+                </form>
+              </td>
+            </tr>
+          <% }); %>
+          <% if (unscheduledItems.length) { %>
+            <tr class="bg-recon-cloud/60">
+              <td colspan="7" class="text-xs font-semibold uppercase tracking-wide text-recon-fog">Unscheduled</td>
+            </tr>
+            <% unscheduledItems.forEach(function(item){ %>
+              <% var unscheduledFormId = 'schedule-item-' + item.id; %>
+              <tr>
+                <td><input form="<%= unscheduledFormId %>" type="date" name="scheduled_date" value="" class="input w-full text-sm" aria-label="Scheduled date for WO-<%= item.display_number %>"></td>
+                <td>
+                  <div class="grid grid-cols-2 gap-1">
+                    <input form="<%= unscheduledFormId %>" type="time" name="scheduled_time" value="" class="input w-full text-sm" aria-label="Start time">
+                    <input form="<%= unscheduledFormId %>" type="time" name="scheduled_end_time" value="" class="input w-full text-sm" aria-label="End time">
+                  </div>
+                </td>
+                <td>
+                  <input form="<%= unscheduledFormId %>" type="text" name="description" value="<%= item.description || '' %>" class="input w-full text-sm" required>
+                  <a href="/work-orders/<%= item.id %>" class="text-xs text-recon-red hover:underline">WO-<%= item.display_number %></a>
+                </td>
+                <td><input form="<%= unscheduledFormId %>" type="text" name="unit_number" value="<%= item.unit_number || '' %>" class="input w-full text-sm"></td>
+                <td>
+                  <select form="<%= unscheduledFormId %>" name="assigned_to_user_id" class="input w-full text-sm">
+                    <option value="">Unassigned</option>
+                    <% (users || []).forEach(function(user){ %>
+                      <option value="<%= user.id %>" <%= Number(item.assigned_to_user_id) === Number(user.id) ? 'selected' : '' %>><%= user.name %></option>
+                    <% }); %>
+                  </select>
+                </td>
+                <td>
+                  <select form="<%= unscheduledFormId %>" name="status" class="input w-full text-sm">
+                    <% ['open', 'scheduled', 'in_progress', 'complete', 'cancelled'].forEach(function(status){ %>
+                      <option value="<%= status %>" <%= item.status === status ? 'selected' : '' %>><%= status.replace('_', ' ') %></option>
+                    <% }); %>
+                  </select>
+                </td>
+                <td class="text-right">
+                  <form id="<%= unscheduledFormId %>" method="post" action="/projects/<%= job.id %>/schedule/items/<%= item.id %>">
+                    <button type="submit" class="btn btn-secondary text-xs">Save</button>
+                  </form>
+                </td>
+              </tr>
+            <% }); %>
+          <% } %>
+        </tbody>
+      </table>
+    <% } %>
+  </section>
+
+  <section class="card mb-6 overflow-hidden">
+    <header class="px-5 py-3 border-b border-recon-mist flex flex-wrap items-center justify-between gap-3">
+      <h3 class="font-semibold">Meetings</h3>
+      <a href="/projects/<%= job.id %>/meetings/new" class="btn btn-secondary text-sm">+ New meeting</a>
+    </header>
+    <% if (!meetings || !meetings.length) { %>
+      <div class="p-5 text-sm text-recon-fog">No project meetings scheduled.</div>
+    <% } else { %>
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Meeting</th>
+            <th>Date / time</th>
+            <th>Location</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% meetings.forEach(function(meeting){ %>
+            <tr>
+              <td><%= meeting.title %></td>
+              <td><%= meetingDateTime(meeting.start_time) %></td>
+              <td><%= meeting.location || '-' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </section>
+</div>
+
+<%- include('../layouts/footer') %>

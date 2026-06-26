@@ -2,9 +2,9 @@
  * meetings.js — Project meeting scheduling with email invites + RSVP.
  *
  * Routes:
- *   GET  /projects/:id/schedule            — Schedule page for a project
- *   GET  /projects/:id/schedule/new         — New meeting form
- *   POST /projects/:id/schedule             — Create meeting + send invites
+ *   GET  /projects/:id/meetings            — Meeting page for a project
+ *   GET  /projects/:id/meetings/new         — New meeting form
+ *   POST /projects/:id/meetings             — Create meeting + send invites
  *   GET  /meetings/:id                      — Meeting detail
  *   POST /meetings/:id/edit                 — Edit meeting
  *   POST /meetings/:id/delete               — Delete meeting
@@ -66,9 +66,9 @@ async function loadMeeting(meetingId) {
   return { ...meeting, attendees: attendees || [] };
 }
 
-// ── GET /projects/:id/schedule — Schedule tab for a project ──────────────
+// ── GET /projects/:id/meetings — Meeting page for a project ──────────────
 
-router.get('/projects/:id/schedule', requireAuth, async (req, res) => {
+router.get('/projects/:id/meetings', requireAuth, async (req, res) => {
   const jobId = req.params.id;
   // Verify project exists
   const { data: job } = await supabase.from('jobs').select('id, title').eq('id', jobId).maybeSingle();
@@ -105,9 +105,9 @@ router.get('/projects/:id/schedule', requireAuth, async (req, res) => {
   });
 });
 
-// ── GET /projects/:id/schedule/new ───────────────────────────────────────
+// ── GET /projects/:id/meetings/new ───────────────────────────────────────
 
-router.get('/projects/:id/schedule/new', requireAuth, async (req, res) => {
+router.get('/projects/:id/meetings/new', requireAuth, async (req, res) => {
   const { data: job } = await supabase.from('jobs').select('id, title').eq('id', req.params.id).maybeSingle();
   if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Project not found.' });
 
@@ -139,9 +139,9 @@ router.get('/projects/:id/schedule/new', requireAuth, async (req, res) => {
   });
 });
 
-// ── POST /projects/:id/schedule — Create meeting ────────────────────────
+// ── POST /projects/:id/meetings — Create meeting ────────────────────────
 
-router.post('/projects/:id/schedule', requireAuth, requireManager, async (req, res) => {
+router.post('/projects/:id/meetings', requireAuth, requireManager, async (req, res) => {
   const jobId = req.params.id;
   const { data: job } = await supabase.from('jobs').select('id, title').eq('id', jobId).maybeSingle();
   if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Project not found.' });
@@ -214,10 +214,10 @@ router.post('/projects/:id/schedule', requireAuth, requireManager, async (req, r
     }
 
     setFlash(req, 'success', `Meeting "${form.title}" created. Invites sent.`);
-    res.redirect(`/projects/${jobId}/schedule`);
+    res.redirect(`/projects/${jobId}/meetings`);
   } catch (err) {
     setFlash(req, 'error', 'Could not create meeting: ' + (err.message || err));
-    res.redirect(`/projects/${jobId}/schedule/new`);
+    res.redirect(`/projects/${jobId}/meetings/new`);
   }
 });
 
@@ -246,9 +246,9 @@ router.post('/meetings/:id/edit', requireAuth, requireManager, async (req, res) 
   updates.updated_at = new Date().toISOString();
 
   const { error } = await supabase.from('project_meetings').update(updates).eq('id', meetingId);
-  if (error) { setFlash(req, 'error', 'Update failed: ' + error.message); return res.redirect(`/projects/${meeting.job_id}/schedule`); }
+  if (error) { setFlash(req, 'error', 'Update failed: ' + error.message); return res.redirect(`/projects/${meeting.job_id}/meetings`); }
   setFlash(req, 'success', 'Meeting updated.');
-  res.redirect(`/projects/${meeting.job_id}/schedule`);
+  res.redirect(`/projects/${meeting.job_id}/meetings`);
 });
 
 // ── POST /meetings/:id/delete ───────────────────────────────────────────
@@ -258,7 +258,7 @@ router.post('/meetings/:id/delete', requireAuth, requireManager, async (req, res
   if (!meeting) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Meeting not found.' });
   await supabase.from('project_meetings').delete().eq('id', meeting.id);
   setFlash(req, 'success', `Meeting "${meeting.title}" deleted.`);
-  res.redirect(`/projects/${meeting.job_id}/schedule`);
+  res.redirect(`/projects/${meeting.job_id}/meetings`);
 });
 
 // ── POST /meetings/:id/send-invites — Re-send invites ───────────────────
@@ -273,7 +273,7 @@ router.post('/meetings/:id/send-invites', requireAuth, requireManager, async (re
   } catch (e) {
     setFlash(req, 'error', 'Failed to send invites: ' + e.message);
   }
-  res.redirect(`/projects/${meeting.job_id}/schedule`);
+  res.redirect(`/projects/${meeting.job_id}/meetings`);
 });
 
 // ── POST /meetings/:id/send-reminder ────────────────────────────────────
@@ -287,7 +287,7 @@ router.post('/meetings/:id/send-reminder', requireAuth, requireManager, async (r
     setFlash(req, 'error', 'Reminder failed: ' + e.message);
   }
   const { data: m } = await supabase.from('project_meetings').select('job_id').eq('id', req.params.id).single();
-  res.redirect(`/projects/${m?.job_id || 0}/schedule`);
+  res.redirect(`/projects/${m?.job_id || 0}/meetings`);
 });
 
 // ── GET /meetings/rsvp — RSVP via token (no auth required) ──────────────
