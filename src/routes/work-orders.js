@@ -60,6 +60,19 @@ function emptyToNull(v) {
   return t === '' ? null : t;
 }
 
+function woAttachmentDisplayName(file) {
+  return file?.original_filename || String(file?.filename || '').split('/').pop() || 'File';
+}
+
+function safeAttachmentName(file) {
+  return woAttachmentDisplayName(file).replace(/[\r\n"\\]/g, '_');
+}
+
+function contentDisposition(disposition, file) {
+  const filename = safeAttachmentName(file);
+  return `${disposition}; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+}
+
 function isAssignedToCurrentUser(req, wo) {
   if (!wo || req.session?.role !== 'worker') return true;
   const userId = Number(req.session.userId);
@@ -982,7 +995,7 @@ router.get('/:id', async (req, res) => {
       try {
         url = await storage.getSignedUrl('wo-photos', p.filename, 3600);
       } catch (e) { console.warn('[wo-files] failed to resolve URL for', p.filename); }
-      return { ...p, url, is_image: isImage, user_name: nameById[p.user_id] || null };
+      return { ...p, url, raw_url: `/work-orders/${wo.id}/files/${p.id}/raw`, is_image: isImage, user_name: nameById[p.user_id] || null };
     }));
   } catch (e) {
     // wo_photos may be missing on very old DBs
@@ -1378,6 +1391,37 @@ router.post('/:id/files', async (req, res) => {
     setFlash(req, 'success', msg);
     res.redirect(`/work-orders/${wo.id}`);
   });
+});
+
+// --- files: raw/open original ---
+
+router.get('/:id/files/:fileId/raw', async (req, res) => {
+  const { data: wo, error: woErr } = await supabase
+    .from('work_orders')
+    .select('id, assigned_to_user_id, assigned_to, work_order_assignees(user_id)')
+    .eq('id', req.params.id)
+    .maybeSingle();
+  if (woErr) throw woErr;
+  if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
+  if (!isAssignedToCurrentUser(req, wo)) return workerForbidden(res);
+
+  const { data: file, error: fileErr } = await supabase
+    .from('wo_photos')
+    .select('*')
+    .eq('id', req.params.fileId)
+    .eq('work_order_id', wo.id)
+    .maybeSingle();
+  if (fileErr) throw fileErr;
+  if (!file) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'File not found.' });
+
+  try {
+    const buffer = await storage.downloadBuffer('wo-photos', file.filename);
+    res.setHeader('Content-Type', file.mime_type || 'application/octet-stream');
+    res.setHeader('Content-Disposition', contentDisposition('inline', file));
+    return res.send(buffer);
+  } catch (e) {
+    return res.status(500).render('error', { title: 'Storage error', code: 500, message: 'Failed to access file: ' + e.message });
+  }
 });
 
 // --- files: delete ---

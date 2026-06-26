@@ -485,6 +485,7 @@ test('work order row links do not depend on the More menu', () => {
 });
 
 test('managers can edit open work orders and access WO files from show page', () => {
+  const routes = read('src/routes/work-orders.js');
   const show = read('src/views/work-orders/show.ejs');
 
   assert.match(show, /currentUser && currentUser\.role !== 'worker' && !\['closed', 'complete', 'cancelled'\]\.includes\(wo\.status\)/);
@@ -496,6 +497,12 @@ test('managers can edit open work orders and access WO files from show page', ()
   assert.match(show, /wo-file-link/);
   assert.match(show, /can_preview: !!p\.is_image \|\| mime\.includes\('pdf'\)/);
   assert.match(show, /if \(!item \|\| !item\.can_preview\) return/);
+  assert.match(show, /open_url: p\.raw_url \|\| p\.url/);
+  assert.match(show, /href="<%= p\.raw_url \|\| p\.url %>"/);
+  assert.match(show, /openEl\.href = item\.open_url \|\| item\.url \|\| '#'/);
+  assert.match(routes, /router\.get\('\/:id\/files\/:fileId\/raw'/);
+  assert.match(routes, /contentDisposition\('inline', file\)/);
+  assert.match(routes, /raw_url: `\/work-orders\/\$\{wo\.id\}\/files\/\$\{p\.id\}\/raw`/);
   assert.doesNotMatch(show, /hover:bg-gray-50 group/);
   assert.doesNotMatch(show, /Work order files/);
 });

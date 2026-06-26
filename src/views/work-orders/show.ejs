@@ -55,6 +55,7 @@ const woViewerAttachments = woImageAttachments.concat(woFileAttachments).map(fun
   return {
     id: p.id,
     url: p.url,
+    open_url: p.raw_url || p.url,
     name: name,
     caption: p.caption || '',
     mime_type: p.mime_type || '',
@@ -506,7 +507,7 @@ function safeJson(value) {
               <div class="wo-file-row flex items-center justify-between py-2 px-2 -mx-2 rounded group">
                 <div class="flex items-center gap-2 min-w-0">
                   <span class="text-base flex-shrink-0"><%= fileIcon(p.mime_type) %></span>
-                  <a href="<%= p.url %>" target="_blank" rel="noopener"
+                  <a href="<%= p.raw_url || p.url %>" target="_blank" rel="noopener"
                      class="wo-file-link attachment-trigger text-sm font-medium text-recon-charcoal hover:text-recon-red truncate"
                      data-attachment-index="<%= viewerIndex %>"
                      title="<%= p.original_filename || p.filename %>">
@@ -697,7 +698,7 @@ function safeJson(value) {
         counterEl.textContent = (index + 1) + ' / ' + items.length;
         metaEl.textContent = [item.mime_type, item.size, item.user_name, item.created_at].filter(Boolean).join(' - ');
         captionEl.textContent = item.caption || '';
-        openEl.href = item.url || '#';
+        openEl.href = item.open_url || item.url || '#';
 
         if (item.is_image) {
           const img = document.createElement('img');
