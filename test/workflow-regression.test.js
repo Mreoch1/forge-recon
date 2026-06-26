@@ -702,20 +702,28 @@ test('RFP sub-line inserts calculate total from quantity and unit cost', () => {
 test('RFP markup and GR calculations preserve explicit zero values', () => {
   const routes = read('src/routes/rfp.js');
   const view = read('src/views/jobs/rfp.ejs');
+  const exportService = read('src/services/rfp-export.js');
 
+  assert.match(routes, /const DEFAULT_RFP_MARKUP_PCT = 16/);
+  assert.match(routes, /const DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT = 4/);
   assert.match(routes, /function parseNumberOrDefault\(value, fallback\)/);
-  assert.match(routes, /const markup = parseNumberOrDefault\(params\.markup_pct, 20\)/);
-  assert.match(routes, /const gr = parseNumberOrDefault\(params\.general_requirements_pct, 6\)/);
+  assert.match(routes, /const markup = parseNumberOrDefault\(params\.markup_pct, DEFAULT_RFP_MARKUP_PCT\)/);
+  assert.match(routes, /const gr = parseNumberOrDefault\(params\.general_requirements_pct, DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT\)/);
   assert.doesNotMatch(routes, /parseFloat\(markup_pct\) \|\| 20/);
   assert.doesNotMatch(routes, /parseFloat\(params\.markup_pct\) \|\| 20/);
   assert.doesNotMatch(routes, /parseFloat\(params\.general_requirements_pct\)[^\n]*\|\| 6/);
 
+  assert.match(view, /var DEFAULT_RFP_MARKUP_PCT = 16/);
+  assert.match(view, /var DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT = 4/);
   assert.match(view, /function numberOrDefault\(value, fallback\)/);
-  assert.match(view, /var markup = isFinite\(markupRaw\) \? markupRaw : 20/);
-  assert.match(view, /numberOrDefault\(line && line\.markup_pct, 20\)/);
-  assert.match(view, /numberOrDefault\(line && line\.general_requirements_pct, 6\)/);
+  assert.match(view, /var markup = isFinite\(markupRaw\) \? markupRaw : <%= DEFAULT_RFP_MARKUP_PCT %>/);
+  assert.match(view, /numberOrDefault\(line && line\.markup_pct, DEFAULT_RFP_MARKUP_PCT\)/);
+  assert.match(view, /numberOrDefault\(line && line\.general_requirements_pct, DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT\)/);
   assert.doesNotMatch(view, /markup_pct\|\|20/);
   assert.doesNotMatch(view, /general_requirements_pct\|\|6/);
+
+  assert.match(exportService, /const DEFAULT_RFP_MARKUP_PCT = 16/);
+  assert.match(exportService, /const DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT = 4/);
 });
 
 test('RFP parent markup and GR show actual approved values instead of mixed', () => {
@@ -723,8 +731,8 @@ test('RFP parent markup and GR show actual approved values instead of mixed', ()
 
   assert.match(view, /function rfpPercentSummary\(lines, field, fallback\)/);
   assert.ok(view.includes("return values.length ? values.join(' / ') : '—';"));
-  assert.match(view, /var liMarkup = liHasSubs \? rfpPercentSummary\(apprChildren, 'markup_pct', 20\)/);
-  assert.match(view, /var liGr = liHasSubs \? rfpPercentSummary\(apprChildren, 'general_requirements_pct', 6\)/);
+  assert.match(view, /var liMarkup = liHasSubs \? rfpPercentSummary\(apprChildren, 'markup_pct', DEFAULT_RFP_MARKUP_PCT\)/);
+  assert.match(view, /var liGr = liHasSubs \? rfpPercentSummary\(apprChildren, 'general_requirements_pct', DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT\)/);
   assert.doesNotMatch(view, /'mixed'/);
 });
 

@@ -11,6 +11,8 @@ const { requireAdmin, requireAuth } = require('../middleware/auth');
 const { loadProjectAccess, denyProjectAccess } = require('./jobs');
 
 const router = express.Router();
+const DEFAULT_RFP_MARKUP_PCT = 16;
+const DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT = 4;
 
 const FALLBACK_VENDOR_NAMES = [
   'Advanced Specialties',
@@ -517,15 +519,15 @@ router.post('/projects/:id/rfps/:rId/items', requireRfpEditAccess, async (req, r
     }
   }
 
-  const markup = parseNumberOrDefault(markup_pct, 20);
+  const markup = parseNumberOrDefault(markup_pct, DEFAULT_RFP_MARKUP_PCT);
   const cCost = parseNumberOrDefault(contractor_cost, 0);
   const vCost = parseNumberOrDefault(vendor_cost, 0);
   const uCost = parseNumberOrDefault(unit_cost, 0);
   const tCost = parseNumberOrDefault(total_cost, 0);
   const qty = parseNumberOrDefault(quantity, 0);
-  // D-140: GR was hardcoded at 6% on insert; now read from request, default 6.
+  // D-140: GR is read from the request; blank new lines use the current default.
   const gr = parseFloat(req.body.general_requirements_pct);
-  const grPct = isFinite(gr) ? gr : 6;
+  const grPct = isFinite(gr) ? gr : DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT;
 
   const computed = computeSubLineTotals({ quantity, contractor_cost, vendor_cost, markup_pct, general_requirements_pct: grPct });
   const computedUnit = computed.unit_cost;
@@ -636,7 +638,7 @@ router.post('/projects/rfps/items/:itemId', requireRfpEditAccess, async (req, re
   let gr = req.body.general_requirements_pct;
   if (Array.isArray(gr)) gr = gr[gr.length - 1];
 
-  const markup = parseNumberOrDefault(markup_pct, 20);
+  const markup = parseNumberOrDefault(markup_pct, DEFAULT_RFP_MARKUP_PCT);
   const cCost = parseNumberOrDefault(contractor_cost, 0);
   // D-135: preserve existing vendor_cost when form no longer sends it (D-122b)
   const vCost = req.body.vendor_cost !== undefined ? parseNumberOrDefault(vendor_cost, 0) : undefined;
@@ -671,7 +673,7 @@ router.post('/projects/rfps/items/:itemId', requireRfpEditAccess, async (req, re
     final_unit_cost: baseCost > 0 ? withMarkup / (qty || 1) : 0,
     approved: approved === '1' || approved === 'true' || approved === 'on',
     ...(scope_type !== undefined ? { scope_type: normalizeScopeType(scope_type) } : {}),
-    general_requirements_pct: gr !== undefined ? parseNumberOrDefault(gr, 6) : undefined,
+    general_requirements_pct: gr !== undefined ? parseNumberOrDefault(gr, DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT) : undefined,
     ...(req.body.vendor_cost !== undefined ? { vendor_cost: parseNumberOrDefault(vendor_cost, 0) } : {}),
     location: req.body.location || undefined,
     sort_order: req.body.sort_order !== undefined ? parseInt(req.body.sort_order) : undefined,
@@ -741,8 +743,8 @@ function computeSubLineTotals(params) {
   const qty = parseNumberOrDefault(params.quantity, 0);
   const cCost = parseNumberOrDefault(params.contractor_cost, 0);
   const vCost = parseNumberOrDefault(params.vendor_cost, 0);
-  const markup = parseNumberOrDefault(params.markup_pct, 20);
-  const gr = parseNumberOrDefault(params.general_requirements_pct, 6);
+  const markup = parseNumberOrDefault(params.markup_pct, DEFAULT_RFP_MARKUP_PCT);
+  const gr = parseNumberOrDefault(params.general_requirements_pct, DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT);
   
   const computedUnit = cCost + vCost;
   const baseCost = computedUnit * qty;
@@ -810,12 +812,12 @@ router.post('/projects/rfps/items/bulk-save', requireRfpEditAccess, async (req, 
     const general_requirements_pct = lastOf(entry.general_requirements_pct);
     const approved = lastOf(entry.approved);
 
-    const markup = parseNumberOrDefault(markup_pct, 20);
+    const markup = parseNumberOrDefault(markup_pct, DEFAULT_RFP_MARKUP_PCT);
     const cCost = parseNumberOrDefault(contractor_cost, 0);
     const vCost = parseNumberOrDefault(vendor_cost, 0);
     const qty = parseNumberOrDefault(quantity, 0);
     const gr = parseFloat(general_requirements_pct);
-    const grPct = isFinite(gr) ? gr : 6;
+    const grPct = isFinite(gr) ? gr : DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT;
 
     const computedUnit = cCost + vCost;
     const baseCost = computedUnit * qty;

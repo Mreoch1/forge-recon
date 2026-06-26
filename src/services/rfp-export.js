@@ -15,6 +15,9 @@
 const PDFDocument = require('pdfkit');
 const ExcelJS = require('exceljs');
 
+const DEFAULT_RFP_MARKUP_PCT = 16;
+const DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT = 4;
+
 // ── Recon brand palette (mirrors src/services/pdf.js) ──
 
 const COLOR = {
@@ -94,8 +97,8 @@ function computedLineTotalCost(line) {
 
 function computedLineTotalWithMarkup(line) {
   const totalCost = computedLineTotalCost(line);
-  const markup = numberOrDefault(line && line.markup_pct, 20);
-  const gr = numberOrDefault(line && line.general_requirements_pct, 6);
+  const markup = numberOrDefault(line && line.markup_pct, DEFAULT_RFP_MARKUP_PCT);
+  const gr = numberOrDefault(line && line.general_requirements_pct, DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT);
   return totalCost * (1 + ((markup + gr) / 100));
 }
 

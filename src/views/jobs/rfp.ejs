@@ -111,6 +111,8 @@
         return count + (i.approved ? 1 : 0);
       }, 0);
     }
+    var DEFAULT_RFP_MARKUP_PCT = 16;
+    var DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT = 4;
     function rfpParentRollupQty(item, approvedChildren) {
       var parentQty = Number(item && item.quantity);
       var childQtys = (approvedChildren || [])
@@ -132,8 +134,8 @@
     }
     function rfpComputedTotalWithMarkup(line) {
       var totalCost = rfpComputedTotalCost(line);
-      var markup = numberOrDefault(line && line.markup_pct, 20);
-      var gr = numberOrDefault(line && line.general_requirements_pct, 6);
+      var markup = numberOrDefault(line && line.markup_pct, DEFAULT_RFP_MARKUP_PCT);
+      var gr = numberOrDefault(line && line.general_requirements_pct, DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT);
       return totalCost * (1 + ((markup + gr) / 100));
     }
     function formatPercentValue(value) {
@@ -316,8 +318,8 @@
                 <% var liDisplayTotal = liHasSubs ? liTotal : (Number(item.total_with_markup) || 0); %>
                 <% var liDisplayUnit = liHasSubs ? (liQty > 0 ? liTotal / liQty : 0) : (Number(item.final_unit_cost) || 0); %>
                 <% var liDisplayBaseUnit = liHasSubs ? (liQty > 0 ? liTotalCost / liQty : 0) : (Number(item.unit_cost) || 0); %>
-                <% var liMarkup = liHasSubs ? rfpPercentSummary(apprChildren, 'markup_pct', 20) : (item.markup_pct == null ? '—' : formatPercentValue(numberOrDefault(item.markup_pct, 0))); %>
-                <% var liGr = liHasSubs ? rfpPercentSummary(apprChildren, 'general_requirements_pct', 6) : (item.general_requirements_pct == null ? '—' : formatPercentValue(numberOrDefault(item.general_requirements_pct, 0))); %>
+                <% var liMarkup = liHasSubs ? rfpPercentSummary(apprChildren, 'markup_pct', DEFAULT_RFP_MARKUP_PCT) : (item.markup_pct == null ? '—' : formatPercentValue(numberOrDefault(item.markup_pct, 0))); %>
+                <% var liGr = liHasSubs ? rfpPercentSummary(apprChildren, 'general_requirements_pct', DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT) : (item.general_requirements_pct == null ? '—' : formatPercentValue(numberOrDefault(item.general_requirements_pct, 0))); %>
                 <% var liApproved = liHasSubs ? (apprChildren.length === children.length ? true : false) : !!item.approved; %>
                 <tr id="rfp-line-<%= item.id %>" class="rfp-li-row bg-recon-deeper/20 hover:bg-recon-cloud/20 border-t-2 border-recon-mist/40" style="cursor:pointer" data-rfp-line-total="<%= liDisplayTotal.toFixed(2) %>" data-rfp-line-approved="<%= liHasSubs ? (liApprovedSubs > 0 ? '1' : '0') : (item.approved ? '1' : '0') %>" data-rfp-line-search="<%= (item.description || '').toLowerCase() %>" onclick="toggleRfpLineEditor('<%= item.id %>');">
                   <td>
@@ -421,11 +423,11 @@
                                 </label>
                                 <label class="block min-w-0 sm:col-span-1 lg:col-span-1">
                                   <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">MU%</span>
-                                  <input form="<%= subFid %>" name="markup_pct" type="number" step="any" value="<%= sub.markup_pct != null ? sub.markup_pct : '20' %>" class="input mt-1 w-full text-right text-xs" data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="markup_pct" data-original-value="<%= sub.markup_pct != null ? sub.markup_pct : '20' %>">
+                                  <input form="<%= subFid %>" name="markup_pct" type="number" step="any" value="<%= sub.markup_pct != null ? sub.markup_pct : DEFAULT_RFP_MARKUP_PCT %>" class="input mt-1 w-full text-right text-xs" data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="markup_pct" data-original-value="<%= sub.markup_pct != null ? sub.markup_pct : DEFAULT_RFP_MARKUP_PCT %>">
                                 </label>
                                 <label class="block min-w-0 sm:col-span-1 lg:col-span-1">
                                   <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">GR%</span>
-                                  <input form="<%= subFid %>" name="general_requirements_pct" type="number" step="any" value="<%= sub.general_requirements_pct != null ? sub.general_requirements_pct : '6' %>" class="input mt-1 w-full text-right text-xs" data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="general_requirements_pct" data-original-value="<%= sub.general_requirements_pct != null ? sub.general_requirements_pct : '6' %>">
+                                  <input form="<%= subFid %>" name="general_requirements_pct" type="number" step="any" value="<%= sub.general_requirements_pct != null ? sub.general_requirements_pct : DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT %>" class="input mt-1 w-full text-right text-xs" data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="general_requirements_pct" data-original-value="<%= sub.general_requirements_pct != null ? sub.general_requirements_pct : DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT %>">
                                 </label>
                                 <div class="min-w-0 lg:col-span-12">
                                   <div class="mt-1 flex flex-wrap items-center justify-end gap-x-5 gap-y-3 border-t border-recon-mist pt-3">
@@ -482,11 +484,11 @@
                             </label>
                             <label class="block min-w-0 lg:col-span-1">
                               <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">MU%</span>
-                              <input name="markup_pct" data-compute-input type="number" step="any" placeholder="MU%" value="20" class="input mt-1 w-full text-right">
+                              <input name="markup_pct" data-compute-input type="number" step="any" placeholder="MU%" value="<%= DEFAULT_RFP_MARKUP_PCT %>" class="input mt-1 w-full text-right">
                             </label>
                             <label class="block min-w-0 lg:col-span-1">
                               <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">GR%</span>
-                              <input name="general_requirements_pct" data-compute-input type="number" step="any" placeholder="GR%" value="6" class="input mt-1 w-full text-right">
+                              <input name="general_requirements_pct" data-compute-input type="number" step="any" placeholder="GR%" value="<%= DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT %>" class="input mt-1 w-full text-right">
                             </label>
                             <div class="lg:col-span-12 flex justify-end">
                               <button type="submit" class="btn btn-primary text-xs">Add line</button>
@@ -590,9 +592,9 @@
       var cCost = parseFloat(form.querySelector('[name="contractor_cost"]')?.value) || 0;
       var vCost = parseFloat(form.querySelector('[name="vendor_cost"]')?.value) || 0;
       var markupRaw = parseFloat(form.querySelector('[name="markup_pct"]')?.value);
-      var markup = isFinite(markupRaw) ? markupRaw : 20;
+      var markup = isFinite(markupRaw) ? markupRaw : <%= DEFAULT_RFP_MARKUP_PCT %>;
       var grRaw = parseFloat(form.querySelector('[name="general_requirements_pct"]')?.value);
-      var gr = isFinite(grRaw) ? grRaw : 6;
+      var gr = isFinite(grRaw) ? grRaw : <%= DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT %>;
       var unit = cCost + vCost;
       var total = unit * qty;
       // D-140: markup + GR are ADDITIVE percentages applied once, not compounding
