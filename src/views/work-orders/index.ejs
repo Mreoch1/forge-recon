@@ -19,6 +19,9 @@
   .wol-detail-line { color: #4b5563; font-size: .78rem; margin-top: .18rem; line-height: 1.35; max-width: 62rem; }
   .wol-chip-row { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .38rem; }
   .wol-chip { display: inline-flex; align-items: center; max-width: 18rem; border: 1px solid rgba(148,163,184,.35); border-radius: 999px; padding: .12rem .45rem; font-size: .68rem; line-height: 1.2; color: #64748b; background: rgba(248,250,252,.85); }
+  html.dark .wol-description { color: var(--dark-text) !important; }
+  html.dark .wol-detail-line { color: var(--dark-text-muted) !important; }
+  html.dark .wol-chip { background: var(--dark-elevated) !important; border-color: var(--dark-border-strong) !important; color: var(--dark-text-muted) !important; }
   .wol-meta { font-family: ui-monospace, monospace; font-size: .8rem; color: #555; }
   .wol-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: .4rem; vertical-align: middle; }
   .wol-dot-live { background: #ea580c; box-shadow: 0 0 0 0 rgba(234,88,12,.5); animation: wol-pulse 2.4s infinite; }

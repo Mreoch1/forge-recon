@@ -522,6 +522,7 @@ test('work order row links do not depend on the More menu', () => {
   assert.match(workOrderIndex, /wol-description/);
   assert.match(workOrderIndex, /Unit \/ area:/);
   assert.match(workOrderIndex, /function scheduleLabel\(w\)/);
+  assert.match(workOrderIndex, /html\.dark \.wol-description/);
   assert.match(darkCss, /html\.dark \.wol-description/);
   assert.match(darkCss, /html\.dark \.wol-detail-line/);
   assert.match(darkCss, /html\.dark \.wol-chip/);
