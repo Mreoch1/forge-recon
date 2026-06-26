@@ -138,6 +138,10 @@
       var gr = numberOrDefault(line && line.general_requirements_pct, DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT);
       return totalCost * (1 + ((markup + gr) / 100));
     }
+    function rfpComputedFinalUnit(line) {
+      var qty = numberOrDefault(line && line.quantity, 0);
+      return qty > 0 ? rfpComputedTotalWithMarkup(line) / qty : 0;
+    }
     function formatPercentValue(value) {
       var n = Number(value);
       if (!Number.isFinite(n)) return '';
@@ -389,6 +393,7 @@
                             <% var subFid = 'rfp-sub-form-' + sub.id; var subDid = 'rfp-sub-del-' + sub.id; %>
                             <% var subDisplayTotalCost = rfpComputedTotalCost(sub); %>
                             <% var subDisplayTotalWithMarkup = rfpComputedTotalWithMarkup(sub); %>
+                            <% var subDisplayFinalUnit = rfpComputedFinalUnit(sub); %>
                             <form id="<%= subFid %>" action="/projects/rfps/items/<%= sub.id %>" method="POST"></form>
                             <div class="rounded border border-recon-mist bg-recon-cloud/5 p-3">
                               <div class="grid min-w-0 gap-3 lg:grid-cols-12 lg:items-end">
@@ -436,8 +441,12 @@
                                       <div class="font-semibold">$<%= subDisplayTotalCost.toFixed(2) %></div>
                                     </div>
                                     <div class="min-w-[7rem] text-right">
-                                      <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Total w/ MU</span>
+                                      <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Total w/ MU + GR</span>
                                       <div class="font-semibold">$<%= subDisplayTotalWithMarkup.toFixed(2) %></div>
+                                    </div>
+                                    <div class="min-w-[8rem] text-right">
+                                      <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Final unit w/ MU + GR</span>
+                                      <div class="font-semibold">$<%= subDisplayFinalUnit.toFixed(2) %></div>
                                     </div>
                                     <label class="flex items-center gap-2">
                                       <input form="<%= subFid %>" type="hidden" name="approved" value="0">
@@ -490,6 +499,22 @@
                               <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">GR%</span>
                               <input name="general_requirements_pct" data-compute-input type="number" step="any" placeholder="GR%" value="<%= DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT %>" class="input mt-1 w-full text-right">
                             </label>
+                            <div class="lg:col-span-12">
+                              <div class="mt-1 flex flex-wrap items-center justify-end gap-x-5 gap-y-3 border-t border-recon-mist pt-3">
+                                <label class="block min-w-[7rem] text-right">
+                                  <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Total cost</span>
+                                  <input data-compute-output="total_cost" readonly value="0.00" class="input mt-1 w-full text-right text-xs" tabindex="-1">
+                                </label>
+                                <label class="block min-w-[7rem] text-right">
+                                  <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Total w/ MU + GR</span>
+                                  <input data-compute-output="total_with_markup" readonly value="0.00" class="input mt-1 w-full text-right text-xs" tabindex="-1">
+                                </label>
+                                <label class="block min-w-[8rem] text-right">
+                                  <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Final unit w/ MU + GR</span>
+                                  <input data-compute-output="final_unit_cost" readonly value="0.00" class="input mt-1 w-full text-right text-xs" tabindex="-1">
+                                </label>
+                              </div>
+                            </div>
                             <div class="lg:col-span-12 flex justify-end">
                               <button type="submit" class="btn btn-primary text-xs">Add line</button>
                             </div>

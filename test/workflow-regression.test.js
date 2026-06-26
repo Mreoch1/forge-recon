@@ -736,6 +736,16 @@ test('RFP parent markup and GR show actual approved values instead of mixed', ()
   assert.doesNotMatch(view, /'mixed'/);
 });
 
+test('RFP line editor shows final unit cost with markup and GR', () => {
+  const view = read('src/views/jobs/rfp.ejs');
+
+  assert.match(view, /function rfpComputedFinalUnit\(line\)/);
+  assert.match(view, /var subDisplayFinalUnit = rfpComputedFinalUnit\(sub\)/);
+  assert.match(view, /Final unit w\/ MU \+ GR/);
+  assert.match(view, /data-compute-output="final_unit_cost"/);
+  assert.match(view, /if \(outputs\.final_unit_cost\) outputs\.final_unit_cost\.value = finalUnit\.toFixed\(2\)/);
+});
+
 test('customer detail exposes customer projects and project creation path', () => {
   const routes = read('src/routes/customers.js');
   const show = read('src/views/customers/show.ejs');
