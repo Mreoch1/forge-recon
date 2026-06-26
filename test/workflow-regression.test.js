@@ -491,6 +491,10 @@ test('managers can edit open work orders and access WO files from show page', ()
   assert.match(show, /href="\/work-orders\/<%= wo\.id %>\/edit"/);
   assert.match(show, /href="\/files\/work_order\/<%= wo\.id %>"/);
   assert.match(show, /Photos &amp; Files/);
+  assert.match(show, /wo-file-row/);
+  assert.match(show, /wo-file-row:hover/);
+  assert.match(show, /wo-file-link/);
+  assert.doesNotMatch(show, /hover:bg-gray-50 group/);
   assert.doesNotMatch(show, /Work order files/);
 });
 

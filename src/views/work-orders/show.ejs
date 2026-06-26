@@ -224,6 +224,12 @@ function safeJson(value) {
     padding: 2rem;
   }
   .attachment-viewer-file-icon { font-size: 3rem; margin-bottom: .6rem; }
+  .wo-file-row:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .wo-file-row:hover .wo-file-link {
+    color: #60a5fa;
+  }
   .attachment-viewer-nav {
     position: absolute;
     top: 50%;
@@ -496,11 +502,11 @@ function safeJson(value) {
           <div class="space-y-1 mb-4">
             <% woFileAttachments.forEach(function(p, idx){ %>
               <% var viewerIndex = woImageAttachments.length + idx; %>
-              <div class="flex items-center justify-between py-2 px-2 -mx-2 rounded hover:bg-gray-50 group">
+              <div class="wo-file-row flex items-center justify-between py-2 px-2 -mx-2 rounded group">
                 <div class="flex items-center gap-2 min-w-0">
                   <span class="text-base flex-shrink-0"><%= fileIcon(p.mime_type) %></span>
                   <a href="<%= p.url %>" target="_blank" rel="noopener"
-                     class="attachment-trigger text-sm font-medium text-recon-charcoal hover:text-recon-red truncate"
+                     class="wo-file-link attachment-trigger text-sm font-medium text-recon-charcoal hover:text-recon-red truncate"
                      data-attachment-index="<%= viewerIndex %>"
                      title="<%= p.original_filename || p.filename %>">
                     <%= p.original_filename || p.filename.split('/').pop() %>
