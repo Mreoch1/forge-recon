@@ -551,6 +551,28 @@ test('managers can edit open work orders and access WO files from show page', ()
   assert.doesNotMatch(show, /Work order files/);
 });
 
+test('work order files support direct mobile batch uploads', () => {
+  const routes = read('src/routes/work-orders.js');
+  const show = read('src/views/work-orders/show.ejs');
+
+  assert.match(routes, /const MAX_DIRECT_FILES = 150/);
+  assert.match(routes, /router\.get\('\/:id\/files\/upload-url'/);
+  assert.match(routes, /router\.post\('\/:id\/files\/register-direct'/);
+  assert.match(routes, /storage\.getUploadUrl\('wo-photos', key\)/);
+  assert.match(routes, /files\.length > MAX_DIRECT_FILES/);
+  assert.match(routes, /storageKey\.startsWith\(`\$\{wo\.id\}\/`\)/);
+
+  assert.match(show, /id="wo-batch-upload-form"/);
+  assert.match(show, /data-direct-wo-upload/);
+  assert.match(show, /id="wo-file-upload-input" type="file" name="files" multiple/);
+  assert.match(show, /Choose photos\/files/);
+  assert.match(show, /Upload selected/);
+  assert.match(show, /wo-upload-progress/);
+  assert.match(show, /\/work-orders\/<%= wo\.id %>\/files\/upload-url/);
+  assert.match(show, /\/work-orders\/<%= wo\.id %>\/files\/register-direct/);
+  assert.match(show, /Select multiple photos at once from your phone or computer/);
+});
+
 test('RFP edits return users to the open category and line item', () => {
   const routes = read('src/routes/rfp.js');
   const view = read('src/views/jobs/rfp.ejs');

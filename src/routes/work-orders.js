@@ -42,6 +42,7 @@ const VALID_UNITS = ['ea', 'hr', 'sqft', 'lf', 'ton', 'lot'];
 const WO_BLOCKED_EXTENSIONS = new Set(['.app', '.bat', '.cmd', '.com', '.dll', '.dmg', '.exe', '.js', '.msi', '.ps1', '.scr', '.sh']);
 const MAX_SIZE = 25 * 1024 * 1024;
 const MAX_FILES = 20;
+const MAX_DIRECT_FILES = 150;
 const woUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_SIZE, files: MAX_FILES },
@@ -71,6 +72,30 @@ function safeAttachmentName(file) {
 function contentDisposition(disposition, file) {
   const filename = safeAttachmentName(file);
   return `${disposition}; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+}
+
+function isBlockedWoUploadName(filename) {
+  const ext = path.extname(filename || '').toLowerCase();
+  return WO_BLOCKED_EXTENSIONS.has(ext);
+}
+
+function makeWoStorageKey(woId, filename) {
+  const ext = path.extname(filename || '').slice(0, 20);
+  return `${woId}/${crypto.randomUUID()}${ext}`;
+}
+
+async function loadWorkOrderForFileUpload(req) {
+  const { data: wo, error } = await supabase
+    .from('work_orders')
+    .select('id, assigned_to_user_id, assigned_to, work_order_assignees(user_id)')
+    .eq('id', req.params.id)
+    .maybeSingle();
+  if (error) throw error;
+  return wo;
+}
+
+function directUploadError(res, status, message) {
+  return res.status(status).json({ ok: false, error: message });
 }
 
 function isAssignedToCurrentUser(req, wo) {
@@ -1325,12 +1350,7 @@ router.post('/:id/notes', async (req, res) => {
 // --- files: upload ---
 
 router.post('/:id/files', async (req, res) => {
-  const { data: wo, error: findErr } = await supabase
-    .from('work_orders')
-    .select('id, assigned_to_user_id, assigned_to, work_order_assignees(user_id)')
-    .eq('id', req.params.id)
-    .maybeSingle();
-  if (findErr) throw findErr;
+  const wo = await loadWorkOrderForFileUpload(req);
   if (!wo) {
     setFlash(req, 'error', 'Work order not found.');
     return res.redirect('/work-orders');
@@ -1355,8 +1375,7 @@ router.post('/:id/files', async (req, res) => {
     const uploadedKeys = [];
     try {
       for (const f of files) {
-        const ext = path.extname(f.originalname) || '';
-        const key = `${wo.id}/${crypto.randomUUID()}${ext}`;
+        const key = makeWoStorageKey(wo.id, f.originalname);
         await storage.uploadBuffer('wo-photos', key, f.buffer, f.mimetype);
         uploadedKeys.push(key);
         const { error: insErr } = await supabase
@@ -1396,6 +1415,100 @@ router.post('/:id/files', async (req, res) => {
     setFlash(req, 'success', msg);
     res.redirect(`/work-orders/${wo.id}`);
   });
+});
+
+router.get('/:id/files/upload-url', async (req, res) => {
+  const wo = await loadWorkOrderForFileUpload(req);
+  if (!wo) return directUploadError(res, 404, 'Work order not found.');
+  if (!isAssignedToCurrentUser(req, wo)) return directUploadError(res, 403, 'You can only upload files to assigned WOs.');
+
+  const filename = String(req.query.filename || '').trim();
+  const size = Number(req.query.size || 0);
+  const contentType = String(req.query.content_type || 'application/octet-stream').trim();
+  if (!filename) return directUploadError(res, 400, 'Filename is required.');
+  if (isBlockedWoUploadName(filename)) return directUploadError(res, 400, 'File type not allowed.');
+  if (!Number.isFinite(size) || size <= 0) return directUploadError(res, 400, 'File size is required.');
+  if (size > MAX_SIZE) return directUploadError(res, 413, `Each file must be ${Math.round(MAX_SIZE / 1024 / 1024)} MB or smaller.`);
+
+  try {
+    const key = makeWoStorageKey(wo.id, filename);
+    const signed = await storage.getUploadUrl('wo-photos', key);
+    return res.json({
+      ok: true,
+      uploadUrl: signed.uploadUrl,
+      storageKey: signed.storageKey,
+      contentType,
+      maxFileSize: MAX_SIZE,
+      maxFiles: MAX_DIRECT_FILES,
+    });
+  } catch (e) {
+    console.error('work order direct upload URL failed:', e);
+    return directUploadError(res, 500, 'Could not prepare upload: ' + e.message);
+  }
+});
+
+router.post('/:id/files/register-direct', async (req, res) => {
+  const wo = await loadWorkOrderForFileUpload(req);
+  if (!wo) return directUploadError(res, 404, 'Work order not found.');
+  if (!isAssignedToCurrentUser(req, wo)) return directUploadError(res, 403, 'You can only upload files to assigned WOs.');
+
+  const files = Array.isArray(req.body.files) ? req.body.files : [];
+  const caption = String(req.body.caption || '').trim().slice(0, 200);
+  if (!files.length) return directUploadError(res, 400, 'No uploaded files to register.');
+  if (files.length > MAX_DIRECT_FILES) return directUploadError(res, 400, `Select ${MAX_DIRECT_FILES} files or fewer per batch.`);
+
+  const records = [];
+  for (const file of files) {
+    const storageKey = String(file.storage_key || file.storageKey || '').trim();
+    const originalName = String(file.original_filename || file.originalName || '').trim();
+    const mimeType = String(file.mime_type || file.mimeType || 'application/octet-stream').trim();
+    const sizeBytes = Number(file.size_bytes || file.sizeBytes || 0);
+
+    if (!storageKey || !storageKey.startsWith(`${wo.id}/`) || storageKey.includes('..')) {
+      return directUploadError(res, 400, 'Invalid uploaded file key.');
+    }
+    if (!originalName || isBlockedWoUploadName(originalName)) {
+      return directUploadError(res, 400, 'Invalid uploaded filename.');
+    }
+    if (!Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes > MAX_SIZE) {
+      return directUploadError(res, 400, 'Invalid uploaded file size.');
+    }
+
+    records.push({
+      work_order_id: wo.id,
+      user_id: req.session.userId,
+      filename: storageKey,
+      original_filename: originalName,
+      mime_type: mimeType,
+      size_bytes: Math.round(sizeBytes),
+      caption: caption || null,
+    });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('wo_photos')
+      .insert(records)
+      .select('id, filename, original_filename');
+    if (error) throw error;
+
+    try {
+      await supabase.from('audit_logs').insert({
+        entity_type: 'work_order', entity_id: wo.id, action: 'file_uploaded',
+        before_json: null,
+        after_json: { count: records.length, filenames: records.map(r => r.filename) },
+        source: 'user', user_id: req.session.userId,
+      });
+    } catch (e) { /* best-effort */ }
+
+    return res.json({ ok: true, count: records.length, files: data || [] });
+  } catch (e) {
+    console.error('work order direct upload registration failed:', e);
+    for (const record of records) {
+      try { await storage.remove('wo-photos', record.filename); } catch (_) {}
+    }
+    return directUploadError(res, 500, 'Failed to save uploaded files: ' + e.message);
+  }
 });
 
 // --- files: raw/open original ---
