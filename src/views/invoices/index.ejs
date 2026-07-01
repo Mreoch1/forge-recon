@@ -11,6 +11,8 @@ const pageTotal = invoices.reduce(function(s, i){ return s + (Number(i.total) ||
 const pageBalance = invoices.reduce(function(s, i){ return s + ((Number(i.total) || 0) - (Number(i.amount_paid) || 0)); }, 0);
 const sentCount = invoices.filter(function(i){ return i.status === 'sent' || i.status === 'draft'; }).length;
 const paidCount = invoices.filter(function(i){ return i.status === 'paid' || i.status === 'billing_complete'; }).length;
+const isAdmin = currentUser && currentUser.role === 'admin';
+const manualStatuses = ['draft', 'sent', 'overdue', 'billing_complete'];
 %>
 
 <div class="ops-shell">
@@ -42,11 +44,22 @@ const paidCount = invoices.filter(function(i){ return i.status === 'paid' || i.s
     <% } %>
   </form>
 
-  <form id="batch-form" action="/invoices/batch-push-to-qb" method="post">
+  <form id="batch-form" action="/invoices/batch-status" method="post">
+  <input type="hidden" name="return_to" value="/invoices<%= (q || status || page > 1) ? '?' + ['page='+page, q ? 'q='+encodeURIComponent(q) : '', status ? 'status='+encodeURIComponent(status) : ''].filter(Boolean).join('&') : '' %>">
   <div class="ops-panel ops-table">
     <div class="ops-panel-head">
       <div class="ops-panel-title">Invoice register</div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 flex-wrap justify-end">
+        <% if (isAdmin) { %>
+          <select name="status" class="list-filter" id="batch-status-select" title="Batch status" disabled>
+            <option value="">Change status...</option>
+            <% manualStatuses.forEach(function(s){ %>
+              <option value="<%= s %>"><%= s.replace(/_/g, ' ') %></option>
+            <% }); %>
+          </select>
+          <button type="submit" class="btn btn-secondary text-sm" id="batch-status-btn" disabled
+                  onclick="return confirm('Change status for selected invoices?');">Apply status</button>
+        <% } %>
         <button type="submit" formaction="/invoices/batch-csv" class="btn btn-ghost text-sm" id="batch-csv-btn" disabled
                 title="Download selected invoices as CSV for QuickBooks import">Download CSV</button>
         <span class="text-xs text-recon-fog"><span id="selected-count">0</span> selected &middot; <%= invoices.length %> shown</span>
@@ -127,29 +140,43 @@ const paidCount = invoices.filter(function(i){ return i.status === 'paid' || i.s
 </div>
 
 <script>
-(function(){
-  var selectAll = document.getElementById('select-all');
-  var checkboxes = document.querySelectorAll('.row-checkbox');
-  var csvBtn = document.getElementById('batch-csv-btn');
-  var countEl = document.getElementById('selected-count');
+window.forgeInitInvoiceBatchActions = function(root){
+  var scope = root || document;
+  var batchForm = scope.querySelector('#batch-form');
+  if (!batchForm || batchForm.dataset.batchReady === '1') return;
+  batchForm.dataset.batchReady = '1';
+
+  var selectAll = batchForm.querySelector('#select-all');
+  var checkboxes = batchForm.querySelectorAll('.row-checkbox');
+  var csvBtn = batchForm.querySelector('#batch-csv-btn');
+  var statusSelect = batchForm.querySelector('#batch-status-select');
+  var statusBtn = batchForm.querySelector('#batch-status-btn');
+  var countEl = batchForm.querySelector('#selected-count');
 
   if (!selectAll || !checkboxes.length) return;
 
   selectAll.addEventListener('change', function(){
     checkboxes.forEach(function(cb){ cb.checked = selectAll.checked; });
-    updateSyncBtn();
+    updateBatchActions();
   });
 
   checkboxes.forEach(function(cb){
-    cb.addEventListener('change', updateSyncBtn);
+    cb.addEventListener('change', updateBatchActions);
   });
 
-  function updateSyncBtn() {
-    var checked = Array.from(checkboxes).filter(function(cb){ return cb.checked; }).length;
-    countEl.textContent = checked;
-    if (csvBtn) csvBtn.disabled = checked === 0;
+  if (statusSelect) {
+    statusSelect.addEventListener('change', updateBatchActions);
   }
-})();
+
+  function updateBatchActions() {
+    var checked = Array.from(checkboxes).filter(function(cb){ return cb.checked; }).length;
+    if (countEl) countEl.textContent = checked;
+    if (csvBtn) csvBtn.disabled = checked === 0;
+    if (statusSelect) statusSelect.disabled = checked === 0;
+    if (statusBtn) statusBtn.disabled = checked === 0 || !statusSelect.value;
+  }
+};
+window.forgeInitInvoiceBatchActions(document);
 </script>
 
 <%- include('../layouts/footer') %>

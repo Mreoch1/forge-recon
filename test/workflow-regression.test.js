@@ -269,6 +269,7 @@ test('managers can create and send invoices while admin keeps accounting control
   const invoices = read('src/routes/invoices.js');
   const estimateShow = read('src/views/estimates/show.ejs');
   const estimateSend = read('src/views/estimates/send-confirm.ejs');
+  const invoiceIndex = read('src/views/invoices/index.ejs');
   const invoiceShow = read('src/views/invoices/show.ejs');
   const invoiceSend = read('src/views/invoices/send-confirm.ejs');
   const estimateEmail = read('src/services/estimate-email.js');
@@ -288,6 +289,10 @@ test('managers can create and send invoices while admin keeps accounting control
   assert.match(invoiceShow, /action="\/invoices\/<%= invoice\.id %>\/mark-sent"/);
   assert.match(invoiceShow, /action="\/invoices\/<%= invoice\.id %>\/status"/);
   assert.match(invoiceShow, /Manual invoice status/);
+  assert.match(invoiceIndex, /action="\/invoices\/batch-status"/);
+  assert.match(invoiceIndex, /id="batch-status-select"/);
+  assert.match(invoiceIndex, /id="batch-status-btn"/);
+  assert.match(invoiceIndex, /window\.forgeInitInvoiceBatchActions/);
   assert.match(invoiceShow, /action="\/invoices\/<%= invoice\.id %>\/billing-complete"/);
   assert.match(invoices, /async function refreshPastDueInvoices\(\)/);
   assert.match(invoices, /status_auto_overdue/);
@@ -310,6 +315,8 @@ test('managers can create and send invoices while admin keeps accounting control
   assert.match(invoiceSend, /Confirm send/);
   assert.match(invoices, /router\.post\('\/:id\/mark-sent'/);
   assert.match(invoices, /router\.post\('\/:id\/status', requireAdmin,/);
+  assert.match(invoices, /router\.post\('\/batch-status', requireAdmin,/);
+  assert.match(invoices, /status_changed_batch/);
   assert.match(invoices, /router\.post\('\/:id\/mark-paid', requireAdmin,/);
   assert.match(invoices, /router\.post\('\/:id\/billing-complete', requireAdmin,/);
   assert.match(invoices, /router\.get\('\/:id\/csv'/);

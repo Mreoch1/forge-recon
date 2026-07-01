@@ -101,6 +101,14 @@ function invoiceBalance(invoice) {
   return (Number(invoice.total) || 0) - (Number(invoice.amount_paid) || 0);
 }
 
+function invoiceListRedirect(value) {
+  const fallback = '/invoices';
+  const target = String(value || '');
+  if (!target.startsWith('/invoices')) return fallback;
+  if (target.startsWith('//')) return fallback;
+  return target;
+}
+
 function isInvoicePastDue(invoice) {
   if (!invoice || invoice.status !== 'sent' || !invoice.due_date || invoiceBalance(invoice) <= 0) return false;
   const dueAt = new Date(`${String(invoice.due_date).slice(0, 10)}T00:00:00`);
@@ -473,6 +481,84 @@ router.post('/batch-csv', async (req, res) => {
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', `attachment; filename="forge-invoices-${dateStr}.csv"`);
   res.send(csv);
+});
+
+// POST /batch-status — admin batch status correction for selected invoices
+router.post('/batch-status', requireAdmin, async (req, res) => {
+  const raw = req.body.invoice_ids;
+  const ids = [...new Set((Array.isArray(raw) ? raw : [raw]).map(Number).filter(Boolean))];
+  const nextStatus = String(req.body.status || '').trim();
+  const redirectTo = invoiceListRedirect(req.body.return_to);
+
+  if (!ids.length) {
+    setFlash(req, 'error', 'No invoices selected.');
+    return res.redirect(redirectTo);
+  }
+  if (!MANUAL_STATUSES.includes(nextStatus)) {
+    setFlash(req, 'error', 'Choose a valid invoice status.');
+    return res.redirect(redirectTo);
+  }
+
+  const now = new Date().toISOString();
+  let updated = 0;
+  let skipped = 0;
+
+  for (const id of ids) {
+    const invoice = await loadInvoice(id);
+    if (!invoice) {
+      skipped++;
+      continue;
+    }
+    if (invoice.status === nextStatus) {
+      skipped++;
+      continue;
+    }
+    if (invoice.status === 'paid' && nextStatus !== 'billing_complete') {
+      skipped++;
+      continue;
+    }
+
+    const updates = { status: nextStatus, updated_at: now };
+    if (invoice.status === 'draft' && nextStatus === 'sent') {
+      updates.sent_at = now;
+      updates.sent_by_user_id = req.session.userId;
+      updates.sent_to_email = invoice.customer_billing_email || invoice.customer_email || null;
+      updates.sent_to_name = invoice.customer_name || null;
+    }
+
+    const { error: updateErr } = await supabase
+      .from('invoices')
+      .update(updates)
+      .eq('id', invoice.id);
+    if (updateErr) throw updateErr;
+
+    updated++;
+
+    try {
+      await writeAudit({
+        entityType: 'invoice',
+        entityId: invoice.id,
+        action: 'status_changed_batch',
+        before: { status: invoice.status },
+        after: { status: nextStatus },
+        source: 'user',
+        userId: req.session.userId,
+      });
+    } catch (e) { /* best-effort */ }
+
+    if (invoice.status === 'draft' && nextStatus === 'sent') {
+      try {
+        await posting.postInvoiceSent(invoice, { userId: req.session.userId });
+      } catch (e) {
+        console.error('JE post failed (invoice batch status) - continuing:', e.message);
+      }
+    }
+  }
+
+  const label = nextStatus.replace(/_/g, ' ');
+  const skippedText = skipped ? ` ${skipped} skipped.` : '';
+  setFlash(req, updated ? 'success' : 'error', `${updated} invoice${updated === 1 ? '' : 's'} changed to ${label}.${skippedText}`);
+  res.redirect(redirectTo);
 });
 
 // D-100: stop-gap for /invoices/new — was returning HTTP 500 because Express

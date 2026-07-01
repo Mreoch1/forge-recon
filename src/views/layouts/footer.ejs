@@ -191,6 +191,9 @@
           currentShell.innerHTML = nextShell.innerHTML;
           window.history.replaceState({}, '', url.toString());
           initLiveListFilters(currentShell);
+          if (typeof window.forgeInitInvoiceBatchActions === 'function') {
+            window.forgeInitInvoiceBatchActions(currentShell);
+          }
           restoreFocus(currentShell, focusState);
         }).catch(function(error){
           if (error && error.name === 'AbortError') return;
