@@ -85,6 +85,62 @@
 (function(){ document.querySelectorAll('input:not([type=password]):not([type=email]):not([type=url]):not([type=search]), textarea').forEach(function(el){ el.spellcheck = true; }); })();
 </script>
 
+<!-- Live list filters: search/filter boxes update as users type or change filters. -->
+<script>
+(function(){
+  var forms = document.querySelectorAll('form.list-utility-bar[method="get"], form.list-utility-bar:not([method])');
+  if (!forms.length) return;
+
+  forms.forEach(function(form){
+    if (form.dataset.liveFilterReady === '1') return;
+    form.dataset.liveFilterReady = '1';
+
+    var timer = null;
+    var delay = Number(form.dataset.liveFilterDelay || 450);
+    var lastSubmitted = null;
+
+    function formSignature() {
+      var params = new URLSearchParams(new FormData(form));
+      params.delete('page');
+      Array.from(params.keys()).forEach(function(key){
+        if (params.get(key) === '') params.delete(key);
+      });
+      return params.toString();
+    }
+
+    function submitNow() {
+      clearTimeout(timer);
+      var signature = formSignature();
+      if (signature === lastSubmitted) return;
+      lastSubmitted = signature;
+
+      var pageField = form.querySelector('[name="page"]');
+      if (pageField) pageField.value = '';
+
+      if (form.requestSubmit) form.requestSubmit();
+      else form.submit();
+    }
+
+    function scheduleSubmit() {
+      clearTimeout(timer);
+      timer = setTimeout(submitNow, delay);
+    }
+
+    form.querySelectorAll('input, select, textarea').forEach(function(field){
+      if (!field.name || field.type === 'hidden' || field.type === 'submit' || field.type === 'button' || field.type === 'file') return;
+      if (field.matches('[data-live-filter-ignore]')) return;
+
+      if (field.tagName === 'SELECT' || field.type === 'checkbox' || field.type === 'radio') {
+        field.addEventListener('change', submitNow);
+      } else {
+        field.addEventListener('input', scheduleSubmit);
+        field.addEventListener('search', submitNow);
+      }
+    });
+  });
+})();
+</script>
+
 <!-- D-077: Support/feedback button (hidden on /forge/tutorial to avoid dup) -->
 <% if (typeof hideFeedback === 'undefined' || !hideFeedback) { %>
 <style>

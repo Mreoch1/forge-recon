@@ -148,6 +148,23 @@ test('navigation is grouped by workflow and role tier', () => {
   assert.match(header, /<% if \(_canManageNav\) \{ %>[\s\S]*id="more-dropdown"/);
 });
 
+test('list search and filter forms submit live while users type', () => {
+  const footer = read('src/views/layouts/footer.ejs');
+  const vendors = read('src/views/vendors/index.ejs');
+  const workOrders = read('src/views/work-orders/index.ejs');
+  const customers = read('src/views/customers/index.ejs');
+
+  assert.match(footer, /form\.list-utility-bar\[method="get"\]/);
+  assert.match(footer, /field\.addEventListener\('input', scheduleSubmit\)/);
+  assert.match(footer, /field\.addEventListener\('change', submitNow\)/);
+  assert.match(footer, /formSignature\(\)/);
+  assert.match(footer, /params\.delete\('page'\)/);
+  assert.match(footer, /form\.requestSubmit\(\)/);
+  assert.match(vendors, /class="list-utility-bar"/);
+  assert.match(workOrders, /class="list-utility-bar"/);
+  assert.match(customers, /class="list-utility-bar customer-toolbar"/);
+});
+
 test('managers can manage vendor and contractor records but cannot delete them', () => {
   const app = read('src/app.js');
   const vendors = read('src/routes/vendors.js');
