@@ -11,6 +11,7 @@ const { requireManager, setFlash } = require('../middleware/auth');
 const { sanitizePostgrestSearch } = require('../services/sanitize');
 const { emptyToNullFormattedPhone } = require('../services/phone');
 const { generateVendorIntakePDF } = require('../services/vendor-intake-pdf');
+const mailer = require('../services/email');
 
 const router = express.Router();
 const PAGE_SIZE = 25;
@@ -26,11 +27,38 @@ const COMPANY_TYPES = ['contractor', 'vendor', 'both', 'other'];
 const STATUSES = ['draft', 'submitted', 'reviewing', 'approved', 'archived'];
 const UNION_STATUSES = ['unknown', 'non_union', 'union', 'mixed'];
 const SECTIONS = ['company', 'experience', 'compliance', 'references', 'review'];
+const SECTION_REQUEST_COOLDOWN_DAYS = 7;
+const SECTION_LABELS = {
+  company: 'Company',
+  experience: 'Experience',
+  compliance: 'Insurance & compliance',
+  references: 'References',
+  review: 'Review and submit',
+};
 
 function emptyToNull(value) {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   return trimmed === '' ? null : trimmed;
+}
+
+function norm(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function htmlEscape(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function isMissingOptionalTableError(error) {
+  const code = String(error?.code || '');
+  const message = String(error?.message || '').toLowerCase();
+  return code === '42P01' || code === 'PGRST205' || message.includes('does not exist');
 }
 
 function toInt(value) {
@@ -104,13 +132,15 @@ function publicLink(req, intake) {
 }
 
 async function loadIntakeDetail(id) {
-  const [{ data: intake, error }, { data: notes, error: notesError }] = await Promise.all([
+  const [{ data: intake, error }, { data: notes, error: notesError }, requestsResult] = await Promise.all([
     supabase.from('contractor_vendor_intakes').select('*').eq('id', id).maybeSingle(),
     supabase.from('contractor_vendor_intake_notes').select('*, users(name, email)').eq('intake_id', id).order('created_at', { ascending: false }),
+    supabase.from('contractor_vendor_intake_section_requests').select('id, section, recipient_email, sent_at, requested_by_user_id, users(name, email)').eq('intake_id', id).order('sent_at', { ascending: false }),
   ]);
   if (error) throw error;
   if (notesError) throw notesError;
-  return { intake, notes: notes || [] };
+  if (requestsResult.error && !isMissingOptionalTableError(requestsResult.error)) throw requestsResult.error;
+  return { intake, notes: notes || [], sectionRequests: requestsResult.error ? [] : (requestsResult.data || []) };
 }
 
 function filenameSlug(value) {
@@ -129,6 +159,104 @@ async function findByToken(accessToken) {
     .maybeSingle();
   if (error) throw error;
   return data;
+}
+
+async function findExistingIntakeForStart(companyName, email) {
+  const emailNorm = sanitizePostgrestSearch(norm(email));
+  if (!emailNorm) return null;
+
+  const { data, error } = await supabase
+    .from('contractor_vendor_intakes')
+    .select('id, access_token, status, company_name, email, primary_contact_email, created_at')
+    .neq('status', 'archived')
+    .or(`email.ilike.${emailNorm},primary_contact_email.ilike.${emailNorm}`)
+    .order('created_at', { ascending: true })
+    .limit(1);
+  if (error) throw error;
+  return (data || [])[0] || null;
+}
+
+function hasAnyValue(intake, fields) {
+  return fields.some((field) => {
+    const value = intake[field];
+    if (Array.isArray(value)) return value.length > 0;
+    if (typeof value === 'boolean') return true;
+    return value !== null && value !== undefined && String(value).trim() !== '';
+  });
+}
+
+function intakeSectionStatus(intake, section) {
+  if (section === 'company') {
+    const complete = !!(emptyToNull(intake.company_name) && emptyToNull(intake.email) && (intake.trades || []).length && emptyToNull(intake.primary_contact_name));
+    return { section, label: SECTION_LABELS[section], complete, reason: complete ? '' : 'Company/contact basics are missing.' };
+  }
+  if (section === 'experience') {
+    const complete = hasAnyValue(intake, ['years_in_business', 'employee_count', 'field_staff_count', 'annual_capacity', 'largest_project_name', 'largest_project_description', 'occupied_multifamily', 'occupied_multifamily_notes']);
+    return { section, label: SECTION_LABELS[section], complete, reason: complete ? '' : 'No project experience or company size details entered.' };
+  }
+  if (section === 'compliance') {
+    const complete = hasAnyValue(intake, ['insurance_gl', 'insurance_workers_comp', 'insurance_auto', 'insurance_expiration_date', 'bondable', 'license_numbers', 'prevailing_wage_experience', 'hud_mshda_experience', 'section3_business', 'certifications', 'safety_notes', 'documents_notes']);
+    return { section, label: SECTION_LABELS[section], complete, reason: complete ? '' : 'Insurance/compliance fields are blank.' };
+  }
+  if (section === 'references') {
+    const refs = Array.isArray(intake.references_json) ? intake.references_json : [];
+    const complete = refs.length > 0;
+    return { section, label: SECTION_LABELS[section], complete, reason: complete ? '' : 'No references entered.' };
+  }
+  if (section === 'review') {
+    const complete = bidAcknowledgmentAccepted(intake);
+    return { section, label: SECTION_LABELS[section], complete, reason: complete ? '' : 'Bid participation acknowledgment is incomplete.' };
+  }
+  return { section, label: section, complete: true, reason: '' };
+}
+
+function intakeSectionStatuses(intake) {
+  return SECTIONS.map(section => intakeSectionStatus(intake, section));
+}
+
+function sectionRequestSummary(sectionRequests) {
+  const latest = {};
+  for (const request of sectionRequests || []) {
+    if (!latest[request.section]) latest[request.section] = request;
+  }
+  return latest;
+}
+
+function requestCooldownUntil(sentAt) {
+  if (!sentAt) return null;
+  const d = new Date(sentAt);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setDate(d.getDate() + SECTION_REQUEST_COOLDOWN_DAYS);
+  return d;
+}
+
+function canSendSectionRequest(lastRequest) {
+  const until = requestCooldownUntil(lastRequest?.sent_at);
+  return !until || until <= new Date();
+}
+
+function sectionRequestEmail(intake, section, link) {
+  const label = SECTION_LABELS[section] || section;
+  const company = intake.company_name || 'your company';
+  const contact = intake.primary_contact_name || company;
+  const subject = `FORGE trade intake: please update ${label}`;
+  const text = [
+    `Hi ${contact},`,
+    '',
+    `Recon is reviewing the trade intake for ${company}. Please update the ${label} section and submit the form again when it is complete.`,
+    '',
+    link,
+    '',
+    'Thank you,',
+    'Recon Enterprises',
+  ].join('\n');
+  const htmlBody = `<p>Hi ${htmlEscape(contact)},</p>
+<p>Recon is reviewing the trade intake for <strong>${htmlEscape(company)}</strong>. Please update the <strong>${htmlEscape(label)}</strong> section and submit the form again when it is complete.</p>
+<p style="text-align:center;margin:24px 0">
+  <a href="${htmlEscape(link)}" style="display:inline-block;background:#c0202b;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">Update ${htmlEscape(label)}</a>
+</p>
+<p>Thank you,<br>Recon Enterprises</p>`;
+  return { subject, text, htmlBody };
 }
 
 function updateForSection(section, body) {
@@ -247,6 +375,11 @@ router.post('/start', async (req, res) => {
     });
   }
 
+  const existing = await findExistingIntakeForStart(companyName, email);
+  if (existing) {
+    return res.redirect(`/vendor-intake/${existing.access_token}/company`);
+  }
+
   const insert = {
     access_token: token(),
     company_name: companyName,
@@ -334,7 +467,7 @@ router.get('/directory/:id.pdf', requireManager, async (req, res) => {
 
 router.get('/directory/:id', requireManager, async (req, res) => {
   const id = req.params.id;
-  const { intake, notes } = await loadIntakeDetail(id);
+  const { intake, notes, sectionRequests } = await loadIntakeDetail(id);
   if (!intake) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Intake not found.' });
 
   res.render('vendor-intake/show', {
@@ -344,6 +477,9 @@ router.get('/directory/:id', requireManager, async (req, res) => {
     notes: notes || [],
     statuses: STATUSES,
     publicUrl: publicLink(req, intake),
+    sectionStatuses: intakeSectionStatuses(intake),
+    lastSectionRequests: sectionRequestSummary(sectionRequests),
+    requestCooldownDays: SECTION_REQUEST_COOLDOWN_DAYS,
   });
 });
 
@@ -381,6 +517,66 @@ router.post('/directory/:id/notes', requireManager, async (req, res) => {
   });
   if (error) throw error;
   setFlash(req, 'success', 'Note added.');
+  res.redirect(`/vendor-intake/directory/${id}`);
+});
+
+router.post('/directory/:id/request-section', requireManager, async (req, res) => {
+  const id = req.params.id;
+  const section = currentSection(req.body.section);
+  const { intake, sectionRequests } = await loadIntakeDetail(id);
+  if (!intake) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Intake not found.' });
+
+  const recipient = emptyToNull(intake.primary_contact_email) || emptyToNull(intake.email);
+  if (!recipient) {
+    setFlash(req, 'error', 'No email address is available for this intake.');
+    return res.redirect(`/vendor-intake/directory/${id}`);
+  }
+
+  const latest = sectionRequestSummary(sectionRequests)[section];
+  if (!canSendSectionRequest(latest)) {
+    const until = requestCooldownUntil(latest.sent_at);
+    setFlash(req, 'error', `${SECTION_LABELS[section]} was already requested on ${(latest.sent_at || '').slice(0,10)}. It can be resent on ${until.toISOString().slice(0,10)}.`);
+    return res.redirect(`/vendor-intake/directory/${id}`);
+  }
+
+  const link = `${publicLink(req, intake)}/${section}`;
+  const email = sectionRequestEmail(intake, section, link);
+
+  try {
+    await mailer.sendEmail({
+      to: recipient,
+      subject: email.subject,
+      text: email.text,
+      htmlBody: email.htmlBody,
+    });
+
+    const now = new Date().toISOString();
+    const [{ error: reqErr }, { error: noteErr }, { error: intakeErr }] = await Promise.all([
+      supabase.from('contractor_vendor_intake_section_requests').insert({
+        intake_id: id,
+        section,
+        requested_by_user_id: req.session.userId,
+        recipient_email: recipient,
+        sent_at: now,
+      }),
+      supabase.from('contractor_vendor_intake_notes').insert({
+        intake_id: id,
+        user_id: req.session.userId,
+        note_type: 'email',
+        body: `Requested ${SECTION_LABELS[section]} update from ${recipient}.`,
+      }),
+      supabase.from('contractor_vendor_intakes').update({ status: intake.status === 'draft' ? 'reviewing' : intake.status, updated_at: now }).eq('id', id),
+    ]);
+    if (reqErr) throw reqErr;
+    if (noteErr) throw noteErr;
+    if (intakeErr) throw intakeErr;
+  } catch (err) {
+    console.error('[vendor-intake] section request failed:', err);
+    setFlash(req, 'error', 'Could not send the section request: ' + err.message);
+    return res.redirect(`/vendor-intake/directory/${id}`);
+  }
+
+  setFlash(req, 'success', `${SECTION_LABELS[section]} request sent to ${recipient}.`);
   res.redirect(`/vendor-intake/directory/${id}`);
 });
 

@@ -493,6 +493,8 @@ app.use((err, req, res, next) => {
       "CREATE INDEX IF NOT EXISTS idx_invoice_line_items_source_bill ON invoice_line_items(source_bill_id)",
       "ALTER TABLE contractor_vendor_intakes ADD COLUMN IF NOT EXISTS other_trade_name TEXT",
       "ALTER TABLE contractor_vendor_intakes ADD COLUMN IF NOT EXISTS other_trade_description TEXT",
+      "CREATE TABLE IF NOT EXISTS contractor_vendor_intake_section_requests (id BIGSERIAL PRIMARY KEY, intake_id BIGINT NOT NULL REFERENCES contractor_vendor_intakes(id) ON DELETE CASCADE, section TEXT NOT NULL CHECK (section IN ('company','experience','compliance','references','review')), requested_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL, recipient_email TEXT NOT NULL, sent_at TIMESTAMPTZ NOT NULL DEFAULT now(), created_at TIMESTAMPTZ NOT NULL DEFAULT now())",
+      "CREATE INDEX IF NOT EXISTS idx_cv_intake_section_requests_intake_section ON contractor_vendor_intake_section_requests(intake_id, section, sent_at DESC)",
       "ALTER TABLE customers ADD COLUMN IF NOT EXISTS default_income_account_id BIGINT",
     ];
     for (const sql of migrations) {

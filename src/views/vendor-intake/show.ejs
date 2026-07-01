@@ -123,6 +123,50 @@
       </div>
 
       <div class="card p-5">
+        <h2 class="font-semibold mb-3">Request missing sections</h2>
+        <p class="text-sm text-recon-fog mb-3">Email a direct link for one incomplete section. Each section can be resent once every <%= requestCooldownDays || 7 %> days.</p>
+        <div class="space-y-3">
+          <%
+            const sectionRows = (sectionStatuses || []).filter(function(s){ return !s.complete; });
+            const lastRequests = lastSectionRequests || {};
+          %>
+          <% if (!sectionRows.length) { %>
+            <p class="text-sm text-green-700">All intake sections look complete.</p>
+          <% } %>
+          <% sectionRows.forEach(function(row){
+            const last = lastRequests[row.section];
+            let blocked = false;
+            let resendDate = '';
+            if (last && last.sent_at) {
+              const sentDate = new Date(last.sent_at);
+              if (!Number.isNaN(sentDate.getTime())) {
+                const until = new Date(sentDate.getTime());
+                until.setDate(until.getDate() + (requestCooldownDays || 7));
+                blocked = until > new Date();
+                resendDate = until.toISOString().slice(0,10);
+              }
+            }
+          %>
+            <div class="border rounded p-3">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <div class="font-semibold"><%= row.label %></div>
+                  <div class="text-sm text-recon-fog"><%= row.reason %></div>
+                  <% if (last) { %>
+                    <div class="text-xs text-recon-fog mt-1">Last sent <%= (last.sent_at || '').slice(0,10) %> to <%= last.recipient_email %><% if (blocked && resendDate) { %> · resend after <%= resendDate %><% } %></div>
+                  <% } %>
+                </div>
+                <form method="post" action="/vendor-intake/directory/<%= intake.id %>/request-section">
+                  <input type="hidden" name="section" value="<%= row.section %>">
+                  <button class="btn btn-secondary text-sm whitespace-nowrap" type="submit" <%= blocked ? 'disabled title="Recently sent"' : '' %>>Email section</button>
+                </form>
+              </div>
+            </div>
+          <% }); %>
+        </div>
+      </div>
+
+      <div class="card p-5">
         <h2 class="font-semibold mb-3">Promote</h2>
         <p class="text-sm text-recon-fog mb-3">Create normal Forge records from this intake when they are ready to use.</p>
         <form method="post" action="/vendor-intake/directory/<%= intake.id %>/promote" class="space-y-2">

@@ -172,15 +172,24 @@ test('trade intake has public start form and manager-only directory', () => {
   const header = read('src/views/layouts/header.ejs');
   const migration = read('supabase/migrations/20260608110353_contractor_vendor_intake.sql');
   const ackMigration = read('supabase/migrations/20260617140016_vendor_intake_bid_participation_acknowledgment.sql');
+  const requestMigration = read('supabase/migrations/20260701155811_vendor_intake_section_resend_tracking.sql');
 
   assert.match(app, /const vendorIntakeRoutes = require\('\.\/routes\/vendor-intake'\)/);
   assert.match(app, /app\.use\('\/vendor-intake', vendorIntakeRoutes\)/);
   assert.match(routes, /router\.get\('\/start'/);
   assert.match(routes, /router\.post\('\/start'/);
+  assert.match(routes, /findExistingIntakeForStart\(companyName, email\)/);
+  assert.match(routes, /res\.redirect\(`\/vendor-intake\/\$\{existing\.access_token\}\/company`\)/);
   assert.match(routes, /router\.get\('\/directory', requireManager,/);
   assert.match(routes, /router\.get\('\/directory\/:id\.pdf', requireManager,/);
   assert.match(routes, /router\.post\('\/directory\/:id\/notes', requireManager,/);
+  assert.match(routes, /router\.post\('\/directory\/:id\/request-section', requireManager,/);
   assert.match(routes, /router\.post\('\/directory\/:id\/promote', requireManager,/);
+  assert.match(routes, /SECTION_REQUEST_COOLDOWN_DAYS = 7/);
+  assert.match(routes, /contractor_vendor_intake_section_requests/);
+  assert.match(routes, /mailer\.sendEmail/);
+  assert.match(routes, /sectionRequestEmail/);
+  assert.match(routes, /canSendSectionRequest/);
   assert.match(routes, /generateVendorIntakePDF/);
   assert.match(routes, /access_token/);
   assert.match(routes, /next_update_due_at/);
@@ -194,6 +203,10 @@ test('trade intake has public start form and manager-only directory', () => {
   assert.match(form, /bid_future_agreement_acknowledged/);
   assert.match(show, /ref\.notes/);
   assert.match(show, /Bid Participation Acknowledgment/);
+  assert.match(show, /Request missing sections/);
+  assert.match(show, /request-section/);
+  assert.match(show, /Email section/);
+  assert.match(show, /resend after/);
   assert.match(show, /window\.print\(\)/);
   assert.match(show, /\/vendor-intake\/directory\/<%= intake\.id %>\.pdf/);
   [
@@ -225,6 +238,9 @@ test('trade intake has public start form and manager-only directory', () => {
   assert.match(ackMigration, /bid_non_circumvention_acknowledged/);
   assert.match(ackMigration, /bid_direct_contact_acknowledged/);
   assert.match(ackMigration, /bid_future_agreement_acknowledged/);
+  assert.match(requestMigration, /CREATE TABLE IF NOT EXISTS public\.contractor_vendor_intake_section_requests/);
+  assert.match(requestMigration, /section TEXT NOT NULL CHECK \(section IN \('company', 'experience', 'compliance', 'references', 'review'\)\)/);
+  assert.match(requestMigration, /ALTER TABLE public\.contractor_vendor_intake_section_requests ENABLE ROW LEVEL SECURITY/);
 });
 
 test('managers can create and send invoices while admin keeps accounting controls', () => {

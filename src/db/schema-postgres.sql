@@ -461,6 +461,16 @@ CREATE TABLE IF NOT EXISTS contractor_vendor_intake_notes (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS contractor_vendor_intake_section_requests (
+  id BIGSERIAL PRIMARY KEY,
+  intake_id BIGINT NOT NULL REFERENCES contractor_vendor_intakes(id) ON DELETE CASCADE,
+  section TEXT NOT NULL CHECK (section IN ('company', 'experience', 'compliance', 'references', 'review')),
+  requested_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  recipient_email TEXT NOT NULL,
+  sent_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS bills (
   id BIGSERIAL PRIMARY KEY,
   vendor_id BIGINT NOT NULL REFERENCES vendors(id),
@@ -883,6 +893,7 @@ CREATE INDEX IF NOT EXISTS idx_contractor_vendor_intakes_rating ON contractor_ve
 CREATE INDEX IF NOT EXISTS idx_contractor_vendor_intakes_submitted_at ON contractor_vendor_intakes(submitted_at);
 CREATE INDEX IF NOT EXISTS idx_contractor_vendor_intakes_trades ON contractor_vendor_intakes USING GIN(trades);
 CREATE INDEX IF NOT EXISTS idx_contractor_vendor_intake_notes_intake ON contractor_vendor_intake_notes(intake_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_cv_intake_section_requests_intake_section ON contractor_vendor_intake_section_requests(intake_id, section, sent_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_bills_vendor ON bills(vendor_id);
 CREATE INDEX IF NOT EXISTS idx_bills_status ON bills(status);
