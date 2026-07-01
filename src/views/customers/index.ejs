@@ -148,27 +148,6 @@
     <% } %>
   </form>
 
-<script>
-(function(){
-  var input = document.getElementById('customer-q');
-  var form = document.getElementById('customer-search-form');
-  var filters = [
-    document.getElementById('customer-has'),
-    document.getElementById('customer-sort'),
-    document.getElementById('customer-dir')
-  ];
-  var timer;
-  input.addEventListener('input', function(){
-    clearTimeout(timer);
-    timer = setTimeout(function(){ form.submit(); }, 350);
-  });
-  filters.forEach(function(filter){
-    if (!filter) return;
-    filter.addEventListener('change', function(){ form.submit(); });
-  });
-})();
-</script>
-
   <div class="ops-panel ops-table">
     <div class="ops-panel-head">
       <div class="ops-panel-title">Customer directory</div>

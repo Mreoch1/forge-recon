@@ -148,21 +148,24 @@ test('navigation is grouped by workflow and role tier', () => {
   assert.match(header, /<% if \(_canManageNav\) \{ %>[\s\S]*id="more-dropdown"/);
 });
 
-test('list search and filter forms submit live while users type', () => {
+test('list search and filter forms update live without stealing typing focus', () => {
   const footer = read('src/views/layouts/footer.ejs');
   const vendors = read('src/views/vendors/index.ejs');
   const workOrders = read('src/views/work-orders/index.ejs');
   const customers = read('src/views/customers/index.ejs');
 
   assert.match(footer, /form\.list-utility-bar\[method="get"\]/);
-  assert.match(footer, /field\.addEventListener\('input', scheduleSubmit\)/);
-  assert.match(footer, /field\.addEventListener\('change', submitNow\)/);
+  assert.match(footer, /field\.addEventListener\('input', scheduleFilter\)/);
+  assert.match(footer, /field\.addEventListener\('change', applyFilter\)/);
   assert.match(footer, /formSignature\(\)/);
   assert.match(footer, /params\.delete\('page'\)/);
-  assert.match(footer, /form\.requestSubmit\(\)/);
+  assert.match(footer, /fetch\(url\.toString\(\)/);
+  assert.match(footer, /restoreFocus\(currentShell, focusState\)/);
+  assert.match(footer, /currentShell\.innerHTML = nextShell\.innerHTML/);
   assert.match(vendors, /class="list-utility-bar"/);
   assert.match(workOrders, /class="list-utility-bar"/);
   assert.match(customers, /class="list-utility-bar customer-toolbar"/);
+  assert.doesNotMatch(customers, /setTimeout\(function\(\)\{ form\.submit\(\); \}, 350\)/);
 });
 
 test('managers can manage vendor and contractor records but cannot delete them', () => {

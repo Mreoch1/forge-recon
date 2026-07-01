@@ -85,59 +85,145 @@
 (function(){ document.querySelectorAll('input:not([type=password]):not([type=email]):not([type=url]):not([type=search]), textarea').forEach(function(el){ el.spellcheck = true; }); })();
 </script>
 
-<!-- Live list filters: search/filter boxes update as users type or change filters. -->
+<!-- Live list filters: search/filter boxes update without stealing typing focus. -->
 <script>
 (function(){
-  var forms = document.querySelectorAll('form.list-utility-bar[method="get"], form.list-utility-bar:not([method])');
-  if (!forms.length) return;
+  function initLiveListFilters(root) {
+    var scope = root || document;
+    var forms = scope.querySelectorAll('form.list-utility-bar[method="get"], form.list-utility-bar:not([method])');
+    if (!forms.length) return;
 
-  forms.forEach(function(form){
-    if (form.dataset.liveFilterReady === '1') return;
-    form.dataset.liveFilterReady = '1';
+    forms.forEach(function(form){
+      if (form.dataset.liveFilterReady === '1') return;
+      form.dataset.liveFilterReady = '1';
 
-    var timer = null;
-    var delay = Number(form.dataset.liveFilterDelay || 450);
-    var lastSubmitted = null;
+      var timer = null;
+      var delay = Number(form.dataset.liveFilterDelay || 450);
+      var lastSubmitted = null;
+      var currentRequest = null;
 
-    function formSignature() {
-      var params = new URLSearchParams(new FormData(form));
-      params.delete('page');
-      Array.from(params.keys()).forEach(function(key){
-        if (params.get(key) === '') params.delete(key);
-      });
-      return params.toString();
-    }
-
-    function submitNow() {
-      clearTimeout(timer);
-      var signature = formSignature();
-      if (signature === lastSubmitted) return;
-      lastSubmitted = signature;
-
-      var pageField = form.querySelector('[name="page"]');
-      if (pageField) pageField.value = '';
-
-      if (form.requestSubmit) form.requestSubmit();
-      else form.submit();
-    }
-
-    function scheduleSubmit() {
-      clearTimeout(timer);
-      timer = setTimeout(submitNow, delay);
-    }
-
-    form.querySelectorAll('input, select, textarea').forEach(function(field){
-      if (!field.name || field.type === 'hidden' || field.type === 'submit' || field.type === 'button' || field.type === 'file') return;
-      if (field.matches('[data-live-filter-ignore]')) return;
-
-      if (field.tagName === 'SELECT' || field.type === 'checkbox' || field.type === 'radio') {
-        field.addEventListener('change', submitNow);
-      } else {
-        field.addEventListener('input', scheduleSubmit);
-        field.addEventListener('search', submitNow);
+      function activeFieldState() {
+        var active = document.activeElement;
+        if (!active || !form.contains(active) || !active.name) return null;
+        var state = { name: active.name, id: active.id || '', start: null, end: null };
+        if (typeof active.selectionStart === 'number' && typeof active.selectionEnd === 'number') {
+          state.start = active.selectionStart;
+          state.end = active.selectionEnd;
+        }
+        return state;
       }
+
+      function formParams() {
+        var params = new URLSearchParams(new FormData(form));
+        params.delete('page');
+        Array.from(params.keys()).forEach(function(key){
+          if (params.get(key) === '') params.delete(key);
+        });
+        return params;
+      }
+
+      function formSignature() {
+        return formParams().toString();
+      }
+
+      function formUrl(params) {
+        var action = form.getAttribute('action') || window.location.pathname;
+        var url = new URL(action, window.location.origin);
+        url.search = params.toString();
+        return url;
+      }
+
+      function escapeSelector(value) {
+        if (window.CSS && typeof window.CSS.escape === 'function') return window.CSS.escape(value);
+        return String(value).replace(/["\\]/g, '\\$&');
+      }
+
+      function restoreFocus(shell, state) {
+        if (!state) return;
+        var selector = state.id
+          ? '#' + escapeSelector(state.id)
+          : '[name="' + escapeSelector(state.name) + '"]';
+        var nextField = shell.querySelector(selector);
+        if (!nextField) return;
+        nextField.focus({ preventScroll: true });
+        if (state.start !== null && typeof nextField.setSelectionRange === 'function') {
+          nextField.setSelectionRange(state.start, state.end);
+        }
+      }
+
+      function applyFilter() {
+        clearTimeout(timer);
+        var signature = formSignature();
+        if (signature === lastSubmitted) return;
+        lastSubmitted = signature;
+
+        var pageField = form.querySelector('[name="page"]');
+        if (pageField) pageField.value = '';
+
+        var params = formParams();
+        var url = formUrl(params);
+        var currentShell = form.closest('.ops-shell');
+        if (!currentShell || !window.fetch || !window.DOMParser) {
+          window.location.href = url.toString();
+          return;
+        }
+
+        if (currentRequest) currentRequest.abort();
+        currentRequest = new AbortController();
+        var submittedSignature = signature;
+        var focusState = activeFieldState();
+
+        fetch(url.toString(), {
+          credentials: 'same-origin',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          signal: currentRequest.signal
+        }).then(function(response){
+          if (!response.ok) throw new Error('Filter request failed');
+          return response.text();
+        }).then(function(html){
+          if (formSignature() !== submittedSignature) return;
+          var doc = new DOMParser().parseFromString(html, 'text/html');
+          var nextShell = doc.querySelector('.ops-shell');
+          if (!nextShell) {
+            window.location.href = url.toString();
+            return;
+          }
+          currentShell.innerHTML = nextShell.innerHTML;
+          window.history.replaceState({}, '', url.toString());
+          initLiveListFilters(currentShell);
+          restoreFocus(currentShell, focusState);
+        }).catch(function(error){
+          if (error && error.name === 'AbortError') return;
+          window.location.href = url.toString();
+        });
+      }
+
+      function scheduleFilter() {
+        clearTimeout(timer);
+        timer = setTimeout(applyFilter, delay);
+      }
+
+      form.addEventListener('submit', function(event){
+        event.preventDefault();
+        lastSubmitted = null;
+        applyFilter();
+      });
+
+      form.querySelectorAll('input, select, textarea').forEach(function(field){
+        if (!field.name || field.type === 'hidden' || field.type === 'submit' || field.type === 'button' || field.type === 'file') return;
+        if (field.matches('[data-live-filter-ignore]')) return;
+
+        if (field.tagName === 'SELECT' || field.type === 'checkbox' || field.type === 'radio') {
+          field.addEventListener('change', applyFilter);
+        } else {
+          field.addEventListener('input', scheduleFilter);
+          field.addEventListener('search', applyFilter);
+        }
+      });
     });
-  });
+  }
+
+  initLiveListFilters(document);
 })();
 </script>
 
