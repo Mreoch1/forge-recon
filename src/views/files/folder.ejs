@@ -174,6 +174,32 @@
     return data;
   }
 
+  async function uploadFileToSignedUrl(uploadUrl, file, contentType) {
+    var rawRes = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': contentType || 'application/octet-stream' },
+      body: file,
+    });
+    if (rawRes.ok) return;
+
+    var rawText = await rawRes.text().catch(function(){ return ''; });
+    if (rawRes.status !== 400) {
+      throw new Error('Upload failed: ' + rawRes.status + (rawText ? ' - ' + rawText : ''));
+    }
+
+    var form = new FormData();
+    form.append('cacheControl', '3600');
+    form.append('', file, file.name);
+    var formRes = await fetch(uploadUrl, {
+      method: 'PUT',
+      body: form,
+    });
+    if (!formRes.ok) {
+      var formText = await formRes.text().catch(function(){ return ''; });
+      throw new Error('Upload failed: ' + formRes.status + (formText ? ' - ' + formText : (rawText ? ' - ' + rawText : '')));
+    }
+  }
+
   async function registerUploadedFiles(files) {
     if (!files.length) return;
     var response = await fetch('/files/folders/' + currentFolderId + '/register-direct', {
@@ -227,15 +253,7 @@
           var urlData = await readJson(await fetch('/files/folders/' + currentFolderId + '/upload-url?' + params.toString()));
 
           label.textContent = 'Uploading ' + (i + 1) + ' of ' + files.length + ': ' + relativePath + ' (' + formatBytes(file.size) + ')';
-          var uploadRes = await fetch(urlData.uploadUrl, {
-            method: 'PUT',
-            headers: { 'Content-Type': file.type || 'application/octet-stream' },
-            body: file,
-          });
-          if (!uploadRes.ok) {
-            var text = await uploadRes.text().catch(function(){ return ''; });
-            throw new Error('Upload failed for ' + relativePath + (text ? ': ' + text : ''));
-          }
+          await uploadFileToSignedUrl(urlData.uploadUrl, file, file.type || 'application/octet-stream');
 
           uploaded.push({
             storage_key: urlData.storageKey,
@@ -296,12 +314,7 @@ async function uploadZip() {
 
     // Step 2: Upload zip directly to Supabase Storage
     if (zipStatusLabel) zipStatusLabel.textContent = 'Uploading ' + file.name + ' (' + (file.size / 1024 / 1024).toFixed(1) + ' MB)...';
-    var uploadRes = await fetch(urlData.uploadUrl, {
-      method: 'PUT',
-      body: file,
-      headers: { 'Content-Type': 'application/zip' },
-    });
-    if (!uploadRes.ok) throw new Error('Upload failed: ' + uploadRes.status);
+    await uploadFileToSignedUrl(urlData.uploadUrl, file, file.type || 'application/zip');
 
     // Step 3: Process the zip on the server
     if (zipStatusLabel) zipStatusLabel.textContent = 'Processing folders and files...';
@@ -310,6 +323,10 @@ async function uploadZip() {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: 'storage_key=' + encodeURIComponent(urlData.storageKey),
     });
+    if (!processRes.ok) {
+      var processText = await processRes.text().catch(function(){ return ''; });
+      throw new Error('Zip uploaded, but processing failed: ' + processRes.status + (processText ? ' - ' + processText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300) : ''));
+    }
     // Fetch auto-follows the redirect. Reload to show new folders/files.
     window.location.reload();
   } catch (e) {

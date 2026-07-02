@@ -636,6 +636,10 @@ test('work order files support direct mobile batch uploads', () => {
   assert.match(show, /wo-upload-progress/);
   assert.match(show, /\/work-orders\/<%= wo\.id %>\/files\/upload-url/);
   assert.match(show, /\/work-orders\/<%= wo\.id %>\/files\/register-direct/);
+  assert.match(show, /async function uploadFileToSignedUrl\(uploadUrl, file, contentType\)/);
+  assert.match(show, /rawRes\.status !== 400/);
+  assert.match(show, /const form = new FormData\(\)/);
+  assert.match(show, /form\.append\('cacheControl', '3600'\)/);
   assert.match(show, /Select multiple photos at once from your phone or computer/);
 });
 
@@ -893,6 +897,11 @@ test('project file upload supports browser-selected folder trees', () => {
   assert.match(folderView, /\/files\/folders\/' \+ currentFolderId \+ '\/upload-url/);
   assert.match(folderView, /\/files\/folders\/' \+ currentFolderId \+ '\/register-direct/);
   assert.match(folderView, /file\.webkitRelativePath \|\| file\.name/);
+  assert.match(folderView, /async function uploadFileToSignedUrl\(uploadUrl, file, contentType\)/);
+  assert.match(folderView, /rawRes\.status !== 400/);
+  assert.match(folderView, /var form = new FormData\(\)/);
+  assert.match(folderView, /form\.append\('cacheControl', '3600'\)/);
+  assert.match(folderView, /Zip uploaded, but processing failed/);
   assert.match(folderView, /Choose folder/);
   assert.match(folderView, /Upload folder/);
   assert.match(folderView, /Upload zipped folder/);

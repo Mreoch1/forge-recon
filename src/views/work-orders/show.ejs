@@ -730,6 +730,32 @@ function safeJson(value) {
       await readJson(response);
     }
 
+    async function uploadFileToSignedUrl(uploadUrl, file, contentType) {
+      const rawRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': contentType || 'application/octet-stream' },
+        body: file,
+      });
+      if (rawRes.ok) return;
+
+      const rawText = await rawRes.text().catch(function(){ return ''; });
+      if (rawRes.status !== 400) {
+        throw new Error('Upload failed: ' + rawRes.status + (rawText ? ' - ' + rawText : ''));
+      }
+
+      const form = new FormData();
+      form.append('cacheControl', '3600');
+      form.append('', file, file.name);
+      const formRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: form,
+      });
+      if (!formRes.ok) {
+        const formText = await formRes.text().catch(function(){ return ''; });
+        throw new Error('Upload failed: ' + formRes.status + (formText ? ' - ' + formText : (rawText ? ' - ' + rawText : '')));
+      }
+    }
+
     input.addEventListener('change', updateSelection);
 
     form.addEventListener('submit', async function(event){
@@ -756,15 +782,7 @@ function safeJson(value) {
           const urlData = await readJson(await fetch('/work-orders/<%= wo.id %>/files/upload-url?' + params.toString()));
 
           statusEl.textContent = 'Uploading ' + (i + 1) + ' of ' + files.length + ': ' + file.name;
-          const uploadRes = await fetch(urlData.uploadUrl, {
-            method: 'PUT',
-            headers: { 'Content-Type': file.type || 'application/octet-stream' },
-            body: file,
-          });
-          if (!uploadRes.ok) {
-            const text = await uploadRes.text().catch(function(){ return ''; });
-            throw new Error('Upload failed for ' + file.name + (text ? ': ' + text : ''));
-          }
+          await uploadFileToSignedUrl(urlData.uploadUrl, file, file.type || 'application/octet-stream');
 
           uploaded.push({
             storage_key: urlData.storageKey,
