@@ -695,7 +695,7 @@ function renderContractorHandoffPdf(contractor, project, items) {
     }
 
     if (sortedItems.length > 0) {
-      const summaryHeight = 36;
+      const summaryHeight = 42;
       if (y + summaryHeight > pageBottom) {
         doc.addPage();
         y = doc.page.margins.top;
@@ -706,18 +706,21 @@ function renderContractorHandoffPdf(contractor, project, items) {
         .moveTo(left, y).lineTo(left + tableWidth, y).stroke();
       y += 8;
 
-      const labelX = left + cols[0].width + cols[1].width;
-      const labelWidth = cols[2].width - 8;
+      const amountWidth = cols[3].width - 8;
+      const labelWidth = 135;
+      const amountX = right - amountWidth - 4;
+      const labelX = amountX - labelWidth - 12;
+      const summaryRowGap = 15;
       doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR.charcoal)
-        .text('FINAL UNIT TOTAL', labelX + 4, y, { width: labelWidth, align: 'right' });
+        .text('FINAL UNIT TOTAL', labelX, y, { width: labelWidth, align: 'right', lineBreak: false });
       doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR.charcoal)
-        .text(fmtMoney(pricingTotals.unit), labelX + cols[2].width + 4, y, { width: cols[3].width - 8, align: 'right' });
-      y += 16;
+        .text(fmtMoney(pricingTotals.unit), amountX, y, { width: amountWidth, align: 'right', lineBreak: false });
+      y += summaryRowGap;
 
       doc.font('Helvetica-Bold').fontSize(10).fillColor(COLOR.charcoal)
-        .text('FINAL TOTAL', labelX + 4, y, { width: labelWidth, align: 'right' });
+        .text('FINAL TOTAL', labelX, y, { width: labelWidth, align: 'right', lineBreak: false });
       doc.font('Helvetica-Bold').fontSize(10).fillColor(COLOR.charcoal)
-        .text(fmtMoney(pricingTotals.total), labelX + cols[2].width + 4, y, { width: cols[3].width - 8, align: 'right' });
+        .text(fmtMoney(pricingTotals.total), amountX, y, { width: amountWidth, align: 'right', lineBreak: false });
       y += 10;
     }
 

@@ -1094,6 +1094,8 @@ test('contractor scope PDFs show contractor raw unit and total pricing only', ()
   assert.match(service, /totals\.total \+= totalCost/);
   assert.match(service, /FINAL UNIT TOTAL/);
   assert.match(service, /FINAL TOTAL/);
+  assert.match(service, /const labelWidth = 135/);
+  assert.match(service, /lineBreak: false/);
   assert.match(service, /fmtMoney\(pricingTotals\.unit\)/);
   assert.match(service, /fmtMoney\(pricingTotals\.total\)/);
   assert.doesNotMatch(service, /renderContractorHandoffPdf[\s\S]*item\.total_with_markup[\s\S]*doc\.end\(\);/);
