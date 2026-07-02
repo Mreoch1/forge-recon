@@ -852,6 +852,27 @@ test('new project insert persists all validated project form fields', () => {
   assert.match(routes, /total_paid: data\.total_paid \?\? 0/);
 });
 
+test('project list supports clickable sortable headers', () => {
+  const routes = read('src/routes/jobs.js');
+  const view = read('src/views/jobs/index.ejs');
+
+  assert.match(routes, /PROJECT_SORT_COLUMNS/);
+  assert.match(routes, /function sortProjects/);
+  assert.match(routes, /req\.query\.sort/);
+  assert.match(routes, /req\.query\.dir === 'asc'/);
+  assert.match(routes, /sortProjects\(allJobs, sort, dir\)/);
+  assert.match(routes, /sortedJobs\.slice\(offset, offset \+ PAGE_SIZE\)/);
+  assert.match(view, /function projectSortHref/);
+  assert.match(view, /projectSortHref\('title'\)/);
+  assert.match(view, /projectSortHref\('customer'\)/);
+  assert.match(view, /projectSortHref\('location'\)/);
+  assert.match(view, /projectSortHref\('status'\)/);
+  assert.match(view, /projectSortHref\('created'\)/);
+  assert.match(view, /aria-sort="<%= projectAriaSort\('title'\) %>"/);
+  assert.match(view, /name="sort" value="<%= sort %>"/);
+  assert.match(view, /name="dir" value="<%= dir %>"/);
+});
+
 test('project file upload supports browser-selected folder trees', () => {
   const routes = read('src/routes/files.js');
   const folderView = read('src/views/files/folder.ejs');

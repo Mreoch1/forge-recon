@@ -450,12 +450,41 @@ function blankJob() {
   };
 }
 
+const PROJECT_SORT_COLUMNS = new Set(['title', 'customer', 'location', 'status', 'created']);
+
+function projectSortValue(job, sort) {
+  if (sort === 'customer') return job.customer_name || '';
+  if (sort === 'location') return [job.address, job.city, job.state].filter(Boolean).join(', ');
+  if (sort === 'status') return job.status || '';
+  if (sort === 'created') return job.created_at || '';
+  return job.title || '';
+}
+
+function sortProjects(jobs, sort, dir) {
+  const direction = dir === 'asc' ? 1 : -1;
+  return [...jobs].sort((a, b) => {
+    const av = projectSortValue(a, sort);
+    const bv = projectSortValue(b, sort);
+    const primary = String(av).localeCompare(String(bv), undefined, {
+      numeric: true,
+      sensitivity: 'base',
+    });
+    if (primary !== 0) return primary * direction;
+    return String(a.title || '').localeCompare(String(b.title || ''), undefined, {
+      numeric: true,
+      sensitivity: 'base',
+    });
+  });
+}
+
 router.get('/', async (req, res) => {
   // F4: sanitize before interpolating into PostgREST .or() filter.
   const q = sanitizePostgrestSearch((req.query.q || '').trim());
   const status = (req.query.status || '').trim();
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-  const offset = (page - 1) * PAGE_SIZE;
+  const requestedSort = (req.query.sort || 'created').trim();
+  const sort = PROJECT_SORT_COLUMNS.has(requestedSort) ? requestedSort : 'created';
+  const dir = req.query.dir === 'asc' ? 'asc' : 'desc';
 
   // R37c: projects list — LEFT join customers + include RPM-native `client` field
   // so RPM-imported projects (with customer_id=NULL + free-text client) appear.
@@ -490,27 +519,29 @@ router.get('/', async (req, res) => {
 
   // R37i: also surface the listing-query error (was being silently swallowed —
   // only countQuery.error was checked, masking PostgREST FK-resolution failures).
-  const [listResult, countResult] = await Promise.all([
-    query.order('created_at', { ascending: false }).range(offset, offset + PAGE_SIZE - 1),
-    countQuery,
-  ]);
-  if (listResult.error) throw listResult.error;
+  const countResult = await countQuery;
   if (countResult.error) throw countResult.error;
-  const jobs = listResult.data;
-  const total = listResult.count;
+
+  const total = countResult.count || 0;
+  const listResult = await query.range(0, Math.max(total - 1, 0));
+  if (listResult.error) throw listResult.error;
+  const allJobs = (listResult.data || []).map(j => ({
+    ...j,
+    // R37c: fall back to RPM `client` (free text) when no customer FK is set.
+    customer_name: j.customers?.name || j.client || '—',
+    customer_id: j.customer_id,
+    assigned_name: j.users?.name
+  }));
+  const sortedJobs = sortProjects(allJobs, sort, dir);
+  const offset = (page - 1) * PAGE_SIZE;
+  const jobs = sortedJobs.slice(offset, offset + PAGE_SIZE);
 
   res.render('jobs/index', {
     title: 'Projects', activeNav: 'projects',
-    jobs: (jobs || []).map(j => ({
-      ...j,
-      // R37c: fall back to RPM `client` (free text) when no customer FK is set.
-      customer_name: j.customers?.name || j.client || '—',
-      customer_id: j.customer_id,
-      assigned_name: j.users?.name
-    })),
-    q, status, page,
-    totalPages: Math.max(1, Math.ceil((total || 0) / PAGE_SIZE)),
-    total: total || 0, statuses: VALID_STATUSES,
+    jobs,
+    q, status, page, sort, dir,
+    totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+    total, statuses: VALID_STATUSES,
     watchTables: ['jobs'],
   });
 });

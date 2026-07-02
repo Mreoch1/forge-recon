@@ -1,5 +1,25 @@
 <%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
 
+<%
+function projectSortHref(key) {
+  const nextDir = sort === key && dir === 'asc' ? 'desc' : 'asc';
+  const qs = [];
+  if (q) qs.push('q=' + encodeURIComponent(q));
+  if (status) qs.push('status=' + encodeURIComponent(status));
+  qs.push('sort=' + encodeURIComponent(key));
+  qs.push('dir=' + encodeURIComponent(nextDir));
+  return '/projects?' + qs.join('&');
+}
+function projectSortLabel(key, label) {
+  if (sort !== key) return label;
+  return label + (dir === 'asc' ? ' ▲' : ' ▼');
+}
+function projectAriaSort(key) {
+  if (sort !== key) return 'none';
+  return dir === 'asc' ? 'ascending' : 'descending';
+}
+%>
+
 <div class="ops-shell">
   <div class="ops-header">
     <div class="ops-title-block">
@@ -19,6 +39,8 @@
   </div>
 
   <form method="get" action="/projects" class="list-utility-bar">
+    <input type="hidden" name="sort" value="<%= sort %>">
+    <input type="hidden" name="dir" value="<%= dir %>">
     <input type="text" name="q" value="<%= q %>" placeholder="Search title, address, customer..." class="list-search">
     <select name="status" class="list-filter">
       <option value="">All statuses</option>
@@ -50,11 +72,11 @@
       <table class="data">
         <thead>
           <tr>
-            <th>Title</th>
-            <th>Customer</th>
-            <th>Location</th>
-            <th>Status</th>
-            <th>Created</th>
+            <th aria-sort="<%= projectAriaSort('title') %>"><a href="<%= projectSortHref('title') %>" class="text-inherit hover:text-recon-red"><%= projectSortLabel('title', 'Title') %></a></th>
+            <th aria-sort="<%= projectAriaSort('customer') %>"><a href="<%= projectSortHref('customer') %>" class="text-inherit hover:text-recon-red"><%= projectSortLabel('customer', 'Customer') %></a></th>
+            <th aria-sort="<%= projectAriaSort('location') %>"><a href="<%= projectSortHref('location') %>" class="text-inherit hover:text-recon-red"><%= projectSortLabel('location', 'Location') %></a></th>
+            <th aria-sort="<%= projectAriaSort('status') %>"><a href="<%= projectSortHref('status') %>" class="text-inherit hover:text-recon-red"><%= projectSortLabel('status', 'Status') %></a></th>
+            <th aria-sort="<%= projectAriaSort('created') %>"><a href="<%= projectSortHref('created') %>" class="text-inherit hover:text-recon-red"><%= projectSortLabel('created', 'Created') %></a></th>
           </tr>
         </thead>
         <tbody>
@@ -76,7 +98,7 @@
   <% if (totalPages > 1) { %>
     <div class="flex items-center justify-center gap-2 mt-4">
       <% for (let p = 1; p <= totalPages; p++) { %>
-        <% const qs = []; if (p) qs.push('page='+p); if (q) qs.push('q='+encodeURIComponent(q)); if (status) qs.push('status='+encodeURIComponent(status)); %>
+        <% const qs = []; if (p) qs.push('page='+p); if (q) qs.push('q='+encodeURIComponent(q)); if (status) qs.push('status='+encodeURIComponent(status)); if (sort) qs.push('sort='+encodeURIComponent(sort)); if (dir) qs.push('dir='+encodeURIComponent(dir)); %>
         <% if (p === page) { %>
           <span class="btn btn-primary"><%= p %></span>
         <% } else { %>
