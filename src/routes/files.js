@@ -115,6 +115,10 @@ function fileExtension(file) {
   return path.extname(fileDisplayName(file)).toLowerCase();
 }
 
+function directFolderUploadError(res, status, message) {
+  return res.status(status).json({ ok: false, error: message });
+}
+
 function getPreviewType(file) {
   const mimeType = String(file?.mime_type || '').toLowerCase();
   const ext = fileExtension(file);
@@ -412,6 +416,98 @@ router.post('/folders/:folderId/upload', requireAuth, requireManager, upload.arr
   } catch(e) { /* audit best effort */ }
   setFlash(req, 'success', createdFiles + ' file(s) uploaded.');
   res.redirect('/files/folders/' + folder.id);
+});
+
+// GET /folders/:folderId/upload-url — direct-to-storage upload URL for regular files/folders
+router.get('/folders/:folderId/upload-url', requireAuth, requireManager, async (req, res) => {
+  const { data: folder } = await checkedFileRouteRead(
+    supabase.from('folders').select('*').eq('id', req.params.folderId).maybeSingle(),
+    'direct file upload folder read failed'
+  );
+  if (!folder) return directFolderUploadError(res, 404, 'Folder not found.');
+
+  const filename = String(req.query.filename || '').trim();
+  const size = Number(req.query.size || 0);
+  const contentType = String(req.query.content_type || 'application/octet-stream').trim();
+  if (!filename) return directFolderUploadError(res, 400, 'Filename is required.');
+  if (!isAllowedUploadName(filename)) return directFolderUploadError(res, 400, 'File type not allowed.');
+  if (!Number.isFinite(size) || size <= 0) return directFolderUploadError(res, 400, 'File size is required.');
+  if (size > MAX_FILE_SIZE) return directFolderUploadError(res, 413, `Each file must be ${Math.round(MAX_FILE_SIZE / 1024 / 1024)} MB or smaller.`);
+
+  try {
+    const ext = path.extname(filename) || '';
+    const key = `${folder.entity_type}/${folder.entity_id}/${crypto.randomUUID()}${ext}`;
+    const signed = await storage.getUploadUrl('entity-files', key);
+    return res.json({
+      ok: true,
+      uploadUrl: signed.uploadUrl,
+      storageKey: signed.storageKey,
+      contentType,
+      maxFileSize: MAX_FILE_SIZE,
+      maxFiles: MAX_FILES,
+    });
+  } catch (e) {
+    console.error('folder direct upload URL failed:', e);
+    return directFolderUploadError(res, 500, 'Could not prepare upload: ' + e.message);
+  }
+});
+
+// POST /folders/:folderId/register-direct — save metadata after browser-to-storage uploads
+router.post('/folders/:folderId/register-direct', requireAuth, requireManager, async (req, res) => {
+  const { data: folder } = await checkedFileRouteRead(
+    supabase.from('folders').select('*').eq('id', req.params.folderId).maybeSingle(),
+    'direct file register folder read failed'
+  );
+  if (!folder) return directFolderUploadError(res, 404, 'Folder not found.');
+
+  const files = Array.isArray(req.body.files) ? req.body.files : [];
+  if (!files.length) return directFolderUploadError(res, 400, 'No uploaded files to register.');
+  if (files.length > MAX_FILES) return directFolderUploadError(res, 400, `Select ${MAX_FILES} files or fewer per upload.`);
+
+  let createdFiles = 0;
+  const uploadedNames = [];
+  for (const file of files) {
+    const storageKey = String(file.storage_key || file.storageKey || '').trim();
+    const originalName = String(file.original_filename || file.originalName || '').trim();
+    const relativePath = String(file.relative_path || file.relativePath || originalName).trim();
+    const mimeType = String(file.mime_type || file.mimeType || mime.lookup(originalName) || 'application/octet-stream').trim();
+    const sizeBytes = Number(file.size_bytes || file.sizeBytes || 0);
+    const keyPrefix = `${folder.entity_type}/${folder.entity_id}/`;
+
+    if (!storageKey || !storageKey.startsWith(keyPrefix) || storageKey.includes('..')) {
+      return directFolderUploadError(res, 400, 'Invalid uploaded file key.');
+    }
+    if (!originalName || !isAllowedUploadName(originalName)) {
+      return directFolderUploadError(res, 400, 'Invalid uploaded filename.');
+    }
+    if (!Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes > MAX_FILE_SIZE) {
+      return directFolderUploadError(res, 400, 'Invalid uploaded file size.');
+    }
+
+    const parts = normalizeRelativeUploadPath(relativePath);
+    const safeName = parts.length ? parts[parts.length - 1] : originalName;
+    const folderParts = parts.length ? parts.slice(0, -1) : [];
+    const targetFolderId = await ensureUploadSubfolder(folder, folderParts, req.session.userId || null);
+    const { error: fileInsertErr } = await supabase.from('files').insert({
+      folder_id: targetFolderId,
+      name: safeName,
+      original_filename: safeName,
+      storage_path: storageKey,
+      mime_type: mimeType,
+      size_bytes: Math.round(sizeBytes),
+      uploaded_by_user_id: req.session.userId || null,
+    });
+    if (fileInsertErr) throw fileInsertErr;
+    createdFiles++;
+    uploadedNames.push(parts.length ? parts.join('/') : safeName);
+  }
+
+  try {
+    const { writeAudit } = require('../services/audit');
+    writeAudit({ entityType: 'file', entityId: folder.id, action: 'uploaded', before: null, after: { filename: uploadedNames.join(', ') }, source: 'user', userId: req.session.userId });
+  } catch(e) { /* audit best effort */ }
+
+  return res.json({ ok: true, files: createdFiles });
 });
 
 // ── Zip-based folder structure upload ─────────────────────────────────────────

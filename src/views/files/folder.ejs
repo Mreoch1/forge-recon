@@ -40,10 +40,10 @@
   <% if (currentUser.role === 'admin' || currentUser.role === 'manager') { %>
     <div class="card p-4 mb-6">
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <form method="post" action="/files/folders/<%= folder.id %>/upload" enctype="multipart/form-data" class="space-y-3">
+        <form method="post" action="/files/folders/<%= folder.id %>/upload" enctype="multipart/form-data" class="space-y-3" data-direct-folder-upload>
           <div>
             <h2 class="text-sm font-semibold text-recon-charcoal mb-1">Upload folder</h2>
-            <p class="text-sm text-recon-fog">Preserves subfolders and uploads every file inside the selected folder. Max 4MB total — zip larger folders first and use the option below.</p>
+            <p class="text-sm text-recon-fog">Preserves subfolders and uploads every file inside the selected folder.</p>
           </div>
           <input id="folder-upload-input" type="file" name="files" multiple webkitdirectory directory class="sr-only" required data-file-picker data-file-picker-label="folder-upload-label" data-file-picker-button="folder-upload-submit">
           <div class="flex flex-wrap gap-2 items-center">
@@ -53,7 +53,7 @@
           <p id="folder-upload-label" class="text-xs text-recon-fog">No folder selected.</p>
         </form>
 
-        <form method="post" action="/files/folders/<%= folder.id %>/upload" enctype="multipart/form-data" class="space-y-3">
+        <form method="post" action="/files/folders/<%= folder.id %>/upload" enctype="multipart/form-data" class="space-y-3" data-direct-folder-upload>
           <div>
             <h2 class="text-sm font-semibold text-recon-charcoal mb-1">Upload files</h2>
             <p class="text-sm text-recon-fog">Adds selected files directly to this folder.</p>
@@ -143,6 +143,125 @@
         label.textContent = input.files[0].name + ' selected.';
       } else {
         label.textContent = count + ' files selected.';
+      }
+    });
+  });
+})();
+
+// Regular file/folder upload: presigned URLs → direct-to-storage → metadata register
+(function(){
+  var forms = Array.prototype.slice.call(document.querySelectorAll('[data-direct-folder-upload]'));
+  var maxFileSize = 25 * 1024 * 1024;
+  var maxFiles = 250;
+
+  function formatBytes(bytes) {
+    if (!bytes) return '0 B';
+    var units = ['B', 'KB', 'MB', 'GB'];
+    var value = bytes;
+    var unitIndex = 0;
+    while (value >= 1024 && unitIndex < units.length - 1) {
+      value = value / 1024;
+      unitIndex += 1;
+    }
+    return value.toFixed(unitIndex === 0 ? 0 : 1) + ' ' + units[unitIndex];
+  }
+
+  async function readJson(response) {
+    var data = await response.json().catch(function(){ return {}; });
+    if (!response.ok || data.ok === false) {
+      throw new Error(data.error || ('Upload failed with status ' + response.status));
+    }
+    return data;
+  }
+
+  async function registerUploadedFiles(files) {
+    if (!files.length) return;
+    var response = await fetch('/files/folders/' + currentFolderId + '/register-direct', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ files: files }),
+    });
+    await readJson(response);
+  }
+
+  function fileRelativePath(file) {
+    return file.webkitRelativePath || file.name;
+  }
+
+  forms.forEach(function(form){
+    var input = form.querySelector('input[type="file"]');
+    var button = form.querySelector('button[type="submit"]');
+    var labelId = input && input.getAttribute('data-file-picker-label');
+    var label = labelId ? document.getElementById(labelId) : null;
+    if (!input || !button || !label) return;
+
+    form.addEventListener('submit', async function(event){
+      var files = Array.prototype.slice.call(input.files || []);
+      if (!files.length) return;
+      event.preventDefault();
+
+      var oversized = files.find(function(file){ return file.size > maxFileSize; });
+      if (files.length > maxFiles) {
+        label.textContent = 'Select ' + maxFiles + ' files or fewer per upload.';
+        return;
+      }
+      if (oversized) {
+        label.textContent = oversized.name + ' is too large. Each file must be 25 MB or smaller.';
+        return;
+      }
+
+      button.disabled = true;
+      input.disabled = true;
+      var uploaded = [];
+      try {
+        for (var i = 0; i < files.length; i += 1) {
+          var file = files[i];
+          var relativePath = fileRelativePath(file);
+          label.textContent = 'Preparing ' + (i + 1) + ' of ' + files.length + ': ' + relativePath;
+          var params = new URLSearchParams({
+            filename: file.name,
+            relative_path: relativePath,
+            content_type: file.type || 'application/octet-stream',
+            size: String(file.size),
+          });
+          var urlData = await readJson(await fetch('/files/folders/' + currentFolderId + '/upload-url?' + params.toString()));
+
+          label.textContent = 'Uploading ' + (i + 1) + ' of ' + files.length + ': ' + relativePath + ' (' + formatBytes(file.size) + ')';
+          var uploadRes = await fetch(urlData.uploadUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': file.type || 'application/octet-stream' },
+            body: file,
+          });
+          if (!uploadRes.ok) {
+            var text = await uploadRes.text().catch(function(){ return ''; });
+            throw new Error('Upload failed for ' + relativePath + (text ? ': ' + text : ''));
+          }
+
+          uploaded.push({
+            storage_key: urlData.storageKey,
+            original_filename: file.name,
+            relative_path: relativePath,
+            mime_type: file.type || 'application/octet-stream',
+            size_bytes: file.size,
+          });
+        }
+
+        label.textContent = 'Saving ' + uploaded.length + ' uploaded file' + (uploaded.length === 1 ? '' : 's') + '...';
+        await registerUploadedFiles(uploaded);
+        label.textContent = 'Upload complete. Refreshing...';
+        window.location.reload();
+      } catch (err) {
+        if (uploaded.length) {
+          try {
+            label.textContent = 'Saving the ' + uploaded.length + ' file' + (uploaded.length === 1 ? '' : 's') + ' that finished before the error...';
+            await registerUploadedFiles(uploaded);
+          } catch (registerErr) {
+            console.error(registerErr);
+          }
+        }
+        label.textContent = err.message || 'Upload failed. Please try again.';
+        button.disabled = false;
+        input.disabled = false;
       }
     });
   });

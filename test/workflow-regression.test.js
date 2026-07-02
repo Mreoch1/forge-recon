@@ -884,7 +884,15 @@ test('project file upload supports browser-selected folder trees', () => {
   assert.match(routes, /const targetFolderId = await ensureUploadSubfolder\(folder, folderParts, req\.session\.userId \|\| null\)/);
   assert.match(routes, /folder_id: targetFolderId/);
   assert.match(routes, /MAX_UPLOAD_BATCH_SIZE/);
+  assert.match(routes, /router\.get\('\/folders\/:folderId\/upload-url'/);
+  assert.match(routes, /router\.post\('\/folders\/:folderId\/register-direct'/);
+  assert.match(routes, /storage\.getUploadUrl\('entity-files', key\)/);
+  assert.match(routes, /storageKey\.startsWith\(keyPrefix\)/);
   assert.match(folderView, /webkitdirectory/);
+  assert.match(folderView, /data-direct-folder-upload/);
+  assert.match(folderView, /\/files\/folders\/' \+ currentFolderId \+ '\/upload-url/);
+  assert.match(folderView, /\/files\/folders\/' \+ currentFolderId \+ '\/register-direct/);
+  assert.match(folderView, /file\.webkitRelativePath \|\| file\.name/);
   assert.match(folderView, /Choose folder/);
   assert.match(folderView, /Upload folder/);
   assert.match(folderView, /Upload zipped folder/);
