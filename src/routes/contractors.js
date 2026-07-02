@@ -242,7 +242,7 @@ router.get('/:id/handoff/:projectId.pdf', async (req, res) => {
   const { data: items, error: itemsError } = await supabase
     .from('rfp_line_items')
     .select(`
-      id, description, quantity, vendor, sort_order,
+      id, description, quantity, unit_cost, total_cost, vendor, sort_order,
       project_rfps!inner(job_id)
     `)
     .eq('vendor', contractor.name)

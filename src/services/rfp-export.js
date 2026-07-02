@@ -523,7 +523,8 @@ function renderProjectPdf(project, rfps, itemsByRfp, extra) {
 
 /**
  * Render a contractor handoff PDF — scope-of-work sheet for a specific contractor
- * on a specific project. No pricing, no markup, no totals — just DESCRIPTION | QTY.
+ * on a specific project. Pricing is the contractor's raw cost only; customer-facing
+ * markup and GR pricing are intentionally excluded.
  *
  * @param {object} contractor  - contractors row (name, trade, etc.)
  * @param {object} project     - jobs row (title, address, etc.)
@@ -597,10 +598,12 @@ function renderContractorHandoffPdf(contractor, project, items) {
       .moveTo(left, y).lineTo(right, y).stroke();
     doc.moveDown(0.8);
 
-    // ── Items table (DESCRIPTION | QTY only, no pricing) ──
+    // ── Items table (contractor raw pricing only) ──
     const cols = [
-      { key: 'description', label: 'DESCRIPTION', width: tableWidth - 60, align: 'left' },
-      { key: 'qty',         label: 'QTY',         width: 60,             align: 'right' },
+      { key: 'description', label: 'DESCRIPTION', width: tableWidth - 220, align: 'left' },
+      { key: 'qty',         label: 'QTY',         width: 45,               align: 'right' },
+      { key: 'unit_cost',   label: 'UNIT PRICE',  width: 85,               align: 'right' },
+      { key: 'total_cost',  label: 'TOTAL PRICE', width: 90,               align: 'right' },
     ];
 
     const headerHeight = 22;
@@ -639,6 +642,8 @@ function renderContractorHandoffPdf(contractor, project, items) {
       sortedItems.forEach(item => {
         const displayDesc = pdfText(item.description || item.name || '');
         const qtyVal = Number(item.quantity) || 0;
+        const unitCost = Number(item.unit_cost) || 0;
+        const totalCost = Number(item.total_cost) || (qtyVal * unitCost);
 
         const descH = measurePdfText(doc, displayDesc, cols[0].width - 8, 'Helvetica', 9);
         const actualRowHeight = Math.max(rowHeight, descH + 8);
@@ -666,6 +671,12 @@ function renderContractorHandoffPdf(contractor, project, items) {
         // Qty cell
         doc.font('Helvetica').fontSize(9).fillColor(COLOR.charcoal)
           .text(String(qtyVal), left + cols[0].width + 4, y + 4, { width: cols[1].width - 8, align: cols[1].align });
+
+        doc.font('Helvetica').fontSize(9).fillColor(COLOR.charcoal)
+          .text(fmtMoney(unitCost), left + cols[0].width + cols[1].width + 4, y + 4, { width: cols[2].width - 8, align: cols[2].align });
+
+        doc.font('Helvetica').fontSize(9).fillColor(COLOR.charcoal)
+          .text(fmtMoney(totalCost), left + cols[0].width + cols[1].width + cols[2].width + 4, y + 4, { width: cols[3].width - 8, align: cols[3].align });
 
         // Bottom border
         doc.strokeColor(COLOR.mist).lineWidth(0.5)

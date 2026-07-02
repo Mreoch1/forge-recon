@@ -1061,3 +1061,17 @@ test('universal documents page is not exposed in the app', () => {
   assert.doesNotMatch(projectShow, /\/universal-documents/);
   assert.doesNotMatch(contractorShow, /\/universal-documents/);
 });
+
+test('contractor scope PDFs show contractor raw unit and total pricing only', () => {
+  const service = read('src/services/rfp-export.js');
+  const routes = read('src/routes/contractors.js');
+
+  assert.match(routes, /id, description, quantity, unit_cost, total_cost, vendor, sort_order/);
+  assert.match(service, /label: 'UNIT PRICE'/);
+  assert.match(service, /label: 'TOTAL PRICE'/);
+  assert.match(service, /const unitCost = Number\(item\.unit_cost\) \|\| 0/);
+  assert.match(service, /const totalCost = Number\(item\.total_cost\) \|\| \(qtyVal \* unitCost\)/);
+  assert.doesNotMatch(service, /renderContractorHandoffPdf[\s\S]*item\.total_with_markup[\s\S]*doc\.end\(\);/);
+  assert.doesNotMatch(service, /renderContractorHandoffPdf[\s\S]*general_requirements_pct[\s\S]*doc\.end\(\);/);
+  assert.doesNotMatch(service, /renderContractorHandoffPdf[\s\S]*markup_pct[\s\S]*doc\.end\(\);/);
+});
