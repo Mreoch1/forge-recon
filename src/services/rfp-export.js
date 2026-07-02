@@ -614,6 +614,14 @@ function renderContractorHandoffPdf(contractor, project, items) {
       if (ao !== bo) return ao - bo;
       return (a.id || 0) - (b.id || 0);
     });
+    const pricingTotals = sortedItems.reduce((totals, item) => {
+      const qtyVal = Number(item.quantity) || 0;
+      const unitCost = Number(item.unit_cost) || 0;
+      const totalCost = Number(item.total_cost) || (qtyVal * unitCost);
+      totals.unit += unitCost;
+      totals.total += totalCost;
+      return totals;
+    }, { unit: 0, total: 0 });
 
     y = doc.y;
     if (y + headerHeight + rowHeight > doc.page.height - doc.page.margins.bottom - 60) {
@@ -684,6 +692,33 @@ function renderContractorHandoffPdf(contractor, project, items) {
 
         y += actualRowHeight;
       });
+    }
+
+    if (sortedItems.length > 0) {
+      const summaryHeight = 36;
+      if (y + summaryHeight > pageBottom) {
+        doc.addPage();
+        y = doc.page.margins.top;
+        pageBottom = doc.page.height - doc.page.margins.bottom - 60;
+      }
+
+      doc.strokeColor(COLOR.red).lineWidth(1)
+        .moveTo(left, y).lineTo(left + tableWidth, y).stroke();
+      y += 8;
+
+      const labelX = left + cols[0].width + cols[1].width;
+      const labelWidth = cols[2].width - 8;
+      doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR.charcoal)
+        .text('FINAL UNIT TOTAL', labelX + 4, y, { width: labelWidth, align: 'right' });
+      doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR.charcoal)
+        .text(fmtMoney(pricingTotals.unit), labelX + cols[2].width + 4, y, { width: cols[3].width - 8, align: 'right' });
+      y += 16;
+
+      doc.font('Helvetica-Bold').fontSize(10).fillColor(COLOR.charcoal)
+        .text('FINAL TOTAL', labelX + 4, y, { width: labelWidth, align: 'right' });
+      doc.font('Helvetica-Bold').fontSize(10).fillColor(COLOR.charcoal)
+        .text(fmtMoney(pricingTotals.total), labelX + cols[2].width + 4, y, { width: cols[3].width - 8, align: 'right' });
+      y += 10;
     }
 
     doc.y = y + 10;
