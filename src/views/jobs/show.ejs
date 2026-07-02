@@ -51,12 +51,15 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
       <div class="border-t border-recon-mist p-4">
         <form id="chat-form" class="flex gap-2">
           <div class="chat-mention-wrap">
-            <input type="text" id="chat-input" class="input w-full text-sm" placeholder="Type a message... use @name to notify project team" required autocomplete="off">
+            <input type="text" id="chat-input" class="input w-full text-sm" placeholder="Type a message... use @name to notify project team" autocomplete="off">
             <input type="hidden" id="chat-mention-ids" name="mention_user_ids" value="">
             <div id="chat-mention-menu" class="chat-mention-menu hidden"></div>
           </div>
+          <input type="file" id="chat-photo-input" name="photo" accept="image/*" class="sr-only">
+          <label for="chat-photo-input" class="btn btn-secondary text-sm cursor-pointer whitespace-nowrap" title="Attach a photo to this chat message">Photo</label>
           <button type="submit" class="btn btn-primary text-sm">Send</button>
         </form>
+        <p id="chat-photo-label" class="text-xs text-recon-fog mt-2 hidden"></p>
       </div>
     </div>
   </details>
@@ -112,6 +115,8 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
   var chatInput = document.getElementById('chat-input');
   var mentionInput = document.getElementById('chat-mention-ids');
   var mentionMenu = document.getElementById('chat-mention-menu');
+  var photoInput = document.getElementById('chat-photo-input');
+  var photoLabel = document.getElementById('chat-photo-label');
   var chatPanel = document.querySelector('.chat-panel');
   var unreadEl = document.getElementById('chat-unread');
   var mentionUsers = <%- JSON.stringify(chatMentionUsers || []).replace(/</g, '\\u003c') %>;
@@ -138,12 +143,22 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
     var div = document.createElement('div');
     div.className = 'chat-msg' + (msg.user_id === userId ? ' chat-msg-self' : '');
     div.setAttribute('data-msg-id', msg.id);
+    var attachmentHtml = '';
+    if (msg.attachment_url) {
+      attachmentHtml = '<a href="' + escapeAttr(msg.attachment_url) + '" target="_blank" rel="noopener" class="chat-photo-link">' +
+        '<img src="' + escapeAttr(msg.attachment_url) + '" alt="' + escapeAttr(msg.attachment_original_name || 'Project chat photo') + '" class="chat-photo">' +
+      '</a>';
+    }
+    var messageHtml = msg.message
+      ? '<p class="text-sm m-0 whitespace-pre-wrap">' + highlightMentions(escapeHtml(msg.message)) + '</p>'
+      : '';
     div.innerHTML = '<div class="flex items-baseline gap-2 mb-0.5">' +
       '<span class="font-medium text-xs ' + (msg.user_id === userId ? 'text-recon-red' : 'text-recon-charcoal') + '">' + escapeHtml(msg.users?.name || 'Unknown') + '</span>' +
       '<span class="text-xs text-recon-fog">' + formatTime(msg.created_at) + '</span>' +
       (msg.user_id === userId ? '<button class="ml-auto text-xs text-recon-fog hover:text-recon-red delete-msg" data-msg-id="' + msg.id + '" title="Delete message">&times;</button>' : '') +
       '</div>' +
-      '<p class="text-sm m-0 whitespace-pre-wrap">' + highlightMentions(escapeHtml(msg.message)) + '</p>';
+      messageHtml +
+      attachmentHtml;
     if (prepend && messagesEl.firstChild) {
       messagesEl.insertBefore(div, messagesEl.firstChild);
     } else {
@@ -157,8 +172,18 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
+  function escapeAttr(s) {
+    return escapeHtml(String(s || '')).replace(/"/g, '&quot;');
+  }
+
   function highlightMentions(html) {
     return html.replace(/(^|\s)(@[a-zA-Z0-9._-]+)/g, '$1<span class="chat-mention">$2</span>');
+  }
+
+  async function readJsonResponse(res) {
+    var data = await res.json().catch(function(){ return {}; });
+    if (!res.ok) throw new Error(data.error || 'Request failed.');
+    return data;
   }
 
   function normalizeHandle(value) {
@@ -296,28 +321,70 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
     chatForm.addEventListener('submit', async function(e){
       e.preventDefault();
       var text = chatInput.value.trim();
-      if (!text) return;
+      var photo = photoInput && photoInput.files && photoInput.files[0] ? photoInput.files[0] : null;
+      if (!text && !photo) return;
       captureTypedMentionIds(text);
       chatInput.disabled = true;
       try {
+        var formData = new FormData();
+        formData.append('message', text);
+        formData.append('mention_user_ids', mentionInput ? mentionInput.value : '');
+        if (photo) {
+          var params = new URLSearchParams({
+            filename: photo.name,
+            content_type: photo.type || 'image/jpeg',
+            size: String(photo.size),
+          });
+          var uploadPrep = await readJsonResponse(await fetch('/projects/' + projectId + '/chat/photo-upload-url?' + params.toString()));
+          var uploadRes = await fetch(uploadPrep.uploadUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': photo.type || 'image/jpeg' },
+            body: photo,
+          });
+          if (!uploadRes.ok) {
+            var uploadText = await uploadRes.text().catch(function(){ return ''; });
+            throw new Error('Photo upload failed' + (uploadText ? ': ' + uploadText : '.'));
+          }
+          formData.append('photo_storage_key', uploadPrep.storageKey);
+          formData.append('photo_mime_type', photo.type || 'image/jpeg');
+          formData.append('photo_original_name', photo.name || 'photo');
+          formData.append('photo_size_bytes', String(photo.size || 0));
+        }
         var res = await fetch('/projects/' + projectId + '/chat', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: 'message=' + encodeURIComponent(text) + '&mention_user_ids=' + encodeURIComponent(mentionInput ? mentionInput.value : ''),
+          body: formData,
         });
-        var data = await res.json();
+        var data = await readJsonResponse(res);
         if (data.ok && data.message) {
           appendMessage(data.message);
           chatInput.value = '';
+          if (photoInput) photoInput.value = '';
+          if (photoLabel) {
+            photoLabel.textContent = '';
+            photoLabel.classList.add('hidden');
+          }
           selectedMentionIds.clear();
           syncMentionIds();
           hideMentionMenu();
         } else if (data.error) {
           alert(data.error);
         }
-      } catch(e) { alert('Failed to send message.'); }
+      } catch(e) { alert(e && e.message ? e.message : 'Failed to send message.'); }
       chatInput.disabled = false;
       chatInput.focus();
+    });
+  }
+
+  if (photoInput && photoLabel) {
+    photoInput.addEventListener('change', function(){
+      var photo = photoInput.files && photoInput.files[0] ? photoInput.files[0] : null;
+      if (!photo) {
+        photoLabel.textContent = '';
+        photoLabel.classList.add('hidden');
+        return;
+      }
+      photoLabel.textContent = 'Photo selected: ' + photo.name;
+      photoLabel.classList.remove('hidden');
     });
   }
 
@@ -384,6 +451,8 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
 <style>
 .chat-msg { padding: 6px 10px; border-radius: 8px; background: #f5f5f5; }
 .chat-msg-self { background: #fef2f2; }
+.chat-photo-link { display: inline-block; margin-top: .5rem; max-width: min(360px, 100%); }
+.chat-photo { display: block; max-width: 100%; max-height: 320px; border-radius: 8px; border: 1px solid #e5e5e5; object-fit: contain; background: #fff; }
 .chat-mention-wrap { position: relative; flex: 1 1 auto; min-width: 0; }
 .chat-mention { color: #c0202b; font-weight: 700; }
 .chat-mention-menu {
@@ -451,6 +520,7 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
 /* Dark mode overrides */
 html.dark .chat-msg { background: var(--dark-elevated); color: var(--dark-text); }
 html.dark .chat-msg-self { background: rgba(192,32,43,0.15); }
+html.dark .chat-photo { border-color: var(--dark-border); background: var(--dark-surface); }
 html.dark .chat-panel[open] summary { border-bottom-color: var(--dark-border); }
 html.dark #chat-messages::-webkit-scrollbar-thumb { background: var(--dark-border-strong); }
 html.dark .chat-mention-menu { background: var(--dark-surface); border-color: var(--dark-border); }

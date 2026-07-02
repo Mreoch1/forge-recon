@@ -914,6 +914,7 @@ test('Supabase public API access is locked down in migrations', () => {
 test('project chat stays inside the project content shell', () => {
   const show = read('src/views/jobs/show.ejs');
   const routes = read('src/routes/jobs.js');
+  const migration = read('supabase/migrations/20260702143535_project_chat_photo_attachments.sql');
 
   const opsShellStart = show.indexOf('<div class="ops-shell">');
   const chatStart = show.indexOf('<details class="chat-panel card mb-6 overflow-hidden"');
@@ -935,6 +936,23 @@ test('project chat stays inside the project content shell', () => {
   assert.match(routes, /Project mention work order assignees load failed/);
   assert.match(routes, /addWorkOrderMentionUsers\(\{ workOrders, users, add \}\)/);
   assert.match(routes, /addWorkOrderMentionUsers\(\{ workOrders: workOrdersResult\.data \|\| \[\], users: allUsers, add \}\)/);
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS attachment_key TEXT/);
+  assert.match(routes, /const CHAT_PHOTO_BUCKET = 'entity-files'/);
+  assert.match(routes, /router\.get\('\/:id\/chat\/photo-upload-url'/);
+  assert.match(routes, /storage\.getUploadUrl\(CHAT_PHOTO_BUCKET, key\)/);
+  assert.match(routes, /chatPhotoUpload\.single\('photo'\)/);
+  assert.match(routes, /Project chat attachments must be image files/);
+  assert.match(routes, /photo_storage_key/);
+  assert.match(routes, /storage\.uploadBuffer\(CHAT_PHOTO_BUCKET, key, photo\.buffer, photo\.mimetype\)/);
+  assert.match(routes, /hydrateProjectChatAttachment/);
+  assert.match(routes, /storage\.getSignedUrl\(message\.attachment_bucket \|\| CHAT_PHOTO_BUCKET, message\.attachment_key, 3600\)/);
+  assert.match(routes, /storage\.remove\(msg\.attachment_bucket \|\| CHAT_PHOTO_BUCKET, msg\.attachment_key\)/);
+  assert.match(show, /id="chat-photo-input" name="photo" accept="image\/\*"/);
+  assert.match(show, /new FormData\(\)/);
+  assert.match(show, /\/projects\/' \+ projectId \+ '\/chat\/photo-upload-url/);
+  assert.match(show, /method: 'PUT'/);
+  assert.match(show, /formData\.append\('photo_storage_key', uploadPrep\.storageKey\)/);
+  assert.match(show, /class="chat-photo"/);
 });
 
 test('project financials live on a dedicated billing tab', () => {

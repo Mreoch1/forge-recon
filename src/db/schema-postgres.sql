@@ -821,6 +821,11 @@ CREATE TABLE IF NOT EXISTS project_chat_messages (
   job_id BIGINT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
   user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   message TEXT NOT NULL,
+  attachment_bucket TEXT,
+  attachment_key TEXT,
+  attachment_mime_type TEXT,
+  attachment_original_name TEXT,
+  attachment_size_bytes BIGINT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE project_chat_messages ENABLE ROW LEVEL SECURITY;

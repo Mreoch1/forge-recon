@@ -65,6 +65,21 @@ CREATE TABLE IF NOT EXISTS jobs (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS project_chat_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  job_id INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  message TEXT NOT NULL,
+  attachment_bucket TEXT,
+  attachment_key TEXT,
+  attachment_mime_type TEXT,
+  attachment_original_name TEXT,
+  attachment_size_bytes INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_chat_job ON project_chat_messages(job_id, created_at);
+
 CREATE TABLE IF NOT EXISTS work_orders (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   job_id INTEGER NOT NULL REFERENCES jobs(id),

@@ -7,6 +7,9 @@
  */
 
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const crypto = require('crypto');
 const supabase = require('../db/supabase');
 const { setFlash } = require('../middleware/auth');
 const { sanitizePostgrestSearch } = require('../services/sanitize');
@@ -14,9 +17,20 @@ const { getProjectContractorRollup } = require('../services/project-contractor-r
 const { renderSubcontractAgreementPdf } = require('../services/contract-pdf');
 const { sendEmail } = require('../services/email');
 const numbering = require('../services/numbering');
+const storage = require('../services/storage');
 
 const router = express.Router();
 const PAGE_SIZE = 25;
+const CHAT_PHOTO_BUCKET = 'entity-files';
+const CHAT_PHOTO_MAX_SIZE = 10 * 1024 * 1024;
+const chatPhotoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: CHAT_PHOTO_MAX_SIZE, files: 1 },
+  fileFilter: (req, file, cb) => {
+    if (String(file.mimetype || '').startsWith('image/')) cb(null, true);
+    else cb(new Error('Project chat attachments must be image files.'));
+  }
+});
 // R37c: include RPM-native statuses so imported projects are filterable + creatable.
 // DB CHECK on jobs.status was relaxed in migration r37b to accept these values.
 const VALID_STATUSES = [
@@ -134,6 +148,32 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function safeProjectChatFilename(filename) {
+  const ext = path.extname(filename || '').toLowerCase().replace(/[^a-z0-9.]/g, '');
+  const base = path.basename(filename || 'photo', ext)
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+    .replace(/\s+/g, '_')
+    .slice(0, 80) || 'photo';
+  return `${base}${ext || '.jpg'}`;
+}
+
+function projectChatPhotoKey(projectId, file) {
+  return `project-chat/${projectId}/${Date.now()}-${crypto.randomUUID()}-${safeProjectChatFilename(file?.originalname)}`;
+}
+
+async function hydrateProjectChatAttachment(message) {
+  if (!message || !message.attachment_key) return message;
+  try {
+    return {
+      ...message,
+      attachment_url: await storage.getSignedUrl(message.attachment_bucket || CHAT_PHOTO_BUCKET, message.attachment_key, 3600),
+    };
+  } catch (error) {
+    console.warn('[project-chat] attachment signed URL failed:', error.message);
+    return { ...message, attachment_url: null };
+  }
 }
 
 function compactHandle(value) {
@@ -1963,18 +2003,92 @@ router.post('/:id/decisions/:dId/answer', async (req, res) => {
 
 // ── Project Chat ────────────────────────────────────────────────────────
 
-router.post('/:id/chat', async (req, res) => {
+function projectChatPhotoMiddleware(req, res, next) {
+  chatPhotoUpload.single('photo')(req, res, err => {
+    if (err) return res.status(400).json({ error: err.message || 'Photo upload failed.' });
+    next();
+  });
+}
+
+router.get('/:id/chat/photo-upload-url', async (req, res) => {
+  const id = req.params.id;
+  const allowed = await requireProjectAccess(req, res, id);
+  if (!allowed) return;
+
+  const filename = String(req.query.filename || '').trim();
+  const contentType = String(req.query.content_type || '').trim();
+  const size = Number(req.query.size || 0);
+  if (!filename) return res.status(400).json({ error: 'Filename is required.' });
+  if (!contentType.startsWith('image/')) return res.status(400).json({ error: 'Project chat attachments must be image files.' });
+  if (!Number.isFinite(size) || size <= 0) return res.status(400).json({ error: 'File size is required.' });
+  if (size > CHAT_PHOTO_MAX_SIZE) return res.status(413).json({ error: `Photos must be ${Math.round(CHAT_PHOTO_MAX_SIZE / 1024 / 1024)} MB or smaller.` });
+
+  try {
+    const key = projectChatPhotoKey(id, { originalname: filename });
+    const signed = await storage.getUploadUrl(CHAT_PHOTO_BUCKET, key);
+    return res.json({ ok: true, uploadUrl: signed.uploadUrl, storageKey: signed.storageKey });
+  } catch (error) {
+    return res.status(500).json({ error: 'Could not prepare photo upload: ' + error.message });
+  }
+});
+
+router.post('/:id/chat', projectChatPhotoMiddleware, async (req, res) => {
   const id = req.params.id;
   const allowed = await requireProjectAccess(req, res, id);
   if (!allowed) return;
   const message = (req.body.message || '').trim();
-  if (!message) return res.status(400).json({ error: 'Message is required.' });
+  const photo = req.file || null;
+  const uploadedPhotoKey = String(req.body.photo_storage_key || '').trim();
+  const uploadedPhotoType = String(req.body.photo_mime_type || '').trim();
+  const uploadedPhotoName = String(req.body.photo_original_name || '').trim();
+  const uploadedPhotoSize = Number(req.body.photo_size_bytes || 0);
+  if (!message && !photo && !uploadedPhotoKey) return res.status(400).json({ error: 'Message or photo is required.' });
+
+  let attachment = {};
+  try {
+    if (photo) {
+      const key = projectChatPhotoKey(id, photo);
+      await storage.uploadBuffer(CHAT_PHOTO_BUCKET, key, photo.buffer, photo.mimetype);
+      attachment = {
+        attachment_bucket: CHAT_PHOTO_BUCKET,
+        attachment_key: key,
+        attachment_mime_type: photo.mimetype,
+        attachment_original_name: photo.originalname || 'photo',
+        attachment_size_bytes: photo.size || null,
+      };
+    } else if (uploadedPhotoKey) {
+      if (!uploadedPhotoKey.startsWith(`project-chat/${id}/`) || uploadedPhotoKey.includes('..')) {
+        return res.status(400).json({ error: 'Invalid uploaded photo key.' });
+      }
+      if (!uploadedPhotoType.startsWith('image/')) {
+        return res.status(400).json({ error: 'Project chat attachments must be image files.' });
+      }
+      if (!Number.isFinite(uploadedPhotoSize) || uploadedPhotoSize <= 0 || uploadedPhotoSize > CHAT_PHOTO_MAX_SIZE) {
+        return res.status(400).json({ error: 'Invalid uploaded photo size.' });
+      }
+      attachment = {
+        attachment_bucket: CHAT_PHOTO_BUCKET,
+        attachment_key: uploadedPhotoKey,
+        attachment_mime_type: uploadedPhotoType,
+        attachment_original_name: uploadedPhotoName || 'photo',
+        attachment_size_bytes: uploadedPhotoSize,
+      };
+    }
+  } catch (uploadError) {
+    return res.status(500).json({ error: 'Photo upload failed: ' + uploadError.message });
+  }
+
   const { data: msg, error } = await supabase.from('project_chat_messages').insert({
     job_id: parseInt(id, 10),
     user_id: req.session.userId,
     message,
-  }).select('id, user_id, message, created_at, users!inner(id, name, email)').single();
+    ...attachment,
+  }).select('id, user_id, message, attachment_bucket, attachment_key, attachment_mime_type, attachment_original_name, attachment_size_bytes, created_at, users!inner(id, name, email)').single();
+  if (error && attachment.attachment_key) {
+    try { await storage.remove(CHAT_PHOTO_BUCKET, attachment.attachment_key); } catch (_) {}
+  }
   if (error) return res.status(500).json({ error: error.message });
+  const hydratedMsg = await hydrateProjectChatAttachment(msg);
 
   try {
     const explicitMentionIds = String(req.body.mention_user_ids || '')
@@ -1995,7 +2109,7 @@ router.post('/:id/chat', async (req, res) => {
     await sendProjectChatMentionEmails({
       projectId: id,
       projectTitle: projectResult.data?.title,
-      authorName: msg.users?.name || req.session.name,
+      authorName: hydratedMsg.users?.name || req.session.name,
       message,
       recipients,
     });
@@ -2003,7 +2117,7 @@ router.post('/:id/chat', async (req, res) => {
     console.warn('[project-chat] mention email processing failed:', emailError.message);
   }
 
-  res.json({ ok: true, message: msg });
+  res.json({ ok: true, message: hydratedMsg });
 });
 
 router.get('/:id/chat', async (req, res) => {
@@ -2013,14 +2127,15 @@ router.get('/:id/chat', async (req, res) => {
   const before = req.query.before ? parseInt(req.query.before, 10) : null;
   let query = supabase
     .from('project_chat_messages')
-    .select('id, message, created_at, users!inner(id, name, email)')
+    .select('id, user_id, message, attachment_bucket, attachment_key, attachment_mime_type, attachment_original_name, attachment_size_bytes, created_at, users!inner(id, name, email)')
     .eq('job_id', id)
     .order('created_at', { ascending: false })
     .limit(50);
   if (before) query = query.lt('id', before);
   const { data: messages, error } = await query;
   if (error) return res.status(500).json({ error: error.message });
-  res.json({ messages: (messages || []).reverse() });
+  const hydrated = await Promise.all((messages || []).reverse().map(hydrateProjectChatAttachment));
+  res.json({ messages: hydrated });
 });
 
 // POST /:id/chat/:msgId/delete — delete a chat message (author or admin/manager)
@@ -2030,7 +2145,7 @@ router.post('/:id/chat/:msgId/delete', async (req, res) => {
   if (!msgId) return res.status(400).json({ error: 'Invalid message ID.' });
   const { data: msg, error: findError } = await supabase
     .from('project_chat_messages')
-    .select('id, user_id')
+    .select('id, user_id, attachment_bucket, attachment_key')
     .eq('id', msgId)
     .eq('job_id', parseInt(id, 10))
     .maybeSingle();
@@ -2040,6 +2155,9 @@ router.post('/:id/chat/:msgId/delete', async (req, res) => {
   const isAuthor = Number(msg.user_id) === Number(req.session.userId);
   const isPrivileged = req.session.role === 'admin' || req.session.role === 'manager';
   if (!isAuthor && !isPrivileged) return res.status(403).json({ error: 'You can only delete your own messages.' });
+  if (msg.attachment_key) {
+    try { await storage.remove(msg.attachment_bucket || CHAT_PHOTO_BUCKET, msg.attachment_key); } catch (e) { /* best effort */ }
+  }
   const { error: deleteError } = await supabase
     .from('project_chat_messages')
     .delete()
