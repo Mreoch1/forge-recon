@@ -323,11 +323,11 @@ function safeJson(value) {
           <button class="btn btn-primary text-sm" title="Mark this work order complete: no changes.">Complete: no changes</button>
         </form>
       <% } %>
-      <% const hasAssigneeEmail = (wo.assignees && wo.assignees.some(function(a){ return a.email; })) || wo.assigned_to_user_id; %>
+      <% const hasAssigneeEmail = (wo.assignees && wo.assignees.some(function(a){ return a.email; })) || (wo.contractor_assignees && wo.contractor_assignees.some(function(a){ return a.email; })) || wo.assigned_to_user_id; %>
       <% if (currentUser && currentUser.role !== 'worker' && hasAssigneeEmail) { %>
         <form action="/work-orders/<%= wo.id %>/send" method="post" class="m-0 inline"
-              onsubmit="return confirm('Send WO-<%= wo.display_number %> to the assigned crew?');">
-          <button class="btn btn-primary text-sm" title="Email this WO and PDF to the assigned person or crew.">Send to assigned</button>
+              onsubmit="return confirm('Send WO-<%= wo.display_number %> to the assigned crew and contractors?');">
+          <button class="btn btn-primary text-sm" title="Email this WO and PDF to assigned people and contractors.">Send to assigned</button>
         </form>
       <% } %>
       <% if (currentUser && currentUser.role !== 'worker' && !['closed', 'complete', 'cancelled'].includes(wo.status)) { %>
@@ -368,8 +368,16 @@ function safeJson(value) {
       <% } %>
     </div>
     <div class="ws-strip-cell">
-      <div class="ws-strip-label">Assignee</div>
-      <div class="ws-strip-value"><% if (wo.assignees && wo.assignees.length) { %><%= wo.assignees.map(function(a){ return a.name; }).join(', ') %><% } else { %><%= wo.assigned_user_name || wo.assigned_to || '—' %><% } %></div>
+      <div class="ws-strip-label">Assigned</div>
+      <div class="ws-strip-value">
+        <%
+          const assignedNames = [
+            ...((wo.assignees || []).map(function(a){ return a.name; }).filter(Boolean)),
+            ...((wo.contractor_assignees || []).map(function(a){ return a.name; }).filter(Boolean))
+          ];
+        %>
+        <% if (assignedNames.length) { %><%= assignedNames.join(', ') %><% } else { %><%= wo.assigned_user_name || wo.assigned_to || '—' %><% } %>
+      </div>
     </div>
     <% if (estimate) { %>
       <div class="ws-strip-cell">

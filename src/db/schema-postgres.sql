@@ -355,6 +355,17 @@ CREATE TABLE IF NOT EXISTS contractors (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS work_order_contractors (
+  id BIGSERIAL PRIMARY KEY,
+  work_order_id BIGINT NOT NULL REFERENCES work_orders(id) ON DELETE CASCADE,
+  contractor_id BIGINT NOT NULL REFERENCES contractors(id) ON DELETE CASCADE,
+  assigned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  assigned_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  notified_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(work_order_id, contractor_id)
+);
+
 CREATE TABLE IF NOT EXISTS bank_transactions (
   id BIGSERIAL PRIMARY KEY,
   account_name TEXT NOT NULL DEFAULT 'Checking',
@@ -885,6 +896,8 @@ CREATE INDEX IF NOT EXISTS idx_vendors_name ON vendors(name);
 CREATE INDEX IF NOT EXISTS idx_vendors_archived ON vendors(archived);
 CREATE INDEX IF NOT EXISTS idx_contractors_name ON contractors(name);
 CREATE INDEX IF NOT EXISTS idx_contractors_trade ON contractors(trade);
+CREATE INDEX IF NOT EXISTS idx_work_order_contractors_wo ON work_order_contractors(work_order_id);
+CREATE INDEX IF NOT EXISTS idx_work_order_contractors_contractor ON work_order_contractors(contractor_id);
 CREATE INDEX IF NOT EXISTS idx_contractor_vendor_intakes_status ON contractor_vendor_intakes(status);
 CREATE INDEX IF NOT EXISTS idx_contractor_vendor_intakes_company_name ON contractor_vendor_intakes(company_name);
 CREATE INDEX IF NOT EXISTS idx_contractor_vendor_intakes_email ON contractor_vendor_intakes(email);

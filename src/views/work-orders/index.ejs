@@ -90,7 +90,7 @@
     </div>
     <div class="ops-summary-item">
       <div class="ops-summary-label">Unassigned</div>
-      <div class="ops-summary-value"><%= workOrders.filter(function(w){ return !w.assigned_to && !(w.assignees && w.assignees.length); }).length %></div>
+      <div class="ops-summary-value"><%= workOrders.filter(function(w){ return !w.assigned_to && !(w.assignees && w.assignees.length) && !(w.contractor_assignees && w.contractor_assignees.length); }).length %></div>
       <div class="ops-summary-meta">needs owner</div>
     </div>
   </div>

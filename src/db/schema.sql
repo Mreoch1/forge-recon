@@ -224,6 +224,40 @@ CREATE INDEX IF NOT EXISTS idx_wo_assigned ON work_orders(assigned_to_user_id);
 CREATE INDEX IF NOT EXISTS idx_wo_scheduled ON work_orders(scheduled_date);
 CREATE INDEX IF NOT EXISTS idx_wo_main ON work_orders(wo_number_main, wo_number_sub);
 
+CREATE TABLE IF NOT EXISTS contractors (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  email TEXT,
+  phone TEXT,
+  address TEXT,
+  city TEXT,
+  state TEXT,
+  zip TEXT,
+  trade TEXT,
+  default_expense_account_id INTEGER REFERENCES accounts(id),
+  license_number TEXT,
+  insurance_expiry_date TEXT,
+  notes TEXT,
+  active INTEGER NOT NULL DEFAULT 1,
+  mock INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS work_order_contractors (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  work_order_id INTEGER NOT NULL REFERENCES work_orders(id) ON DELETE CASCADE,
+  contractor_id INTEGER NOT NULL REFERENCES contractors(id) ON DELETE CASCADE,
+  assigned_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  assigned_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  notified_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(work_order_id, contractor_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_work_order_contractors_wo ON work_order_contractors(work_order_id);
+CREATE INDEX IF NOT EXISTS idx_work_order_contractors_contractor ON work_order_contractors(contractor_id);
+
 CREATE INDEX IF NOT EXISTS idx_estimates_wo ON estimates(work_order_id);
 CREATE INDEX IF NOT EXISTS idx_estimates_status ON estimates(status);
 

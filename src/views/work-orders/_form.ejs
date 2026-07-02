@@ -1,11 +1,12 @@
 <%
 // Shared WO form (R34 — customer-centric, multi-assignee, optional project link).
-// Expects: wo, customers, users, projects, errors, units, formAction, submitLabel
+// Expects: wo, customers, users, contractors, projects, errors, units, formAction, submitLabel
 // customers: array of {id, name, email, phone, address, city, state, zip}
 // projects: array of {id, title, customer_name, address, city, state}
 // users: array of {id, name}
 const selectedCustomerId = wo.customer_id || '';
 const selectedAssignees = wo.assignee_ids || [];
+const selectedContractors = wo.contractor_ids || [];
 const selectedProjectId = wo.project_id || '';
 %>
 <form action="<%= formAction %>" method="post" class="space-y-6">
@@ -133,8 +134,8 @@ const selectedProjectId = wo.project_id || '';
 
   <!-- Multi-assignee -->
   <div class="card p-5">
-    <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Assignees
-      <span class="ml-1 text-recon-fog cursor-help" title="Crew members who will receive an email with WO details + PDF when the WO is saved.">ⓘ</span>
+    <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Recon assignees
+      <span class="ml-1 text-recon-fog cursor-help" title="Internal crew members who will receive an email with WO details + PDF when the WO is saved.">ⓘ</span>
     </h3>
     <div class="space-y-2">
       <div class="flex flex-wrap gap-2" id="assignee-chips">
@@ -156,6 +157,35 @@ const selectedProjectId = wo.project_id || '';
         <option value="">-- Add assignee --</option>
         <% users.forEach(function(u){ %>
           <option value="<%= u.id %>"><%= u.name %></option>
+        <% }); %>
+      </select>
+    </div>
+  </div>
+
+  <div class="card p-5">
+    <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Contractor assignees
+      <span class="ml-1 text-recon-fog cursor-help" title="Outside contractors assigned to this WO. Contractors with an email receive the WO details + PDF when assigned.">ⓘ</span>
+    </h3>
+    <div class="space-y-2">
+      <div class="flex flex-wrap gap-2" id="contractor-chips">
+        <% selectedContractors.forEach(function(cid){ %>
+          <% var contractor = (contractors || []).find(function(cc){ return cc.id == cid; }); %>
+          <% if (contractor) { %>
+            <span class="inline-flex items-center gap-1 px-3 py-1 bg-amber-100 text-amber-900 rounded-full text-sm">
+              <%= contractor.name %><% if (contractor.trade) { %> · <%= contractor.trade %><% } %>
+              <button type="button" class="remove-contractor text-amber-700 hover:text-amber-950 font-bold" data-id="<%= contractor.id %>">&times;</button>
+              <input type="hidden" name="contractor_ids" value="<%= contractor.id %>">
+            </span>
+          <% } %>
+        <% }); %>
+      </div>
+      <% if (!selectedContractors || selectedContractors.length === 0) { %>
+        <p class="text-xs text-recon-fog">No contractors assigned yet. Add a contractor if an outside trade is handling this WO.</p>
+      <% } %>
+      <select id="contractor-select" class="input">
+        <option value="">-- Add contractor --</option>
+        <% (contractors || []).forEach(function(contractor){ %>
+          <option value="<%= contractor.id %>"><%= contractor.name %><%= contractor.trade ? ' · ' + contractor.trade : '' %></option>
         <% }); %>
       </select>
     </div>
@@ -265,6 +295,30 @@ const selectedProjectId = wo.project_id || '';
 
   chips.addEventListener('click', function(e){
     var btn = e.target.closest('.remove-assignee');
+    if (btn) btn.closest('span').remove();
+  });
+})();
+
+// Contractor assignment chips
+(function(){
+  var select = document.getElementById('contractor-select');
+  var chips = document.getElementById('contractor-chips');
+  if (!select || !chips) return;
+
+  select.addEventListener('change', function(){
+    var id = this.value;
+    if (!id) return;
+    var opt = this.options[this.selectedIndex];
+    if (chips.querySelector('[value="' + id + '"]')) { this.value = ''; return; }
+    var span = document.createElement('span');
+    span.className = 'inline-flex items-center gap-1 px-3 py-1 bg-amber-100 text-amber-900 rounded-full text-sm';
+    span.innerHTML = opt.text + ' <button type="button" class="remove-contractor text-amber-700 hover:text-amber-950 font-bold">&times;</button><input type="hidden" name="contractor_ids" value="' + id + '">';
+    chips.appendChild(span);
+    this.value = '';
+  });
+
+  chips.addEventListener('click', function(e){
+    var btn = e.target.closest('.remove-contractor');
     if (btn) btn.closest('span').remove();
   });
 })();

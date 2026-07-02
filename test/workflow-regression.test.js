@@ -571,6 +571,29 @@ test('work order row links do not depend on the More menu', () => {
   assert.match(darkCss, /html\.dark \.wol-chip/);
 });
 
+test('work orders can be assigned to contractors', () => {
+  const routes = read('src/routes/work-orders.js');
+  const form = read('src/views/work-orders/_form.ejs');
+  const show = read('src/views/work-orders/show.ejs');
+  const index = read('src/views/work-orders/index.ejs');
+  const migration = read('supabase/migrations/20260702134657_work_order_contractor_assignees.sql');
+
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.work_order_contractors/);
+  assert.match(migration, /contractor_id BIGINT NOT NULL REFERENCES public\.contractors\(id\)/);
+  assert.match(routes, /work_order_contractors\(contractor_id, notified_at, contractors!/);
+  assert.match(routes, /function normalizeContractorIds/);
+  assert.match(routes, /async function saveContractorsAndNotify/);
+  assert.match(routes, /async function sendWorkOrderToAssignedContractors/);
+  assert.match(routes, /sendWorkOrderToAllAssignees/);
+  assert.match(routes, /\.from\('work_order_contractors'\)\.insert/);
+  assert.match(routes, /\.from\('work_order_contractors'\)[\s\S]*\.delete\(\)/);
+  assert.match(form, /Contractor assignees/);
+  assert.match(form, /name="contractor_ids"/);
+  assert.match(form, /id="contractor-select"/);
+  assert.match(show, /wo\.contractor_assignees/);
+  assert.match(index, /contractor_assignees/);
+});
+
 test('managers can edit open work orders and access WO files from show page', () => {
   const routes = read('src/routes/work-orders.js');
   const show = read('src/views/work-orders/show.ejs');

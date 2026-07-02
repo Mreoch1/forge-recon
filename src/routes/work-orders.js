@@ -242,7 +242,8 @@ async function loadWorkOrder(id) {
         customers!left(id, name, email, billing_email, phone, address, city, state, zip)),
       users!left(name),
       customers!left(id, name, email, billing_email, phone, address, city, state, zip),
-      work_order_assignees(user_id, notified_at, users!work_order_assignees_user_id_fkey(id, name, email))
+      work_order_assignees(user_id, notified_at, users!work_order_assignees_user_id_fkey(id, name, email)),
+      work_order_contractors(contractor_id, notified_at, contractors!work_order_contractors_contractor_id_fkey(id, name, email, phone, trade))
     `)
     .eq('id', id)
     .maybeSingle();
@@ -276,9 +277,20 @@ async function loadWorkOrder(id) {
       notified_at: a.notified_at || null,
     }))
     .filter(a => a.id);
+  wo.contractor_assignees = (wo.work_order_contractors || [])
+    .map(a => ({
+      id: a.contractor_id || a.contractors?.id,
+      name: a.contractors?.name || '',
+      email: a.contractors?.email || '',
+      phone: a.contractors?.phone || '',
+      trade: a.contractors?.trade || '',
+      notified_at: a.notified_at || null,
+    }))
+    .filter(a => a.id);
   delete wo.jobs;
   delete wo.users;
   delete wo.work_order_assignees;
+  delete wo.work_order_contractors;
 
   // Parent display number (separate lookup — parent_wo_id is a self-FK)
   wo.parent_display_number = null;
@@ -331,6 +343,12 @@ function normalizeAssigneeIds(input) {
     .filter(id => Number.isInteger(id) && id > 0))];
 }
 
+function normalizeContractorIds(input) {
+  return [...new Set(normalizeArr(input)
+    .map(id => parseInt(id, 10))
+    .filter(id => Number.isInteger(id) && id > 0))];
+}
+
 function primaryAssigneeFields(assigneeIds, users = []) {
   const primaryId = assigneeIds[0] || null;
   const names = assigneeIds
@@ -342,17 +360,30 @@ function primaryAssigneeFields(assigneeIds, users = []) {
   };
 }
 
+function assignmentText(assigneeIds, users = [], contractorIds = [], contractors = []) {
+  const userNames = assigneeIds
+    .map(id => (users || []).find(u => Number(u.id) === Number(id))?.name)
+    .filter(Boolean);
+  const contractorNames = contractorIds
+    .map(id => (contractors || []).find(c => Number(c.id) === Number(id))?.name)
+    .filter(Boolean);
+  return [...userNames, ...contractorNames].join(', ') || null;
+}
+
 async function loadWorkOrderFormRefs() {
   const [
     { data: customers, error: customersError },
     { data: users, error: usersError },
+    { data: contractors, error: contractorsError },
   ] = await Promise.all([
     supabase.from('customers').select('id, name, email, phone, address, city, state, zip').order('name'),
     supabase.from('users').select('id, name, email').eq('active', 1).order('name'),
+    supabase.from('contractors').select('id, name, email, phone, trade').eq('active', true).order('name'),
   ]);
   if (customersError) throw customersError;
   if (usersError) throw usersError;
-  return { customers: customers || [], users: users || [] };
+  if (contractorsError) throw contractorsError;
+  return { customers: customers || [], users: users || [], contractors: contractors || [] };
 }
 
 async function buildWorkOrderPdfBuffer(woId) {
@@ -422,6 +453,100 @@ async function saveAssigneesAndNotify({ workOrderId, assigneeIds, users = [], cu
   }
 }
 
+async function saveContractorsAndNotify({ workOrderId, contractorIds, contractors = [], customer = {}, display, unitNumber, description, notes, scheduledDate, scheduledTime, assignedByUserId }) {
+  if (!contractorIds.length) return;
+
+  const pdfBuffer = await buildWorkOrderPdfBuffer(workOrderId);
+  const sendWoEmail = require('../services/email').sendWorkOrderAssignedEmail;
+
+  for (const contractorId of contractorIds) {
+    const { error: insErr } = await supabase.from('work_order_contractors').insert({
+      work_order_id: workOrderId,
+      contractor_id: contractorId,
+      assigned_at: new Date().toISOString(),
+      assigned_by_user_id: assignedByUserId || null,
+    });
+    if (insErr) {
+      console.warn('[work-orders] contractor assignee insert failed for contractor', contractorId, ':', insErr.message);
+      continue;
+    }
+
+    const contractor = (contractors || []).find(c => Number(c.id) === Number(contractorId));
+    if (!contractor || !contractor.email) continue;
+
+    try {
+      await sendWoEmail({
+        to: contractor.email,
+        toName: contractor.name,
+        woNumber: 'WO-' + display,
+        woId: workOrderId,
+        customerName: customer?.name || '',
+        address: [customer?.address, customer?.city, customer?.state].filter(Boolean).join(', '),
+        unitNumber: unitNumber || '',
+        description: description || '',
+        internalNotes: notes || '',
+        scheduledDate: scheduledDate || '',
+        scheduledTime: scheduledTime || '',
+        pdfBuffer,
+      });
+      const { error: notifiedErr } = await supabase
+        .from('work_order_contractors')
+        .update({ notified_at: new Date().toISOString() })
+        .eq('work_order_id', workOrderId)
+        .eq('contractor_id', contractorId);
+      if (notifiedErr) {
+        console.warn('[work-orders] contractor notified_at update failed for contractor', contractorId, ':', notifiedErr.message);
+      }
+    } catch (e) {
+      console.warn('[work-orders] contractor assignment email failed for', contractor.email, ':', e.message);
+    }
+  }
+}
+
+async function sendWorkOrderToAssignedContractors(wo) {
+  const contractorIds = normalizeContractorIds((wo.contractor_assignees || []).map(a => a.id));
+  if (!contractorIds.length) return { sent: 0, skipped: true, reason: 'No contractors selected.' };
+
+  const { data: contractors, error: contractorErr } = await supabase
+    .from('contractors')
+    .select('id, name, email')
+    .in('id', contractorIds);
+  if (contractorErr) throw contractorErr;
+
+  const contractorsWithEmail = (contractors || []).filter(c => c.email);
+  if (!contractorsWithEmail.length) return { sent: 0, skipped: true, reason: 'Assigned contractors do not have email addresses.' };
+
+  const pdfBuffer = await buildWorkOrderPdfBuffer(wo.id);
+  const sendWoEmail = require('../services/email').sendWorkOrderAssignedEmail;
+  let sent = 0;
+
+  for (const contractor of contractorsWithEmail) {
+    await sendWoEmail({
+      to: contractor.email,
+      toName: contractor.name,
+      woNumber: 'WO-' + wo.display_number,
+      woId: wo.id,
+      customerName: wo.customer_name || '',
+      address: [wo.customer_address || wo.job_address, wo.customer_city || wo.job_city, wo.customer_state || wo.job_state].filter(Boolean).join(', '),
+      unitNumber: wo.unit_number || '',
+      description: wo.description || '',
+      internalNotes: wo.notes || '',
+      scheduledDate: wo.scheduled_date || '',
+      scheduledTime: wo.scheduled_time || '',
+      pdfBuffer,
+    });
+    sent++;
+    const { error: notifiedErr } = await supabase
+      .from('work_order_contractors')
+      .update({ notified_at: new Date().toISOString() })
+      .eq('work_order_id', wo.id)
+      .eq('contractor_id', contractor.id);
+    if (notifiedErr) throw notifiedErr;
+  }
+
+  return { sent, skipped: false };
+}
+
 async function sendWorkOrderToAssignedUsers(wo) {
   const assigneeIds = normalizeAssigneeIds([
     ...(wo.assignees || []).map(a => a.id),
@@ -467,6 +592,18 @@ async function sendWorkOrderToAssignedUsers(wo) {
   }
 
   return { sent, skipped: false };
+}
+
+async function sendWorkOrderToAllAssignees(wo) {
+  const userResult = await sendWorkOrderToAssignedUsers(wo);
+  const contractorResult = await sendWorkOrderToAssignedContractors(wo);
+  const sent = (userResult.sent || 0) + (contractorResult.sent || 0);
+  const reasons = [userResult, contractorResult].filter(r => r.skipped && r.reason).map(r => r.reason);
+  return {
+    sent,
+    skipped: sent === 0,
+    reason: reasons.join(' '),
+  };
 }
 
 async function createWorkOrderWithLines(woData, lines, userId) {
@@ -529,7 +666,8 @@ router.get('/', async (req, res) => {
       customer_id, customers!left(id, name, address, city, state),
       job_id, jobs!left(id, title, address, city, state, customers!left(id, name, address, city, state)),
       assigned_to_user_id, users!left(name),
-      work_order_assignees(users!work_order_assignees_user_id_fkey(id, name))
+      work_order_assignees(users!work_order_assignees_user_id_fkey(id, name)),
+      work_order_contractors(contractors!work_order_contractors_contractor_id_fkey(id, name))
     `, { count: 'exact', head: false });
 
   if (q) {
@@ -583,8 +721,12 @@ router.get('/', async (req, res) => {
     project_address: [r.jobs?.address, r.jobs?.city, r.jobs?.state].filter(Boolean).join(', '),
     customer_address: [r.customers?.address || r.jobs?.customers?.address, r.customers?.city || r.jobs?.customers?.city, r.customers?.state || r.jobs?.customers?.state].filter(Boolean).join(', '),
     assignees: (r.work_order_assignees || []).map(a => ({ id: a.users?.id, name: a.users?.name })).filter(a => a.id),
+    contractor_assignees: (r.work_order_contractors || []).map(a => ({ id: a.contractors?.id, name: a.contractors?.name })).filter(a => a.id),
     assigned_name: r.users ? r.users.name : null,
-    assigned_to: (r.work_order_assignees || []).map(a => a.users?.name).filter(Boolean).join(', ') || (r.users ? r.users.name : null),
+    assigned_to: [
+      ...(r.work_order_assignees || []).map(a => a.users?.name).filter(Boolean),
+      ...(r.work_order_contractors || []).map(a => a.contractors?.name).filter(Boolean),
+    ].join(', ') || (r.users ? r.users.name : null),
   }));
 
   res.render('work-orders/index', {
@@ -606,6 +748,7 @@ router.get('/new', async (req, res) => {
     { data: customers, error: customersError },
     { data: projects, error: projectsError },
     { data: users, error: usersError },
+    { data: contractors, error: contractorsError },
     { data: settings, error: settingsError },
   ] = await Promise.all([
     supabase.from('customers').select('id, name, email, phone, address, city, state, zip').order('name'),
@@ -614,11 +757,13 @@ router.get('/new', async (req, res) => {
       customers!left(id, name)
     `).neq('title', '').order('title'),
     supabase.from('users').select('id, name').eq('active', 1).order('name'),
+    supabase.from('contractors').select('id, name, email, phone, trade').eq('active', true).order('name'),
     supabase.from('company_settings').select('next_wo_main_number').eq('id', 1).maybeSingle(),
   ]);
   if (customersError) throw customersError;
   if (projectsError) throw projectsError;
   if (usersError) throw usersError;
+  if (contractorsError) throw contractorsError;
   if (settingsError) throw settingsError;
 
   // Flatten customer name into each project
@@ -638,8 +783,8 @@ router.get('/new', async (req, res) => {
     title: 'New work order', activeNav: 'work-orders',
     wo: { id: null, display_number: '', unit_number: '', suggested_display_number: suggestedNumber.display,
           customer_id: presetCustomerId, project_id: presetProject?.id || '', scheduled_date: '', scheduled_time: '', notes: '', description: '',
-          assignee_ids: [], lines: [] },
-    customers: customers || [], projects: projectsWithCustomer, users: users || [],
+          assignee_ids: [], contractor_ids: [], lines: [] },
+    customers: customers || [], projects: projectsWithCustomer, users: users || [], contractors: contractors || [],
     customerName: presetCustomerName, errors: {}, units: VALID_UNITS,
   });
 });
@@ -657,7 +802,7 @@ router.post('/', async (req, res) => {
 
   const projectId = parseInt(req.body.project_id, 10) || null;
 
-  const { customers: allCustomers, users } = await loadWorkOrderFormRefs();
+  const { customers: allCustomers, users, contractors } = await loadWorkOrderFormRefs();
 
   const { errors, data } = validateWorkOrder(req.body);
   if (!customer) errors.customer_id = 'Customer is required.';
@@ -678,8 +823,8 @@ router.post('/', async (req, res) => {
             display_number: req.body.display_number || '', suggested_display_number: '',
             scheduled_date: data.scheduled_date || '', scheduled_time: data.scheduled_time || '',
             notes: data.notes || '', description: data.description || '',
-            assignee_ids: normalizeArr(req.body.assignee_ids), lines: data.lines || [] },
-      customers: allCustomers || [], projects: projectsWithCustomer, users: users || [],
+            assignee_ids: normalizeArr(req.body.assignee_ids), contractor_ids: normalizeArr(req.body.contractor_ids), lines: data.lines || [] },
+      customers: allCustomers || [], projects: projectsWithCustomer, users: users || [], contractors: contractors || [],
       customerName: customer?.name || req.body.customer_search || '', errors, units: VALID_UNITS,
     });
   }
@@ -700,8 +845,8 @@ router.post('/', async (req, res) => {
               display_number: req.body.display_number || '', suggested_display_number: '',
               scheduled_date: data.scheduled_date || '', scheduled_time: data.scheduled_time || '',
               notes: data.notes || '', description: data.description || '',
-              assignee_ids: normalizeArr(req.body.assignee_ids), lines: data.lines || [] },
-        customers: allCustomers || [], projects: [], users: users || [],
+              assignee_ids: normalizeArr(req.body.assignee_ids), contractor_ids: normalizeArr(req.body.contractor_ids), lines: data.lines || [] },
+        customers: allCustomers || [], projects: [], users: users || [], contractors: contractors || [],
         customerName: customer?.name || '', errors, units: VALID_UNITS,
       });
     }
@@ -711,7 +856,9 @@ router.post('/', async (req, res) => {
   }
 
   const assigneeIds = normalizeAssigneeIds(req.body.assignee_ids);
+  const contractorIds = normalizeContractorIds(req.body.contractor_ids);
   const assignmentFields = primaryAssigneeFields(assigneeIds, users || []);
+  const assignedToText = assignmentText(assigneeIds, users || [], contractorIds, contractors || []);
 
   const newId = await createWorkOrderWithLines(
     {
@@ -728,7 +875,7 @@ router.post('/', async (req, res) => {
       scheduled_time: data.scheduled_time,
       scheduled_end_time: null,
       assigned_to_user_id: assignmentFields.assigned_to_user_id,
-      assigned_to: assignmentFields.assigned_to,
+      assigned_to: assignedToText,
       notes: data.notes || null,
     },
     buildLineRows(data.lines),
@@ -739,6 +886,20 @@ router.post('/', async (req, res) => {
     workOrderId: newId,
     assigneeIds,
     users: users || [],
+    customer,
+    display,
+    unitNumber: req.body.unit_number || '',
+    description: data.description || '',
+    notes: data.notes || '',
+    scheduledDate: data.scheduled_date || '',
+    scheduledTime: data.scheduled_time || '',
+    assignedByUserId: req.session.userId || null,
+  });
+
+  await saveContractorsAndNotify({
+    workOrderId: newId,
+    contractorIds,
+    contractors: contractors || [],
     customer,
     display,
     unitNumber: req.body.unit_number || '',
@@ -1089,6 +1250,11 @@ router.get('/:id/edit', async (req, res) => {
     .select('id, name')
     .eq('active', 1)
     .order('name');
+  const { data: contractors } = await supabase
+    .from('contractors')
+    .select('id, name, email, phone, trade')
+    .eq('active', true)
+    .order('name');
   const { data: customers } = await supabase
     .from('customers')
     .select('id, name, email, phone, address, city, state, zip')
@@ -1101,8 +1267,13 @@ router.get('/:id/edit', async (req, res) => {
 
   res.render('work-orders/edit', {
     title: `Edit WO-${wo.display_number}`, activeNav: 'work-orders',
-    wo: { ...wo, project_id: wo.job_id, assignee_ids: (wo.assignees || []).map(a => a.id).filter(Boolean) },
-    customers: customers || [], projects: projectsWithCustomer, users: users || [], errors: {}, units: VALID_UNITS
+    wo: {
+      ...wo,
+      project_id: wo.job_id,
+      assignee_ids: (wo.assignees || []).map(a => a.id).filter(Boolean),
+      contractor_ids: (wo.contractor_assignees || []).map(a => a.id).filter(Boolean),
+    },
+    customers: customers || [], projects: projectsWithCustomer, users: users || [], contractors: contractors || [], errors: {}, units: VALID_UNITS
   });
 });
 
@@ -1146,15 +1317,21 @@ router.post('/:id', async (req, res) => {
       .select('id, name')
       .eq('active', 1)
       .order('name');
+    const { data: contractors } = await supabase
+      .from('contractors')
+      .select('id, name, email, phone, trade')
+      .eq('active', true)
+      .order('name');
 
     return res.status(400).render('work-orders/edit', {
       title: `Edit WO-${existing.display_number}`, activeNav: 'work-orders',
       wo: {
         ...existing, ...data,
         assignee_ids: normalizeAssigneeIds(req.body.assignee_ids).filter(Boolean),
+        contractor_ids: normalizeContractorIds(req.body.contractor_ids).filter(Boolean),
         display_number: req.body.display_number || existing.display_number
       },
-      customers: [], projects: [], users: users || [], errors, units: VALID_UNITS
+      customers: [], projects: [], users: users || [], contractors: contractors || [], errors, units: VALID_UNITS
     });
   }
 
@@ -1165,7 +1342,14 @@ router.post('/:id', async (req, res) => {
     .eq('active', 1)
     .order('name');
   const newAssigneeIds = normalizeAssigneeIds(req.body.assignee_ids);
+  const newContractorIds = normalizeContractorIds(req.body.contractor_ids);
   const assignmentFields = primaryAssigneeFields(newAssigneeIds, users || []);
+  const { data: contractors, error: contractorsErr } = await supabase
+    .from('contractors')
+    .select('id, name, email, phone, trade')
+    .in('id', newContractorIds.length ? newContractorIds : [-1]);
+  if (contractorsErr) throw contractorsErr;
+  const assignedToText = assignmentText(newAssigneeIds, users || [], newContractorIds, contractors || []);
   const nextNotes = Object.prototype.hasOwnProperty.call(req.body, 'notes')
     ? data.notes
     : existing.notes;
@@ -1184,7 +1368,7 @@ router.post('/:id', async (req, res) => {
       scheduled_end_time: data.scheduled_end_time,
       description: data.description || '',
       assigned_to_user_id: assignmentFields.assigned_to_user_id,
-      assigned_to: assignmentFields.assigned_to,
+      assigned_to: assignedToText,
       notes: nextNotes,
     },
     lines: buildLineRows(linesForUpdate),
@@ -1198,7 +1382,7 @@ router.post('/:id', async (req, res) => {
       description: data.description || '',
       status: data.status,
       assigned_to_user_id: assignmentFields.assigned_to_user_id,
-      assigned_to: assignmentFields.assigned_to,
+      assigned_to: assignedToText,
       job_id: newProjectId,
     })
     .eq('id', existing.id);
@@ -1246,6 +1430,42 @@ router.post('/:id', async (req, res) => {
     assignedByUserId: req.session.userId || null,
   });
 
+  // Update contractor assignees
+  const { data: currentContractors, error: currentContractorsErr } = await supabase
+    .from('work_order_contractors')
+    .select('contractor_id')
+    .eq('work_order_id', existing.id);
+  if (currentContractorsErr) throw currentContractorsErr;
+  const currentContractorIds = (currentContractors || []).map(a => Number(a.contractor_id)).filter(Boolean);
+  const contractorsToAdd = newContractorIds.filter(id => !currentContractorIds.includes(id));
+  const contractorsToRemove = currentContractorIds.filter(id => !newContractorIds.includes(id));
+  for (const contractorId of contractorsToRemove) {
+    const { error: removeContractorErr } = await supabase
+      .from('work_order_contractors')
+      .delete()
+      .eq('work_order_id', existing.id)
+      .eq('contractor_id', contractorId);
+    if (removeContractorErr) throw removeContractorErr;
+  }
+  await saveContractorsAndNotify({
+    workOrderId: existing.id,
+    contractorIds: contractorsToAdd,
+    contractors: contractors || [],
+    customer: {
+      name: existing.customer_name,
+      address: existing.customer_address || existing.job_address,
+      city: existing.customer_city || existing.job_city,
+      state: existing.customer_state || existing.job_state,
+    },
+    display: newDisplay,
+    unitNumber: existing.unit_number || '',
+    description: data.description || existing.description || '',
+    notes: nextNotes || '',
+    scheduledDate: data.scheduled_date || '',
+    scheduledTime: data.scheduled_time || '',
+    assignedByUserId: req.session.userId || null,
+  });
+
   setFlash(req, 'success', `WO-${newDisplay} updated.`);
   res.redirect(`/work-orders/${existing.id}`);
 });
@@ -1257,7 +1477,7 @@ router.post('/:id/send', async (req, res) => {
   if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
 
   try {
-    const result = await sendWorkOrderToAssignedUsers(wo);
+    const result = await sendWorkOrderToAllAssignees(wo);
     if (result.skipped) {
       setFlash(req, 'error', result.reason || `WO-${wo.display_number} was not sent.`);
     } else {
