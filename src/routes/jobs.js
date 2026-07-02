@@ -178,7 +178,18 @@ function assignMentionHandles(users) {
     .sort((a, b) => String(a.name).localeCompare(String(b.name)));
 }
 
-function buildChatMentionUsers({ members, users, projectManager, job }) {
+function addWorkOrderMentionUsers({ workOrders, users, add }) {
+  const allUsers = users || [];
+  (workOrders || []).forEach(wo => {
+    const assigned = allUsers.find(u => Number(u.id) === Number(wo?.assigned_to_user_id));
+    add(assigned);
+    (wo.work_order_assignees || []).forEach(assignee => {
+      add(assignee.users || assignee);
+    });
+  });
+}
+
+function buildChatMentionUsers({ members, users, projectManager, job, workOrders }) {
   const byId = new Map();
   function add(user) {
     if (!user || !user.id) return;
@@ -194,6 +205,7 @@ function buildChatMentionUsers({ members, users, projectManager, job }) {
   add(projectManager);
   const assigned = (users || []).find(u => Number(u.id) === Number(job?.assigned_to_user_id));
   add(assigned);
+  addWorkOrderMentionUsers({ workOrders, users, add });
   return assignMentionHandles(Array.from(byId.values()));
 }
 
@@ -231,14 +243,19 @@ function resolveMentionIds(message, mentionUsers, explicitIds) {
 }
 
 async function loadProjectMentionUsers(jobId) {
-  const [jobResult, membersResult, usersResult] = await Promise.all([
+  const [jobResult, membersResult, usersResult, workOrdersResult] = await Promise.all([
     supabase.from('jobs').select('id, assigned_to_user_id, project_manager_user_id').eq('id', jobId).maybeSingle(),
     supabase.from('job_members').select('user_id, users!inner(id, name, email, active)').eq('job_id', jobId),
     supabase.from('users').select('id, name, email, active').eq('active', 1),
+    supabase
+      .from('work_orders')
+      .select('assigned_to_user_id, work_order_assignees(users!work_order_assignees_user_id_fkey(id, name, email, active))')
+      .eq('job_id', jobId),
   ]);
   throwIfSupabaseError(jobResult, 'Project mention job load failed');
   throwIfSupabaseError(membersResult, 'Project mention members load failed');
   throwIfSupabaseError(usersResult, 'Project mention users load failed');
+  throwIfSupabaseError(workOrdersResult, 'Project mention work order assignees load failed');
 
   const job = jobResult.data || {};
   const allUsers = usersResult.data || [];
@@ -251,6 +268,7 @@ async function loadProjectMentionUsers(jobId) {
   [job.assigned_to_user_id, job.project_manager_user_id].forEach(id => {
     add(allUsers.find(u => Number(u.id) === Number(id)));
   });
+  addWorkOrderMentionUsers({ workOrders: workOrdersResult.data || [], users: allUsers, add });
   return assignMentionHandles(Array.from(byId.values()));
 }
 
@@ -929,7 +947,7 @@ router.get('/:id', async (req, res) => {
   ] = await Promise.all([
     supabase
       .from('work_orders')
-      .select('id, display_number, wo_number_main, wo_number_sub, parent_wo_id, status, scheduled_date, unit_number, assigned_to, completed_date, created_at')
+      .select('id, display_number, wo_number_main, wo_number_sub, parent_wo_id, status, scheduled_date, unit_number, assigned_to, assigned_to_user_id, completed_date, created_at, work_order_assignees(users!work_order_assignees_user_id_fkey(id, name, email, active))')
       .eq('job_id', id)
       .order('created_at', { ascending: false })
       .order('wo_number_sub', { ascending: true }),
@@ -950,7 +968,7 @@ router.get('/:id', async (req, res) => {
       .eq('job_id', id)
       .order('id', { ascending: true }),
     supabase.from('vendors').select('id, name').order('name'),
-    supabase.from('users').select('id, name').eq('active', 1).order('name'),
+    supabase.from('users').select('id, name, email, active').eq('active', 1).order('name'),
     supabase
       .from('vendor_invoices')
       .select('id, amount, description, invoice_number, vendor_id, created_at, vendors!left(name)')
@@ -1090,6 +1108,7 @@ router.get('/:id', async (req, res) => {
     users,
     projectManager,
     job,
+    workOrders,
   });
 
   // Load RFP line items for each RFP

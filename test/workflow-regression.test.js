@@ -913,6 +913,7 @@ test('Supabase public API access is locked down in migrations', () => {
 
 test('project chat stays inside the project content shell', () => {
   const show = read('src/views/jobs/show.ejs');
+  const routes = read('src/routes/jobs.js');
 
   const opsShellStart = show.indexOf('<div class="ops-shell">');
   const chatStart = show.indexOf('<details class="chat-panel card mb-6 overflow-hidden"');
@@ -928,6 +929,12 @@ test('project chat stays inside the project content shell', () => {
   assert.doesNotMatch(chatPanelMarkup[0], /position\s*:\s*fixed/);
   assert.doesNotMatch(chatPanelMarkup[0], /top\s*:\s*4rem/);
   assert.match(show, /Project communication and internal updates/);
+  assert.match(routes, /function addWorkOrderMentionUsers/);
+  assert.match(routes, /function buildChatMentionUsers\(\{ members, users, projectManager, job, workOrders \}\)/);
+  assert.match(routes, /work_order_assignees\(users!work_order_assignees_user_id_fkey\(id, name, email, active\)\)/);
+  assert.match(routes, /Project mention work order assignees load failed/);
+  assert.match(routes, /addWorkOrderMentionUsers\(\{ workOrders, users, add \}\)/);
+  assert.match(routes, /addWorkOrderMentionUsers\(\{ workOrders: workOrdersResult\.data \|\| \[\], users: allUsers, add \}\)/);
 });
 
 test('project financials live on a dedicated billing tab', () => {
