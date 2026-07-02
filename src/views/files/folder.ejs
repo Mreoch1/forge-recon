@@ -174,32 +174,6 @@
     return data;
   }
 
-  async function uploadFileToSignedUrl(uploadUrl, file, contentType) {
-    var rawRes = await fetch(uploadUrl, {
-      method: 'PUT',
-      headers: { 'Content-Type': contentType || 'application/octet-stream' },
-      body: file,
-    });
-    if (rawRes.ok) return;
-
-    var rawText = await rawRes.text().catch(function(){ return ''; });
-    if (rawRes.status !== 400) {
-      throw new Error('Upload failed: ' + rawRes.status + (rawText ? ' - ' + rawText : ''));
-    }
-
-    var form = new FormData();
-    form.append('cacheControl', '3600');
-    form.append('', file, file.name);
-    var formRes = await fetch(uploadUrl, {
-      method: 'PUT',
-      body: form,
-    });
-    if (!formRes.ok) {
-      var formText = await formRes.text().catch(function(){ return ''; });
-      throw new Error('Upload failed: ' + formRes.status + (formText ? ' - ' + formText : (rawText ? ' - ' + rawText : '')));
-    }
-  }
-
   async function registerUploadedFiles(files) {
     if (!files.length) return;
     var response = await fetch('/files/folders/' + currentFolderId + '/register-direct', {
@@ -286,6 +260,32 @@
 })();
 
 // Zip upload: presigned URL → direct-to-storage → process
+async function uploadFileToSignedUrl(uploadUrl, file, contentType) {
+  var rawRes = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': contentType || 'application/octet-stream' },
+    body: file,
+  });
+  if (rawRes.ok) return;
+
+  var rawText = await rawRes.text().catch(function(){ return ''; });
+  if (rawRes.status !== 400) {
+    throw new Error('Upload failed: ' + rawRes.status + (rawText ? ' - ' + rawText : ''));
+  }
+
+  var form = new FormData();
+  form.append('cacheControl', '3600');
+  form.append('', file, file.name);
+  var formRes = await fetch(uploadUrl, {
+    method: 'PUT',
+    body: form,
+  });
+  if (!formRes.ok) {
+    var formText = await formRes.text().catch(function(){ return ''; });
+    throw new Error('Upload failed: ' + formRes.status + (formText ? ' - ' + formText : (rawText ? ' - ' + rawText : '')));
+  }
+}
+
 var zipFileInput = document.getElementById('zip-file-input');
 var zipStatusLabel = document.getElementById('zip-status-label');
 var zipUploadBtn = document.getElementById('zip-upload-btn');

@@ -902,6 +902,7 @@ test('project file upload supports browser-selected folder trees', () => {
   assert.match(folderView, /var form = new FormData\(\)/);
   assert.match(folderView, /form\.append\('cacheControl', '3600'\)/);
   assert.match(folderView, /Zip uploaded, but processing failed/);
+  assert.ok(folderView.indexOf('async function uploadFileToSignedUrl') < folderView.indexOf('async function uploadZip()'));
   assert.match(folderView, /Choose folder/);
   assert.match(folderView, /Upload folder/);
   assert.match(folderView, /Upload zipped folder/);
