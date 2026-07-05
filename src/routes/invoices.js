@@ -94,7 +94,7 @@ function escapeHtml(value) {
 
 function fmtMoney(value) {
   const num = Number(value);
-  return `$${(Number.isFinite(num) ? num : 0).toFixed(2)}`;
+  return '$' + (Number.isFinite(num) ? num : 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function invoiceBalance(invoice) {

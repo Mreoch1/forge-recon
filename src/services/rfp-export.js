@@ -34,7 +34,7 @@ const COLOR = {
 function fmt(n) {
   const num = Number(n);
   if (!isFinite(num)) return '0.00';
-  return num.toFixed(2);
+  return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function fmtMoney(n) {

@@ -122,8 +122,8 @@ test('project RFP exports derive parent quantity from approved sub-line quantity
 
   const csv = rfpExport.renderProjectCsv({ title: 'Midway Square Apartments' }, rfps, itemsByRfp);
 
-  assert.match(csv, /Resilient Flooring,pending,Line item,,R&R LVP Kitchen,166\.00,912\.00,151392\.00/);
-  assert.match(csv, /184698\.24,1112\.64/);
+  assert.match(csv, /Resilient Flooring,pending,Line item,,R&R LVP Kitchen,166\.00,912\.00,"151,392\.00"/);
+  assert.match(csv, /"184,698\.24","1,112\.64"/);
 });
 
 test('project RFP exports recompute child totals when zero markup and GR are saved', () => {
@@ -163,9 +163,9 @@ test('project RFP exports recompute child totals when zero markup and GR are sav
 
   const csv = rfpExport.renderProjectCsv({ title: 'Midway Square Apartments' }, rfps, itemsByRfp);
 
-  assert.match(csv, /Resilient Flooring,pending,Line item,,Dumpster,3\.00,1000\.00,3000\.00/);
-  assert.match(csv, /3000\.00,1000\.00/);
-  assert.doesNotMatch(csv, /3780\.00|1260\.00/);
+  assert.match(csv, /Resilient Flooring,pending,Line item,,Dumpster,3\.00,"1,000\.00","3,000\.00"/);
+  assert.match(csv, /"3,000\.00","1,000\.00"/);
+  assert.doesNotMatch(csv, /3,780\.00|1,260\.00/);
 });
 
 test('project RFP PDF normalizes copied line-item whitespace', async () => {

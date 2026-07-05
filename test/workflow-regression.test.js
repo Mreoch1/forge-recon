@@ -917,6 +917,20 @@ test('transactional email defaults to Forge-Recon sender name', () => {
   assert.doesNotMatch(emailService, /"Recon Office" <support@reconenterprises\.net>/);
 });
 
+test('customer-facing dollar amounts include thousands separators', () => {
+  const pdf = require(path.join(root, 'src/services/pdf'));
+  const sharedPdf = read('src/services/pdf.js');
+  const rfpExport = read('src/services/rfp-export.js');
+  const estimateEmail = read('src/services/estimate-email.js');
+  const invoiceRoutes = read('src/routes/invoices.js');
+
+  assert.equal(pdf._internal.fmtMoney(1361455.46), '$1,361,455.46');
+  assert.match(sharedPdf, /toLocaleString\('en-US', \{ minimumFractionDigits: 2, maximumFractionDigits: 2 \}\)/);
+  assert.match(rfpExport, /toLocaleString\('en-US', \{ minimumFractionDigits: 2, maximumFractionDigits: 2 \}\)/);
+  assert.match(estimateEmail, /toLocaleString\('en-US', \{ minimumFractionDigits: 2, maximumFractionDigits: 2 \}\)/);
+  assert.match(invoiceRoutes, /toLocaleString\('en-US', \{ minimumFractionDigits: 2, maximumFractionDigits: 2 \}\)/);
+});
+
 test('Supabase public API access is locked down in migrations', () => {
   const migration = read('supabase/migrations/20260602144235_lock_down_public_api_access.sql');
 

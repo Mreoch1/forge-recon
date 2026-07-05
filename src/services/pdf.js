@@ -55,7 +55,7 @@ const COLOR = {
 function fmt(n) {
   const num = Number(n);
   if (!isFinite(num)) return '0.00';
-  return num.toFixed(2);
+  return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function fmtMoney(n) {
@@ -151,11 +151,11 @@ function drawLineItemsTable(doc, lines) {
   const right = doc.page.width - doc.page.margins.right;
   const tableWidth = right - left;
   const cols = [
-    { key: 'description', label: 'DESCRIPTION', width: tableWidth - 50 - 50 - 65 - 70, align: 'left' },
-    { key: 'quantity',    label: 'QTY',         width: 50,  align: 'right' },
-    { key: 'unit',        label: 'UNIT',        width: 50,  align: 'left' },
-    { key: 'unit_price',  label: 'UNIT $',      width: 65,  align: 'right' },
-    { key: 'line_total',  label: 'LINE $',      width: 70,  align: 'right' },
+    { key: 'description', label: 'DESCRIPTION', width: tableWidth - 45 - 42 - 95 - 100, align: 'left' },
+    { key: 'quantity',    label: 'QTY',         width: 45,  align: 'right' },
+    { key: 'unit',        label: 'UNIT',        width: 42,  align: 'left' },
+    { key: 'unit_price',  label: 'UNIT $',      width: 95,  align: 'right' },
+    { key: 'line_total',  label: 'LINE $',      width: 100, align: 'right' },
   ];
 
   let y = doc.y;
@@ -218,7 +218,7 @@ function drawLineItemsTable(doc, lines) {
 
 function drawTotals(doc, { subtotal, tax_rate, tax_amount, total }) {
   const right = doc.page.width - doc.page.margins.right;
-  const colW = 200;
+  const colW = 260;
   const x = right - colW;
   let y = doc.y;
 
