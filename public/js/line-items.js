@@ -142,17 +142,61 @@
     return row;
   }
 
+  function visibleRows(tbody) {
+    return $$('.line-row', tbody).filter(row => !row.hasAttribute('data-template') && !row.classList.contains('hidden'));
+  }
+
+  function focusNextLineField(currentField, row, addLine) {
+    const table = $(TABLE_SEL);
+    if (!table) return;
+    const tbody = $('tbody', table);
+    if (!tbody) return;
+    const rows = visibleRows(tbody);
+    const currentIndex = rows.indexOf(row);
+    if (currentIndex === -1) return;
+
+    let nextRow = rows[currentIndex + 1];
+    if (!nextRow && typeof addLine === 'function') {
+      nextRow = addLine();
+    }
+    if (!nextRow) return;
+
+    const targetField = currentField && currentField.dataset ? currentField.dataset.field : null;
+    const nextField = targetField
+      ? $(`[data-field="${targetField}"]`, nextRow)
+      : $('input:not([type="hidden"]), select, textarea', nextRow);
+    const fallback = $('textarea[data-field="description"], input[data-field="description"], input:not([type="hidden"]), select', nextRow);
+    const fieldToFocus = nextField || fallback;
+    if (fieldToFocus && typeof fieldToFocus.focus === 'function') {
+      fieldToFocus.focus();
+      if (typeof fieldToFocus.select === 'function') fieldToFocus.select();
+    }
+  }
+
   function bindRow(row) {
+    const table = $(TABLE_SEL);
+    const addLine = table && table._forgeAddLine ? table._forgeAddLine : null;
     $$('input, select', row).forEach(input => {
       input.addEventListener('input', calcAll);
       input.addEventListener('change', calcAll);
+    });
+    $$('input, select, textarea', row).forEach(input => {
+      input.addEventListener('keydown', event => {
+        if (event.key !== 'Enter') return;
+        if (event.shiftKey && input.tagName === 'TEXTAREA') return;
+        if (event.ctrlKey || event.metaKey || event.altKey) return;
+        if (input.type === 'checkbox' || input.type === 'button' || input.type === 'submit') return;
+        event.preventDefault();
+        focusNextLineField(input, row, addLine);
+      });
     });
     const removeBtn = $('[data-remove-line]', row);
     if (removeBtn) {
       removeBtn.addEventListener('click', () => {
         const table = $(TABLE_SEL);
         if (!table) return;
-        const rowsLeft = $$('.line-row', table).length;
+        const tbody = $('tbody', table);
+        const rowsLeft = tbody ? visibleRows(tbody).length : $$('.line-row', table).length;
         if (rowsLeft <= 1) {
           $$('input, select', row).forEach(input => {
             if (input.dataset.field === 'description') input.value = '';
@@ -176,16 +220,24 @@
     const tbody = $('tbody', table);
     const template = $('[data-template]', tbody);
 
-    $$('.line-row', tbody).forEach(bindRow);
+    function addLine() {
+      if (!template) return null;
+      const idx = visibleRows(tbody).length;
+      const row = makeRow(template, idx);
+      tbody.insertBefore(row, template);
+      bindRow(row);
+      calcAll();
+      return row;
+    }
+
+    table._forgeAddLine = addLine;
+
+    visibleRows(tbody).forEach(bindRow);
 
     const addBtn = $('[data-add-line]');
     if (addBtn && template) {
       addBtn.addEventListener('click', () => {
-        const idx = $$('.line-row', tbody).length;
-        const row = makeRow(template, idx);
-        tbody.insertBefore(row, template);
-        bindRow(row);
-        calcAll();
+        const row = addLine();
         const desc = $('[data-field=description]', row);
         if (desc) desc.focus();
       });
