@@ -617,6 +617,21 @@ test('managers can edit open work orders and access WO files from show page', ()
   assert.doesNotMatch(show, /Work order files/);
 });
 
+test('posted work order notes can be edited by the author or office users', () => {
+  const routes = read('src/routes/work-orders.js');
+  const show = read('src/views/work-orders/show.ejs');
+
+  assert.match(routes, /router\.post\('\/:id\/notes\/:noteId'/);
+  assert.match(routes, /\.from\('wo_notes'\)[\s\S]*\.update\(\{ body \}\)/);
+  assert.match(routes, /action: 'note_edited'/);
+  assert.match(routes, /Number\(note\.user_id\) === Number\(req\.session\.userId\)/);
+  assert.match(routes, /req\.session\?\.role !== 'worker'/);
+  assert.match(show, /js-note-edit-toggle/);
+  assert.match(show, /action="\/work-orders\/<%= wo\.id %>\/notes\/<%= n\.id %>"/);
+  assert.match(show, /Save note/);
+  assert.match(show, /js-note-edit-form/);
+});
+
 test('work order files support direct mobile batch uploads', () => {
   const routes = read('src/routes/work-orders.js');
   const show = read('src/views/work-orders/show.ejs');
@@ -915,6 +930,19 @@ test('transactional email defaults to Forge-Recon sender name', () => {
   assert.match(emailService, /const DEFAULT_FROM = '"Forge-Recon" <support@reconenterprises\.net>'/);
   assert.match(emailService, /const FROM = process\.env\.EMAIL_FROM \|\| DEFAULT_FROM/);
   assert.doesNotMatch(emailService, /"Recon Office" <support@reconenterprises\.net>/);
+});
+
+test('estimate statuses use distinct color-coded badges', () => {
+  const header = read('src/views/layouts/header.ejs');
+  const estimateIndex = read('src/views/estimates/index.ejs');
+  const estimateShow = read('src/views/estimates/show.ejs');
+
+  assert.match(header, /\.badge-new/);
+  assert.match(header, /\.badge-pending/);
+  assert.match(header, /\.badge-approved/);
+  assert.match(header, /\.badge-converted/);
+  assert.match(estimateIndex, /badge-<%= e\.status %>/);
+  assert.match(estimateShow, /badge-<%= estimate\.status %>/);
 });
 
 test('customer-facing dollar amounts include thousands separators', () => {

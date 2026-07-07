@@ -442,10 +442,22 @@ function safeJson(value) {
       <% if (typeof notes !== 'undefined' && notes && notes.length) { %>
         <% notes.forEach(function(n){ %>
           <div class="ws-note-row">
-            <div class="ws-note-meta">
-              <%= (n.user_name || 'Unknown') %> · <%= (n.created_at || '').slice(0,16).replace('T',' ') %>
+            <div class="ws-note-meta flex items-center justify-between gap-2">
+              <span><%= (n.user_name || 'Unknown') %> · <%= (n.created_at || '').slice(0,16).replace('T',' ') %></span>
+              <% if (currentUser && (Number(n.user_id) === Number(currentUser.id) || currentUser.role !== 'worker')) { %>
+                <button type="button" class="btn btn-ghost text-xs js-note-edit-toggle" data-note-id="<%= n.id %>">Edit</button>
+              <% } %>
             </div>
             <div class="ws-note-body"><%= n.body %></div>
+            <% if (currentUser && (Number(n.user_id) === Number(currentUser.id) || currentUser.role !== 'worker')) { %>
+              <form action="/work-orders/<%= wo.id %>/notes/<%= n.id %>" method="post" class="mt-2 hidden js-note-edit-form" data-note-id="<%= n.id %>">
+                <textarea name="body" required minlength="2" maxlength="2000" rows="3" class="input w-full text-sm" style="resize:vertical;"><%= n.body %></textarea>
+                <div class="flex justify-end gap-2 mt-2">
+                  <button type="button" class="btn btn-ghost text-xs js-note-edit-cancel" data-note-id="<%= n.id %>">Cancel</button>
+                  <button type="submit" class="btn btn-sm btn-secondary">Save note</button>
+                </div>
+              </form>
+            <% } %>
           </div>
         <% }); %>
       <% } %>
@@ -946,5 +958,24 @@ function safeJson(value) {
     })();
   </script>
 <% } %>
+
+<script>
+  (function(){
+    document.addEventListener('click', function(ev){
+      var toggle = ev.target.closest('.js-note-edit-toggle');
+      var cancel = ev.target.closest('.js-note-edit-cancel');
+      var btn = toggle || cancel;
+      if (!btn) return;
+      var id = btn.getAttribute('data-note-id');
+      var form = document.querySelector('.js-note-edit-form[data-note-id="' + id + '"]');
+      if (!form) return;
+      form.classList.toggle('hidden', !!cancel);
+      if (toggle) {
+        var input = form.querySelector('textarea');
+        if (input) input.focus();
+      }
+    });
+  })();
+</script>
 
 <%- include('../layouts/footer') %>

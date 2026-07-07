@@ -1567,6 +1567,67 @@ router.post('/:id/notes', async (req, res) => {
   res.redirect(`/work-orders/${wo.id}`);
 });
 
+router.post('/:id/notes/:noteId', async (req, res) => {
+  const { data: wo, error: findErr } = await supabase
+    .from('work_orders')
+    .select('id, assigned_to_user_id, assigned_to, work_order_assignees(user_id)')
+    .eq('id', req.params.id)
+    .maybeSingle();
+  if (findErr) throw findErr;
+  if (!wo) {
+    setFlash(req, 'error', 'Work order not found.');
+    return res.redirect('/work-orders');
+  }
+
+  if (!isAssignedToCurrentUser(req, wo)) {
+    setFlash(req, 'error', 'You can only edit notes on work orders assigned to you.');
+    return res.redirect(`/work-orders/${wo.id}`);
+  }
+
+  const { data: note, error: noteErr } = await supabase
+    .from('wo_notes')
+    .select('id, work_order_id, user_id, body')
+    .eq('id', req.params.noteId)
+    .eq('work_order_id', wo.id)
+    .maybeSingle();
+  if (noteErr) throw noteErr;
+  if (!note) {
+    setFlash(req, 'error', 'Note not found.');
+    return res.redirect(`/work-orders/${wo.id}`);
+  }
+
+  const isOwner = Number(note.user_id) === Number(req.session.userId);
+  const isOffice = req.session?.role !== 'worker';
+  if (!isOwner && !isOffice) {
+    setFlash(req, 'error', 'You can only edit your own notes.');
+    return res.redirect(`/work-orders/${wo.id}`);
+  }
+
+  const body = (req.body.body || '').trim();
+  if (!body || body.length < 2) {
+    setFlash(req, 'error', 'Note must be at least 2 characters.');
+    return res.redirect(`/work-orders/${wo.id}`);
+  }
+
+  const { error: updateErr } = await supabase
+    .from('wo_notes')
+    .update({ body })
+    .eq('id', note.id)
+    .eq('work_order_id', wo.id);
+  if (updateErr) throw updateErr;
+
+  try {
+    await supabase.from('audit_logs').insert({
+      entity_type: 'work_order', entity_id: wo.id, action: 'note_edited',
+      before_json: { body: note.body }, after_json: { body },
+      source: 'user', user_id: req.session.userId,
+    });
+  } catch (e) { /* best-effort */ }
+
+  setFlash(req, 'success', 'Note updated.');
+  res.redirect(`/work-orders/${wo.id}`);
+});
+
 // --- files: upload ---
 
 router.post('/:id/files', async (req, res) => {
