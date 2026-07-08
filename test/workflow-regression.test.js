@@ -860,7 +860,24 @@ test('RFP line editor shows final unit cost with markup and GR', () => {
   assert.match(view, /var subDisplayFinalUnit = rfpComputedFinalUnit\(sub\)/);
   assert.match(view, /Final unit w\/ MU \+ GR/);
   assert.match(view, /data-compute-output="final_unit_cost"/);
-  assert.match(view, /if \(outputs\.final_unit_cost\) outputs\.final_unit_cost\.value = finalUnit\.toFixed\(2\)/);
+  assert.match(view, /data-rfp-live-final-unit/);
+  assert.match(view, /setMoneyOutput\(line\.querySelector\('\[data-rfp-live-final-unit\]'\), computed\.finalUnit\)/);
+});
+
+test('RFP line editor live-calculates row and combined approved totals', () => {
+  const view = read('src/views/jobs/rfp.ejs');
+
+  assert.match(view, /data-rfp-editor-summary="<%= item\.id %>"/);
+  assert.match(view, /Approved total w\/ MU \+ GR/);
+  assert.match(view, /data-rfp-editor-summary-total-with-markup/);
+  assert.match(view, /data-rfp-pricing-line data-parent-item-id="<%= item\.id %>"/);
+  assert.match(view, /data-rfp-live-calc data-rfp-autosave-item/);
+  assert.match(view, /function updateRfpEditorSummary\(parentItemId\)/);
+  assert.match(view, /computeRfpLiveLine\(line\)/);
+  assert.match(view, /querySelectorAll\('\[data-rfp-editor-summary\]'\)/);
+  assert.match(view, /window\.saveRfpEditorFields = function\(itemId\)/);
+  assert.match(view, /form\[id\^="rfp-sub-form-"\]/);
+  assert.doesNotMatch(view, /if \(editForm\) editForm\.requestSubmit\(\)/);
 });
 
 test('customer detail exposes customer projects and project creation path', () => {

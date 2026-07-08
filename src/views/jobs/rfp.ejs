@@ -388,6 +388,21 @@
                           <div class="mb-3 rounded border border-dashed border-recon-mist bg-recon-cloud/10 p-3 text-sm text-recon-fog">No vendor or contractor pricing lines yet. Add one below.</div>
                         <% } %>
 
+                        <div class="mb-3 grid gap-3 rounded border border-recon-mist bg-recon-deeper/30 p-3 sm:grid-cols-3" data-rfp-editor-summary="<%= item.id %>">
+                          <div>
+                            <div class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Approved total cost</div>
+                            <div class="text-lg font-semibold" data-rfp-editor-summary-total-cost>$0.00</div>
+                          </div>
+                          <div>
+                            <div class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Approved total w/ MU + GR</div>
+                            <div class="text-lg font-semibold text-recon-red" data-rfp-editor-summary-total-with-markup>$0.00</div>
+                          </div>
+                          <div>
+                            <div class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Combined final unit</div>
+                            <div class="text-lg font-semibold" data-rfp-editor-summary-final-unit>$0.00</div>
+                          </div>
+                        </div>
+
                         <div class="space-y-3">
                           <% children.forEach(function(sub){ %>
                             <% var subFid = 'rfp-sub-form-' + sub.id; var subDid = 'rfp-sub-del-' + sub.id; %>
@@ -395,7 +410,7 @@
                             <% var subDisplayTotalWithMarkup = rfpComputedTotalWithMarkup(sub); %>
                             <% var subDisplayFinalUnit = rfpComputedFinalUnit(sub); %>
                             <form id="<%= subFid %>" action="/projects/rfps/items/<%= sub.id %>" method="POST"></form>
-                            <div class="rounded border border-recon-mist bg-recon-cloud/5 p-3">
+                            <div class="rounded border border-recon-mist bg-recon-cloud/5 p-3" data-rfp-pricing-line data-parent-item-id="<%= item.id %>">
                               <div class="grid min-w-0 gap-3 lg:grid-cols-12 lg:items-end">
                                 <label class="block min-w-0 lg:col-span-2">
                                   <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Type</span>
@@ -420,37 +435,37 @@
                                 </label>
                                 <label class="block min-w-0 sm:col-span-1 lg:col-span-1">
                                   <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Qty</span>
-                                  <input form="<%= subFid %>" name="quantity" type="number" step="any" value="<%= sub.quantity != null ? sub.quantity : '' %>" class="input mt-1 w-full text-right text-xs" data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="quantity" data-original-value="<%= sub.quantity != null ? sub.quantity : '' %>">
+                                  <input form="<%= subFid %>" name="quantity" type="number" step="any" value="<%= sub.quantity != null ? sub.quantity : '' %>" class="input mt-1 w-full text-right text-xs" data-rfp-live-calc data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="quantity" data-original-value="<%= sub.quantity != null ? sub.quantity : '' %>">
                                 </label>
                                 <label class="block min-w-0 sm:col-span-1 lg:col-span-1">
                                   <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Unit cost</span>
-                                  <input form="<%= subFid %>" name="contractor_cost" type="number" step="any" value="<%= sub.contractor_cost != null ? sub.contractor_cost : '' %>" class="input mt-1 w-full text-right text-xs" placeholder="$ Unit" data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="contractor_cost" data-original-value="<%= sub.contractor_cost != null ? sub.contractor_cost : '' %>">
+                                  <input form="<%= subFid %>" name="contractor_cost" type="number" step="any" value="<%= sub.contractor_cost != null ? sub.contractor_cost : '' %>" class="input mt-1 w-full text-right text-xs" placeholder="$ Unit" data-rfp-live-calc data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="contractor_cost" data-original-value="<%= sub.contractor_cost != null ? sub.contractor_cost : '' %>">
                                 </label>
                                 <label class="block min-w-0 sm:col-span-1 lg:col-span-1">
                                   <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">MU%</span>
-                                  <input form="<%= subFid %>" name="markup_pct" type="number" step="any" value="<%= sub.markup_pct != null ? sub.markup_pct : DEFAULT_RFP_MARKUP_PCT %>" class="input mt-1 w-full text-right text-xs" data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="markup_pct" data-original-value="<%= sub.markup_pct != null ? sub.markup_pct : DEFAULT_RFP_MARKUP_PCT %>">
+                                  <input form="<%= subFid %>" name="markup_pct" type="number" step="any" value="<%= sub.markup_pct != null ? sub.markup_pct : DEFAULT_RFP_MARKUP_PCT %>" class="input mt-1 w-full text-right text-xs" data-rfp-live-calc data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="markup_pct" data-original-value="<%= sub.markup_pct != null ? sub.markup_pct : DEFAULT_RFP_MARKUP_PCT %>">
                                 </label>
                                 <label class="block min-w-0 sm:col-span-1 lg:col-span-1">
                                   <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">GR%</span>
-                                  <input form="<%= subFid %>" name="general_requirements_pct" type="number" step="any" value="<%= sub.general_requirements_pct != null ? sub.general_requirements_pct : DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT %>" class="input mt-1 w-full text-right text-xs" data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="general_requirements_pct" data-original-value="<%= sub.general_requirements_pct != null ? sub.general_requirements_pct : DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT %>">
+                                  <input form="<%= subFid %>" name="general_requirements_pct" type="number" step="any" value="<%= sub.general_requirements_pct != null ? sub.general_requirements_pct : DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT %>" class="input mt-1 w-full text-right text-xs" data-rfp-live-calc data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="general_requirements_pct" data-original-value="<%= sub.general_requirements_pct != null ? sub.general_requirements_pct : DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT %>">
                                 </label>
                                 <div class="min-w-0 lg:col-span-12">
                                   <div class="mt-1 flex flex-wrap items-center justify-end gap-x-5 gap-y-3 border-t border-recon-mist pt-3">
                                     <div class="min-w-[7rem] text-right">
                                       <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Total cost</span>
-                                      <div class="font-semibold">$<%= subDisplayTotalCost.toFixed(2) %></div>
+                                      <div class="font-semibold" data-rfp-live-total-cost>$<%= subDisplayTotalCost.toFixed(2) %></div>
                                     </div>
                                     <div class="min-w-[7rem] text-right">
                                       <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Total w/ MU + GR</span>
-                                      <div class="font-semibold">$<%= subDisplayTotalWithMarkup.toFixed(2) %></div>
+                                      <div class="font-semibold" data-rfp-live-total-with-markup>$<%= subDisplayTotalWithMarkup.toFixed(2) %></div>
                                     </div>
                                     <div class="min-w-[8rem] text-right">
                                       <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Final unit w/ MU + GR</span>
-                                      <div class="font-semibold">$<%= subDisplayFinalUnit.toFixed(2) %></div>
+                                      <div class="font-semibold" data-rfp-live-final-unit>$<%= subDisplayFinalUnit.toFixed(2) %></div>
                                     </div>
                                     <label class="flex items-center gap-2">
                                       <input form="<%= subFid %>" type="hidden" name="approved" value="0">
-                                      <input form="<%= subFid %>" type="checkbox" name="approved" value="1" <%= sub.approved ? 'checked' : '' %> data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="approved" data-original-value="<%= sub.approved ? '1' : '0' %>">
+                                      <input form="<%= subFid %>" type="checkbox" name="approved" value="1" <%= sub.approved ? 'checked' : '' %> data-rfp-live-calc data-rfp-autosave-item data-item-id="<%= sub.id %>" data-field="approved" data-original-value="<%= sub.approved ? '1' : '0' %>">
                                       <span class="text-xs">Approved</span>
                                     </label>
                                     <div class="flex items-center justify-end gap-2">
@@ -467,7 +482,7 @@
 
                         <div id="add-sub-<%= item.id %>" class="mt-4 rounded border border-recon-mist bg-white p-3">
                           <div class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Add vendor / contractor line</div>
-                          <form id="rfp-add-sub-form-<%= item.id %>" action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/items" method="POST" class="rfp-line-form grid min-w-0 gap-3 text-xs lg:grid-cols-12 lg:items-end" onclick="event.stopPropagation();">
+                          <form id="rfp-add-sub-form-<%= item.id %>" action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/items" method="POST" class="rfp-line-form grid min-w-0 gap-3 text-xs lg:grid-cols-12 lg:items-end" data-rfp-pricing-line data-parent-item-id="<%= item.id %>" data-rfp-new-line onclick="event.stopPropagation();">
                             <label class="block min-w-0 lg:col-span-2">
                               <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Type</span>
                               <select name="scope_type" class="input mt-1 w-full">
@@ -485,33 +500,33 @@
                             </label>
                             <label class="block min-w-0 lg:col-span-1">
                               <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Qty</span>
-                              <input name="quantity" data-compute-input type="number" step="any" placeholder="Qty" class="input mt-1 w-full text-right">
+                              <input name="quantity" data-compute-input data-rfp-live-calc type="number" step="any" placeholder="Qty" class="input mt-1 w-full text-right">
                             </label>
                             <label class="block min-w-0 lg:col-span-1">
                               <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Unit cost</span>
-                              <input name="contractor_cost" data-compute-input type="number" step="any" placeholder="$ Unit" class="input mt-1 w-full text-right">
+                              <input name="contractor_cost" data-compute-input data-rfp-live-calc type="number" step="any" placeholder="$ Unit" class="input mt-1 w-full text-right">
                             </label>
                             <label class="block min-w-0 lg:col-span-1">
                               <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">MU%</span>
-                              <input name="markup_pct" data-compute-input type="number" step="any" placeholder="MU%" value="<%= DEFAULT_RFP_MARKUP_PCT %>" class="input mt-1 w-full text-right">
+                              <input name="markup_pct" data-compute-input data-rfp-live-calc type="number" step="any" placeholder="MU%" value="<%= DEFAULT_RFP_MARKUP_PCT %>" class="input mt-1 w-full text-right">
                             </label>
                             <label class="block min-w-0 lg:col-span-1">
                               <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">GR%</span>
-                              <input name="general_requirements_pct" data-compute-input type="number" step="any" placeholder="GR%" value="<%= DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT %>" class="input mt-1 w-full text-right">
+                              <input name="general_requirements_pct" data-compute-input data-rfp-live-calc type="number" step="any" placeholder="GR%" value="<%= DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT %>" class="input mt-1 w-full text-right">
                             </label>
                             <div class="lg:col-span-12">
                               <div class="mt-1 flex flex-wrap items-center justify-end gap-x-5 gap-y-3 border-t border-recon-mist pt-3">
                                 <label class="block min-w-[7rem] text-right">
                                   <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Total cost</span>
-                                  <input data-compute-output="total_cost" readonly value="0.00" class="input mt-1 w-full text-right text-xs" tabindex="-1">
+                                  <input data-compute-output="total_cost" data-rfp-live-total-cost readonly value="0.00" class="input mt-1 w-full text-right text-xs" tabindex="-1">
                                 </label>
                                 <label class="block min-w-[7rem] text-right">
                                   <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Total w/ MU + GR</span>
-                                  <input data-compute-output="total_with_markup" readonly value="0.00" class="input mt-1 w-full text-right text-xs" tabindex="-1">
+                                  <input data-compute-output="total_with_markup" data-rfp-live-total-with-markup readonly value="0.00" class="input mt-1 w-full text-right text-xs" tabindex="-1">
                                 </label>
                                 <label class="block min-w-[8rem] text-right">
                                   <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Final unit w/ MU + GR</span>
-                                  <input data-compute-output="final_unit_cost" readonly value="0.00" class="input mt-1 w-full text-right text-xs" tabindex="-1">
+                                  <input data-compute-output="final_unit_cost" data-rfp-live-final-unit readonly value="0.00" class="input mt-1 w-full text-right text-xs" tabindex="-1">
                                 </label>
                               </div>
                             </div>
@@ -745,8 +760,9 @@
       addForm.requestSubmit();
       return;
     }
-    var editForm = document.getElementById('rfp-li-form-' + itemId);
-    if (editForm) editForm.requestSubmit();
+    if (typeof window.saveRfpEditorFields === 'function') {
+      window.saveRfpEditorFields(itemId);
+    }
   }
 
   window.closeRfpLineEditor = closeRfpLineEditor;
@@ -860,6 +876,79 @@
     return '$' + (isFinite(num) ? num : 0).toFixed(2);
   }
 
+  function moneyPlain(value) {
+    var num = Number(value);
+    return (isFinite(num) ? num : 0).toFixed(2);
+  }
+
+  function setMoneyOutput(el, value) {
+    if (!el) return;
+    if (el.tagName === 'INPUT') el.value = moneyPlain(value);
+    else el.textContent = moneyText(value);
+  }
+
+  function numberInput(scope, name, fallback) {
+    var el = scope && scope.querySelector('[name="' + name + '"]');
+    if (!el) return fallback || 0;
+    var n = parseFloat(el.value);
+    return Number.isFinite(n) ? n : (fallback || 0);
+  }
+
+  function rfpLiveLineHasData(line) {
+    if (!line || !line.hasAttribute('data-rfp-new-line')) return true;
+    return ['vendor', 'description', 'quantity', 'contractor_cost'].some(function(name) {
+      var el = line.querySelector('[name="' + name + '"]');
+      return el && String(el.value || '').trim() !== '';
+    });
+  }
+
+  function computeRfpLiveLine(line) {
+    var qty = numberInput(line, 'quantity', 0);
+    var unit = numberInput(line, 'contractor_cost', 0) + numberInput(line, 'vendor_cost', 0);
+    var markup = numberInput(line, 'markup_pct', 16);
+    var gr = numberInput(line, 'general_requirements_pct', 4);
+    var totalCost = qty * unit;
+    var totalWithMarkup = totalCost * (1 + ((markup + gr) / 100));
+    return {
+      qty: qty,
+      totalCost: totalCost,
+      totalWithMarkup: totalWithMarkup,
+      finalUnit: qty > 0 ? totalWithMarkup / qty : 0,
+    };
+  }
+
+  function updateRfpEditorSummary(parentItemId) {
+    var summary = document.querySelector('[data-rfp-editor-summary="' + parentItemId + '"]');
+    if (!summary) return;
+    var totalCost = 0;
+    var totalWithMarkup = 0;
+    var qty = 0;
+    document.querySelectorAll('[data-rfp-pricing-line][data-parent-item-id="' + parentItemId + '"]').forEach(function(line) {
+      if (!rfpLiveLineHasData(line)) return;
+      var checkbox = line.querySelector('input[type="checkbox"][data-field="approved"]');
+      var approved = checkbox ? checkbox.checked : true;
+      var computed = computeRfpLiveLine(line);
+      setMoneyOutput(line.querySelector('[data-rfp-live-total-cost]'), computed.totalCost);
+      setMoneyOutput(line.querySelector('[data-rfp-live-total-with-markup]'), computed.totalWithMarkup);
+      setMoneyOutput(line.querySelector('[data-rfp-live-final-unit]'), computed.finalUnit);
+      if (approved) {
+        totalCost += computed.totalCost;
+        totalWithMarkup += computed.totalWithMarkup;
+        qty = Math.max(qty, computed.qty || 0);
+      }
+    });
+    setMoneyOutput(summary.querySelector('[data-rfp-editor-summary-total-cost]'), totalCost);
+    setMoneyOutput(summary.querySelector('[data-rfp-editor-summary-total-with-markup]'), totalWithMarkup);
+    setMoneyOutput(summary.querySelector('[data-rfp-editor-summary-final-unit]'), qty > 0 ? totalWithMarkup / qty : 0);
+  }
+
+  function updateRfpLiveCalculatorFrom(el) {
+    var line = el && el.closest('[data-rfp-pricing-line]');
+    if (!line) return;
+    var parentItemId = line.getAttribute('data-parent-item-id');
+    if (parentItemId) updateRfpEditorSummary(parentItemId);
+  }
+
   function refreshApprovedTotalsFor(el) {
     var table = el.closest('.rfp-items-table');
     if (!table) return;
@@ -917,6 +1006,7 @@
     el.dataset.originalValue = saved == null ? '' : String(saved);
     clearFieldState(el);
     if (el.dataset.field === 'approved') refreshApprovedTotalsFor(el);
+    updateRfpLiveCalculatorFrom(el);
     showAutosaveStatus('Saved just now', 'success');
   }
 
@@ -961,9 +1051,32 @@
     timers.set(el, setTimeout(function(){ saveField(el).catch(function(){}); }, 650));
   }
 
+  window.saveRfpEditorFields = function(itemId) {
+    var editor = document.getElementById('rfp-line-editor-' + itemId);
+    if (!editor) return;
+    var saves = [];
+    editor.querySelectorAll('[data-rfp-autosave-item]').forEach(function(el) {
+      if (timers.has(el)) {
+        clearTimeout(timers.get(el));
+        timers.delete(el);
+      }
+      if (fieldValue(el) !== (el.dataset.originalValue || '')) saves.push(saveField(el));
+    });
+    if (!saves.length) {
+      showAutosaveStatus('Saved just now', 'success');
+      showAutosaveToast('Line item is already saved.', 'success');
+      return;
+    }
+    Promise.allSettled(saves).then(function(results) {
+      var failed = results.some(function(r) { return r.status === 'rejected'; });
+      if (!failed) showAutosaveToast('Line item saved.', 'success');
+    });
+  };
+
   document.querySelectorAll('[data-rfp-autosave-item], [data-rfp-autosave-category]').forEach(function(el) {
     var eventName = (el.tagName === 'SELECT' || el.type === 'checkbox') ? 'change' : 'input';
     el.addEventListener(eventName, function() {
+      updateRfpLiveCalculatorFrom(el);
       if (el.tagName === 'SELECT' || el.type === 'checkbox') saveField(el).catch(function(){});
       else queueSave(el);
     });
@@ -976,6 +1089,37 @@
         e.preventDefault();
         el.blur();
       }
+    });
+  });
+
+  document.querySelectorAll('[data-rfp-live-calc]').forEach(function(el) {
+    el.addEventListener('input', function() { updateRfpLiveCalculatorFrom(el); });
+    el.addEventListener('change', function() { updateRfpLiveCalculatorFrom(el); });
+  });
+
+  document.querySelectorAll('[data-rfp-editor-summary]').forEach(function(summary) {
+    updateRfpEditorSummary(summary.getAttribute('data-rfp-editor-summary'));
+  });
+
+  document.querySelectorAll('form[id^="rfp-sub-form-"]').forEach(function(form) {
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form),
+        headers: { 'X-Requested-With': 'fetch' }
+      }).then(function(r) {
+        if (!r.ok) throw new Error('Save failed.');
+        document.querySelectorAll('[form="' + form.id + '"][data-rfp-autosave-item]').forEach(function(el) {
+          el.dataset.originalValue = fieldValue(el);
+          clearFieldState(el);
+        });
+        showAutosaveStatus('Saved just now', 'success');
+        showAutosaveToast('Pricing line saved.', 'success');
+      }).catch(function() {
+        showAutosaveStatus('Save failed', 'error');
+        showAutosaveToast('Pricing line save failed.', 'error');
+      });
     });
   });
 })();
