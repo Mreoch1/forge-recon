@@ -866,18 +866,28 @@ test('RFP line editor shows final unit cost with markup and GR', () => {
 
 test('RFP line editor live-calculates row and combined approved totals', () => {
   const view = read('src/views/jobs/rfp.ejs');
+  const routes = read('src/routes/rfp.js');
 
   assert.match(view, /data-rfp-editor-summary="<%= item\.id %>"/);
   assert.match(view, /Approved total w\/ MU \+ GR/);
   assert.match(view, /data-rfp-editor-summary-total-with-markup/);
   assert.match(view, /data-rfp-pricing-line data-parent-item-id="<%= item\.id %>"/);
   assert.match(view, /data-rfp-live-calc data-rfp-autosave-item/);
+  assert.match(view, /data-rfp-parent-total="<%= item\.id %>"/);
   assert.match(view, /function updateRfpEditorSummary\(parentItemId\)/);
   assert.match(view, /computeRfpLiveLine\(line\)/);
+  assert.match(view, /parentRow\.setAttribute\('data-rfp-line-total', moneyPlain\(totalWithMarkup\)\)/);
+  assert.match(view, /function associatedFormData\(form\)/);
+  assert.match(view, /body: associatedFormData\(form\)/);
   assert.match(view, /querySelectorAll\('\[data-rfp-editor-summary\]'\)/);
   assert.match(view, /window\.saveRfpEditorFields = function\(itemId\)/);
   assert.match(view, /form\[id\^="rfp-sub-form-"\]/);
+  assert.match(view, /if \(row\.getAttribute\('data-rfp-line-approved'\) === '1'\) \{\s*approvedCount \+= 1;\s*total \+= rowTotal;/);
   assert.doesNotMatch(view, /if \(editForm\) editForm\.requestSubmit\(\)/);
+
+  assert.match(routes, /function hasField\(name\)/);
+  assert.match(routes, /hasField\('contractor_cost'\) \? parseNumberOrDefault\(contractor_cost, 0\) : parseNumberOrDefault\(item\.contractor_cost, 0\)/);
+  assert.match(routes, /vendor_cost: next\.vendor_cost \|\| null/);
 });
 
 test('customer detail exposes customer projects and project creation path', () => {

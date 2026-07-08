@@ -339,8 +339,8 @@
                   <td class="text-right font-medium">$<%= (liHasSubs ? liTotalCost : Number(item.total_cost) || 0).toFixed(2) %></td>
                   <td class="text-right text-xs"><%= liMarkup %></td>
                   <td class="text-right text-xs"><%= liGr %></td>
-                  <td class="text-right font-medium">$<%= liDisplayTotal.toFixed(2) %></td>
-                  <td class="text-right text-xs">$<%= liDisplayUnit.toFixed(2) %></td>
+                  <td class="text-right font-medium" data-rfp-parent-total="<%= item.id %>">$<%= liDisplayTotal.toFixed(2) %></td>
+                  <td class="text-right text-xs" data-rfp-parent-final-unit="<%= item.id %>">$<%= liDisplayUnit.toFixed(2) %></td>
                   <td class="text-center" onclick="event.stopPropagation();"><% if (liHasSubs) { %><span class="text-xs <%= liApproved ? 'text-green-600' : 'text-recon-fog' %>"><%= liApproved ? '✓' : '○' %></span><% } else { %><input form="<%= itemFormId %>" type="hidden" name="approved" value="0"><input form="<%= itemFormId %>" type="checkbox" name="approved" value="1" <%= item.approved ? 'checked' : '' %> data-rfp-autosave-item data-item-id="<%= item.id %>" data-field="approved" data-original-value="<%= item.approved ? '1' : '0' %>"><% } %></td>
                   <td class="text-right align-middle whitespace-nowrap">
                     <span class="inline-flex items-center justify-end gap-1 rounded bg-recon-deeper/40 px-2 py-1 text-xs text-recon-fog" title="Approved vendor / contractor lines">
@@ -920,11 +920,15 @@
   function updateRfpEditorSummary(parentItemId) {
     var summary = document.querySelector('[data-rfp-editor-summary="' + parentItemId + '"]');
     if (!summary) return;
+    var parentRow = document.getElementById('rfp-line-' + parentItemId);
     var totalCost = 0;
     var totalWithMarkup = 0;
     var qty = 0;
+    var approvedCount = 0;
+    var lineCount = 0;
     document.querySelectorAll('[data-rfp-pricing-line][data-parent-item-id="' + parentItemId + '"]').forEach(function(line) {
       if (!rfpLiveLineHasData(line)) return;
+      if (!line.hasAttribute('data-rfp-new-line')) lineCount += 1;
       var checkbox = line.querySelector('input[type="checkbox"][data-field="approved"]');
       var approved = checkbox ? checkbox.checked : true;
       var computed = computeRfpLiveLine(line);
@@ -932,6 +936,7 @@
       setMoneyOutput(line.querySelector('[data-rfp-live-total-with-markup]'), computed.totalWithMarkup);
       setMoneyOutput(line.querySelector('[data-rfp-live-final-unit]'), computed.finalUnit);
       if (approved) {
+        if (!line.hasAttribute('data-rfp-new-line')) approvedCount += 1;
         totalCost += computed.totalCost;
         totalWithMarkup += computed.totalWithMarkup;
         qty = Math.max(qty, computed.qty || 0);
@@ -940,6 +945,19 @@
     setMoneyOutput(summary.querySelector('[data-rfp-editor-summary-total-cost]'), totalCost);
     setMoneyOutput(summary.querySelector('[data-rfp-editor-summary-total-with-markup]'), totalWithMarkup);
     setMoneyOutput(summary.querySelector('[data-rfp-editor-summary-final-unit]'), qty > 0 ? totalWithMarkup / qty : 0);
+    if (parentRow) {
+      parentRow.setAttribute('data-rfp-line-total', moneyPlain(totalWithMarkup));
+      parentRow.setAttribute('data-rfp-line-approved', approvedCount > 0 ? '1' : '0');
+      setMoneyOutput(parentRow.querySelector('[data-rfp-parent-total="' + parentItemId + '"]'), totalWithMarkup);
+      setMoneyOutput(parentRow.querySelector('[data-rfp-parent-final-unit="' + parentItemId + '"]'), qty > 0 ? totalWithMarkup / qty : 0);
+      var lineBadge = parentRow.querySelector('.inline-flex');
+      if (lineBadge && lineCount) lineBadge.firstChild.nodeValue = approvedCount + '/' + lineCount;
+      var table = parentRow.closest('.rfp-items-table');
+      if (table) {
+        var firstApproved = table.querySelector('input[type="checkbox"][data-field="approved"]') || parentRow;
+        refreshApprovedTotalsFor(firstApproved);
+      }
+    }
   }
 
   function updateRfpLiveCalculatorFrom(el) {
@@ -965,8 +983,10 @@
           approvedCount += 1;
         }
       } else {
-        if (row.getAttribute('data-rfp-line-approved') === '1') approvedCount += 1;
-        total += rowTotal;
+        if (row.getAttribute('data-rfp-line-approved') === '1') {
+          approvedCount += 1;
+          total += rowTotal;
+        }
       }
     });
     var summary = document.querySelector('[data-rfp-summary-total="' + rfpId + '"]');
@@ -1051,6 +1071,16 @@
     timers.set(el, setTimeout(function(){ saveField(el).catch(function(){}); }, 650));
   }
 
+  function associatedFormData(form) {
+    var data = new FormData(form);
+    document.querySelectorAll('[form="' + form.id + '"]').forEach(function(el) {
+      if (!el.name || el.disabled) return;
+      if ((el.type === 'checkbox' || el.type === 'radio') && !el.checked) return;
+      data.append(el.name, el.value);
+    });
+    return data;
+  }
+
   window.saveRfpEditorFields = function(itemId) {
     var editor = document.getElementById('rfp-line-editor-' + itemId);
     if (!editor) return;
@@ -1106,7 +1136,7 @@
       e.preventDefault();
       fetch(form.action, {
         method: 'POST',
-        body: new FormData(form),
+        body: associatedFormData(form),
         headers: { 'X-Requested-With': 'fetch' }
       }).then(function(r) {
         if (!r.ok) throw new Error('Save failed.');

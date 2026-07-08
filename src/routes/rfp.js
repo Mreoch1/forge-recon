@@ -625,56 +625,54 @@ router.post('/projects/rfps/items/:itemId', requireRfpEditAccess, async (req, re
   // Normalize all req.body values: if array, take the LAST element (which is
   // the checkbox's "1" when checked, or just the hidden "0" when unchecked).
   function lastOf(v) { return Array.isArray(v) ? v[v.length - 1] : v; }
+  function hasField(name) { return Object.prototype.hasOwnProperty.call(req.body || {}, name); }
   const vendor = lastOf(req.body.vendor);
   const description = lastOf(req.body.description);
   const quantity = lastOf(req.body.quantity);
   const contractor_cost = lastOf(req.body.contractor_cost);
   const vendor_cost = lastOf(req.body.vendor_cost);
-  const unit_cost = lastOf(req.body.unit_cost);
-  const total_cost = lastOf(req.body.total_cost);
   const markup_pct = lastOf(req.body.markup_pct);
   const approved = lastOf(req.body.approved);
   const scope_type = lastOf(req.body.scope_type);
   let gr = req.body.general_requirements_pct;
   if (Array.isArray(gr)) gr = gr[gr.length - 1];
 
-  const markup = parseNumberOrDefault(markup_pct, DEFAULT_RFP_MARKUP_PCT);
-  const cCost = parseNumberOrDefault(contractor_cost, 0);
-  // D-135: preserve existing vendor_cost when form no longer sends it (D-122b)
-  const vCost = req.body.vendor_cost !== undefined ? parseNumberOrDefault(vendor_cost, 0) : undefined;
-  const uCost = parseNumberOrDefault(unit_cost, 0);
-  const tCost = parseNumberOrDefault(total_cost, 0);
-  const qty = parseNumberOrDefault(quantity, 0);
-
-  // D-105: use computeSubLineTotals helper with general_requirements_pct
-  let grParam = gr;
-  var comp = computeSubLineTotals({ quantity, contractor_cost, vendor_cost, markup_pct, general_requirements_pct: grParam });
-  var computedUnit = comp.unit_cost;
-  var baseCost = comp.total_cost;
-  var withMarkup = comp.total_with_markup;
-
   // First get the rfp_id so we can redirect back
   const { data: item, error: fetchError } = await supabase
     .from('rfp_line_items')
-    .select('rfp_id, parent_line_item_id')
+    .select('id, rfp_id, parent_line_item_id, vendor, description, quantity, contractor_cost, vendor_cost, markup_pct, general_requirements_pct, approved, scope_type')
     .eq('id', req.params.itemId)
     .single();
   if (fetchError) throw fetchError;
 
+  const next = {
+    vendor: hasField('vendor') ? (vendor || null) : item.vendor,
+    description: hasField('description') ? (description || '') : item.description,
+    quantity: hasField('quantity') ? parseNumberOrDefault(quantity, 0) : parseNumberOrDefault(item.quantity, 0),
+    contractor_cost: hasField('contractor_cost') ? parseNumberOrDefault(contractor_cost, 0) : parseNumberOrDefault(item.contractor_cost, 0),
+    vendor_cost: hasField('vendor_cost') ? parseNumberOrDefault(vendor_cost, 0) : parseNumberOrDefault(item.vendor_cost, 0),
+    markup_pct: hasField('markup_pct') ? parseNumberOrDefault(markup_pct, DEFAULT_RFP_MARKUP_PCT) : parseNumberOrDefault(item.markup_pct, DEFAULT_RFP_MARKUP_PCT),
+    general_requirements_pct: hasField('general_requirements_pct') ? parseNumberOrDefault(gr, DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT) : parseNumberOrDefault(item.general_requirements_pct, DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT),
+    approved: hasField('approved') ? (approved === '1' || approved === 'true' || approved === 'on') : !!item.approved,
+    scope_type: hasField('scope_type') ? normalizeScopeType(scope_type) : item.scope_type,
+  };
+
+  const comp = computeSubLineTotals(next);
+
   const { error } = await updateRfpLineItem(req.params.itemId, {
-    vendor: vendor || null,
-    description: description || '',
-    quantity: qty || null,
-    contractor_cost: cCost || null,
-    unit_cost: computedUnit || null,
-    total_cost: baseCost || null,
-    markup_pct: markup,
-    total_with_markup: withMarkup,
-    final_unit_cost: baseCost > 0 ? withMarkup / (qty || 1) : 0,
-    approved: approved === '1' || approved === 'true' || approved === 'on',
-    ...(scope_type !== undefined ? { scope_type: normalizeScopeType(scope_type) } : {}),
-    general_requirements_pct: gr !== undefined ? parseNumberOrDefault(gr, DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT) : undefined,
-    ...(req.body.vendor_cost !== undefined ? { vendor_cost: parseNumberOrDefault(vendor_cost, 0) } : {}),
+    vendor: next.vendor,
+    description: next.description,
+    quantity: next.quantity || null,
+    contractor_cost: next.contractor_cost || null,
+    vendor_cost: next.vendor_cost || null,
+    unit_cost: comp.unit_cost || null,
+    total_cost: comp.total_cost || null,
+    markup_pct: next.markup_pct,
+    general_requirements_pct: next.general_requirements_pct,
+    total_with_markup: comp.total_with_markup,
+    final_unit_cost: comp.final_unit_cost,
+    approved: next.approved,
+    ...(next.scope_type !== undefined ? { scope_type: normalizeScopeType(next.scope_type) } : {}),
     location: req.body.location || undefined,
     sort_order: req.body.sort_order !== undefined ? parseInt(req.body.sort_order) : undefined,
     updated_at: new Date().toISOString(),
