@@ -959,6 +959,16 @@ test('customer-facing dollar amounts include thousands separators', () => {
   assert.match(invoiceRoutes, /toLocaleString\('en-US', \{ minimumFractionDigits: 2, maximumFractionDigits: 2 \}\)/);
 });
 
+test('project-backed PDFs show the project name in the job site block', () => {
+  const pdf = require(path.join(root, 'src/services/pdf'));
+  const sharedPdf = read('src/services/pdf.js');
+
+  assert.equal(pdf._internal.projectSiteName({ job_id: 17, job_title: 'Autumn Ridge' }), 'Autumn Ridge');
+  assert.equal(pdf._internal.projectSiteName({ job_title: 'Loose customer work order' }), '');
+  assert.match(sharedPdf, /const jobLines = \[\s*projectSiteName\(estimate\),/);
+  assert.match(sharedPdf, /projectSiteName\(invoice\),/);
+});
+
 test('Supabase public API access is locked down in migrations', () => {
   const migration = read('supabase/migrations/20260602144235_lock_down_public_api_access.sql');
 

@@ -144,6 +144,11 @@ function drawAddressBlocks(doc, billTo, jobSite) {
   doc.y = Math.max(yLeft, yRight) + 10;
 }
 
+function projectSiteName(record) {
+  if (!record || !record.job_id || !record.job_title) return '';
+  return String(record.job_title);
+}
+
 // --- line items table ---
 
 function drawLineItemsTable(doc, lines) {
@@ -398,8 +403,9 @@ function generateEstimatePDF(estimate, company, stream) {
   }
   const yLeft = ly + 4;
 
-  // Job site — just address, no title like "Ginosko Construction work order"
+  // Job site — project title first when this estimate is linked to a project.
   const jobLines = [
+    projectSiteName(estimate),
     (estimate.job_address || ''),
     unitVal ? String(unitVal).replace(/^(Unit|Apt)\s*/i, '').trim() : '',
     [estimate.job_city, estimate.job_state, estimate.job_zip].filter(Boolean).join(', '),
@@ -631,7 +637,7 @@ function generateInvoicePDF(invoice, company, stream) {
     invoice.customer_email,
     invoice.customer_phone,
   ], [
-    invoice.job_title,
+    projectSiteName(invoice),
     (invoice.job_address || ''),
     invoice.unit_number ? String(invoice.unit_number).replace(/^(Unit|Apt)\s*/i, '').trim() : '',
     [invoice.job_city, invoice.job_state, invoice.job_zip].filter(Boolean).join(', '),
@@ -727,5 +733,5 @@ module.exports = {
   generateWorkOrderPDF,
   generateInvoicePDF,
   renderToBuffer,
-  _internal: { drawHeader, drawTitle, drawAddressBlocks, drawLineItemsTable, drawTotals, drawNotes, drawTextBlock, drawSignatureBlock, drawPaymentTerms, drawFooterMeta, fmt, fmtMoney, COLOR },
+  _internal: { drawHeader, drawTitle, drawAddressBlocks, drawLineItemsTable, drawTotals, drawNotes, drawTextBlock, drawSignatureBlock, drawPaymentTerms, drawFooterMeta, fmt, fmtMoney, projectSiteName, COLOR },
 };
