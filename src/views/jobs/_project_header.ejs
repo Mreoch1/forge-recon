@@ -27,6 +27,7 @@ var headerAccess = typeof projectAccess !== 'undefined' ? projectAccess : { canS
         </p>
       </div>
       <div class="flex gap-2">
+        <a href="/work-orders?project_id=<%= job.id %>" class="btn btn-secondary">Work orders</a>
         <a href="/projects/<%= job.id %>/schedule" class="btn btn-secondary">Schedule</a>
         <a href="/projects/<%= job.id %>/rfp" class="btn btn-secondary">RFP</a>
         <% if (headerAccess.canSeeBilling) { %>

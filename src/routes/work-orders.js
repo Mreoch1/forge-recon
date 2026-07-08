@@ -644,8 +644,24 @@ router.get('/', async (req, res) => {
   const q = sanitizePostgrestSearch((req.query.q || '').trim());
   const status = (req.query.status || '').trim();
   const assigneeFilter = parseInt(req.query.assignee, 10) || null;
+  const projectId = parseInt(req.query.project_id, 10) || null;
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
+
+  let projectContext = null;
+  if (projectId) {
+    const { data: project, error: projectErr } = await supabase
+      .from('jobs')
+      .select('id, title, customer_id, customers!left(id, name)')
+      .eq('id', projectId)
+      .maybeSingle();
+    if (projectErr) throw projectErr;
+    projectContext = project ? {
+      id: project.id,
+      title: project.title || 'Project',
+      customer_name: project.customers?.name || null,
+    } : null;
+  }
 
   let users = [];
   if (req.session.role !== 'worker') {
@@ -677,6 +693,9 @@ router.get('/', async (req, res) => {
   }
   if (status && VALID_STATUSES.includes(status)) {
     query = query.eq('status', status);
+  }
+  if (projectId) {
+    query = query.eq('job_id', projectId);
   }
   if (assigneeFilter && req.session.role !== 'worker') {
     const assignedIds = await workOrderIdsAssignedToUser(assigneeFilter);
@@ -730,8 +749,8 @@ router.get('/', async (req, res) => {
   }));
 
   res.render('work-orders/index', {
-    title: 'Work Orders', activeNav: 'work-orders',
-    workOrders, q, status, page, users, assigneeFilter,
+    title: projectContext ? `${projectContext.title} Work Orders` : 'Work Orders', activeNav: 'work-orders',
+    workOrders, q, status, page, users, assigneeFilter, projectContext,
     totalPages: Math.max(1, Math.ceil((total || 0) / PAGE_SIZE)),
     total: total || 0, statuses: VALID_STATUSES,
     watchTables: ['work_orders'],

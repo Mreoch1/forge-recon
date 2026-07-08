@@ -42,15 +42,24 @@
   <!-- R33: stack title and CTA on mobile -->
   <div class="ops-header">
     <div class="ops-title-block">
-      <h1 class="wol-h1">Work orders</h1>
-      <p class="wol-sub mt-1"><%= total %> total<% if (q) { %> &middot; "<%= q %>"<% } %><% if (status) { %> &middot; <%= status.replace('_',' ') %><% } %></p>
+      <% if (typeof projectContext !== 'undefined' && projectContext) { %>
+        <a href="/projects/<%= projectContext.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; Back to <%= projectContext.title %></a>
+      <% } %>
+      <h1 class="wol-h1"><%= (typeof projectContext !== 'undefined' && projectContext) ? projectContext.title + ' work orders' : 'Work orders' %></h1>
+      <p class="wol-sub mt-1">
+        <%= total %> total
+        <% if (typeof projectContext !== 'undefined' && projectContext && projectContext.customer_name) { %> &middot; <%= projectContext.customer_name %><% } %>
+        <% if (q) { %> &middot; "<%= q %>"<% } %>
+        <% if (status) { %> &middot; <%= status.replace('_',' ') %><% } %>
+      </p>
     </div>
     <div class="ops-actions">
-      <a href="/work-orders/new" class="btn btn-primary min-h-[44px]">+ New work order</a>
+      <a href="/work-orders/new<%= (typeof projectContext !== 'undefined' && projectContext) ? '?project_id=' + projectContext.id : '' %>" class="btn btn-primary min-h-[44px]">+ New work order</a>
     </div>
   </div>
 
   <%
+    var _projectContext = (typeof projectContext !== 'undefined') ? projectContext : null;
     var _users = (typeof users !== 'undefined') ? users : [];
     var _assigneeFilter = (typeof assigneeFilter !== 'undefined') ? assigneeFilter : '';
     var _statuses = (typeof statuses !== 'undefined') ? statuses : [];
@@ -95,6 +104,7 @@
     </div>
   </div>
   <form method="get" action="/work-orders" class="list-utility-bar" style="margin-bottom:.65rem">
+    <% if (_projectContext) { %><input type="hidden" name="project_id" value="<%= _projectContext.id %>"><% } %>
     <input type="text" name="q" value="<%= q %>" placeholder="Search WO #, customer..." class="list-search">
     <select name="status" class="list-filter">
       <option value="">All statuses</option>
@@ -111,14 +121,14 @@
       </select>
     <% } %>
     <button type="submit" class="btn btn-secondary">Filter</button>
-    <% if (q || status || _assigneeFilter) { %><a href="/work-orders" class="list-clear">Clear</a><% } %>
+    <% if (q || status || _assigneeFilter) { %><a href="/work-orders<%= _projectContext ? '?project_id=' + _projectContext.id : '' %>" class="list-clear">Clear</a><% } %>
   </form>
   <% if (workOrders.length === 0) { %>
     <div class="wol-empty">
       <% if (q || status || _assigneeFilter) { %>
-        No work orders match. <a href="/work-orders" class="text-recon-red underline">Clear filters</a>.
+        No work orders match. <a href="/work-orders<%= _projectContext ? '?project_id=' + _projectContext.id : '' %>" class="text-recon-red underline">Clear filters</a>.
       <% } else { %>
-        No work orders yet. Use the <a href="/work-orders/new" class="text-recon-red underline">+ New work order</a> button above, or convert an accepted <a href="/estimates" class="text-recon-red underline">estimate</a>.
+        No work orders yet. Use the <a href="/work-orders/new<%= _projectContext ? '?project_id=' + _projectContext.id : '' %>" class="text-recon-red underline">+ New work order</a> button above, or convert an accepted <a href="/estimates" class="text-recon-red underline">estimate</a>.
       <% } %>
     </div>
   <% } else { %>
@@ -190,7 +200,7 @@
   <% if (totalPages > 1) { %>
     <div class="flex items-center justify-center gap-2 mt-4">
       <% for (let p = 1; p <= totalPages; p++) { %>
-        <% const qs = ['page='+p]; if (q) qs.push('q='+encodeURIComponent(q)); if (status) qs.push('status='+encodeURIComponent(status)); if (_assigneeFilter) qs.push('assignee='+encodeURIComponent(_assigneeFilter)); %>
+        <% const qs = ['page='+p]; if (_projectContext) qs.push('project_id='+encodeURIComponent(_projectContext.id)); if (q) qs.push('q='+encodeURIComponent(q)); if (status) qs.push('status='+encodeURIComponent(status)); if (_assigneeFilter) qs.push('assignee='+encodeURIComponent(_assigneeFilter)); %>
         <% if (p === page) { %><span class="btn btn-primary"><%= p %></span>
         <% } else { %><a href="/work-orders?<%= qs.join('&') %>" class="btn btn-ghost"><%= p %></a><% } %>
       <% } %>

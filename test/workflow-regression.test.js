@@ -11,8 +11,18 @@ function read(rel) {
 
 test('project header starts work orders with project_id', () => {
   const header = read('src/views/jobs/_project_header.ejs');
+  const workOrderRoutes = read('src/routes/work-orders.js');
+  const workOrderIndex = read('src/views/work-orders/index.ejs');
+
   assert.match(header, /\/work-orders\/new\?project_id=/);
+  assert.match(header, /\/work-orders\?project_id=/);
   assert.doesNotMatch(header, /\/work-orders\/new\?job_id=/);
+  assert.match(workOrderRoutes, /const projectId = parseInt\(req\.query\.project_id, 10\) \|\| null/);
+  assert.match(workOrderRoutes, /query = query\.eq\('job_id', projectId\)/);
+  assert.match(workOrderRoutes, /projectContext/);
+  assert.match(workOrderIndex, /name="project_id"/);
+  assert.match(workOrderIndex, /Back to <%= projectContext\.title %>/);
+  assert.match(workOrderIndex, /project_id='\+encodeURIComponent\(_projectContext\.id\)/);
 });
 
 test('bill-created paperwork uses configurable default markup', () => {
