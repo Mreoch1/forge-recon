@@ -936,6 +936,41 @@ router.get('/projects/:id/rfp/export.xlsx', requireRfpAccess, async (req, res) =
   res.send(buf);
 });
 
+// ── Ginosko Bid Sheet export — fills approved RFP pricing into Ginosko's
+// Exhibit B template. See src/services/ginosko-export.js for the cell
+// mapping (GINOSKO_TEMPLATE), the reconciliation guard, and the notes on
+// what to update if Ginosko revises the workbook. ──
+const ginoskoExport = require('../services/ginosko-export');
+
+router.get('/projects/:id/rfp/export-ginosko.xlsx', requireRfpAccess, async (req, res) => {
+  const data = await loadProjectExportData(req.params.id);
+  if (!data) return res.status(404).send('Project not found');
+
+  let result;
+  try {
+    result = await ginoskoExport.buildGinoskoExport(data.job, data.rfps, data.itemsByRfp);
+  } catch (e) {
+    if (e instanceof ginoskoExport.GinoskoTemplateMissingError) {
+      console.error('[ginosko-export] template missing:', e.message);
+      return res.status(500).send('Ginosko bid sheet template is not available on the server. Contact an administrator.');
+    }
+    if (e instanceof ginoskoExport.GinoskoReconciliationError) {
+      console.error('[ginosko-export] reconciliation mismatch for job', req.params.id, e.details);
+      return res.status(500).send(
+        'Ginosko export aborted: the workbook total did not match the approved FORGE RFP total, so nothing was downloaded. ' +
+        `FORGE approved total: ${e.details.forgeTotal.toFixed(2)}, expected workbook total: ${e.details.workbookTotal.toFixed(2)}, difference: ${e.details.diff.toFixed(2)}. ` +
+        'Please review the RFP approvals for this project and try again, or contact an administrator.'
+      );
+    }
+    throw e;
+  }
+
+  const asciiFallback = result.filename.replace(/[^\x20-\x7e]/g, '').replace(/"/g, "'");
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(result.filename)}`);
+  res.send(Buffer.from(result.buffer));
+});
+
 router.get('/projects/:id/rfps/:rId/export.pdf', requireRfpAccess, async (req, res) => {
   const { data: rfp, error: rfpErr } = await supabase.from('project_rfps').select('*, jobs!left(title)').eq('id', req.params.rId).maybeSingle();
   if (rfpErr) throw rfpErr;

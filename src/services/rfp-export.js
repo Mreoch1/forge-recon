@@ -943,5 +943,15 @@ module.exports = {
   renderContractorHandoffPdf,
   _internal: {
     pdfText,
+    // Exposed for src/services/ginosko-export.js — reuses the exact same
+    // approved-total math as the standard RFP exports so the Ginosko
+    // export can validate its grand total against the same source of truth
+    // instead of re-deriving (and risking drift from) the calculation.
+    computedLineTotalCost,
+    computedLineTotalWithMarkup,
+    computeGrandTotal,
+    computeProjectGrandTotal,
+    buildExportRows,
+    buildProjectExportRows,
   },
 };
