@@ -39,7 +39,7 @@ test('approved supplier child exports to Materials, not Labor', async () => {
   assert.equal(sheet.getCell('D31').value, 144); // 120 * 1.20 markup+GR
 });
 
-test('approved contractor child exports to Labor with hours = FORGE quantity', async () => {
+test('approved contractor child exports to Labor with hours = FORGE quantity x 8', async () => {
   const job = baseJob();
   const rfps = [{ id: 2, contractor_name: 'Electrical' }];
   const itemsByRfp = {
@@ -57,8 +57,10 @@ test('approved contractor child exports to Labor with hours = FORGE quantity', a
 
   const sheet = await loadSheet(result.buffer);
   assert.equal(sheet.getCell('B53').value, 'Install Panel - labor');
-  assert.equal(sheet.getCell('C53').value, 24); // hours = FORGE quantity
-  assert.equal(sheet.getCell('D53').value, 78); // 65 * 1.20 markup+GR = marked-up rate; 24 * 78 = 1872 = total_with_markup
+  // total_with_markup = 65 * 24 * 1.20 = 1872 (unchanged by the hours conversion)
+  assert.equal(sheet.getCell('C53').value, 192); // hours = FORGE quantity (24) * 8
+  assert.equal(sheet.getCell('D53').value, 9.75); // rate recalculated so hours * rate = 1872 still
+  assert.equal(sheet.getCell('C53').value * sheet.getCell('D53').value, 1872);
 });
 
 test('unapproved child is excluded from the export', async () => {

@@ -23,10 +23,13 @@
  *
  * Labor: the template expects HOURS x RATE. FORGE's rfp_line_items table
  * has no dedicated "labor hours" column (as of 2026-07) — only quantity /
- * contractor_cost / vendor_cost. Per the agreed v1 rule: hours = FORGE
- * quantity, rate = FORGE marked-up unit rate, so hours * rate still equals
- * that line's approved total_with_markup exactly. If FORGE ever adds an
- * explicit labor-hours field, prefer it over quantity in buildLeafRows().
+ * contractor_cost / vendor_cost, and FORGE's quantity for a labor line is a
+ * day count, not an hour count. Per the agreed v2 rule: hours = FORGE
+ * quantity * LABOR_HOURS_PER_DAY (8), rate = totalWithMarkup / hours, so
+ * hours * rate still equals that line's approved total_with_markup exactly
+ * — only how it's split between the HOURS and RATE columns changes. If
+ * FORGE ever adds an explicit labor-hours field, prefer it over
+ * quantity * 8 in buildLeafRows().
  *
  * If Ginosko ships a revised workbook, update ONLY the GINOSKO_TEMPLATE
  * object below (row/column addresses). Nothing else in this file should
@@ -42,6 +45,12 @@ const { _internal } = require('./rfp-export');
 const { computedLineTotalCost, computedLineTotalWithMarkup, computeProjectGrandTotal } = _internal;
 
 const TEMPLATE_PATH = path.join(__dirname, '..', 'templates', 'ginosko-construction-bid-sheet.xlsx');
+
+// Labor lines in FORGE store a day-count in `quantity`, but the Ginosko
+// template's Labor section is headed HOURS x RATE. Per the agreed v1 rule,
+// convert day-count to hours by this fixed multiplier before writing the
+// workbook (see buildLeafRows()).
+const LABOR_HOURS_PER_DAY = 8;
 
 // ── Discovered template layout — the single source of truth for cell refs ──
 const GINOSKO_TEMPLATE = {
@@ -214,15 +223,22 @@ function buildLeafRows(rfps, itemsByRfp) {
     const qty = Number(row.quantity) || 0;
     const totalCost = useStoredTotal ? (Number(row.total_cost) || 0) : computedLineTotalCost(row);
     const totalWithMarkup = useStoredTotal ? (Number(row.total_with_markup) || 0) : computedLineTotalWithMarkup(row);
-    const unitRate = qty > 0 ? totalWithMarkup / qty : 0;
+    const isLabor = row.scope_type !== 'supplier';
+    // Labor rows: the template's Labor section expects HOURS x RATE, but
+    // FORGE's quantity for a labor line is a day count, not an hour count.
+    // Per the agreed rule, convert to hours = qty * LABOR_HOURS_PER_DAY and
+    // recompute the rate against those hours, so hours * rate is still
+    // exactly this line's approved totalWithMarkup (the total never moves).
+    const displayQty = isLabor ? qty * LABOR_HOURS_PER_DAY : qty;
+    const unitRate = displayQty > 0 ? totalWithMarkup / displayQty : 0;
     const leaf = {
       description: normalizeText(row.description),
-      quantity: qty,
+      quantity: displayQty,
       unitRate,
       totalCost,
       totalWithMarkup,
     };
-    if (row.scope_type === 'supplier') materials.push(leaf);
+    if (!isLabor) materials.push(leaf);
     else labor.push(leaf);
   }
 
@@ -432,6 +448,7 @@ module.exports = {
   GINOSKO_TEMPLATE,
   TEMPLATE_PATH,
   MAX_FILENAME_LENGTH,
+  LABOR_HOURS_PER_DAY,
   GinoskoReconciliationError,
   GinoskoTemplateMissingError,
   buildGinoskoFilename,
