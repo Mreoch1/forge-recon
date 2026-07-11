@@ -235,6 +235,9 @@
               </td>
               <td class="text-right font-semibold <%= rfp.status === 'awarded' ? 'text-green-700' : '' %>" data-rfp-summary-total="<%= rfp.id %>">$<%= rfpTotals[rfp.id].toFixed(2) %></td>
               <td class="text-right">
+                <a href="/projects/<%= job.id %>/rfps/<%= rfp.id %>/export-ginosko.xlsx" target="_blank"
+                   onclick="event.stopPropagation()" title="Download Ginosko Bid Sheet for this category"
+                   class="text-recon-fog hover:text-recon-red text-xs mr-2">Ginosko</a>
                 <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/delete" method="POST" onclick="event.stopPropagation()"
                       onsubmit="return confirm('Delete this category and all its line items?')" class="inline">
                   <button class="text-recon-fog hover:text-recon-red text-xs">&times;</button>

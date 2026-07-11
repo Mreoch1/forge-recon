@@ -161,15 +161,35 @@ function buildScopeLabel(rfps) {
   return names.join('; ');
 }
 
+// Windows path-length headroom: Michael's file tree nests these downloads
+// several folders deep, so the *filename itself* (not the full path) is
+// capped at 207 characters — comfortably under Windows' 260-char MAX_PATH
+// once a realistic folder prefix is added, with the .xlsx extension always
+// preserved.
+const MAX_FILENAME_LENGTH = 207;
+
+function truncateFilenameToLimit(filename, maxLength) {
+  if (filename.length <= maxLength) return filename;
+  const ext = '.xlsx';
+  const base = filename.slice(0, filename.length - ext.length);
+  const keep = Math.max(0, maxLength - ext.length);
+  const truncatedBase = base.slice(0, keep).replace(/[\s-]+$/, '');
+  return `${truncatedBase}${ext}`;
+}
+
 /**
  * Build a Ginosko-specific export filename, e.g.
  * "06-41 - Millwork & Finish Carpentry - Ginosko Bid Sheet - Midway Square.xlsx"
+ * Always <= MAX_FILENAME_LENGTH characters (extension preserved; the
+ * category/scope name — the more identifying part — is kept, the project
+ * name is what gets clipped if the combined name runs too long).
  */
 function buildGinoskoFilename(job, rfps) {
   const scope = buildScopeLabel(rfps) || 'RFP';
   const projectName = (job && (job.title || job.name)) || `project-${job && job.id}`;
   const raw = `${scope} - Ginosko Bid Sheet - ${projectName}`;
-  return `${sanitizeFilenamePart(raw)}.xlsx`;
+  const sanitized = `${sanitizeFilenamePart(raw)}.xlsx`;
+  return truncateFilenameToLimit(sanitized, MAX_FILENAME_LENGTH);
 }
 
 /**
@@ -411,6 +431,7 @@ async function buildGinoskoExport(job, rfps, itemsByRfp) {
 module.exports = {
   GINOSKO_TEMPLATE,
   TEMPLATE_PATH,
+  MAX_FILENAME_LENGTH,
   GinoskoReconciliationError,
   GinoskoTemplateMissingError,
   buildGinoskoFilename,
@@ -421,6 +442,7 @@ module.exports = {
   _internal: {
     normalizeText,
     sanitizeFilenamePart,
+    truncateFilenameToLimit,
     insertExtraRows,
     shiftRowNumbers,
     populateSheet,

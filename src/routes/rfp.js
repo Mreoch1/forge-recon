@@ -942,33 +942,109 @@ router.get('/projects/:id/rfp/export.xlsx', requireRfpAccess, async (req, res) =
 // what to update if Ginosko revises the workbook. ──
 const ginoskoExport = require('../services/ginosko-export');
 
-router.get('/projects/:id/rfp/export-ginosko.xlsx', requireRfpAccess, async (req, res) => {
-  const data = await loadProjectExportData(req.params.id);
-  if (!data) return res.status(404).send('Project not found');
+// loadProjectExportData() (above) only selects jobs.id/title — enough for
+// the plain PDF/CSV/XLSX exports, which don't print an address or dates.
+// The Ginosko template does, so Ginosko exports fetch the job separately
+// with the fuller field set rather than widening the shared loader (which
+// would touch the existing exports' behavior).
+async function loadGinoskoJob(jobId) {
+  const { data: job, error } = await supabase
+    .from('jobs')
+    .select('id, title, address, city, state, zip, start_date, end_date')
+    .eq('id', jobId)
+    .maybeSingle();
+  if (error) throw error;
+  return job;
+}
 
-  let result;
-  try {
-    result = await ginoskoExport.buildGinoskoExport(data.job, data.rfps, data.itemsByRfp);
-  } catch (e) {
-    if (e instanceof ginoskoExport.GinoskoTemplateMissingError) {
-      console.error('[ginosko-export] template missing:', e.message);
-      return res.status(500).send('Ginosko bid sheet template is not available on the server. Contact an administrator.');
-    }
-    if (e instanceof ginoskoExport.GinoskoReconciliationError) {
-      console.error('[ginosko-export] reconciliation mismatch for job', req.params.id, e.details);
-      return res.status(500).send(
-        'Ginosko export aborted: the workbook total did not match the approved FORGE RFP total, so nothing was downloaded. ' +
-        `FORGE approved total: ${e.details.forgeTotal.toFixed(2)}, expected workbook total: ${e.details.workbookTotal.toFixed(2)}, difference: ${e.details.diff.toFixed(2)}. ` +
-        'Please review the RFP approvals for this project and try again, or contact an administrator.'
-      );
-    }
-    throw e;
+function sendGinoskoWorkbookErrors(res, jobIdForLog, e) {
+  if (e instanceof ginoskoExport.GinoskoTemplateMissingError) {
+    console.error('[ginosko-export] template missing:', e.message);
+    res.status(500).send('Ginosko bid sheet template is not available on the server. Contact an administrator.');
+    return true;
   }
+  if (e instanceof ginoskoExport.GinoskoReconciliationError) {
+    console.error('[ginosko-export] reconciliation mismatch for job', jobIdForLog, e.details);
+    res.status(500).send(
+      'Ginosko export aborted: the workbook total did not match the approved FORGE RFP total, so nothing was downloaded. ' +
+      `FORGE approved total: $${e.details.forgeTotal.toFixed(2)}, expected workbook total: $${e.details.workbookTotal.toFixed(2)}, difference: $${e.details.diff.toFixed(2)}. ` +
+      'Please review the RFP approvals for this project and try again, or contact an administrator.'
+    );
+    return true;
+  }
+  return false;
+}
 
+function sendGinoskoWorkbook(res, result) {
   const asciiFallback = result.filename.replace(/[^\x20-\x7e]/g, '').replace(/"/g, "'");
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(result.filename)}`);
   res.send(Buffer.from(result.buffer));
+}
+
+// Whole-project export — every RFP category on the project rolled into one
+// bid sheet. Kept for convenience; most projects only have one category
+// anyway. For a single trade/category, use the per-category route below.
+router.get('/projects/:id/rfp/export-ginosko.xlsx', requireRfpAccess, async (req, res) => {
+  const [job, data] = await Promise.all([
+    loadGinoskoJob(req.params.id),
+    loadProjectExportData(req.params.id),
+  ]);
+  if (!job || !data) return res.status(404).send('Project not found');
+
+  let result;
+  try {
+    result = await ginoskoExport.buildGinoskoExport(job, data.rfps, data.itemsByRfp);
+  } catch (e) {
+    if (sendGinoskoWorkbookErrors(res, req.params.id, e)) return;
+    throw e;
+  }
+
+  sendGinoskoWorkbook(res, result);
+});
+
+// Per-category export — the normal path: generates a bid sheet scoped to
+// exactly one selected RFP category (the "Ginosko" link on that category's
+// row), so a project with multiple trades/categories gets one Exhibit B
+// per trade instead of everything merged into a single sheet.
+router.get('/projects/:id/rfps/:rId/export-ginosko.xlsx', requireRfpAccess, async (req, res) => {
+  const [job, { data: rfp, error: rfpErr }] = await Promise.all([
+    loadGinoskoJob(req.params.id),
+    supabase.from('project_rfps').select('*').eq('id', req.params.rId).maybeSingle(),
+  ]);
+  if (rfpErr) throw rfpErr;
+  if (!job) return res.status(404).send('Project not found');
+  // Defensive cross-project guard: requireRfpAccess authorizes based on
+  // req.params.id, so make sure the requested category actually belongs
+  // to that project before exporting anything from it.
+  if (!rfp || String(rfp.job_id) !== String(req.params.id)) {
+    return res.status(404).send('RFP category not found for this project.');
+  }
+
+  const { data: allItems, error: itemsErr } = await supabase
+    .from('rfp_line_items')
+    .select('*')
+    .eq('rfp_id', rfp.id)
+    .order('sort_order', { ascending: true })
+    .order('id', { ascending: true });
+  if (itemsErr) throw itemsErr;
+
+  const items = allItems || [];
+  const parentItems = items.filter(i => !i.parent_line_item_id);
+  const subItemsMap = {};
+  items.filter(i => i.parent_line_item_id).forEach(i => {
+    (subItemsMap[i.parent_line_item_id] = subItemsMap[i.parent_line_item_id] || []).push(i);
+  });
+
+  let result;
+  try {
+    result = await ginoskoExport.buildGinoskoExport(job, [rfp], { [rfp.id]: { items: parentItems, subItemsMap } });
+  } catch (e) {
+    if (sendGinoskoWorkbookErrors(res, req.params.id, e)) return;
+    throw e;
+  }
+
+  sendGinoskoWorkbook(res, result);
 });
 
 router.get('/projects/:id/rfps/:rId/export.pdf', requireRfpAccess, async (req, res) => {

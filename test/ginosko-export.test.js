@@ -250,15 +250,44 @@ test('reconciliation mismatch throws instead of silently shipping a bad workbook
   }
 });
 
-test('route wiring: Ginosko export is registered under the same project access control as the other RFP exports', () => {
+test('route wiring: Ginosko exports (project-level and per-category) are registered under the same project access control as the other RFP exports', () => {
   const routesSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'rfp.js'), 'utf8');
   assert.match(
     routesSrc,
     /router\.get\('\/projects\/:id\/rfp\/export-ginosko\.xlsx',\s*requireRfpAccess,/,
-    'export-ginosko.xlsx route must be mounted with requireRfpAccess, same as export.pdf/csv/xlsx'
+    'whole-project export-ginosko.xlsx route must be mounted with requireRfpAccess, same as export.pdf/csv/xlsx'
   );
+  assert.match(
+    routesSrc,
+    /router\.get\('\/projects\/:id\/rfps\/:rId\/export-ginosko\.xlsx',\s*requireRfpAccess,/,
+    'per-category export-ginosko.xlsx route must be mounted with requireRfpAccess, same as the sibling per-category exports'
+  );
+  // The per-category route must verify the requested rfp actually belongs
+  // to the project in the URL, since requireRfpAccess only checks :id, not
+  // :rId — without this a user could pull another project's category data.
+  assert.match(routesSrc, /String\(rfp\.job_id\)\s*!==\s*String\(req\.params\.id\)/);
   const appSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'app.js'), 'utf8');
   assert.match(appSrc, /app\.use\('\/',\s*requireAuth,\s*rfpRoutes\)/);
+});
+
+test('per-category build only includes the selected category, matching what the per-category route passes in', async () => {
+  // Mirrors exactly what GET /projects/:id/rfps/:rId/export-ginosko.xlsx
+  // does: a single rfp + only that rfp's items, never the whole project.
+  const job = baseJob();
+  const targetRfp = { id: 100, contractor_name: 'Selected Category', job_id: 42 };
+  const otherRfpItems = { items: [{ id: 900, parent_line_item_id: null, description: 'Other category item', quantity: 1, contractor_cost: 0, vendor_cost: 1000, total_cost: 1000, total_with_markup: 1000, approved: true, scope_type: 'supplier' }], subItemsMap: {} };
+  const targetItems = { items: [{ id: 101, parent_line_item_id: null, description: 'Selected category item', quantity: 2, contractor_cost: 0, vendor_cost: 25, total_cost: 50, markup_pct: 10, general_requirements_pct: 5, total_with_markup: 57.5, approved: true, scope_type: 'supplier' }], subItemsMap: {} };
+
+  // Only the selected rfp is passed — exactly the route's contract.
+  const result = await buildGinoskoExport(job, [targetRfp], { [targetRfp.id]: targetItems });
+  assert.equal(result.materialsCount, 1);
+  assert.equal(result.workbookTotal, 57.5);
+
+  const sheet = await loadSheet(result.buffer);
+  assert.equal(sheet.getCell('C31').value, 'Selected category item');
+  assert.equal(sheet.getCell('C15').value, 'Selected Category');
+  assert.doesNotMatch(String(sheet.getCell('C32').value || ''), /Other category item/);
+  void otherRfpItems; // documents what must NOT leak in — never passed to buildGinoskoExport
 });
 
 test('filename is built dynamically from category + project, with unsafe characters stripped', () => {
@@ -270,4 +299,19 @@ test('filename is built dynamically from category + project, with unsafe charact
   const dirtyRfps = [{ id: 1, contractor_name: 'Weird/Trade:Name*?"<>|' }];
   const dirtyFilename = ginoskoExport.buildGinoskoFilename(job, dirtyRfps);
   assert.doesNotMatch(dirtyFilename, /[\\/:*?"<>|]/);
+});
+
+test('filename never exceeds 207 characters, even with very long category/project names', () => {
+  const job = baseJob({ title: 'A'.repeat(150) });
+  const rfps = [{ id: 1, contractor_name: 'B'.repeat(150) }];
+  const filename = ginoskoExport.buildGinoskoFilename(job, rfps);
+  assert.ok(filename.length <= ginoskoExport.MAX_FILENAME_LENGTH, `expected <= ${ginoskoExport.MAX_FILENAME_LENGTH} chars, got ${filename.length}`);
+  assert.match(filename, /\.xlsx$/);
+
+  // Short names must be completely unaffected by the cap.
+  const shortJob = baseJob({ title: 'Midway Square' });
+  const shortRfps = [{ id: 1, contractor_name: '06-41 - Millwork & Finish Carpentry' }];
+  const shortFilename = ginoskoExport.buildGinoskoFilename(shortJob, shortRfps);
+  assert.equal(shortFilename, '06-41 - Millwork & Finish Carpentry - Ginosko Bid Sheet - Midway Square.xlsx');
+  assert.ok(shortFilename.length <= ginoskoExport.MAX_FILENAME_LENGTH);
 });
