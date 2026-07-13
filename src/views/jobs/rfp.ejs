@@ -660,8 +660,14 @@
     cursor: not-allowed;
   }
   .rfp-items-table {
+    width: 96rem !important;
     min-width: 96rem;
     table-layout: fixed;
+  }
+  .rfp-items-table th,
+  .rfp-items-table td {
+    padding-left: .75rem;
+    padding-right: .75rem;
   }
   .rfp-items-table th,
   .rfp-items-table td {
@@ -674,6 +680,7 @@
   .rfp-items-table td:nth-child(n+3):not(:nth-child(10)),
   .rfp-items-table th:nth-child(n+3):not(:nth-child(10)) {
     text-align: right;
+    white-space: nowrap;
   }
   .rfp-items-table td:nth-child(10),
   .rfp-items-table th:nth-child(10) {

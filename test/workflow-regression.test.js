@@ -856,6 +856,15 @@ test('RFP selected line items can print BuildingConnected bid request instructio
   assert.match(service, /collectBidInstructionSections\(items\)/);
 });
 
+test('RFP line item table keeps numeric columns aligned', () => {
+  const view = read('src/views/jobs/rfp.ejs');
+
+  assert.match(view, /<col style="width:10\.5rem">/);
+  assert.match(view, /data-rfp-parent-total-cost/);
+  assert.match(view, /\.rfp-items-table\s*\{[^}]*width:\s*96rem !important/s);
+  assert.match(view, /white-space:\s*nowrap/);
+});
+
 test('RFP parent rows roll up approved sub-lines only', () => {
   const view = read('src/views/jobs/rfp.ejs');
 
