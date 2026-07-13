@@ -199,6 +199,34 @@ test('project RFP PDF normalizes copied line-item whitespace', async () => {
   assert.ok(pdf.length > 1000);
 });
 
+test('selected bid request PDF renders only chosen lines across categories', async () => {
+  const pdf = await rfpExport.renderSelectedBidRequestPdf(
+    { title: 'Ashtabula Towers', address: '100 Main', city: 'Detroit', state: 'MI', zip: '48201' },
+    [
+      {
+        id: 100,
+        rfp_id: 10,
+        project_rfps: { id: 10, contractor_name: 'Cabinets', notes: 'Include shop drawings.' },
+        description: 'Cabinet install at kitchens',
+        quantity: 14,
+        sort_order: 1,
+      },
+      {
+        id: 200,
+        rfp_id: 11,
+        project_rfps: { id: 11, contractor_name: 'Countertops', notes: 'Field verify all dimensions.' },
+        description: 'Quartz tops at kitchens',
+        quantity: 14,
+        sort_order: 1,
+      },
+    ],
+    'Hardrock Stoneworks'
+  );
+
+  assert.ok(Buffer.isBuffer(pdf));
+  assert.ok(pdf.length > 1000);
+});
+
 test('project RFP XLSX export aligns readable columns', async () => {
   const rfps = [{ id: 10, contractor_name: 'Plumbing & Fixtures', status: 'awarded' }];
   const itemsByRfp = {

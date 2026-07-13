@@ -7,6 +7,11 @@
       <a href="/projects/<%= job.id %>/rfp/export.pdf" class="btn btn-secondary text-sm" target="_blank">PDF</a>
       <a href="/projects/<%= job.id %>/rfp/export.csv" class="btn btn-secondary text-sm" target="_blank">CSV</a>
       <a href="/projects/<%= job.id %>/rfp/export.xlsx" class="btn btn-secondary text-sm" target="_blank">XLSX</a>
+      <form id="rfp-bid-request-form" action="/projects/<%= job.id %>/rfp/bid-request.pdf" method="GET" target="_blank" class="flex items-center gap-2 flex-wrap">
+        <input name="for" class="input text-sm" placeholder="Prepared for (optional)" list="rfp-line-entity-options" style="min-width:210px">
+        <button id="rfp-bid-request-submit" type="submit" class="btn btn-secondary text-sm" disabled>Bid request PDF</button>
+        <span id="rfp-bid-request-count" class="text-xs text-recon-fog">0 selected</span>
+      </form>
       <button onclick="document.getElementById('rfp-new-form').classList.toggle('hidden')"
               class="btn btn-primary text-sm">+ Add category</button>
       <span id="rfp-autosave-status" class="text-xs text-recon-fog px-2">Autosave on</span>
@@ -237,6 +242,9 @@
                 <a href="/projects/<%= job.id %>/rfps/<%= rfp.id %>/export-ginosko.xlsx" target="_blank"
                    onclick="event.stopPropagation()" title="Download Ginosko Bid Sheet for this category"
                    class="text-recon-fog hover:text-recon-red text-xs mr-2">Ginosko</a>
+                <button type="button"
+                        onclick="event.stopPropagation();var el=document.getElementById('rfp-items-<%= rfp.id %>');var icon=document.getElementById('rfp-chev-<%= rfp.id %>');if(el){el.classList.remove('hidden');}if(icon){icon.textContent='▼';}"
+                        class="text-recon-fog hover:text-recon-red text-xs mr-2">Select bid lines</button>
                 <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/delete" method="POST" onclick="event.stopPropagation()"
                       onsubmit="return confirm('Delete this category and all its line items?')" class="inline">
                   <button class="text-recon-fog hover:text-recon-red text-xs">&times;</button>
@@ -257,7 +265,6 @@
                 <div class="text-xs text-recon-fog">Paste inclusions, exclusions, clarifications, acknowledgements, plan notes, and bid-form requirements for this trade.</div>
               </div>
             </button>
-            <a class="btn btn-secondary text-xs" href="/projects/<%= job.id %>/rfps/<%= rfp.id %>/bid-request.pdf" target="_blank" rel="noopener">Bid request PDF</a>
           </div>
           <div id="bid-instructions-body-<%= rfp.id %>">
             <textarea class="input w-full text-sm min-h-[6rem]"
@@ -272,7 +279,7 @@
         <div class="px-5 py-3 border-b border-recon-mist bg-recon-deeper/10" onclick="event.stopPropagation()">
           <div class="mb-2">
             <div class="text-xs font-semibold uppercase tracking-wide text-recon-fog">Invite to bid</div>
-            <div class="text-xs text-recon-fog">Send this trade's scope (no pricing) to a contractor or vendor for bidding — doesn't touch your priced sub-lines below.</div>
+            <div class="text-xs text-recon-fog">Track bidders for this trade. Select scope lines below, then use the top Bid request PDF button to create a no-pricing package.</div>
           </div>
           <%
           var invitees = (typeof rfpInvitationsMap !== 'undefined' && rfpInvitationsMap[rfp.id]) || [];
@@ -282,7 +289,6 @@
               <% invitees.forEach(function(inv) { %>
                 <span class="inline-flex items-center gap-1.5 rounded bg-white border border-recon-mist px-2 py-1 text-xs">
                   <%= inv.recipient_name %>
-                  <a class="text-recon-fog hover:text-recon-charcoal underline" href="/projects/<%= job.id %>/rfps/<%= rfp.id %>/bid-request.pdf?for=<%= encodeURIComponent(inv.recipient_name) %>" target="_blank" rel="noopener" title="Download SOW PDF addressed to this bidder">PDF</a>
                   <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/invitations/<%= inv.id %>/delete" method="POST" class="inline">
                     <button type="submit" class="text-recon-fog hover:text-recon-red" title="Remove">&times;</button>
                   </form>
@@ -309,7 +315,7 @@
         </div>
 
         <div class="px-5 py-2 border-b border-recon-mist bg-recon-deeper/10 flex items-center justify-between">
-          <span class="text-xs font-medium text-recon-fog">Line items</span>
+          <span class="text-xs font-medium text-recon-fog">Line items — check Bid PDF boxes for the batch request</span>
           <div class="flex items-center gap-2">
             <button onclick="document.getElementById('rfp-item-form-<%= rfp.id %>').classList.toggle('hidden')"
                     class="btn btn-primary text-xs" style="padding:.3rem .7rem;">+ Add line item</button>
@@ -345,6 +351,7 @@
         <div class="overflow-x-auto">
           <table class="data text-xs rfp-items-table table-fixed" data-rfp-id="<%= rfp.id %>">
             <colgroup>
+              <col class="w-10">
               <col class="w-[28%]">
               <col class="w-[8%]">
               <col class="w-[12%]">
@@ -358,6 +365,7 @@
             </colgroup>
             <thead>
               <tr>
+                <th class="w-10 text-center">Bid PDF</th>
                 <th class="w-[28%]">Description</th>
                 <th class="text-right">Qty</th>
                 <th class="text-right">Unit Cost</th>
@@ -389,6 +397,9 @@
                 <% var liGr = liHasSubs ? rfpPercentSummary(apprChildren, 'general_requirements_pct', DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT) : (item.general_requirements_pct == null ? '—' : formatPercentValue(numberOrDefault(item.general_requirements_pct, 0))); %>
                 <% var liApproved = liHasSubs ? (apprChildren.length === children.length ? true : false) : !!item.approved; %>
                 <tr id="rfp-line-<%= item.id %>" class="rfp-li-row bg-recon-deeper/20 hover:bg-recon-cloud/20 border-t-2 border-recon-mist/40" style="cursor:pointer" data-rfp-line-total="<%= liDisplayTotal.toFixed(2) %>" data-rfp-line-approved="<%= liHasSubs ? (liApprovedSubs > 0 ? '1' : '0') : (item.approved ? '1' : '0') %>" data-rfp-line-search="<%= (item.description || '').toLowerCase() %>" onclick="toggleRfpLineEditor('<%= item.id %>');">
+                  <td class="text-center" onclick="event.stopPropagation();">
+                    <input form="rfp-bid-request-form" type="checkbox" name="item_ids" value="<%= item.id %>" class="h-4 w-4" data-rfp-bid-item>
+                  </td>
                   <td>
                     <div class="flex items-start gap-1">
                       <span class="rfp-li-chevron text-recon-fog text-xs mt-1 select-none inline-block" style="transition:transform 0.15s; transform:rotate(0deg);">▸</span>
@@ -414,7 +425,7 @@
                   </td>
                 </tr>
                 <tr id="rfp-line-editor-<%= item.id %>" class="rfp-line-editor-modal hidden fixed inset-0 z-[80] bg-black/50">
-                  <td colspan="10" class="block h-screen overflow-y-auto p-4 sm:p-6" onclick="closeRfpLineEditor('<%= item.id %>');">
+                  <td colspan="11" class="block h-screen overflow-y-auto p-4 sm:p-6" onclick="closeRfpLineEditor('<%= item.id %>');">
                     <div class="mx-auto my-8 w-full max-w-6xl rounded-lg border border-recon-mist bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="rfp-line-editor-title-<%= item.id %>" onclick="event.stopPropagation();">
                       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-recon-mist px-4 py-3">
                         <div>
@@ -606,12 +617,12 @@
                 </tr>
               <% }); %>
               <% if (items.length === 0) { %>
-                <tr><td colspan="10" class="text-center text-recon-fog py-4">No line items yet. Click + Add item to add one.</td></tr>
+                <tr><td colspan="11" class="text-center text-recon-fog py-4">No line items yet. Click + Add item to add one.</td></tr>
               <% } %>
             </tbody>
             <tfoot>
               <tr class="font-semibold bg-recon-deeper/50">
-                <td colspan="8" class="text-right">Grand Total (approved)</td>
+                <td colspan="9" class="text-right">Grand Total (approved)</td>
                 <td class="text-right text-recon-red" data-rfp-grand-total="<%= rfp.id %>">$<%= grandTotal.toFixed(2) %></td>
                 <td></td>
               </tr>
@@ -635,6 +646,27 @@
 </style>
 <script>
 (function(){
+  function updateBidRequestSelectionCount() {
+    var selected = document.querySelectorAll('[data-rfp-bid-item]:checked').length;
+    var count = document.getElementById('rfp-bid-request-count');
+    var submit = document.getElementById('rfp-bid-request-submit');
+    if (count) count.textContent = selected + ' selected';
+    if (submit) submit.disabled = selected === 0;
+  }
+  document.querySelectorAll('[data-rfp-bid-item]').forEach(function(el) {
+    el.addEventListener('change', updateBidRequestSelectionCount);
+  });
+  var bidForm = document.getElementById('rfp-bid-request-form');
+  if (bidForm) {
+    bidForm.addEventListener('submit', function(e) {
+      if (!document.querySelector('[data-rfp-bid-item]:checked')) {
+        e.preventDefault();
+        alert('Select at least one line item for the bid request PDF.');
+      }
+    });
+  }
+  updateBidRequestSelectionCount();
+
   // Rename RFP tab on double-click
   document.addEventListener('dblclick', function(e) {
     var target = e.target.closest('.rfp-rename-trigger');

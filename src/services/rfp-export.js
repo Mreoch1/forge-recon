@@ -986,6 +986,196 @@ function renderBidRequestPdf(project, rfp, items, recipientName) {
   });
 }
 
+/**
+ * Render a selected-line bid request package across one or more RFP
+ * categories. Used by the RFP page batch action so contractors only receive
+ * the exact scope lines selected for them.
+ */
+function renderSelectedBidRequestPdf(project, items, recipientName) {
+  const selectedItems = (items || []).filter(item => !item.parent_line_item_id);
+  const categoryNames = Array.from(new Set(selectedItems.map(item => {
+    const rfp = rfpParent(item);
+    return rfp?.contractor_name || 'Selected scope';
+  }).filter(Boolean)));
+  const packageTitle = categoryNames.length === 1 ? categoryNames[0] : 'Selected Scope';
+
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({
+      size: 'LETTER',
+      margin: 50,
+      info: {
+        Title: `BID REQUEST — ${packageTitle}`,
+        Subject: `Selected bid request for ${project.title || ''}`,
+        Author: 'Recon Enterprises',
+      },
+    });
+
+    const chunks = [];
+    const { Writable } = require('stream');
+    const sink = new Writable({
+      write(chunk, _enc, cb) { chunks.push(chunk); cb(); },
+    });
+    sink.on('finish', () => resolve(Buffer.concat(chunks)));
+    sink.on('error', reject);
+    doc.pipe(sink);
+
+    const left = doc.page.margins.left;
+    const right = doc.page.width - doc.page.margins.right;
+    const tableWidth = right - left;
+    let y = doc.page.margins.top;
+
+    doc.fillColor(COLOR.charcoal).fontSize(22).font('Helvetica-Bold')
+      .text('BID REQUEST', left, y);
+    y = doc.y + 8;
+
+    doc.fontSize(14).font('Helvetica-Bold').fillColor(COLOR.red)
+      .text(packageTitle, left, y);
+    y = doc.y + 4;
+
+    if (recipientName) {
+      doc.fontSize(11).font('Helvetica-Bold').fillColor(COLOR.charcoal)
+        .text('Prepared for: ' + recipientName, left, y);
+      y = doc.y + 4;
+    }
+
+    doc.fontSize(12).font('Helvetica').fillColor(COLOR.ash)
+      .text(project.title || project.name || '', left, y);
+    y = doc.y + 2;
+
+    if (project.address) {
+      doc.fontSize(10).fillColor(COLOR.fog)
+        .text([project.address, project.city, project.state, project.zip].filter(Boolean).join(', '), left, y);
+      y = doc.y + 2;
+    }
+
+    doc.fontSize(10).fillColor(COLOR.fog)
+      .text('Date: ' + new Date().toISOString().slice(0, 10), left, y);
+    y = doc.y + 8;
+
+    doc.strokeColor(COLOR.red).lineWidth(2)
+      .moveTo(left, y).lineTo(right, y).stroke();
+    y += 12;
+
+    y = drawBidInstructionSections(doc, collectBidInstructionSections(selectedItems), left, right, y);
+
+    const priceColWidth = 85;
+    const qtyColWidth = 60;
+    const cols = [
+      { label: 'SCOPE / DESCRIPTION', width: tableWidth - qtyColWidth - priceColWidth * 2, align: 'left' },
+      { label: 'QTY', width: qtyColWidth, align: 'right' },
+      { label: 'UNIT COST', width: priceColWidth, align: 'right' },
+      { label: 'TOTAL', width: priceColWidth, align: 'right' },
+    ];
+    const headerHeight = 22;
+    const rowHeight = 18;
+    let pageBottom = doc.page.height - doc.page.margins.bottom - 50;
+
+    const colBoundaries = () => {
+      const xs = [left];
+      let cx = left;
+      cols.forEach(c => { cx += c.width; xs.push(cx); });
+      return xs;
+    };
+
+    const ensure = needed => {
+      if (y + needed <= pageBottom) return;
+      doc.addPage();
+      y = doc.page.margins.top;
+      pageBottom = doc.page.height - doc.page.margins.bottom - 50;
+    };
+
+    const drawHeader = () => {
+      doc.fillColor(COLOR.cloud).rect(left, y, tableWidth, headerHeight).fill();
+      doc.fillColor(COLOR.fog).fontSize(8).font('Helvetica-Bold');
+      let cx = left;
+      cols.forEach(c => {
+        doc.text(c.label, cx + 4, y + 7, { width: c.width - 8, align: c.align });
+        cx += c.width;
+      });
+      y += headerHeight;
+    };
+
+    ensure(headerHeight + rowHeight);
+    drawHeader();
+
+    if (!selectedItems.length) {
+      doc.fillColor(COLOR.fog).fontSize(10).font('Helvetica-Oblique')
+        .text('No scope lines were selected for this bid request.', left, y + 10, { width: tableWidth, align: 'center' });
+      y = doc.y + 20;
+    } else {
+      const groups = new Map();
+      selectedItems.slice().sort((a, b) => {
+        const ar = rfpParent(a);
+        const br = rfpParent(b);
+        const ao = ar?.created_at || '';
+        const bo = br?.created_at || '';
+        if (ao !== bo) return ao < bo ? 1 : -1;
+        const aso = a.sort_order != null ? a.sort_order : 0;
+        const bso = b.sort_order != null ? b.sort_order : 0;
+        if (aso !== bso) return aso - bso;
+        return (a.id || 0) - (b.id || 0);
+      }).forEach(item => {
+        const rfp = rfpParent(item) || {};
+        const key = String(rfp.id || rfp.contractor_name || 'selected');
+        if (!groups.has(key)) groups.set(key, { title: rfp.contractor_name || 'Selected scope', items: [] });
+        groups.get(key).items.push(item);
+      });
+
+      groups.forEach(group => {
+        ensure(rowHeight * 2);
+        doc.fillColor('#ffffff').rect(left, y, tableWidth, rowHeight).fill();
+        doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR.red)
+          .text(pdfText(group.title), left + 4, y + 5, { width: tableWidth - 8 });
+        doc.strokeColor(COLOR.mist).lineWidth(0.5)
+          .moveTo(left, y + rowHeight).lineTo(right, y + rowHeight).stroke();
+        y += rowHeight;
+
+        group.items.forEach(item => {
+          const displayDesc = pdfText(item.description || item.name || '');
+          const qtyVal = Number(item.quantity) || 0;
+          const descH = measurePdfText(doc, displayDesc, cols[0].width - 8, 'Helvetica', 9);
+          const actualRowHeight = Math.max(rowHeight, descH + 8);
+          if (y + actualRowHeight > pageBottom) {
+            doc.addPage();
+            y = doc.page.margins.top;
+            pageBottom = doc.page.height - doc.page.margins.bottom - 50;
+            drawHeader();
+          }
+          doc.font('Helvetica').fontSize(9).fillColor(COLOR.charcoal)
+            .text(displayDesc, left + 4, y + 4, { width: cols[0].width - 8, lineGap: 1 });
+          doc.font('Helvetica').fontSize(9).fillColor(COLOR.charcoal)
+            .text(String(qtyVal), left + cols[0].width + 4, y + 4, { width: cols[1].width - 8, align: 'right' });
+          colBoundaries().forEach(cx => {
+            doc.strokeColor(COLOR.mist).lineWidth(0.5)
+              .moveTo(cx, y).lineTo(cx, y + actualRowHeight).stroke();
+          });
+          doc.strokeColor(COLOR.mist).lineWidth(0.5)
+            .moveTo(left, y + actualRowHeight).lineTo(right, y + actualRowHeight).stroke();
+          y += actualRowHeight;
+        });
+      });
+    }
+
+    y += 14;
+    if (y + 48 > pageBottom) {
+      doc.addPage();
+      y = doc.page.margins.top;
+    }
+    doc.font('Helvetica-Bold').fontSize(10).fillColor(COLOR.charcoal)
+      .text('Pricing response', left, y);
+    y = doc.y + 4;
+    doc.font('Helvetica').fontSize(9).fillColor(COLOR.ash)
+      .text('Please review this bid request, price the listed scope, include any required BuildingConnected acknowledgements, and return pricing to office@reconenterprises.net.', left, y, { width: tableWidth, lineGap: 2 });
+
+    const footerY = doc.page.height - doc.page.margins.bottom - 18;
+    doc.fontSize(7).fillColor(COLOR.fog).font('Helvetica')
+      .text('Recon Enterprises   |   Bid Request   |   ' + new Date().toISOString().slice(0, 10),
+        left, footerY, { width: tableWidth, align: 'center' });
+
+    doc.end();
+  });
+}
+
 // ════════════════════════════════════════════════════════════════════════
 //  CSV
 // ════════════════════════════════════════════════════════════════════════
@@ -1192,6 +1382,7 @@ module.exports = {
   renderProjectXlsx,
   renderContractorHandoffPdf,
   renderBidRequestPdf,
+  renderSelectedBidRequestPdf,
   _internal: {
     pdfText,
     // Exposed for src/services/ginosko-export.js — reuses the exact same

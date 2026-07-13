@@ -981,6 +981,56 @@ function exportFilenameBase(job, fallbackId) {
   return `${clean || `project-${fallbackId}`}-RFP`;
 }
 
+function selectedBidRequestItemIds(queryValue) {
+  const raw = Array.isArray(queryValue) ? queryValue : [queryValue];
+  return raw
+    .flatMap(value => String(value || '').split(','))
+    .map(value => value.trim())
+    .filter(Boolean)
+    .filter((value, index, arr) => arr.indexOf(value) === index);
+}
+
+function cleanFilenamePart(value, fallback, maxLength = 60) {
+  const clean = String(value || fallback)
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]+/gi, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, maxLength);
+  return clean || fallback;
+}
+
+router.get('/projects/:id/rfp/bid-request.pdf', requireRfpAccess, async (req, res) => {
+  const itemIds = selectedBidRequestItemIds(req.query.item_ids);
+  if (!itemIds.length) return res.status(400).send('Select at least one line item for the bid request PDF.');
+
+  const [{ data: job, error: jobErr }, { data: items, error: itemsErr }] = await Promise.all([
+    supabase.from('jobs').select('id, title, name, address, city, state, zip').eq('id', req.params.id).maybeSingle(),
+    supabase
+      .from('rfp_line_items')
+      .select('*, project_rfps!inner(id, job_id, contractor_name, notes, created_at)')
+      .in('id', itemIds)
+      .is('parent_line_item_id', null)
+      .order('sort_order', { ascending: true })
+      .order('id', { ascending: true }),
+  ]);
+  if (jobErr) throw jobErr;
+  if (itemsErr) throw itemsErr;
+  if (!job) return res.status(404).send('Project not found');
+
+  const selectedItems = (items || []).filter(item => String(item.project_rfps?.job_id) === String(req.params.id));
+  if (selectedItems.length !== itemIds.length) {
+    return res.status(404).send('One or more selected bid request line items were not found for this project.');
+  }
+
+  const recipientName = String(req.query.for || '').trim() || null;
+  const buf = await rfpExport.renderSelectedBidRequestPdf(job, selectedItems, recipientName);
+  const cleanProject = exportFilenameBase(job, req.params.id).replace(/-RFP$/, '');
+  const cleanRecipient = recipientName ? '-' + cleanFilenamePart(recipientName, 'recipient', 40) : '';
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${cleanProject}-selected-scope${cleanRecipient}-bid-request.pdf"`);
+  res.send(buf);
+});
+
 router.get('/projects/:id/rfp/export.pdf', requireRfpAccess, async (req, res) => {
   const data = await loadProjectExportData(req.params.id);
   if (!data) return res.status(404).send('Project not found');

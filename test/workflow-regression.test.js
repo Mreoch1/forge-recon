@@ -831,7 +831,7 @@ test('RFP editing autosaves individual fields with conflict checks', () => {
   assert.match(migration, /CREATE TRIGGER set_rfp_line_items_updated_at/);
 });
 
-test('RFP categories can print BuildingConnected bid request instructions', () => {
+test('RFP selected line items can print BuildingConnected bid request instructions', () => {
   const routes = read('src/routes/rfp.js');
   const view = read('src/views/jobs/rfp.ejs');
   const service = read('src/services/rfp-export.js');
@@ -839,10 +839,17 @@ test('RFP categories can print BuildingConnected bid request instructions', () =
 
   assert.match(view, /BuildingConnected bid instructions/);
   assert.match(view, /Bid request PDF/);
-  assert.match(view, /\/projects\/<%= job\.id %>\/rfps\/<%= rfp\.id %>\/bid-request\.pdf/);
+  assert.match(view, /id="rfp-bid-request-form"/);
+  assert.match(view, /data-rfp-bid-item/);
+  assert.match(view, /\/projects\/<%= job\.id %>\/rfp\/bid-request\.pdf/);
+  assert.doesNotMatch(view, /\/projects\/<%= job\.id %>\/rfps\/<%= rfp\.id %>\/bid-request\.pdf/);
+  assert.match(routes, /router\.get\('\/projects\/:id\/rfp\/bid-request\.pdf'/);
+  assert.match(routes, /selectedBidRequestItemIds\(req\.query\.item_ids\)/);
+  assert.match(routes, /renderSelectedBidRequestPdf\(job, selectedItems, recipientName\)/);
   assert.match(routes, /router\.get\('\/projects\/:id\/rfps\/:rId\/bid-request\.pdf'/);
-  assert.match(routes, /renderBidRequestPdf\(job, rfp, items \|\| \[\]\)/);
-  assert.match(service, /function renderBidRequestPdf\(project, rfp, items\)/);
+  assert.match(routes, /renderBidRequestPdf\(job, rfp, items \|\| \[\], recipientName\)/);
+  assert.match(service, /function renderBidRequestPdf\(project, rfp, items, recipientName\)/);
+  assert.match(service, /function renderSelectedBidRequestPdf\(project, items, recipientName\)/);
   assert.match(service, /BID INSTRUCTIONS \/ BUILDINGCONNECTED NOTES/);
   assert.match(service, /Pricing response/);
   assert.match(contractorRoutes, /project_rfps!inner\(id, job_id, contractor_name, notes\)/);
