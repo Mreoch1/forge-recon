@@ -250,16 +250,21 @@
       <div>
         <div class="px-5 py-3 border-b border-recon-mist bg-recon-deeper/20" onclick="event.stopPropagation()">
           <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
-            <div>
-              <div class="text-xs font-semibold uppercase tracking-wide text-recon-fog">BuildingConnected bid instructions</div>
-              <div class="text-xs text-recon-fog">Paste inclusions, exclusions, clarifications, acknowledgements, plan notes, and bid-form requirements for this trade.</div>
-            </div>
+            <button type="button" class="flex items-start gap-2 text-left" onclick="toggleBidInstructions('<%= rfp.id %>')">
+              <span id="bid-instructions-chevron-<%= rfp.id %>" class="text-recon-fog text-xs mt-0.5 select-none inline-block" style="transition:transform 0.15s;">▾</span>
+              <div>
+                <div class="text-xs font-semibold uppercase tracking-wide text-recon-fog">BuildingConnected bid instructions</div>
+                <div class="text-xs text-recon-fog">Paste inclusions, exclusions, clarifications, acknowledgements, plan notes, and bid-form requirements for this trade.</div>
+              </div>
+            </button>
             <a class="btn btn-secondary text-xs" href="/projects/<%= job.id %>/rfps/<%= rfp.id %>/bid-request.pdf" target="_blank" rel="noopener">Bid request PDF</a>
           </div>
-          <textarea class="input w-full text-sm min-h-[6rem]"
-                    name="notes"
-                    placeholder="Example: Electrical contractor must include LV work, owner-furnished fixtures, emergency inverter, temp power, BuildingConnected acknowledgements..."
-                    data-rfp-autosave-category data-job-id="<%= job.id %>" data-rfp-id="<%= rfp.id %>" data-field="notes" data-original-value="<%- (rfp.notes || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;') %>"><%= rfp.notes || '' %></textarea>
+          <div id="bid-instructions-body-<%= rfp.id %>">
+            <textarea class="input w-full text-sm min-h-[6rem]"
+                      name="notes"
+                      placeholder="Example: Electrical contractor must include LV work, owner-furnished fixtures, emergency inverter, temp power, BuildingConnected acknowledgements..."
+                      data-rfp-autosave-category data-job-id="<%= job.id %>" data-rfp-id="<%= rfp.id %>" data-field="notes" data-original-value="<%- (rfp.notes || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;') %>"><%= rfp.notes || '' %></textarea>
+          </div>
         </div>
         <div class="px-5 py-2 border-b border-recon-mist bg-recon-deeper/10 flex items-center justify-between">
           <span class="text-xs font-medium text-recon-fog">Line items</span>
@@ -723,6 +728,34 @@
     if (icon) icon.textContent = '▼';
     return document.getElementById('rfp-row-' + rfpId) || section;
   }
+
+  // D-141: BuildingConnected bid instructions — collapsible per category,
+  // remembered across page reloads (this page reloads a lot from other
+  // actions, so an in-memory-only toggle would re-expand constantly).
+  function bidInstructionsKey(rfpId) { return 'rfp-bid-instructions-collapsed-' + rfpId; }
+
+  function setBidInstructionsCollapsed(rfpId, collapsed) {
+    var body = document.getElementById('bid-instructions-body-' + rfpId);
+    var chevron = document.getElementById('bid-instructions-chevron-' + rfpId);
+    if (body) body.classList.toggle('hidden', collapsed);
+    if (chevron) chevron.style.transform = collapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
+  }
+
+  function toggleBidInstructions(rfpId) {
+    var body = document.getElementById('bid-instructions-body-' + rfpId);
+    if (!body) return;
+    var collapsed = !body.classList.contains('hidden');
+    setBidInstructionsCollapsed(rfpId, collapsed);
+    try { localStorage.setItem(bidInstructionsKey(rfpId), collapsed ? '1' : '0'); } catch (e) {}
+  }
+  window.toggleBidInstructions = toggleBidInstructions;
+
+  document.querySelectorAll('[id^="bid-instructions-body-"]').forEach(function(body) {
+    var rfpId = body.id.replace('bid-instructions-body-', '');
+    var collapsed = false;
+    try { collapsed = localStorage.getItem(bidInstructionsKey(rfpId)) === '1'; } catch (e) {}
+    if (collapsed) setBidInstructionsCollapsed(rfpId, true);
+  });
 
   function closeRfpLineEditor(itemId) {
     if (!itemId) return null;
