@@ -194,6 +194,14 @@ async function getProjectFinancials(jobId) {
   // Profit estimates
   const estimated_profit = revised_contract_value - total_committed;
   const realized_profit_to_date = customer_paid - total_spent;
+  const estimated_profit_pct =
+    revised_contract_value > 0 ? (estimated_profit / revised_contract_value) * 100 : 0;
+  const estimated_markup_pct =
+    total_committed > 0 ? (estimated_profit / total_committed) * 100 : 0;
+  const realized_profit_to_date_pct =
+    customer_paid > 0 ? (realized_profit_to_date / customer_paid) * 100 : 0;
+  const realized_markup_to_date_pct =
+    total_spent > 0 ? (realized_profit_to_date / total_spent) * 100 : 0;
 
   // ── Discrepancy flags ──────────────────────────────────────────────
   const flags = [];
@@ -286,7 +294,11 @@ async function getProjectFinancials(jobId) {
     total_billed: Number(total_billed.toFixed(2)),
     total_spent: Number(total_spent.toFixed(2)),
     estimated_profit: Number(estimated_profit.toFixed(2)),
+    estimated_profit_pct: Number(estimated_profit_pct.toFixed(1)),
+    estimated_markup_pct: Number(estimated_markup_pct.toFixed(1)),
     realized_profit_to_date: Number(realized_profit_to_date.toFixed(2)),
+    realized_profit_to_date_pct: Number(realized_profit_to_date_pct.toFixed(1)),
+    realized_markup_to_date_pct: Number(realized_markup_to_date_pct.toFixed(1)),
     flags,
   };
 }

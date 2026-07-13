@@ -53,32 +53,22 @@ async function remove(bucket, key) {
  * Uses the service role key to generate a publicly-uploadable URL.
  * @param {string} bucket - Storage bucket name
  * @param {string} key - Storage key/path
- * @returns {Promise<{storageKey: string, uploadUrl: string}>}
+ * @returns {Promise<{storageKey: string, uploadUrl: string, uploadToken: string, bucket: string}>}
  */
 async function getUploadUrl(bucket, key) {
-  if (!SUPA_URL) throw new Error('SUPABASE_URL not configured');
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
-  if (!serviceKey) throw new Error('SUPABASE_SERVICE_ROLE_KEY required for presigned upload URLs');
+  if (!supa) throw new Error('Supabase Storage not configured (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY required)');
 
-  // Use Supabase Storage REST API with service role key to sign an upload URL
-  const signUrl = `${SUPA_URL}/storage/v1/object/upload/sign/${bucket}/${key}`;
-  const res = await fetch(signUrl, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${serviceKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ upsert: true }),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(()=>'');
-    throw new Error(`Presigned URL failed: ${res.status} ${text}`);
-  }
-  const result = await res.json();
-  const signedPath = result.url || result.signedUrl || result.data?.url;
+  const { data, error } = await supa.storage.from(bucket).createSignedUploadUrl(key, { upsert: true });
+  if (error) throw error;
+
+  const signedPath = data?.signedUrl || data?.url;
   if (!signedPath) throw new Error('No upload URL in response');
-  // The API returns a relative path like /object/upload/sign/...?token=...
-  // The upload endpoint is under /storage/v1/
+  const uploadToken = data?.token || null;
+  if (!uploadToken) throw new Error('No signed upload token in response');
+
   const basePath = signedPath.startsWith('/storage/') ? '' : '/storage/v1';
   const uploadUrl = signedPath.startsWith('http') ? signedPath : `${SUPA_URL}${basePath}${signedPath}`;
-  return { storageKey: key, uploadUrl };
+  return { storageKey: key, uploadUrl, uploadToken, bucket };
 }
 
 module.exports = { uploadBuffer, getPublicUrl, getSignedUrl, downloadBuffer, remove, getUploadUrl };

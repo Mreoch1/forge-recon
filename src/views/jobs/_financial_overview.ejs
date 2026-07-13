@@ -25,6 +25,7 @@ var totalPaid = n(financials.total_paid);                    // R40
 var remainingBalance = n(financials.remaining_balance);      // R40: revProj - totalPaid
 var paidPct = revProj > 0 ? pct(totalPaid, revProj) : 0;     // R40
 var profitPct = contract > 0 ? (profit / contract) * 100 : 0;
+var markupPct = costComm > 0 ? (profit / costComm) * 100 : 0;
 var revPct = revProj > 0 ? pct(revBilled, revProj) : 0;
 var costPct = costComm > 0 ? pct(costAct, costComm) : 0;
 var costOver = costComm > 0 && costAct > costComm;
@@ -110,7 +111,10 @@ var profitPositive = profit >= 0;
       <div class="p-3 rounded-md border <%= profitPositive ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200' %>">
         <p class="text-[.65rem] uppercase tracking-wider <%= profitPositive ? 'text-green-700' : 'text-red-700' %>">Projected profit</p>
         <p class="text-xl font-bold <%= profitPositive ? 'text-green-700' : 'text-red-700' %> mt-1"><%= money(profit) %></p>
-        <p class="text-[.7rem] <%= profitPositive ? 'text-green-600' : 'text-red-600' %> mt-0.5"><%= profitPct.toFixed(1) %>% margin</p>
+        <div class="text-[.7rem] <%= profitPositive ? 'text-green-600' : 'text-red-600' %> mt-0.5 leading-tight">
+          <p>Margin: <%= profitPct.toFixed(1) %>%</p>
+          <p>Markup: <%= markupPct.toFixed(1) %>%</p>
+        </div>
       </div>
       <div class="p-3 rounded-md border bg-white border-recon-mist">
         <p class="text-[.65rem] uppercase tracking-wider text-recon-fog">Revenue projected</p>

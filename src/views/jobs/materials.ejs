@@ -1,4 +1,7 @@
 <%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<%
+  const materialUnitOptions = ['', 'ea', 'box', 'case', 'set', 'pair', 'pack', 'bundle', 'pallet', 'sheet', 'roll', 'tube', 'pail', 'bag', 'lf', 'sf', 'sy', 'cy', 'hour', 'day', 'month'];
+%>
 <div class="ops-shell">
   <div class="mb-4">
     <a href="/projects/<%= job.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; <%= job.title %></a>
@@ -101,7 +104,11 @@
                 </div>
                 <div>
                   <label style="font-size:.65rem;color:#888">Unit</label>
-                  <input type="text" name="unit" class="input" style="width:70px;padding:.25rem .4rem;font-size:.78rem" placeholder="ea">
+                  <select name="unit" class="input" style="width:82px;padding:.25rem .4rem;font-size:.78rem">
+                    <% materialUnitOptions.forEach(function(unitOption){ %>
+                      <option value="<%= unitOption %>" <%= unitOption === 'ea' ? 'selected' : '' %>><%= unitOption || '—' %></option>
+                    <% }); %>
+                  </select>
                 </div>
                 <div>
                   <label style="font-size:.65rem;color:#888">Price ea</label>
@@ -135,14 +142,15 @@
                     <th class="text-right">Price ea</th>
                     <th class="text-left">Status</th>
                     <th class="text-right">Total</th>
-                    <th style="width:55px"></th>
+                    <th style="width:32px"></th>
                   </tr>
                 </thead>
                 <tbody>
                   <% items.forEach(function(it){ %>
                   <% var lt = (Number(it.quantity)||0)*(Number(it.unit_price)||0); %>
-                  <tr class="<%= it.approved ? '' : 'opacity-60' %>">
-                    <td><input type="checkbox" <%= it.approved ? 'checked' : '' %> onchange="toggleApprove(<%= it.id %>, this.checked)" class="accent-recon-red"></td>
+                  <% var materialItemPayload = JSON.stringify({ id: it.id, item_name: it.item_name || "", model_number: it.model_number || "", quantity: Number(it.quantity) || 0, unit_price: Number(it.unit_price) || 0, unit: it.unit || "", status: it.status || "planned", needed_by: it.needed_by || "", notes: it.notes || "", approved: !!it.approved }); %>
+                  <tr class="<%= it.approved ? '' : 'opacity-60' %> cursor-pointer hover:bg-recon-cloud/60" data-material-item-row data-material-item="<%= encodeURIComponent(materialItemPayload) %>" onclick="editItemFromRow(this)">
+                    <td><input type="checkbox" <%= it.approved ? 'checked' : '' %> onchange="toggleApprove(<%= it.id %>, this.checked, event)" onclick="event.stopPropagation()" class="accent-recon-red"></td>
                     <td>
                       <div class="font-medium"><%= it.item_name %></div>
                       <% if (it.source === 'rfp') { %>
@@ -156,8 +164,7 @@
                     <td><span class="badge"><%= it.status || 'planned' %></span></td>
                     <td class="text-right font-medium">$<%= lt.toFixed(2) %></td>
                     <td class="text-right">
-                      <button type="button" class="text-recon-fog hover:text-recon-red" style="font-size:.7rem;background:none;border:none;cursor:pointer" onclick='editItem(<%- JSON.stringify({ id: it.id, item_name: it.item_name || "", model_number: it.model_number || "", quantity: Number(it.quantity) || 0, unit_price: Number(it.unit_price) || 0, unit: it.unit || "", status: it.status || "planned", needed_by: it.needed_by || "", notes: it.notes || "", approved: !!it.approved }) %>)' title="Edit">✎</button>
-                      <button type="button" class="text-recon-fog hover:text-recon-red" style="font-size:.7rem;background:none;border:none;cursor:pointer" onclick="if(confirm('Delete this item?'))deleteItem(<%= it.id %>)" title="Delete">✕</button>
+                      <button type="button" class="text-recon-fog hover:text-recon-red" style="font-size:.7rem;background:none;border:none;cursor:pointer" onclick="event.stopPropagation(); if(confirm('Delete this item?'))deleteItem(<%= it.id %>)" title="Delete">✕</button>
                     </td>
                   </tr>
                   <% }); %>
@@ -185,7 +192,14 @@
       <div class="mb-3"><label class="label" for="edit-name">Item name</label><input type="text" id="edit-name" class="input" required></div>
       <div class="mb-3"><label class="label" for="edit-model">Model #</label><input type="text" id="edit-model" class="input"></div>
       <div class="mb-3"><label class="label" for="edit-qty">Quantity</label><input type="number" id="edit-qty" class="input" min="0" step="any" required></div>
-      <div class="mb-3"><label class="label" for="edit-unit">Unit</label><input type="text" id="edit-unit" class="input" placeholder="ea, box, case"></div>
+      <div class="mb-3">
+        <label class="label" for="edit-unit">Unit</label>
+        <select id="edit-unit" class="input">
+          <% materialUnitOptions.forEach(function(unitOption){ %>
+            <option value="<%= unitOption %>"><%= unitOption || '—' %></option>
+          <% }); %>
+        </select>
+      </div>
       <div class="mb-3"><label class="label" for="edit-price">Price ea</label><input type="number" id="edit-price" class="input" min="0" step="0.01" value="0"></div>
       <div class="mb-3">
         <label class="label" for="edit-status">Status</label>
@@ -291,7 +305,8 @@ async function deleteCategory(id) {
   } catch(e) { alert('Delete error: ' + e.message); }
 }
 
-async function toggleApprove(itemId, checked) {
+async function toggleApprove(itemId, checked, evt) {
+  if (evt) evt.stopPropagation();
   var res = await fetch('/projects/<%= job.id %>/materials/items/' + itemId + '/approve', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -299,7 +314,7 @@ async function toggleApprove(itemId, checked) {
   });
   var data = await res.json();
   if (data.ok) {
-    var row = event.target.closest('tr');
+    var row = evt && evt.target ? evt.target.closest('tr') : null;
     if (row) row.style.opacity = checked ? '1' : '0.6';
   } else alert(data.error || 'Failed.');
 }
@@ -321,12 +336,32 @@ async function addItem(e, catId) {
   return false;
 }
 
+function setSelectValue(select, value) {
+  if (!select) return;
+  var normalized = String(value || '');
+  var exists = Array.prototype.some.call(select.options, function(option) {
+    return option.value === normalized;
+  });
+  if (normalized && !exists) select.appendChild(new Option(normalized, normalized));
+  select.value = normalized;
+}
+
+function editItemFromRow(row) {
+  if (!row) return;
+  try {
+    var raw = row.getAttribute('data-material-item') || '';
+    editItem(JSON.parse(decodeURIComponent(raw)));
+  } catch (e) {
+    alert('Could not open item editor: ' + e.message);
+  }
+}
+
 function editItem(item) {
   document.getElementById('edit-item-id').value = item.id;
   document.getElementById('edit-name').value = item.item_name || '';
   document.getElementById('edit-model').value = item.model_number || '';
   document.getElementById('edit-qty').value = item.quantity || 0;
-  document.getElementById('edit-unit').value = item.unit || '';
+  setSelectValue(document.getElementById('edit-unit'), item.unit || '');
   document.getElementById('edit-price').value = item.unit_price || 0;
   document.getElementById('edit-status').value = item.status || 'planned';
   document.getElementById('edit-needed-by').value = item.needed_by || '';
@@ -351,15 +386,21 @@ async function saveEdit(e) {
   params.set('needed_by', document.getElementById('edit-needed-by').value);
   params.set('notes', document.getElementById('edit-notes').value.trim());
   params.set('approved', document.getElementById('edit-approved').checked ? 'true' : 'false');
-  var res = await fetch('/projects/materials/items/' + id, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params.toString(),
-  });
-  var data = await res.json();
-  if (data.ok) window.location.reload();
-  else alert(data.error || 'Failed.');
-  closeEdit();
+  try {
+    var res = await fetch('/projects/materials/items/' + id, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
+    var data = await res.json();
+    if (data.ok) {
+      window.location.reload();
+      return false;
+    }
+    alert(data.error || 'Failed.');
+  } catch (err) {
+    alert('Save failed: ' + err.message);
+  }
   return false;
 }
 

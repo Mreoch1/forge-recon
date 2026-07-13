@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   city TEXT,
   state TEXT,
   zip TEXT,
+  onedrive_folder_url TEXT,
   description TEXT,
   status TEXT NOT NULL DEFAULT 'lead'
     CHECK(status IN ('lead','estimating','scheduled','in_progress','complete','cancelled')),
@@ -830,6 +831,17 @@ CREATE TABLE IF NOT EXISTS project_chat_messages (
 );
 ALTER TABLE project_chat_messages ENABLE ROW LEVEL SECURITY;
 CREATE INDEX IF NOT EXISTS idx_project_chat_job ON project_chat_messages(job_id, created_at);
+
+CREATE TABLE IF NOT EXISTS project_chat_message_reads (
+  id BIGSERIAL PRIMARY KEY,
+  message_id BIGINT NOT NULL REFERENCES project_chat_messages(id) ON DELETE CASCADE,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(message_id, user_id)
+);
+ALTER TABLE project_chat_message_reads ENABLE ROW LEVEL SECURITY;
+CREATE INDEX IF NOT EXISTS idx_project_chat_message_reads_message ON project_chat_message_reads(message_id, seen_at DESC);
+CREATE INDEX IF NOT EXISTS idx_project_chat_message_reads_user ON project_chat_message_reads(user_id, seen_at DESC);
 
 -- ========== PROJECT MATERIALS ==========
 CREATE TABLE IF NOT EXISTS project_material_vendors (

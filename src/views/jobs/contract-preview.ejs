@@ -10,6 +10,7 @@ function address(record) {
 }
 var projectAddress = address(job);
 var contractorAddress = address(contractor || {});
+var contractorName = contractor && contractor.name ? contractor.name : vendorName;
 %>
 
 <div class="document-shell">
@@ -36,6 +37,7 @@ var contractorAddress = address(contractor || {});
     </div>
     <div class="px-5 py-4 text-sm border-b border-recon-mist">
       <p class="m-0 text-recon-fog">Draft short-form construction contract. Review before issuing for signature.</p>
+      <p class="m-0 mt-2 text-recon-charcoal font-medium">This subcontract agreement is between Recon Enterprises and <%= contractorName %> for the scope and pricing listed below.</p>
     </div>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 px-5 py-4 text-sm">
       <div>
@@ -46,7 +48,7 @@ var contractorAddress = address(contractor || {});
       </div>
       <div>
         <p class="text-[.65rem] uppercase tracking-wider text-recon-fog mb-1">Contractor / vendor</p>
-        <p class="font-medium m-0"><%= contractor && contractor.name ? contractor.name : vendorName %></p>
+        <p class="font-medium m-0"><%= contractorName %></p>
         <% if (contractor && contractor.email) { %><p class="text-recon-fog m-0"><%= contractor.email %></p><% } %>
         <% if (contractor && contractor.phone) { %><p class="text-recon-fog m-0"><%= contractor.phone %></p><% } %>
         <% if (contractorAddress) { %><p class="text-recon-fog m-0"><%= contractorAddress %></p><% } %>
@@ -78,8 +80,8 @@ var contractorAddress = address(contractor || {});
               <td class="font-medium"><%= item.description %></td>
               <td class="text-right"><%= Number(item.quantity || 0) || '' %></td>
               <td><%= item.unit || 'ea' %></td>
-              <td class="text-right"><%= fmtMoney(item.final_unit_cost || item.unit_cost) %></td>
-              <td class="text-right font-medium"><%= fmtMoney(item.total_with_markup) %></td>
+              <td class="text-right"><%= fmtMoney(item.unit_cost) %></td>
+              <td class="text-right font-medium"><%= fmtMoney(item.total_cost) %></td>
             </tr>
           <% }); %>
         </tbody>
@@ -113,6 +115,7 @@ var contractorAddress = address(contractor || {});
 
   <div class="card p-5">
     <h2 class="font-semibold m-0 mb-4">Acceptance</h2>
+    <p class="text-sm text-recon-fog mt-0 mb-5">Please sign, date, and return this agreement to Office@reconenterprises.net.</p>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm">
       <div>
         <p class="font-medium mb-10">Subcontractor / Vendor</p>

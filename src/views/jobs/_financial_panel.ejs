@@ -10,6 +10,10 @@ function fmt(val) {
   var s = abs.toFixed(2).replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,');
   return (neg ? '-$' : '$') + s;
 }
+function pct(val) {
+  var x = n(val);
+  return x.toFixed(1) + '%';
+}
 %>
 
 <div class="card overflow-hidden mb-6">
@@ -138,12 +142,20 @@ function fmt(val) {
         <h4 class="text-xs uppercase tracking-wider text-recon-fog font-semibold mb-3">Profit</h4>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="p-3 rounded-md border <%= profitPositive ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200' %>">
-            <p class="text-[.65rem] uppercase tracking-wider <%= profitPositive ? 'text-green-700' : 'text-red-700' %>">Estimated profit</p>
+            <p class="text-[.65rem] uppercase tracking-wider <%= profitPositive ? 'text-green-700' : 'text-red-700' %>">Estimated gross profit</p>
             <p class="text-lg font-bold <%= profitPositive ? 'text-green-700' : 'text-red-700' %> mt-1"><%= fmt(f.estimated_profit) %></p>
+            <div class="mt-1 space-y-0.5 text-[.7rem] font-semibold <%= profitPositive ? 'text-green-700' : 'text-red-700' %>">
+              <p>Margin: <%= fmt(f.estimated_profit) %> / <%= pct(f.estimated_profit_pct) %></p>
+              <p>Markup: <%= fmt(f.estimated_profit) %> / <%= pct(f.estimated_markup_pct) %></p>
+            </div>
           </div>
           <div class="p-3 rounded-md border <%= realizedPositive ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200' %>">
             <p class="text-[.65rem] uppercase tracking-wider <%= realizedPositive ? 'text-green-700' : 'text-red-700' %>">Realized profit to date</p>
             <p class="text-lg font-bold <%= realizedPositive ? 'text-green-700' : 'text-red-700' %> mt-1"><%= fmt(f.realized_profit_to_date) %></p>
+            <div class="mt-1 space-y-0.5 text-[.7rem] font-semibold <%= realizedPositive ? 'text-green-700' : 'text-red-700' %>">
+              <p>Margin: <%= fmt(f.realized_profit_to_date) %> / <%= pct(f.realized_profit_to_date_pct) %></p>
+              <p>Markup: <%= fmt(f.realized_profit_to_date) %> / <%= pct(f.realized_markup_to_date_pct) %></p>
+            </div>
           </div>
         </div>
       </div>

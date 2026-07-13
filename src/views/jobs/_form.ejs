@@ -65,6 +65,16 @@
       <input type="text" name="address" id="address" value="<%= job.address || '' %>" class="input" data-site-address>
     </div>
 
+    <div class="md:col-span-2">
+      <label class="label" for="onedrive_folder_url">OneDrive project folder</label>
+      <input type="url" name="onedrive_folder_url" id="onedrive_folder_url"
+             value="<%= job.onedrive_folder_url || '' %>"
+             class="input <%= errors.onedrive_folder_url ? 'border-red-500' : '' %>"
+             placeholder="https://...">
+      <% if (errors.onedrive_folder_url) { %><p class="text-sm text-red-600 mt-1"><%= errors.onedrive_folder_url %></p><% } %>
+      <p class="text-xs text-recon-fog mt-1">Paste the project’s OneDrive or SharePoint folder link. It will show as an Open OneDrive folder button under Project Files.</p>
+    </div>
+
     <div>
       <label class="label" for="city">City</label>
       <input type="text" name="city" id="city" value="<%= job.city || '' %>" class="input" data-site-city>

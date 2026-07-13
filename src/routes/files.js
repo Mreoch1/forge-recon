@@ -19,7 +19,8 @@ const crypto = require('crypto');
 const JSZip = require('jszip');
 const mime = require('mime-types');
 const storage = require('../services/storage');
-const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB per file (multer limit — edge will still block batches >4.5MB)
+const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB per file for legacy server-routed uploads.
+const MAX_DIRECT_UPLOAD_FILE_SIZE = 500 * 1024 * 1024; // Direct-to-storage uploads bypass Vercel payload limits.
 const MAX_FILES = 250;
 const MAX_UPLOAD_BATCH_SIZE = 4 * 1024 * 1024; // 4MB total — Vercel serverless body limit is 4.5MB
 const BLOCKED_EXTENSIONS = new Set(['.app', '.bat', '.cmd', '.com', '.dll', '.dmg', '.exe', '.js', '.msi', '.ps1', '.scr', '.sh']);
@@ -145,7 +146,7 @@ function folderRootPath(entityType, entityId, isProjectFolder) {
 async function getEntityDisplayContext(entityType, entityId, requestedEntityType) {
   if (requestedEntityType === 'project' || entityType === 'project' || (!requestedEntityType && entityType === 'work_order')) {
     const { data: job } = await checkedFileRouteRead(
-      supabase.from('jobs').select('id, title').eq('id', entityId).maybeSingle(),
+      supabase.from('jobs').select('id, title, onedrive_folder_url').eq('id', entityId).maybeSingle(),
       'file project name read failed'
     );
     if (job) {
@@ -157,6 +158,7 @@ async function getEntityDisplayContext(entityType, entityId, requestedEntityType
         bucketLabel: 'Projects',
         bucketHref: '/projects',
         rootHref: `/files/projects/${entityId}`,
+        oneDriveFolderUrl: job.onedrive_folder_url || null,
       };
     }
   }
@@ -372,6 +374,7 @@ router.get('/folders/:folderId', requireAuth, async (req, res) => {
     entityId: folderDisplay.entityId,
     breadcrumb: folderDisplay.breadcrumb,
     folderContext: folderDisplay.contextKey,
+    oneDriveFolderUrl: folderDisplay.oneDriveFolderUrl || null,
   });
 });
 
@@ -432,7 +435,7 @@ router.get('/folders/:folderId/upload-url', requireAuth, requireManager, async (
   if (!filename) return directFolderUploadError(res, 400, 'Filename is required.');
   if (!isAllowedUploadName(filename)) return directFolderUploadError(res, 400, 'File type not allowed.');
   if (!Number.isFinite(size) || size <= 0) return directFolderUploadError(res, 400, 'File size is required.');
-  if (size > MAX_FILE_SIZE) return directFolderUploadError(res, 413, `Each file must be ${Math.round(MAX_FILE_SIZE / 1024 / 1024)} MB or smaller.`);
+  if (size > MAX_DIRECT_UPLOAD_FILE_SIZE) return directFolderUploadError(res, 413, `Each file must be ${Math.round(MAX_DIRECT_UPLOAD_FILE_SIZE / 1024 / 1024)} MB or smaller.`);
 
   try {
     const ext = path.extname(filename) || '';
@@ -441,9 +444,11 @@ router.get('/folders/:folderId/upload-url', requireAuth, requireManager, async (
     return res.json({
       ok: true,
       uploadUrl: signed.uploadUrl,
+      uploadToken: signed.uploadToken,
+      bucket: signed.bucket,
       storageKey: signed.storageKey,
       contentType,
-      maxFileSize: MAX_FILE_SIZE,
+      maxFileSize: MAX_DIRECT_UPLOAD_FILE_SIZE,
       maxFiles: MAX_FILES,
     });
   } catch (e) {
@@ -480,7 +485,7 @@ router.post('/folders/:folderId/register-direct', requireAuth, requireManager, a
     if (!originalName || !isAllowedUploadName(originalName)) {
       return directFolderUploadError(res, 400, 'Invalid uploaded filename.');
     }
-    if (!Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes > MAX_FILE_SIZE) {
+    if (!Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes > MAX_DIRECT_UPLOAD_FILE_SIZE) {
       return directFolderUploadError(res, 400, 'Invalid uploaded file size.');
     }
 
@@ -596,7 +601,14 @@ router.get('/folders/:folderId/upload-zip-url', requireAuth, requireManager, asy
   const storageKey = `zip_uploads/${folder.entity_type}/${folder.entity_id}/${crypto.randomUUID()}.zip`;
   try {
     const result = await storage.getUploadUrl('entity-files', storageKey);
-    res.json({ ok: true, uploadUrl: result.uploadUrl, storageKey: result.storageKey, folderId: folder.id });
+    res.json({
+      ok: true,
+      uploadUrl: result.uploadUrl,
+      uploadToken: result.uploadToken,
+      bucket: result.bucket,
+      storageKey: result.storageKey,
+      folderId: folder.id,
+    });
   } catch (e) {
     res.status(500).json({ error: 'Failed to generate upload URL: ' + e.message });
   }
@@ -794,6 +806,7 @@ router.get('/:entityType/:entityId', requireAuth, async (req, res) => {
     entityId: folderDisplay.entityId,
     breadcrumb: folderDisplay.breadcrumb,
     folderContext: folderDisplay.contextKey,
+    oneDriveFolderUrl: folderDisplay.oneDriveFolderUrl || null,
   });
 });
 

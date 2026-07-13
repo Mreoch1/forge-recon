@@ -17,6 +17,9 @@
       </nav>
       <h1 class="page-h1 mb-1"><%= entityName %></h1>
       <p class="page-sub">Files and folders</p>
+      <% if (typeof oneDriveFolderUrl !== 'undefined' && oneDriveFolderUrl) { %>
+        <a href="<%= oneDriveFolderUrl %>" target="_blank" rel="noopener" class="btn btn-secondary text-sm mt-3">Open OneDrive folder</a>
+      <% } %>
     </div>
     <div class="flex flex-wrap gap-2">
       <% if (currentUser.role === 'admin' || currentUser.role === 'manager') { %>
@@ -77,6 +80,17 @@
             <button id="zip-upload-btn" type="button" class="btn btn-primary text-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled onclick="uploadZip()">Upload .zip</button>
           </div>
           <p id="zip-status-label" class="text-xs text-recon-fog">No .zip selected.</p>
+          <div id="zip-progress-wrap" class="hidden space-y-2" aria-live="polite">
+            <div class="h-2 rounded bg-recon-ash overflow-hidden">
+              <div id="zip-progress-bar" class="h-full bg-recon-red transition-all duration-300" style="width:0%"></div>
+            </div>
+            <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-recon-fog">
+              <span id="zip-progress-percent">0%</span>
+              <span id="zip-progress-elapsed">Elapsed 0:00</span>
+              <span id="zip-progress-eta">Estimated time left: calculating...</span>
+            </div>
+            <p id="zip-progress-note" class="text-xs font-medium text-recon-charcoal">Keep this page open while the zip uploads and processes. Leaving this page will stop the upload.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -123,6 +137,7 @@
     <% } %>
   <% } %>
 </div>
+<script src="/vendor/jszip/jszip.min.js"></script>
 <script>
 (function(){
   document.querySelectorAll('[data-file-picker]').forEach(function(input){
@@ -151,7 +166,7 @@
 // Regular file/folder upload: presigned URLs → direct-to-storage → metadata register
 (function(){
   var forms = Array.prototype.slice.call(document.querySelectorAll('[data-direct-folder-upload]'));
-  var maxFileSize = 25 * 1024 * 1024;
+  var maxFileSize = 500 * 1024 * 1024;
   var maxFiles = 250;
 
   function formatBytes(bytes) {
@@ -206,7 +221,7 @@
         return;
       }
       if (oversized) {
-        label.textContent = oversized.name + ' is too large. Each file must be 25 MB or smaller.';
+        label.textContent = oversized.name + ' is too large. Each file must be 500 MB or smaller.';
         return;
       }
 
@@ -227,7 +242,7 @@
           var urlData = await readJson(await fetch('/files/folders/' + currentFolderId + '/upload-url?' + params.toString()));
 
           label.textContent = 'Uploading ' + (i + 1) + ' of ' + files.length + ': ' + relativePath + ' (' + formatBytes(file.size) + ')';
-          await uploadFileToSignedUrl(urlData.uploadUrl, file, file.type || 'application/octet-stream');
+          await uploadDirectFileToStorage(urlData, file, file.type || 'application/octet-stream');
 
           uploaded.push({
             storage_key: urlData.storageKey,
@@ -259,43 +274,273 @@
   });
 })();
 
-// Zip upload: presigned URL → direct-to-storage → process
-async function uploadFileToSignedUrl(uploadUrl, file, contentType) {
-  var rawRes = await fetch(uploadUrl, {
-    method: 'PUT',
+function sendZipUploadRequest(uploadUrl, options) {
+  return new Promise(function(resolve, reject) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('PUT', uploadUrl);
+    Object.keys(options.headers || {}).forEach(function(name) {
+      xhr.setRequestHeader(name, options.headers[name]);
+    });
+    xhr.upload.onprogress = function(event) {
+      if (event.lengthComputable && typeof options.onProgress === 'function') {
+        options.onProgress(event.loaded, event.total);
+      }
+    };
+    xhr.onload = function() {
+      resolve({
+        ok: xhr.status >= 200 && xhr.status < 300,
+        status: xhr.status,
+        text: xhr.responseText || '',
+      });
+    };
+    xhr.onerror = function() {
+      reject(new Error('Upload failed because the network connection was interrupted.'));
+    };
+    xhr.send(options.body);
+  });
+}
+
+async function uploadFileToSignedUrl(uploadUrl, file, contentType, onProgress) {
+  var rawRes = await sendZipUploadRequest(uploadUrl, {
     headers: { 'Content-Type': contentType || 'application/octet-stream' },
     body: file,
+    onProgress: onProgress,
   });
   if (rawRes.ok) return;
 
-  var rawText = await rawRes.text().catch(function(){ return ''; });
+  var rawText = rawRes.text || '';
   if (rawRes.status !== 400) {
     throw new Error('Upload failed: ' + rawRes.status + (rawText ? ' - ' + rawText : ''));
   }
 
   var form = new FormData();
+  var uploadName = file && file.name ? file.name : 'upload';
   form.append('cacheControl', '3600');
-  form.append('', file, file.name);
-  var formRes = await fetch(uploadUrl, {
-    method: 'PUT',
+  form.append('file', file, uploadName);
+  var formRes = await sendZipUploadRequest(uploadUrl, {
     body: form,
+    onProgress: onProgress,
   });
   if (!formRes.ok) {
-    var formText = await formRes.text().catch(function(){ return ''; });
+    var formText = formRes.text || '';
     throw new Error('Upload failed: ' + formRes.status + (formText ? ' - ' + formText : (rawText ? ' - ' + rawText : '')));
+  }
+}
+
+async function uploadDirectFileToStorage(urlData, file, contentType, onProgress) {
+  await uploadFileToSignedUrl(urlData.uploadUrl, file, contentType, onProgress);
+}
+
+function zipFormatBytes(bytes) {
+  if (!bytes) return '0 B';
+  var units = ['B', 'KB', 'MB', 'GB'];
+  var value = bytes;
+  var unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value = value / 1024;
+    unitIndex += 1;
+  }
+  return value.toFixed(unitIndex === 0 ? 0 : 1) + ' ' + units[unitIndex];
+}
+
+function zipGuessContentType(filename) {
+  var ext = String(filename || '').split('.').pop().toLowerCase();
+  var types = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    heic: 'image/heic',
+    pdf: 'application/pdf',
+    txt: 'text/plain',
+    csv: 'text/csv',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  };
+  return types[ext] || 'application/octet-stream';
+}
+
+function isUsefulZipEntry(relPath, zipEntry) {
+  if (!relPath || zipEntry.dir) return false;
+  var parts = String(relPath).split('/').filter(Boolean);
+  if (!parts.length) return false;
+  return !parts.some(function(part) {
+    return part === '__MACOSX' || part === '.DS_Store' || part.charAt(0) === '.';
+  });
+}
+
+async function zipReadJson(response) {
+  var data = await response.json().catch(function(){ return {}; });
+  if (!response.ok || data.ok === false) {
+    throw new Error(data.error || ('Upload failed with status ' + response.status));
+  }
+  return data;
+}
+
+async function registerZipUploadedFiles(files) {
+  if (!files.length) return;
+  var response = await fetch('/files/folders/' + currentFolderId + '/register-direct', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ files: files }),
+  });
+  await zipReadJson(response);
+}
+
+async function uploadZipExtractedInBrowser(file) {
+  if (!window.JSZip) throw new Error('Zip tools are still loading. Please try again in a moment.');
+  if (zipStatusLabel) zipStatusLabel.textContent = 'Reading ' + file.name + '...';
+  if (zipProgressNote) zipProgressNote.textContent = 'Keep this page open while FORGE unpacks and uploads the zip. Leaving this page will stop the upload.';
+  updateZipProgress(0, file.size, 'uploading');
+
+  var zip = await window.JSZip.loadAsync(file);
+  var entries = [];
+  zip.forEach(function(relPath, zipEntry) {
+    if (!isUsefulZipEntry(relPath, zipEntry)) return;
+    entries.push({
+      relPath: relPath,
+      filename: relPath.split('/').filter(Boolean).pop(),
+      size: zipEntry._data && Number(zipEntry._data.uncompressedSize || 0),
+      zipEntry: zipEntry,
+    });
+  });
+
+  if (!entries.length) throw new Error('No uploadable files were found in this zip.');
+
+  var oversized = entries.find(function(entry) { return entry.size > 500 * 1024 * 1024; });
+  if (oversized) {
+    throw new Error(oversized.relPath + ' is too large. Files inside the zip must be 500 MB or smaller.');
+  }
+
+  var totalBytes = entries.reduce(function(sum, entry) { return sum + Math.max(0, entry.size || 0); }, 0) || file.size;
+  var completedBytes = 0;
+  var uploadedBatch = [];
+  var batchSize = 100;
+
+  for (var i = 0; i < entries.length; i += 1) {
+    var entry = entries[i];
+    if (zipStatusLabel) {
+      zipStatusLabel.textContent = 'Uploading ' + (i + 1) + ' of ' + entries.length + ': ' + entry.relPath + ' (' + zipFormatBytes(entry.size) + ')';
+    }
+    var contentType = zipGuessContentType(entry.filename);
+    var params = new URLSearchParams({
+      filename: entry.filename,
+      relative_path: entry.relPath,
+      content_type: contentType,
+      size: String(entry.size || 1),
+    });
+    var urlData = await zipReadJson(await fetch('/files/folders/' + currentFolderId + '/upload-url?' + params.toString()));
+    var blob = await entry.zipEntry.async('blob');
+    entry.size = blob.size || entry.size || 0;
+    await uploadDirectFileToStorage(urlData, blob, contentType, function(loaded) {
+      updateZipProgress(completedBytes + loaded, totalBytes, 'uploading');
+    });
+    completedBytes += entry.size;
+    updateZipProgress(completedBytes, totalBytes, 'uploading');
+    uploadedBatch.push({
+      storage_key: urlData.storageKey,
+      original_filename: entry.filename,
+      relative_path: entry.relPath,
+      mime_type: contentType,
+      size_bytes: entry.size,
+    });
+
+    if (uploadedBatch.length >= batchSize) {
+      if (zipStatusLabel) zipStatusLabel.textContent = 'Saving uploaded files...';
+      await registerZipUploadedFiles(uploadedBatch);
+      uploadedBatch = [];
+    }
+  }
+
+  if (uploadedBatch.length) {
+    if (zipStatusLabel) zipStatusLabel.textContent = 'Saving uploaded files...';
+    await registerZipUploadedFiles(uploadedBatch);
   }
 }
 
 var zipFileInput = document.getElementById('zip-file-input');
 var zipStatusLabel = document.getElementById('zip-status-label');
 var zipUploadBtn = document.getElementById('zip-upload-btn');
+var zipProgressWrap = document.getElementById('zip-progress-wrap');
+var zipProgressBar = document.getElementById('zip-progress-bar');
+var zipProgressPercent = document.getElementById('zip-progress-percent');
+var zipProgressElapsed = document.getElementById('zip-progress-elapsed');
+var zipProgressEta = document.getElementById('zip-progress-eta');
+var zipProgressNote = document.getElementById('zip-progress-note');
 var currentFolderId = '<%= folder.id %>';
+var zipUploadStartedAt = null;
+var zipTimer = null;
+var zipIsBusy = false;
+var zipLastProgress = { loaded: 0, total: 0, phase: 'idle' };
+
+function formatZipDuration(seconds) {
+  var totalSeconds = Math.max(0, Math.round(seconds || 0));
+  var minutes = Math.floor(totalSeconds / 60);
+  var remainingSeconds = totalSeconds % 60;
+  if (minutes < 60) return minutes + ':' + String(remainingSeconds).padStart(2, '0');
+  var hours = Math.floor(minutes / 60);
+  return hours + ':' + String(minutes % 60).padStart(2, '0') + ':' + String(remainingSeconds).padStart(2, '0');
+}
+
+function setZipProgressVisible(visible) {
+  if (zipProgressWrap) zipProgressWrap.classList.toggle('hidden', !visible);
+}
+
+function updateZipProgress(loaded, total, phase) {
+  zipLastProgress = {
+    loaded: Number(loaded || 0),
+    total: Number(total || 0),
+    phase: phase || zipLastProgress.phase || 'uploading',
+  };
+  var elapsedSeconds = zipUploadStartedAt ? (Date.now() - zipUploadStartedAt) / 1000 : 0;
+  var percent = zipLastProgress.total > 0 ? Math.min(100, Math.max(0, (zipLastProgress.loaded / zipLastProgress.total) * 100)) : 0;
+  if (zipProgressBar) zipProgressBar.style.width = (zipLastProgress.phase === 'processing' ? 100 : percent).toFixed(1) + '%';
+  if (zipProgressPercent) {
+    zipProgressPercent.textContent = zipLastProgress.phase === 'processing'
+      ? 'Upload complete'
+      : Math.round(percent) + '% uploaded';
+  }
+  if (zipProgressElapsed) zipProgressElapsed.textContent = 'Elapsed ' + formatZipDuration(elapsedSeconds);
+  if (zipProgressEta) {
+    if (zipLastProgress.phase === 'processing') {
+      zipProgressEta.textContent = 'Processing folders and files...';
+    } else if (percent > 2 && elapsedSeconds > 1) {
+      var remainingSeconds = elapsedSeconds * ((100 - percent) / percent);
+      zipProgressEta.textContent = 'Estimated time left: ' + formatZipDuration(remainingSeconds);
+    } else {
+      zipProgressEta.textContent = 'Estimated time left: calculating...';
+    }
+  }
+}
+
+function startZipProgressTimer() {
+  stopZipProgressTimer();
+  zipTimer = setInterval(function() {
+    updateZipProgress(zipLastProgress.loaded, zipLastProgress.total, zipLastProgress.phase);
+  }, 1000);
+}
+
+function stopZipProgressTimer() {
+  if (zipTimer) clearInterval(zipTimer);
+  zipTimer = null;
+}
+
+window.addEventListener('beforeunload', function(event) {
+  if (!zipIsBusy) return;
+  event.preventDefault();
+  event.returnValue = 'A zip upload is still running. Leaving now may interrupt it.';
+});
 
 if (zipFileInput) {
   zipFileInput.addEventListener('change', function(){
     var hasFile = zipFileInput.files && zipFileInput.files.length > 0;
     if (zipUploadBtn) zipUploadBtn.disabled = !hasFile;
     if (zipStatusLabel) zipStatusLabel.textContent = hasFile ? zipFileInput.files[0].name + ' selected.' : 'No .zip selected.';
+    setZipProgressVisible(false);
+    updateZipProgress(0, 0, 'idle');
   });
 }
 
@@ -303,10 +548,26 @@ async function uploadZip() {
   if (!zipFileInput || !zipFileInput.files || !zipFileInput.files[0]) return;
   var file = zipFileInput.files[0];
   if (zipUploadBtn) { zipUploadBtn.disabled = true; }
-  if (zipStatusLabel) zipStatusLabel.textContent = 'Requesting upload URL...';
+  zipIsBusy = true;
+  zipUploadStartedAt = Date.now();
+  setZipProgressVisible(true);
+  updateZipProgress(0, file.size, 'preparing');
+  startZipProgressTimer();
+  if (zipStatusLabel) zipStatusLabel.textContent = 'Preparing ' + file.name + '...';
+  if (zipProgressNote) zipProgressNote.textContent = 'Keep this page open while the zip uploads and processes. Leaving this page will stop the upload.';
 
   try {
+    if (window.JSZip) {
+      await uploadZipExtractedInBrowser(file);
+      zipIsBusy = false;
+      stopZipProgressTimer();
+      if (zipStatusLabel) zipStatusLabel.textContent = 'Upload complete. Refreshing...';
+      window.location.reload();
+      return;
+    }
+
     // Step 1: Get presigned upload URL
+    if (zipStatusLabel) zipStatusLabel.textContent = 'Requesting upload URL...';
     var urlRes = await fetch('/files/folders/' + currentFolderId + '/upload-zip-url');
     if (!urlRes.ok) throw new Error('Failed to get upload URL');
     var urlData = await urlRes.json();
@@ -314,10 +575,14 @@ async function uploadZip() {
 
     // Step 2: Upload zip directly to Supabase Storage
     if (zipStatusLabel) zipStatusLabel.textContent = 'Uploading ' + file.name + ' (' + (file.size / 1024 / 1024).toFixed(1) + ' MB)...';
-    await uploadFileToSignedUrl(urlData.uploadUrl, file, file.type || 'application/zip');
+    await uploadFileToSignedUrl(urlData.uploadUrl, file, file.type || 'application/zip', function(loaded, total) {
+      updateZipProgress(loaded, total || file.size, 'uploading');
+    });
 
     // Step 3: Process the zip on the server
     if (zipStatusLabel) zipStatusLabel.textContent = 'Processing folders and files...';
+    updateZipProgress(file.size, file.size, 'processing');
+    if (zipProgressNote) zipProgressNote.textContent = 'Upload complete. FORGE is unpacking the zip now; large folders can take a few minutes.';
     var processRes = await fetch('/files/folders/' + currentFolderId + '/process-zip', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -328,10 +593,15 @@ async function uploadZip() {
       throw new Error('Zip uploaded, but processing failed: ' + processRes.status + (processText ? ' - ' + processText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300) : ''));
     }
     // Fetch auto-follows the redirect. Reload to show new folders/files.
+    zipIsBusy = false;
+    stopZipProgressTimer();
     window.location.reload();
   } catch (e) {
     if (zipStatusLabel) zipStatusLabel.textContent = 'Error: ' + e.message;
+    if (zipProgressNote) zipProgressNote.textContent = 'Upload stopped. You can try again when ready.';
     if (zipUploadBtn) zipUploadBtn.disabled = false;
+    zipIsBusy = false;
+    stopZipProgressTimer();
   }
 }
 </script>

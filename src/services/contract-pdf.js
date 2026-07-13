@@ -46,11 +46,15 @@ function ensureSpace(doc, needed) {
 
 function sectionTitle(doc, title) {
   ensureSpace(doc, 34);
+  const left = doc.page.margins.left;
+  const right = doc.page.width - doc.page.margins.right;
+  const width = right - left;
   doc.moveDown(0.6);
-  doc.fillColor(COLOR.charcoal).font('Helvetica-Bold').fontSize(12).text(title.toUpperCase());
+  doc.fillColor(COLOR.charcoal).font('Helvetica-Bold').fontSize(12)
+    .text(title.toUpperCase(), left, doc.y, { width });
   doc.strokeColor(COLOR.mist).lineWidth(0.75)
-    .moveTo(doc.page.margins.left, doc.y + 4)
-    .lineTo(doc.page.width - doc.page.margins.right, doc.y + 4)
+    .moveTo(left, doc.y + 4)
+    .lineTo(right, doc.y + 4)
     .stroke();
   doc.moveDown(0.7);
 }
@@ -98,6 +102,21 @@ function drawKeyValueBar(doc, rows) {
   doc.y = y + 48;
 }
 
+function drawAgreementIntro(doc, contractorName) {
+  const left = doc.page.margins.left;
+  const right = doc.page.width - doc.page.margins.right;
+  const width = right - left;
+  ensureSpace(doc, 32);
+  doc.fillColor(COLOR.charcoal).font('Helvetica-Bold').fontSize(9)
+    .text('Agreement parties', left, doc.y, { width });
+  doc.fillColor(COLOR.ash).font('Helvetica').fontSize(9)
+    .text(`This subcontract agreement is between Recon Enterprises and ${safe(contractorName) || 'the subcontractor / vendor'} for the scope and pricing listed below.`, left, doc.y + 3, {
+      width,
+      lineGap: 1.5,
+    });
+  doc.moveDown(0.8);
+}
+
 function drawScopeTable(doc, items) {
   const left = doc.page.margins.left;
   const right = doc.page.width - doc.page.margins.right;
@@ -129,8 +148,8 @@ function drawScopeTable(doc, items) {
       description: safe(item.description),
       quantity: String(toNum(item.quantity) || ''),
       unit: safe(item.unit || 'ea'),
-      unit_cost: fmtMoney(toNum(item.final_unit_cost || item.unit_cost)),
-      line_total: fmtMoney(toNum(item.total_with_markup)),
+      unit_cost: fmtMoney(toNum(item.unit_cost)),
+      line_total: fmtMoney(toNum(item.total_cost)),
     };
     let rowH = 22;
     cols.forEach(c => {
@@ -164,6 +183,9 @@ function drawScopeTable(doc, items) {
 }
 
 function drawTerms(doc) {
+  const left = doc.page.margins.left;
+  const right = doc.page.width - doc.page.margins.right;
+  const width = right - left;
   const terms = [
     ['Scope of Work', 'Subcontractor shall furnish labor, materials, supervision, tools, equipment, insurance, permits, and services necessary to complete the scope listed above and any referenced project documents, drawings, specifications, addenda, and approved clarifications.'],
     ['Contract Price and Payment', 'The contract sum is fixed unless changed by written change order approved by Recon Enterprises before extra work begins. Payment is subject to completed, accepted work, required lien waivers, insurance documentation, and invoice approval.'],
@@ -178,9 +200,10 @@ function drawTerms(doc) {
   sectionTitle(doc, 'Terms and Conditions');
   terms.forEach(([title, body], idx) => {
     ensureSpace(doc, 58);
-    doc.fillColor(COLOR.charcoal).font('Helvetica-Bold').fontSize(9).text(`${idx + 1}. ${title}`);
-    doc.fillColor(COLOR.ash).font('Helvetica').fontSize(8.5).text(body, {
-      width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
+    doc.fillColor(COLOR.charcoal).font('Helvetica-Bold').fontSize(9)
+      .text(`${idx + 1}. ${title}`, left, doc.y, { width });
+    doc.fillColor(COLOR.ash).font('Helvetica').fontSize(8.5).text(body, left, doc.y, {
+      width,
       lineGap: 1.5,
     });
     doc.moveDown(0.45);
@@ -188,12 +211,16 @@ function drawTerms(doc) {
 }
 
 function drawSignatures(doc) {
-  ensureSpace(doc, 112);
+  ensureSpace(doc, 132);
   sectionTitle(doc, 'Acceptance');
   const left = doc.page.margins.left;
   const right = doc.page.width - doc.page.margins.right;
   const gap = 24;
   const colW = (right - left - gap) / 2;
+  doc.fillColor(COLOR.ash).font('Helvetica').fontSize(9)
+    .text('Please sign, date, and return this agreement to Office@reconenterprises.net.', left, doc.y, {
+      width: right - left,
+    });
   const y = doc.y + 28;
   [
     { label: 'Subcontractor / Vendor' },
@@ -230,7 +257,6 @@ function renderSubcontractAgreementPdf({ company, project, customer, contractor,
         label: 'Project',
         lines: [
           project.title,
-          `Project #${project.id}`,
           ...addressLines(project),
           project.description ? `Scope: ${safe(project.description).slice(0, 180)}` : '',
         ],
@@ -251,9 +277,6 @@ function renderSubcontractAgreementPdf({ company, project, customer, contractor,
         label: 'Customer / Owner',
         lines: [
           customer?.name || project.customer_name,
-          customer?.email,
-          customer?.phone,
-          ...(customer ? addressLines(customer) : []),
         ],
       },
       {
@@ -267,9 +290,11 @@ function renderSubcontractAgreementPdf({ company, project, customer, contractor,
       },
     ]);
 
+    drawAgreementIntro(doc, contractor?.name || vendorName);
+
     drawKeyValueBar(doc, [
       { label: 'Contract sum', value: fmtMoney(contractTotal) },
-      { label: 'Pricing source', value: 'Approved awarded RFP scope' },
+      { label: 'Pricing source', value: 'Approved RFP contractor cost' },
       { label: 'Generated', value: new Date().toISOString().slice(0, 10) },
     ]);
 
@@ -287,7 +312,8 @@ function renderSubcontractAgreementPdf({ company, project, customer, contractor,
     doc.fillColor(COLOR.charcoal).font('Helvetica-Bold').fontSize(11)
       .text('CONTRACT SUM', totalX, doc.y, { width: 120, align: 'right' });
     doc.fillColor(COLOR.red).text(fmtMoney(contractTotal), totalX + 126, doc.y - 13, { width: 94, align: 'right' });
-    doc.moveDown(1);
+    doc.x = doc.page.margins.left;
+    doc.y = Math.max(doc.y, doc.page.margins.top) + 10;
 
     drawTerms(doc);
     drawSignatures(doc);

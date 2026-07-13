@@ -156,6 +156,7 @@ app.use(morgan('dev'));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(PUBLIC_DIR, { maxAge: '1h' }));
+app.use('/vendor/jszip', express.static(path.join(__dirname, '..', 'node_modules', 'jszip', 'dist'), { maxAge: '1d' }));
 
 // Session store — cookie-based on Vercel (no server-side storage needed for serverless),
 // FileStore locally

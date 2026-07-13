@@ -437,7 +437,7 @@ router.post('/projects/:id/rfps', requireRfpEditAccess, async (req, res) => {
 
 // ── POST /projects/:id/rfps/:rId — update RFP status or rename category (D-101) ──
 router.post('/projects/:id/rfps/:rId', requireRfpEditAccess, async (req, res) => {
-  const { status, contractor_name } = req.body;
+  const { status, contractor_name, notes } = req.body;
   const updateFields = { updated_at: new Date().toISOString() };
   const validStatuses = ['pending', 'submitted', 'awarded', 'declined'];
   if (status && validStatuses.includes(status)) {
@@ -445,6 +445,9 @@ router.post('/projects/:id/rfps/:rId', requireRfpEditAccess, async (req, res) =>
   }
   if (contractor_name && contractor_name.trim()) {
     updateFields.contractor_name = contractor_name.trim();
+  }
+  if (notes !== undefined) {
+    updateFields.notes = String(notes || '').trim() || null;
   }
   if (Object.keys(updateFields).length > 1) { // more than just updated_at
     const { error } = await supabase
@@ -460,14 +463,14 @@ router.post('/projects/:id/rfps/:rId', requireRfpEditAccess, async (req, res) =>
 // ── PATCH /projects/:id/rfps/:rId/autosave — field-level category autosave ──
 router.patch('/projects/:id/rfps/:rId/autosave', requireAuth, requireRfpEditAccess, async (req, res) => {
   const { field, value, originalValue } = req.body || {};
-  const allowed = ['contractor_name', 'status'];
+  const allowed = ['contractor_name', 'status', 'notes'];
   const validStatuses = ['pending', 'submitted', 'awarded', 'declined'];
   if (!allowed.includes(field)) return res.status(400).json({ ok: false, error: 'Unsupported field.' });
   if (field === 'status' && !validStatuses.includes(String(value))) return res.status(400).json({ ok: false, error: 'Invalid status.' });
 
   const { data: rfp, error: fetchError } = await supabase
     .from('project_rfps')
-    .select('id, job_id, contractor_name, status, updated_at')
+    .select('id, job_id, contractor_name, status, notes, updated_at')
     .eq('id', req.params.rId)
     .eq('job_id', req.params.id)
     .maybeSingle();
@@ -484,15 +487,15 @@ router.patch('/projects/:id/rfps/:rId/autosave', requireAuth, requireRfpEditAcce
     });
   }
 
-  const nextValue = field === 'contractor_name' ? String(value || '').trim() : String(value);
+  const nextValue = field === 'contractor_name' ? String(value || '').trim() : String(value || '').trim();
   if (field === 'contractor_name' && !nextValue) return res.status(400).json({ ok: false, error: 'Category name is required.' });
 
   const { data: updated, error } = await supabase
     .from('project_rfps')
-    .update({ [field]: nextValue, updated_at: new Date().toISOString() })
+    .update({ [field]: field === 'notes' ? (nextValue || null) : nextValue, updated_at: new Date().toISOString() })
     .eq('id', req.params.rId)
     .eq('job_id', req.params.id)
-    .select('id, contractor_name, status, updated_at')
+    .select('id, contractor_name, status, notes, updated_at')
     .single();
   if (error) return res.status(500).json({ ok: false, error: error.message });
   res.json({ ok: true, rfp: updated });
@@ -1063,6 +1066,36 @@ router.get('/projects/:id/rfps/:rId/export.pdf', requireRfpAccess, async (req, r
   const buf = await rfpExport.renderPdf(rfp, parentItems, subItemsMap, { projectTitle: rfp.jobs?.title || '', createdBy: user?.name || '' });
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="rfp-${rfp.id}.pdf"`);
+  res.send(buf);
+});
+
+router.get('/projects/:id/rfps/:rId/bid-request.pdf', requireRfpAccess, async (req, res) => {
+  const [{ data: job, error: jobErr }, { data: rfp, error: rfpErr }] = await Promise.all([
+    supabase.from('jobs').select('*').eq('id', req.params.id).maybeSingle(),
+    supabase.from('project_rfps').select('*').eq('id', req.params.rId).eq('job_id', req.params.id).maybeSingle(),
+  ]);
+  if (jobErr) throw jobErr;
+  if (rfpErr) throw rfpErr;
+  if (!job || !rfp) return res.status(404).send('RFP not found');
+
+  const { data: items, error: itemsErr } = await supabase
+    .from('rfp_line_items')
+    .select('*')
+    .eq('rfp_id', rfp.id)
+    .is('parent_line_item_id', null)
+    .order('sort_order', { ascending: true })
+    .order('id', { ascending: true });
+  if (itemsErr) throw itemsErr;
+
+  const buf = await rfpExport.renderBidRequestPdf(job, rfp, items || []);
+  const cleanProject = exportFilenameBase(job, req.params.id).replace(/-RFP$/, '');
+  const cleanCategory = String(rfp.contractor_name || `rfp-${rfp.id}`)
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]+/gi, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60) || `rfp-${rfp.id}`;
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${cleanProject}-${cleanCategory}-bid-request.pdf"`);
   res.send(buf);
 });
 

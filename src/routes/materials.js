@@ -20,6 +20,13 @@ function toNumber(value, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function parseMaterialNumber(value, fallback = 0) {
+  const cleaned = String(value ?? '').replace(/[$,\s]/g, '');
+  if (!cleaned) return fallback;
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 function shortText(value, fallback = '', max = 160) {
   const text = String(value || fallback || '').trim();
   if (!text) return '';
@@ -155,9 +162,17 @@ async function syncRfpSupplierLinesToMaterials(jobId) {
     };
 
     if (existingItem) {
+      // Existing material rows may have been adjusted by the project team after
+      // the initial RFP sync. Keep user-entered pricing/order fields intact.
       const { error: updateError } = await supabase
         .from('project_material_items')
-        .update(sharedFields)
+        .update({
+          category_id: sharedFields.category_id,
+          item_name: sharedFields.item_name,
+          vendor: sharedFields.vendor,
+          approved: sharedFields.approved,
+          rfp_parent_line_item_id: sharedFields.rfp_parent_line_item_id,
+        })
         .eq('id', existingItem.id);
       if (updateError) throw updateError;
     } else {
@@ -351,8 +366,8 @@ router.post('/projects/:id/materials/categories/:catId/items', requireMaterialsA
   const itemName = (req.body.item_name || '').trim();
   if (!itemName) return res.status(400).json({ error: 'Item name is required.' });
   const modelNumber = (req.body.model_number || '').trim();
-  const quantity = parseFloat(req.body.quantity) || 1;
-  const unitPrice = parseFloat(req.body.unit_price) || 0;
+  const quantity = parseMaterialNumber(req.body.quantity, 1);
+  const unitPrice = parseMaterialNumber(req.body.unit_price, 0);
   const unit = (req.body.unit || '').trim();
   const status = normalizeMaterialStatus(req.body.status);
   const neededBy = (req.body.needed_by || '').trim();
@@ -382,8 +397,8 @@ router.post('/projects/materials/items/:itemId', requireMaterialsAccess, async (
   const itemName = (req.body.item_name || '').trim();
   if (!itemName) return res.status(400).json({ error: 'Item name is required.' });
   const modelNumber = (req.body.model_number || '').trim();
-  const quantity = parseFloat(req.body.quantity) || 1;
-  const unitPrice = parseFloat(req.body.unit_price) || 0;
+  const quantity = parseMaterialNumber(req.body.quantity, 1);
+  const unitPrice = parseMaterialNumber(req.body.unit_price, 0);
   const unit = (req.body.unit || '').trim();
   const status = normalizeMaterialStatus(req.body.status);
   const neededBy = (req.body.needed_by || '').trim();

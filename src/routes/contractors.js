@@ -243,7 +243,7 @@ router.get('/:id/handoff/:projectId.pdf', async (req, res) => {
     .from('rfp_line_items')
     .select(`
       id, description, quantity, unit_cost, total_cost, vendor, sort_order,
-      project_rfps!inner(job_id)
+      project_rfps!inner(id, job_id, contractor_name, notes)
     `)
     .eq('vendor', contractor.name)
     .eq('project_rfps.job_id', projectId)

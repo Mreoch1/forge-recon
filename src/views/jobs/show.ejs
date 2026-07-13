@@ -84,6 +84,11 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
         <span class="text-recon-red text-sm font-medium">Open files →</span>
       </div>
     </a>
+    <% if (job.onedrive_folder_url) { %>
+      <div class="px-5 pb-4 -mt-1">
+        <a href="<%= job.onedrive_folder_url %>" target="_blank" rel="noopener" class="btn btn-secondary text-sm">Open OneDrive folder</a>
+      </div>
+    <% } %>
   </div>
   <% } %>
 
@@ -137,9 +142,12 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
   }
 
   function appendMessage(msg, prepend) {
-    if (!messagesEl) return;
+    if (!messagesEl) return false;
     var existing = messagesEl.querySelector('[data-msg-id="' + msg.id + '"]');
-    if (existing) return;
+    if (existing) {
+      updateSeenReceipt(existing, msg);
+      return false;
+    }
     var div = document.createElement('div');
     div.className = 'chat-msg' + (msg.user_id === userId ? ' chat-msg-self' : '');
     div.setAttribute('data-msg-id', msg.id);
@@ -158,13 +166,35 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
       (msg.user_id === userId ? '<button class="ml-auto text-xs text-recon-fog hover:text-recon-red delete-msg" data-msg-id="' + msg.id + '" title="Delete message">&times;</button>' : '') +
       '</div>' +
       messageHtml +
-      attachmentHtml;
+      attachmentHtml +
+      seenReceiptHtml(msg);
     if (prepend && messagesEl.firstChild) {
       messagesEl.insertBefore(div, messagesEl.firstChild);
     } else {
       messagesEl.appendChild(div);
     }
     if (!prepend) scrollToBottom();
+    return true;
+  }
+
+  function seenReceiptHtml(msg) {
+    if (!msg || Number(msg.user_id) !== Number(userId) || !Array.isArray(msg.seen_by) || !msg.seen_by.length) {
+      return '';
+    }
+    var names = msg.seen_by.slice(0, 3).map(function(viewer) {
+      return escapeHtml(viewer.name || viewer.email || 'User');
+    }).join(', ');
+    var extra = msg.seen_by.length > 3 ? ' +' + (msg.seen_by.length - 3) : '';
+    return '<div class="chat-seen" data-seen-receipt>&#10003; Seen by ' + names + extra + '</div>';
+  }
+
+  function updateSeenReceipt(el, msg) {
+    if (!el) return;
+    var current = el.querySelector('[data-seen-receipt]');
+    var next = seenReceiptHtml(msg);
+    if (current && !next) current.remove();
+    if (current && next) current.outerHTML = next;
+    if (!current && next) el.insertAdjacentHTML('beforeend', next);
   }
 
   function escapeHtml(s) {
@@ -289,15 +319,15 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
     isLoading = true;
     try {
       var url = '/projects/' + projectId + '/chat';
-      if (lastMessageId && messagesEl && messagesEl.children.length > 0) {
-        url += '?before=' + lastMessageId;
-      }
       var res = await fetch(url);
       var data = await res.json();
       if (data.messages && data.messages.length > 0) {
-        data.messages.forEach(function(m) { appendMessage(m, true); });
+        var addedNew = false;
+        data.messages.forEach(function(m) {
+          if (appendMessage(m, true)) addedNew = true;
+        });
         lastMessageId = data.messages[0].id;
-        if (!panelOpen && data.messages.length > 0 && unreadEl) {
+        if (!panelOpen && addedNew && unreadEl) {
           unreadEl.classList.remove('hidden');
         }
       }
@@ -453,6 +483,7 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
 .chat-msg-self { background: #fef2f2; }
 .chat-photo-link { display: inline-block; margin-top: .5rem; max-width: min(360px, 100%); }
 .chat-photo { display: block; max-width: 100%; max-height: 320px; border-radius: 8px; border: 1px solid #e5e5e5; object-fit: contain; background: #fff; }
+.chat-seen { margin-top: .25rem; font-size: .72rem; color: #777; }
 .chat-mention-wrap { position: relative; flex: 1 1 auto; min-width: 0; }
 .chat-mention { color: #c0202b; font-weight: 700; }
 .chat-mention-menu {
@@ -521,6 +552,7 @@ var access = typeof projectAccess !== 'undefined' ? projectAccess : {
 html.dark .chat-msg { background: var(--dark-elevated); color: var(--dark-text); }
 html.dark .chat-msg-self { background: rgba(192,32,43,0.15); }
 html.dark .chat-photo { border-color: var(--dark-border); background: var(--dark-surface); }
+html.dark .chat-seen { color: var(--dark-muted); }
 html.dark .chat-panel[open] summary { border-bottom-color: var(--dark-border); }
 html.dark #chat-messages::-webkit-scrollbar-thumb { background: var(--dark-border-strong); }
 html.dark .chat-mention-menu { background: var(--dark-surface); border-color: var(--dark-border); }

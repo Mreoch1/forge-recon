@@ -11,6 +11,7 @@ const { requireManager, setFlash } = require('../middleware/auth');
 const { sanitizePostgrestSearch } = require('../services/sanitize');
 const { emptyToNullFormattedPhone } = require('../services/phone');
 const { generateVendorIntakePDF } = require('../services/vendor-intake-pdf');
+const { applyRadiusFilter } = require('../services/location-radius');
 const mailer = require('../services/email');
 
 const router = express.Router();
@@ -404,6 +405,9 @@ router.get('/directory', requireManager, async (req, res) => {
   const status = STATUSES.includes(req.query.status) ? req.query.status : '';
   const state = (req.query.state || '').trim().toUpperCase();
   const rating = toInt(req.query.rating);
+  const location = (req.query.location || '').trim();
+  const radius = toInt(req.query.radius);
+  const hasRadiusFilter = !!(location && radius && radius > 0);
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
 
@@ -417,14 +421,33 @@ router.get('/directory', requireManager, async (req, res) => {
   }
   if (trade && TRADE_OPTIONS.includes(trade)) query = query.contains('trades', [trade]);
   if (status) query = query.eq('status', status);
-  if (state) query = query.eq('state', state);
+  if (state) query = query.ilike('state', state);
   if (rating) query = query.gte('rating', rating);
 
-  const { data: intakes, count, error } = await query
-    .order('submitted_at', { ascending: false, nullsFirst: false })
-    .order('updated_at', { ascending: false })
-    .range(offset, offset + PAGE_SIZE - 1);
-  if (error) throw error;
+  let intakes = [];
+  let count = 0;
+  let radiusWarning = '';
+
+  if (hasRadiusFilter) {
+    const { data, error } = await query
+      .order('submitted_at', { ascending: false, nullsFirst: false })
+      .order('updated_at', { ascending: false })
+      .limit(1000);
+    if (error) throw error;
+
+    const radiusResult = applyRadiusFilter(data || [], location, radius, state || 'MI');
+    radiusWarning = radiusResult.warning;
+    count = radiusResult.rows.length;
+    intakes = radiusResult.rows.slice(offset, offset + PAGE_SIZE);
+  } else {
+    const { data, count: dbCount, error } = await query
+      .order('submitted_at', { ascending: false, nullsFirst: false })
+      .order('updated_at', { ascending: false })
+      .range(offset, offset + PAGE_SIZE - 1);
+    if (error) throw error;
+    intakes = data || [];
+    count = dbCount || 0;
+  }
 
   const { data: summaryRows, error: summaryError } = await supabase
     .from('contractor_vendor_intakes')
@@ -448,9 +471,13 @@ router.get('/directory', requireManager, async (req, res) => {
     status,
     state,
     rating: rating || '',
+    location,
+    radius: radius || '',
+    radiusWarning,
+    hasRadiusFilter,
     page,
-    totalPages: Math.max(1, Math.ceil((count || 0) / PAGE_SIZE)),
-    count: count || 0,
+    totalPages: Math.max(1, Math.ceil(count / PAGE_SIZE)),
+    count,
     summary: { total, submitted, approved, avgRating },
   });
 });

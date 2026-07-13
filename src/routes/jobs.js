@@ -176,6 +176,70 @@ async function hydrateProjectChatAttachment(message) {
   }
 }
 
+function isMissingProjectChatReadsSchema(error) {
+  const message = String(error?.message || '').toLowerCase();
+  return error?.code === '42P01' ||
+    error?.code === 'PGRST205' ||
+    message.includes('project_chat_message_reads') ||
+    message.includes('schema cache');
+}
+
+async function markProjectChatMessagesRead(messages, userId) {
+  const readableIds = (messages || [])
+    .filter(message => message?.id && Number(message.user_id) !== Number(userId))
+    .map(message => Number(message.id));
+  const messageIds = Array.from(new Set(readableIds));
+  if (!messageIds.length || !userId) return;
+
+  const now = new Date().toISOString();
+  const rows = messageIds.map(messageId => ({
+    message_id: messageId,
+    user_id: Number(userId),
+    seen_at: now,
+  }));
+  const { error } = await supabase
+    .from('project_chat_message_reads')
+    .upsert(rows, { onConflict: 'message_id,user_id' });
+  if (error && !isMissingProjectChatReadsSchema(error)) {
+    console.warn('[project-chat] read receipt update failed:', error.message);
+  }
+}
+
+async function loadProjectChatReads(messageIds) {
+  const ids = Array.from(new Set((messageIds || []).map(Number).filter(Boolean)));
+  if (!ids.length) return {};
+  const { data, error } = await supabase
+    .from('project_chat_message_reads')
+    .select('message_id, user_id, seen_at, users!inner(id, name, email)')
+    .in('message_id', ids)
+    .order('seen_at', { ascending: true });
+  if (error) {
+    if (!isMissingProjectChatReadsSchema(error)) {
+      console.warn('[project-chat] read receipt load failed:', error.message);
+    }
+    return {};
+  }
+  return (data || []).reduce((acc, read) => {
+    const key = String(read.message_id);
+    if (!acc[key]) acc[key] = [];
+    acc[key].push({
+      user_id: read.user_id,
+      seen_at: read.seen_at,
+      name: read.users?.name || read.users?.email || 'User',
+      email: read.users?.email || '',
+    });
+    return acc;
+  }, {});
+}
+
+function attachProjectChatReads(messages, readsByMessage) {
+  return (messages || []).map(message => ({
+    ...message,
+    seen_by: (readsByMessage[String(message.id)] || [])
+      .filter(read => Number(read.user_id) !== Number(message.user_id)),
+  }));
+}
+
 function compactHandle(value) {
   return String(value || '')
     .toLowerCase()
@@ -411,7 +475,7 @@ async function loadContractData(projectId, contractorName) {
   if (rfpIds.length) {
     const { data: itemRows, error: itemError } = await supabase
       .from('rfp_line_items')
-      .select('id, rfp_id, parent_line_item_id, vendor, description, quantity, unit_cost, final_unit_cost, total_with_markup, approved, sort_order')
+      .select('id, rfp_id, parent_line_item_id, vendor, description, quantity, unit_cost, total_cost, final_unit_cost, total_with_markup, approved, sort_order')
       .in('rfp_id', rfpIds)
       .eq('approved', true)
       .order('sort_order', { ascending: true })
@@ -424,6 +488,7 @@ async function loadContractData(projectId, contractorName) {
         category: rfpById[item.rfp_id]?.contractor_name || '',
         quantity: Number(item.quantity || 0),
         unit_cost: Number(item.unit_cost || 0),
+        total_cost: Number(item.total_cost || 0),
         final_unit_cost: Number(item.final_unit_cost || item.unit_cost || 0),
         total_with_markup: Number(item.total_with_markup || 0),
       }));
@@ -434,7 +499,7 @@ async function loadContractData(projectId, contractorName) {
   const contractor = contractors.find(c => vendorKey(c.name) === normalizedName)
     || vendors.find(v => vendorKey(v.name) === normalizedName)
     || { name: contractorName };
-  const contractTotal = items.reduce((sum, item) => sum + Number(item.total_with_markup || 0), 0);
+  const contractTotal = items.reduce((sum, item) => sum + Number(item.total_cost || 0), 0);
 
   return {
     job,
@@ -452,6 +517,10 @@ async function validateJob(body) {
   const title = emptyToNull(body.title);
   if (!title) errors.title = 'Title is required.';
   if (title && title.length > 200) errors.title = 'Too long (max 200).';
+  const oneDriveFolderUrl = emptyToNull(body.onedrive_folder_url);
+  if (oneDriveFolderUrl && !/^https?:\/\/\S+$/i.test(oneDriveFolderUrl)) {
+    errors.onedrive_folder_url = 'Use a full OneDrive or SharePoint link that starts with https://.';
+  }
 
   const customerId = parseInt(body.customer_id, 10);
   if (!customerId) errors.customer_id = 'Customer is required.';
@@ -487,6 +556,7 @@ async function validateJob(body) {
       city: emptyToNull(body.city),
       state: emptyToNull(body.state),
       zip: emptyToNull(body.zip),
+      onedrive_folder_url: oneDriveFolderUrl,
       description: emptyToNull(body.description),
       status,
       scheduled_date: scheduledDate,
@@ -503,6 +573,7 @@ function blankJob() {
   return {
     id: null, customer_id: null, title: '',
     address: '', city: '', state: '', zip: '',
+    onedrive_folder_url: '',
     description: '', status: 'lead',
     scheduled_date: '', scheduled_time: '', assigned_to_user_id: null,
   };
@@ -648,6 +719,7 @@ router.post('/', async (req, res) => {
     .insert({
       customer_id: data.customer_id, title: data.title,
       address: data.address, city: data.city, state: data.state, zip: data.zip,
+      onedrive_folder_url: data.onedrive_folder_url,
       description: data.description, status: data.status,
       scheduled_date: data.scheduled_date, scheduled_time: data.scheduled_time,
       assigned_to_user_id: data.assigned_to_user_id,
@@ -1437,6 +1509,7 @@ router.post('/:id', async (req, res) => {
   const updatePatch = {
     customer_id: data.customer_id, title: data.title,
     address: data.address, city: data.city, state: data.state, zip: data.zip,
+    onedrive_folder_url: data.onedrive_folder_url,
     description: data.description, status: data.status,
     scheduled_date: data.scheduled_date, scheduled_time: data.scheduled_time,
     assigned_to_user_id: data.assigned_to_user_id,
@@ -2117,7 +2190,7 @@ router.post('/:id/chat', projectChatPhotoMiddleware, async (req, res) => {
     console.warn('[project-chat] mention email processing failed:', emailError.message);
   }
 
-  res.json({ ok: true, message: hydratedMsg });
+  res.json({ ok: true, message: { ...hydratedMsg, seen_by: [] } });
 });
 
 router.get('/:id/chat', async (req, res) => {
@@ -2134,8 +2207,11 @@ router.get('/:id/chat', async (req, res) => {
   if (before) query = query.lt('id', before);
   const { data: messages, error } = await query;
   if (error) return res.status(500).json({ error: error.message });
-  const hydrated = await Promise.all((messages || []).reverse().map(hydrateProjectChatAttachment));
-  res.json({ messages: hydrated });
+  const rows = messages || [];
+  await markProjectChatMessagesRead(rows, req.session.userId);
+  const readsByMessage = await loadProjectChatReads(rows.map(message => message.id));
+  const hydrated = await Promise.all(rows.reverse().map(hydrateProjectChatAttachment));
+  res.json({ messages: attachProjectChatReads(hydrated, readsByMessage) });
 });
 
 // POST /:id/chat/:msgId/delete — delete a chat message (author or admin/manager)

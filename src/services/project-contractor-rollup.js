@@ -2,8 +2,8 @@
  * F-011: Project contractor/vendor rollup service.
  *
  * For a given job, aggregates approved RFP line items by vendor name
- * to show contract value, then matches bills to show billed-to-date
- * and remaining.
+ * to show the vendor/contractor raw contract value, then matches bills
+ * to show billed-to-date and remaining.
  */
 const supabase = require('../db/supabase');
 
@@ -41,7 +41,7 @@ async function getProjectContractorRollup(jobId) {
   if (rfpIds.length > 0) {
     const { data, error: liErr } = await supabase
       .from('rfp_line_items')
-      .select('vendor, description, total_with_markup')
+      .select('vendor, description, total_cost')
       .in('rfp_id', rfpIds)
       .eq('approved', true);
     if (liErr) throw liErr;
@@ -60,7 +60,7 @@ async function getProjectContractorRollup(jobId) {
         description_lines: [],
       };
     }
-    vendorMap[vName].contract_value += toNum(li.total_with_markup);
+    vendorMap[vName].contract_value += toNum(li.total_cost);
     // Collect unique description lines (up to 3)
     if (li.description && vendorMap[vName].description_lines.length < 3
         && !vendorMap[vName].description_lines.includes(li.description)) {

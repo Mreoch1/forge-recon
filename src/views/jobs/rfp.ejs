@@ -202,7 +202,7 @@
         </thead>
         <tbody>
           <% rfps.forEach(function(rfp){ %>
-            <tr id="rfp-row-<%= rfp.id %>" class="cursor-pointer hover:bg-recon-cloud/20" data-rfp-category-row data-rfp-id="<%= rfp.id %>" data-rfp-status="<%= rfp.status || 'pending' %>" data-rfp-approved-count="<%= rfpApprovedCounts[rfp.id] %>" data-rfp-category-name="<%= (rfp.contractor_name || '').toLowerCase() %>" data-rfp-search="<%= ((rfp.contractor_name || '') + ' ' + (((rfpItemsMap && rfpItemsMap[rfp.id]) || []).map(function(i){ return i.description || ''; }).join(' '))).toLowerCase() %>" onclick="var el=document.getElementById('rfp-items-<%= rfp.id %>');var icon=document.getElementById('rfp-chev-<%= rfp.id %>');el.classList.toggle('hidden');if(icon){icon.textContent=el.classList.contains('hidden')?'▶':'▼';}">
+            <tr id="rfp-row-<%= rfp.id %>" class="cursor-pointer hover:bg-recon-cloud/20" data-rfp-category-row data-rfp-id="<%= rfp.id %>" data-rfp-status="<%= rfp.status || 'pending' %>" data-rfp-approved-count="<%= rfpApprovedCounts[rfp.id] %>" data-rfp-category-name="<%= (rfp.contractor_name || '').toLowerCase() %>" data-rfp-search="<%= ((rfp.contractor_name || '') + ' ' + (rfp.notes || '') + ' ' + (((rfpItemsMap && rfpItemsMap[rfp.id]) || []).map(function(i){ return i.description || ''; }).join(' '))).toLowerCase() %>" onclick="var el=document.getElementById('rfp-items-<%= rfp.id %>');var icon=document.getElementById('rfp-chev-<%= rfp.id %>');el.classList.toggle('hidden');if(icon){icon.textContent=el.classList.contains('hidden')?'▶':'▼';}">
               <td>
                 <div class="flex items-center gap-1">
                   <button type="button" id="rfp-chev-<%= rfp.id %>"
@@ -248,6 +248,19 @@
 
     <!-- D-104: Line-item content for each RFP (inside summary table rows) -->
       <div>
+        <div class="px-5 py-3 border-b border-recon-mist bg-recon-deeper/20" onclick="event.stopPropagation()">
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
+            <div>
+              <div class="text-xs font-semibold uppercase tracking-wide text-recon-fog">BuildingConnected bid instructions</div>
+              <div class="text-xs text-recon-fog">Paste inclusions, exclusions, clarifications, acknowledgements, plan notes, and bid-form requirements for this trade.</div>
+            </div>
+            <a class="btn btn-secondary text-xs" href="/projects/<%= job.id %>/rfps/<%= rfp.id %>/bid-request.pdf" target="_blank" rel="noopener">Bid request PDF</a>
+          </div>
+          <textarea class="input w-full text-sm min-h-[6rem]"
+                    name="notes"
+                    placeholder="Example: Electrical contractor must include LV work, owner-furnished fixtures, emergency inverter, temp power, BuildingConnected acknowledgements..."
+                    data-rfp-autosave-category data-job-id="<%= job.id %>" data-rfp-id="<%= rfp.id %>" data-field="notes" data-original-value="<%- (rfp.notes || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;') %>"><%= rfp.notes || '' %></textarea>
+        </div>
         <div class="px-5 py-2 border-b border-recon-mist bg-recon-deeper/10 flex items-center justify-between">
           <span class="text-xs font-medium text-recon-fog">Line items</span>
           <div class="flex items-center gap-2">
@@ -337,16 +350,16 @@
                                 data-rfp-autosave-item data-item-id="<%= item.id %>" data-field="description" data-original-value="<%= item.description || '' %>"><%= item.description %></textarea>
                     </div>
                   </td>
-                  <td class="text-right"><span class="font-medium text-xs"><%= liQty %></span></td>
-                  <td class="text-right font-medium">$<%= (liHasSubs ? liDisplayBaseUnit : Number(item.unit_cost) || 0).toFixed(2) %></td>
-                  <td class="text-right font-medium">$<%= (liHasSubs ? liTotalCost : Number(item.total_cost) || 0).toFixed(2) %></td>
-                  <td class="text-right text-xs"><%= liMarkup %></td>
-                  <td class="text-right text-xs"><%= liGr %></td>
+                  <td class="text-right"><span class="font-medium text-xs" data-rfp-parent-qty="<%= item.id %>"><%= liQty %></span></td>
+                  <td class="text-right font-medium" data-rfp-parent-unit-cost="<%= item.id %>">$<%= (liHasSubs ? liDisplayBaseUnit : Number(item.unit_cost) || 0).toFixed(2) %></td>
+                  <td class="text-right font-medium" data-rfp-parent-total-cost="<%= item.id %>">$<%= (liHasSubs ? liTotalCost : Number(item.total_cost) || 0).toFixed(2) %></td>
+                  <td class="text-right text-xs" data-rfp-parent-markup="<%= item.id %>"><%= liMarkup %></td>
+                  <td class="text-right text-xs" data-rfp-parent-gr="<%= item.id %>"><%= liGr %></td>
                   <td class="text-right font-medium" data-rfp-parent-total="<%= item.id %>">$<%= liDisplayTotal.toFixed(2) %></td>
                   <td class="text-right text-xs" data-rfp-parent-final-unit="<%= item.id %>">$<%= liDisplayUnit.toFixed(2) %></td>
-                  <td class="text-center" onclick="event.stopPropagation();"><% if (liHasSubs) { %><span class="text-xs <%= liApproved ? 'text-green-600' : 'text-recon-fog' %>"><%= liApproved ? '✓' : '○' %></span><% } else { %><input form="<%= itemFormId %>" type="hidden" name="approved" value="0"><input form="<%= itemFormId %>" type="checkbox" name="approved" value="1" <%= item.approved ? 'checked' : '' %> data-rfp-autosave-item data-item-id="<%= item.id %>" data-field="approved" data-original-value="<%= item.approved ? '1' : '0' %>"><% } %></td>
+                  <td class="text-center" onclick="event.stopPropagation();"><% if (liHasSubs) { %><span class="text-xs <%= liApproved ? 'text-green-600' : 'text-recon-fog' %>" data-rfp-parent-approved-icon="<%= item.id %>"><%= liApproved ? '✓' : '○' %></span><% } else { %><input form="<%= itemFormId %>" type="hidden" name="approved" value="0"><input form="<%= itemFormId %>" type="checkbox" name="approved" value="1" <%= item.approved ? 'checked' : '' %> data-rfp-autosave-item data-item-id="<%= item.id %>" data-field="approved" data-original-value="<%= item.approved ? '1' : '0' %>"><% } %></td>
                   <td class="text-right align-middle whitespace-nowrap">
-                    <span class="inline-flex items-center justify-end gap-1 rounded bg-recon-deeper/40 px-2 py-1 text-xs text-recon-fog" title="Approved vendor / contractor lines">
+                    <span class="inline-flex items-center justify-end gap-1 rounded bg-recon-deeper/40 px-2 py-1 text-xs text-recon-fog" title="Approved vendor / contractor lines" data-rfp-parent-line-count="<%= item.id %>">
                       <%= liApprovedSubs %>/<%= liSubCount %>
                     </span>
                     <form id="<%= itemDelFormId %>" action="/projects/rfps/items/<%= item.id %>/delete" method="POST" onclick="event.stopPropagation();" onsubmit="return confirm('Delete?')"></form>
@@ -393,11 +406,11 @@
 
                         <div class="mb-3 grid gap-3 rounded border border-recon-mist bg-recon-deeper/30 p-3 sm:grid-cols-3" data-rfp-editor-summary="<%= item.id %>">
                           <div>
-                            <div class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Approved total cost</div>
+                            <div class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Combined total cost</div>
                             <div class="text-lg font-semibold" data-rfp-editor-summary-total-cost>$0.00</div>
                           </div>
                           <div>
-                            <div class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Approved total w/ MU + GR</div>
+                            <div class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Combined total w/ MU + GR</div>
                             <div class="text-lg font-semibold text-recon-red" data-rfp-editor-summary-total-with-markup>$0.00</div>
                           </div>
                           <div>
@@ -713,6 +726,7 @@
 
   function closeRfpLineEditor(itemId) {
     if (!itemId) return null;
+    if (typeof window.updateRfpEditorSummary === 'function') window.updateRfpEditorSummary(itemId);
     var row = document.getElementById('rfp-line-' + itemId);
     var editor = document.getElementById('rfp-line-editor-' + itemId);
     if (editor) editor.classList.add('hidden');
@@ -890,6 +904,60 @@
     else el.textContent = moneyText(value);
   }
 
+  function setPlainOutput(el, value) {
+    if (!el) return;
+    el.textContent = value == null || value === '' ? '—' : String(value);
+  }
+
+  function syncRfpItemField(itemId, field, saved, sourceEl) {
+    if (!itemId || !field) return;
+    var value = saved == null ? '' : String(saved);
+    document.querySelectorAll('[data-rfp-autosave-item][data-item-id="' + itemId + '"][data-field="' + field + '"]').forEach(function(peer) {
+      if (peer !== sourceEl) {
+        if (peer.type === 'checkbox') peer.checked = value === '1' || value === 'true';
+        else peer.value = value;
+      }
+      peer.dataset.originalValue = value;
+      clearFieldState(peer);
+      if (peer.hasAttribute('data-autosize') && typeof autosize === 'function') autosize(peer);
+    });
+    if (field === 'description') {
+      var parentRow = document.getElementById('rfp-line-' + itemId);
+      if (parentRow) {
+        parentRow.setAttribute('data-rfp-line-search', value.toLowerCase());
+        var categoryRow = parentRow.closest('[data-rfp-items-row]');
+        var rfpId = categoryRow && categoryRow.getAttribute('data-rfp-items-row');
+        var summaryRow = rfpId && document.querySelector('[data-rfp-category-row][data-rfp-id="' + rfpId + '"]');
+        if (summaryRow) {
+          var categoryName = summaryRow.getAttribute('data-rfp-category-name') || '';
+          var lineText = Array.prototype.map.call(categoryRow.querySelectorAll('.rfp-li-row'), function(row) {
+            return row.getAttribute('data-rfp-line-search') || '';
+          }).join(' ');
+          summaryRow.setAttribute('data-rfp-search', (categoryName + ' ' + lineText).toLowerCase());
+        }
+      }
+      if (typeof window.applyRfpFilters === 'function') window.applyRfpFilters();
+    }
+  }
+
+  function formatPercentValue(value) {
+    var n = Number(value);
+    if (!Number.isFinite(n)) return '';
+    return Number.isInteger(n) ? String(n) : String(parseFloat(n.toFixed(4)));
+  }
+
+  function percentInput(scope, name, fallback) {
+    return formatPercentValue(numberInput(scope, name, fallback));
+  }
+
+  function percentSummary(values) {
+    var unique = [];
+    values.forEach(function(value) {
+      if (value !== '' && unique.indexOf(value) === -1) unique.push(value);
+    });
+    return unique.length ? unique.join(' / ') : '—';
+  }
+
   function numberInput(scope, name, fallback) {
     var el = scope && scope.querySelector('[name="' + name + '"]');
     if (!el) return fallback || 0;
@@ -927,34 +995,59 @@
     var totalCost = 0;
     var totalWithMarkup = 0;
     var qty = 0;
+    var approvedTotalCost = 0;
+    var approvedTotalWithMarkup = 0;
+    var approvedQty = 0;
+    var approvedMarkupValues = [];
+    var approvedGrValues = [];
     var approvedCount = 0;
     var lineCount = 0;
     document.querySelectorAll('[data-rfp-pricing-line][data-parent-item-id="' + parentItemId + '"]').forEach(function(line) {
       if (!rfpLiveLineHasData(line)) return;
-      if (!line.hasAttribute('data-rfp-new-line')) lineCount += 1;
+      var isNewLine = line.hasAttribute('data-rfp-new-line');
+      if (!isNewLine) lineCount += 1;
       var checkbox = line.querySelector('input[type="checkbox"][data-field="approved"]');
       var approved = checkbox ? checkbox.checked : true;
       var computed = computeRfpLiveLine(line);
       setMoneyOutput(line.querySelector('[data-rfp-live-total-cost]'), computed.totalCost);
       setMoneyOutput(line.querySelector('[data-rfp-live-total-with-markup]'), computed.totalWithMarkup);
       setMoneyOutput(line.querySelector('[data-rfp-live-final-unit]'), computed.finalUnit);
+      totalCost += computed.totalCost;
+      totalWithMarkup += computed.totalWithMarkup;
+      qty = Math.max(qty, computed.qty || 0);
       if (approved) {
-        if (!line.hasAttribute('data-rfp-new-line')) approvedCount += 1;
-        totalCost += computed.totalCost;
-        totalWithMarkup += computed.totalWithMarkup;
-        qty = Math.max(qty, computed.qty || 0);
+        if (!isNewLine) {
+          approvedCount += 1;
+          approvedTotalCost += computed.totalCost;
+          approvedTotalWithMarkup += computed.totalWithMarkup;
+          approvedQty = Math.max(approvedQty, computed.qty || 0);
+          approvedMarkupValues.push(percentInput(line, 'markup_pct', 16));
+          approvedGrValues.push(percentInput(line, 'general_requirements_pct', 4));
+        }
       }
     });
     setMoneyOutput(summary.querySelector('[data-rfp-editor-summary-total-cost]'), totalCost);
     setMoneyOutput(summary.querySelector('[data-rfp-editor-summary-total-with-markup]'), totalWithMarkup);
     setMoneyOutput(summary.querySelector('[data-rfp-editor-summary-final-unit]'), qty > 0 ? totalWithMarkup / qty : 0);
     if (parentRow) {
-      parentRow.setAttribute('data-rfp-line-total', moneyPlain(totalWithMarkup));
+      parentRow.setAttribute('data-rfp-line-total', moneyPlain(approvedTotalWithMarkup));
       parentRow.setAttribute('data-rfp-line-approved', approvedCount > 0 ? '1' : '0');
-      setMoneyOutput(parentRow.querySelector('[data-rfp-parent-total="' + parentItemId + '"]'), totalWithMarkup);
-      setMoneyOutput(parentRow.querySelector('[data-rfp-parent-final-unit="' + parentItemId + '"]'), qty > 0 ? totalWithMarkup / qty : 0);
-      var lineBadge = parentRow.querySelector('.inline-flex');
-      if (lineBadge && lineCount) lineBadge.firstChild.nodeValue = approvedCount + '/' + lineCount;
+      setPlainOutput(parentRow.querySelector('[data-rfp-parent-qty="' + parentItemId + '"]'), approvedQty || 0);
+      setMoneyOutput(parentRow.querySelector('[data-rfp-parent-unit-cost="' + parentItemId + '"]'), approvedQty > 0 ? approvedTotalCost / approvedQty : 0);
+      setMoneyOutput(parentRow.querySelector('[data-rfp-parent-total-cost="' + parentItemId + '"]'), approvedTotalCost);
+      setPlainOutput(parentRow.querySelector('[data-rfp-parent-markup="' + parentItemId + '"]'), percentSummary(approvedMarkupValues));
+      setPlainOutput(parentRow.querySelector('[data-rfp-parent-gr="' + parentItemId + '"]'), percentSummary(approvedGrValues));
+      setMoneyOutput(parentRow.querySelector('[data-rfp-parent-total="' + parentItemId + '"]'), approvedTotalWithMarkup);
+      setMoneyOutput(parentRow.querySelector('[data-rfp-parent-final-unit="' + parentItemId + '"]'), approvedQty > 0 ? approvedTotalWithMarkup / approvedQty : 0);
+      var approvedIcon = parentRow.querySelector('[data-rfp-parent-approved-icon="' + parentItemId + '"]');
+      if (approvedIcon) {
+        var allApproved = lineCount > 0 && approvedCount === lineCount;
+        approvedIcon.textContent = allApproved ? '✓' : '○';
+        approvedIcon.classList.toggle('text-green-600', allApproved);
+        approvedIcon.classList.toggle('text-recon-fog', !allApproved);
+      }
+      var lineBadge = parentRow.querySelector('[data-rfp-parent-line-count="' + parentItemId + '"]');
+      if (lineBadge) lineBadge.textContent = approvedCount + '/' + lineCount;
       var table = parentRow.closest('.rfp-items-table');
       if (table) {
         var firstApproved = table.querySelector('input[type="checkbox"][data-field="approved"]') || parentRow;
@@ -962,6 +1055,8 @@
       }
     }
   }
+
+  window.updateRfpEditorSummary = updateRfpEditorSummary;
 
   function updateRfpLiveCalculatorFrom(el) {
     var line = el && el.closest('[data-rfp-pricing-line]');
@@ -1025,8 +1120,11 @@
     if (data && data.item && Object.prototype.hasOwnProperty.call(data.item, el.dataset.field)) {
       saved = data.item[el.dataset.field];
       if (el.type === 'checkbox') saved = data.item[el.dataset.field] ? '1' : '0';
+      syncRfpItemField(el.dataset.itemId, el.dataset.field, saved, el);
     }
-    el.dataset.originalValue = saved == null ? '' : String(saved);
+    if (!(data && data.item && Object.prototype.hasOwnProperty.call(data.item, el.dataset.field))) {
+      el.dataset.originalValue = saved == null ? '' : String(saved);
+    }
     clearFieldState(el);
     if (el.dataset.field === 'approved') refreshApprovedTotalsFor(el);
     updateRfpLiveCalculatorFrom(el);
@@ -1147,11 +1245,45 @@
           el.dataset.originalValue = fieldValue(el);
           clearFieldState(el);
         });
+        var line = form.closest('.rfp-line-editor-modal')?.querySelector('[data-rfp-pricing-line] [form="' + form.id + '"]')?.closest('[data-rfp-pricing-line]');
+        var parentItemId = line ? line.getAttribute('data-parent-item-id') : null;
+        if (!parentItemId) {
+          var anyAssociated = document.querySelector('[form="' + form.id + '"][data-rfp-autosave-item]');
+          line = anyAssociated && anyAssociated.closest('[data-rfp-pricing-line]');
+          parentItemId = line ? line.getAttribute('data-parent-item-id') : null;
+        }
+        if (parentItemId) updateRfpEditorSummary(parentItemId);
         showAutosaveStatus('Saved just now', 'success');
         showAutosaveToast('Pricing line saved.', 'success');
       }).catch(function() {
         showAutosaveStatus('Save failed', 'error');
         showAutosaveToast('Pricing line save failed.', 'error');
+      });
+    });
+  });
+
+  // "Add line" does a real full-page POST/redirect (unlike the AJAX sub-line
+  // forms above). If a description/qty edit elsewhere in this same editor is
+  // still queued or mid-flight when that navigation fires, the browser cancels
+  // it and the edit is lost — the field appears to "revert" after reload.
+  // Flush any pending autosaves for this editor before letting the native
+  // submit proceed.
+  document.querySelectorAll('form[id^="rfp-add-sub-form-"]').forEach(function(form) {
+    form.addEventListener('submit', function(e) {
+      var itemId = form.getAttribute('data-parent-item-id');
+      var editor = itemId && document.getElementById('rfp-line-editor-' + itemId);
+      if (!editor) return;
+      var pending = [];
+      editor.querySelectorAll('[data-rfp-autosave-item]').forEach(function(el) {
+        if (form.contains(el)) return;
+        if (timers.has(el)) { clearTimeout(timers.get(el)); timers.delete(el); }
+        if (fieldValue(el) !== (el.dataset.originalValue || '')) pending.push(saveField(el).catch(function(){}));
+      });
+      if (!pending.length) return;
+      e.preventDefault();
+      showAutosaveStatus('Saving...', 'success');
+      Promise.allSettled(pending).then(function() {
+        form.submit();
       });
     });
   });

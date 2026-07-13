@@ -198,6 +198,7 @@ test('trade intake has public start form and manager-only directory', () => {
   const app = read('src/app.js');
   const routes = read('src/routes/vendor-intake.js');
   const form = read('src/views/vendor-intake/form.ejs');
+  const index = read('src/views/vendor-intake/index.ejs');
   const show = read('src/views/vendor-intake/show.ejs');
   const header = read('src/views/layouts/header.ejs');
   const migration = read('supabase/migrations/20260608110353_contractor_vendor_intake.sql');
@@ -221,6 +222,8 @@ test('trade intake has public start form and manager-only directory', () => {
   assert.match(routes, /sectionRequestEmail/);
   assert.match(routes, /canSendSectionRequest/);
   assert.match(routes, /generateVendorIntakePDF/);
+  assert.match(routes, /applyRadiusFilter/);
+  assert.match(routes, /hasRadiusFilter/);
   assert.match(routes, /access_token/);
   assert.match(routes, /next_update_due_at/);
   assert.match(routes, /bidAcknowledgmentAccepted/);
@@ -231,6 +234,9 @@ test('trade intake has public start form and manager-only directory', () => {
   assert.match(form, /bid_non_circumvention_acknowledged/);
   assert.match(form, /bid_direct_contact_acknowledged/);
   assert.match(form, /bid_future_agreement_acknowledged/);
+  assert.match(index, /name="location"/);
+  assert.match(index, /name="radius"/);
+  assert.match(index, /distance_miles/);
   assert.match(show, /ref\.notes/);
   assert.match(show, /Bid Participation Acknowledgment/);
   assert.match(show, /Request missing sections/);
@@ -345,7 +351,7 @@ test('project files open in a Forge viewer with sibling navigation', () => {
   const viewer = read('src/views/files/viewer.ejs');
 
   assert.match(fileRoutes, /async function getEntityDisplayContext\(entityType, entityId, requestedEntityType\)/);
-  assert.match(fileRoutes, /supabase\.from\('jobs'\)\.select\('id, title'\)/);
+  assert.match(fileRoutes, /supabase\.from\('jobs'\)\.select\('id, title, onedrive_folder_url'\)/);
   assert.match(fileRoutes, /async function buildFolderDisplay\(folder, requestedEntityType\)/);
   assert.match(fileRoutes, /folderChain\.slice\(1\)\.forEach/);
   assert.match(fileRoutes, /withFolderContext\(`\/files\/folders\/\$\{part\.id\}`/);
@@ -709,6 +715,10 @@ test('RFP line items open a pricing editor instead of dropdown sub rows', () => 
   assert.match(view, /data-rfp-grand-total="<%= rfp\.id %>"/);
   assert.match(view, /function refreshApprovedTotalsFor\(el\)/);
   assert.match(view, /if \(el\.dataset\.field === 'approved'\) refreshApprovedTotalsFor\(el\)/);
+  assert.match(view, /function syncRfpItemField\(itemId, field, saved, sourceEl\)/);
+  assert.match(view, /peer\.dataset\.originalValue = value/);
+  assert.match(view, /parentRow\.setAttribute\('data-rfp-line-search', value\.toLowerCase\(\)\)/);
+  assert.match(view, /syncRfpItemField\(el\.dataset\.itemId, el\.dataset\.field, saved, el\)/);
   assert.match(view, /onclick="saveRfpLineEditor\('<%= item\.id %>'\)">Save line item/);
   assert.match(view, /id="rfp-add-sub-form-<%= item\.id %>"/);
   assert.match(view, /<input name="approved" type="hidden" value="1">/);
@@ -758,7 +768,31 @@ test('RFP supplier lines sync into project materials', () => {
   assert.match(materials, /line\.scope_type === 'supplier'/);
   assert.match(materials, /rfp_line_item_id/);
   assert.match(materials, /source: 'rfp'/);
+  assert.match(materials, /Keep user-entered pricing\/order fields intact/);
+  assert.doesNotMatch(materials, /\.update\(\{\s*[^}]*quantity:\s*sharedFields\.quantity[\s\S]*?\.eq\('id', existingItem\.id\)/);
+  assert.doesNotMatch(materials, /\.update\(\{\s*[^}]*unit_price:\s*sharedFields\.unit_price[\s\S]*?\.eq\('id', existingItem\.id\)/);
   assert.match(materialsView, /From RFP/);
+});
+
+test('project materials rows open edit form and save edited pricing', () => {
+  const materials = read('src/routes/materials.js');
+  const materialsView = read('src/views/jobs/materials.ejs');
+
+  assert.match(materialsView, /const materialUnitOptions =/);
+  assert.match(materialsView, /data-material-item-row/);
+  assert.match(materialsView, /data-material-item="<%= encodeURIComponent\(materialItemPayload\) %>"/);
+  assert.match(materialsView, /onclick="editItemFromRow\(this\)"/);
+  assert.doesNotMatch(materialsView, /editItemFromRow\(this\.closest\('tr'\)\)/);
+  assert.doesNotMatch(materialsView, /title="Edit">✎/);
+  assert.match(materialsView, /function editItemFromRow\(row\)/);
+  assert.match(materialsView, /function setSelectValue\(select, value\)/);
+  assert.match(materialsView, /<select id="edit-unit" class="input">/);
+  assert.match(materialsView, /params\.set\('unit_price', document\.getElementById\('edit-price'\)\.value\)/);
+  assert.doesNotMatch(materialsView, /closeEdit\(\);\s*return false;/);
+  assert.match(materials, /function parseMaterialNumber\(value, fallback = 0\)/);
+  assert.match(materials, /const quantity = parseMaterialNumber\(req\.body\.quantity, 1\)/);
+  assert.match(materials, /const unitPrice = parseMaterialNumber\(req\.body\.unit_price, 0\)/);
+  assert.doesNotMatch(materials, /const unitPrice = parseFloat\(req\.body\.unit_price\) \|\| 0/);
 });
 
 test('RFP category and parent line-item deletes remove children', () => {
@@ -785,14 +819,34 @@ test('RFP editing autosaves individual fields with conflict checks', () => {
 
   assert.match(view, /id="rfp-autosave-status"/);
   assert.match(view, /data-rfp-autosave-category/);
+  assert.match(view, /data-field="notes"/);
   assert.match(view, /data-rfp-autosave-item/);
   assert.match(view, /method: 'PATCH'/);
+  assert.match(routes, /const allowed = \['contractor_name', 'status', 'notes'\]/);
   assert.doesNotMatch(view, /rfpSaveAll/);
   assert.doesNotMatch(view, /Save All Changes/);
   assert.doesNotMatch(view, /\/projects\/rfps\/items\/bulk-save/);
 
   assert.match(migration, /ALTER TABLE public\.rfp_line_items\s+ADD COLUMN IF NOT EXISTS updated_at/);
   assert.match(migration, /CREATE TRIGGER set_rfp_line_items_updated_at/);
+});
+
+test('RFP categories can print BuildingConnected bid request instructions', () => {
+  const routes = read('src/routes/rfp.js');
+  const view = read('src/views/jobs/rfp.ejs');
+  const service = read('src/services/rfp-export.js');
+  const contractorRoutes = read('src/routes/contractors.js');
+
+  assert.match(view, /BuildingConnected bid instructions/);
+  assert.match(view, /Bid request PDF/);
+  assert.match(view, /\/projects\/<%= job\.id %>\/rfps\/<%= rfp\.id %>\/bid-request\.pdf/);
+  assert.match(routes, /router\.get\('\/projects\/:id\/rfps\/:rId\/bid-request\.pdf'/);
+  assert.match(routes, /renderBidRequestPdf\(job, rfp, items \|\| \[\]\)/);
+  assert.match(service, /function renderBidRequestPdf\(project, rfp, items\)/);
+  assert.match(service, /BID INSTRUCTIONS \/ BUILDINGCONNECTED NOTES/);
+  assert.match(service, /Pricing response/);
+  assert.match(contractorRoutes, /project_rfps!inner\(id, job_id, contractor_name, notes\)/);
+  assert.match(service, /collectBidInstructionSections\(items\)/);
 });
 
 test('RFP parent rows roll up approved sub-lines only', () => {
@@ -869,14 +923,18 @@ test('RFP line editor live-calculates row and combined approved totals', () => {
   const routes = read('src/routes/rfp.js');
 
   assert.match(view, /data-rfp-editor-summary="<%= item\.id %>"/);
-  assert.match(view, /Approved total w\/ MU \+ GR/);
+  assert.match(view, /Combined total w\/ MU \+ GR/);
   assert.match(view, /data-rfp-editor-summary-total-with-markup/);
   assert.match(view, /data-rfp-pricing-line data-parent-item-id="<%= item\.id %>"/);
   assert.match(view, /data-rfp-live-calc data-rfp-autosave-item/);
   assert.match(view, /data-rfp-parent-total="<%= item\.id %>"/);
   assert.match(view, /function updateRfpEditorSummary\(parentItemId\)/);
   assert.match(view, /computeRfpLiveLine\(line\)/);
-  assert.match(view, /parentRow\.setAttribute\('data-rfp-line-total', moneyPlain\(totalWithMarkup\)\)/);
+  assert.match(view, /var isNewLine = line\.hasAttribute\('data-rfp-new-line'\)/);
+  assert.match(view, /totalCost \+= computed\.totalCost/);
+  assert.match(view, /totalWithMarkup \+= computed\.totalWithMarkup/);
+  assert.match(view, /approvedTotalWithMarkup \+= computed\.totalWithMarkup/);
+  assert.match(view, /parentRow\.setAttribute\('data-rfp-line-total', moneyPlain\(approvedTotalWithMarkup\)\)/);
   assert.match(view, /function associatedFormData\(form\)/);
   assert.match(view, /body: associatedFormData\(form\)/);
   assert.match(view, /querySelectorAll\('\[data-rfp-editor-summary\]'\)/);
@@ -903,9 +961,20 @@ test('customer detail exposes customer projects and project creation path', () =
 
 test('new project insert persists all validated project form fields', () => {
   const routes = read('src/routes/jobs.js');
+  const form = read('src/views/jobs/_form.ejs');
+  const show = read('src/views/jobs/show.ejs');
+  const schema = read('src/db/schema-postgres.sql');
+  const migration = read('supabase/migrations/20260708162500_project_onedrive_folder_url.sql');
 
   assert.match(routes, /contract_value: data\.contract_value \?\? 0/);
   assert.match(routes, /total_paid: data\.total_paid \?\? 0/);
+  assert.match(routes, /onedrive_folder_url: oneDriveFolderUrl/);
+  assert.match(routes, /onedrive_folder_url: data\.onedrive_folder_url/);
+  assert.match(form, /name="onedrive_folder_url"/);
+  assert.match(form, /OneDrive project folder/);
+  assert.match(show, /Open OneDrive folder/);
+  assert.match(schema, /onedrive_folder_url TEXT/);
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS onedrive_folder_url TEXT/);
 });
 
 test('project list supports clickable sortable headers', () => {
@@ -932,6 +1001,7 @@ test('project list supports clickable sortable headers', () => {
 test('project file upload supports browser-selected folder trees', () => {
   const routes = read('src/routes/files.js');
   const folderView = read('src/views/files/folder.ejs');
+  const storage = read('src/services/storage.js');
 
   assert.match(routes, /preservePath: true/);
   assert.match(routes, /function normalizeRelativeUploadPath\(filename\)/);
@@ -940,20 +1010,61 @@ test('project file upload supports browser-selected folder trees', () => {
   assert.match(routes, /const targetFolderId = await ensureUploadSubfolder\(folder, folderParts, req\.session\.userId \|\| null\)/);
   assert.match(routes, /folder_id: targetFolderId/);
   assert.match(routes, /MAX_UPLOAD_BATCH_SIZE/);
+  assert.match(routes, /MAX_DIRECT_UPLOAD_FILE_SIZE = 500 \* 1024 \* 1024/);
   assert.match(routes, /router\.get\('\/folders\/:folderId\/upload-url'/);
   assert.match(routes, /router\.post\('\/folders\/:folderId\/register-direct'/);
+  assert.match(routes, /select\('id, title, onedrive_folder_url'\)/);
+  assert.match(routes, /oneDriveFolderUrl: job\.onedrive_folder_url/);
   assert.match(routes, /storage\.getUploadUrl\('entity-files', key\)/);
+  assert.match(routes, /uploadToken: result\.uploadToken/);
+  assert.match(routes, /uploadToken: signed\.uploadToken/);
+  assert.match(routes, /maxFileSize: MAX_DIRECT_UPLOAD_FILE_SIZE/);
+  assert.doesNotMatch(routes, /resumableUploadUrl/);
+  assert.match(storage, /createSignedUploadUrl\(key, \{ upsert: true \}\)/);
+  assert.match(storage, /const uploadToken = data\?\.token/);
+  assert.doesNotMatch(storage, /searchParams\.get\('token'\)/);
+  assert.match(storage, /uploadToken/);
+  assert.doesNotMatch(storage, /resumableUploadUrl/);
   assert.match(routes, /storageKey\.startsWith\(keyPrefix\)/);
   assert.match(folderView, /webkitdirectory/);
+  assert.match(folderView, /oneDriveFolderUrl/);
+  assert.match(folderView, /Open OneDrive folder/);
   assert.match(folderView, /data-direct-folder-upload/);
   assert.match(folderView, /\/files\/folders\/' \+ currentFolderId \+ '\/upload-url/);
   assert.match(folderView, /\/files\/folders\/' \+ currentFolderId \+ '\/register-direct/);
   assert.match(folderView, /file\.webkitRelativePath \|\| file\.name/);
-  assert.match(folderView, /async function uploadFileToSignedUrl\(uploadUrl, file, contentType\)/);
+  assert.match(folderView, /async function uploadFileToSignedUrl\(uploadUrl, file, contentType, onProgress\)/);
   assert.match(folderView, /rawRes\.status !== 400/);
   assert.match(folderView, /var form = new FormData\(\)/);
   assert.match(folderView, /form\.append\('cacheControl', '3600'\)/);
+  assert.match(folderView, /form\.append\('file', file, uploadName\)/);
   assert.match(folderView, /Zip uploaded, but processing failed/);
+  assert.match(folderView, /\/vendor\/jszip\/jszip\.min\.js/);
+  assert.match(folderView, /async function uploadZipExtractedInBrowser\(file\)/);
+  assert.match(folderView, /window\.JSZip\.loadAsync\(file\)/);
+  assert.match(folderView, /500 \* 1024 \* 1024/);
+  assert.doesNotMatch(folderView, /Files inside the zip must be 25 MB or smaller/);
+  assert.match(folderView, /relative_path: entry\.relPath/);
+  assert.match(folderView, /await registerZipUploadedFiles\(uploadedBatch\)/);
+  assert.match(folderView, /id="zip-progress-wrap"/);
+  assert.match(folderView, /id="zip-progress-eta"/);
+  assert.match(folderView, /function sendZipUploadRequest\(uploadUrl, options\)/);
+  assert.match(folderView, /xhr\.upload\.onprogress/);
+  assert.match(folderView, /async function uploadDirectFileToStorage\(urlData, file, contentType, onProgress\)/);
+  assert.match(folderView, /await uploadFileToSignedUrl\(urlData\.uploadUrl, file, contentType, onProgress\)/);
+  assert.doesNotMatch(folderView, /ZIP_RESUMABLE_THRESHOLD/);
+  assert.doesNotMatch(folderView, /ZIP_RESUMABLE_CHUNK_SIZE/);
+  assert.doesNotMatch(folderView, /buildTusMetadata/);
+  assert.doesNotMatch(folderView, /uploadZipResumable/);
+  assert.doesNotMatch(folderView, /Tus-Resumable/);
+  assert.doesNotMatch(folderView, /x-signature/);
+  assert.match(folderView, /await uploadDirectFileToStorage\(urlData, blob, contentType/);
+  assert.match(folderView, /await uploadDirectFileToStorage\(urlData, file, file\.type \|\| 'application\/octet-stream'\)/);
+  assert.match(folderView, /Estimated time left:/);
+  assert.match(folderView, /beforeunload/);
+  assert.match(folderView, /A zip upload is still running/);
+  assert.match(folderView, /Leaving this page will stop the upload/);
+  assert.match(folderView, /Upload complete\. FORGE is unpacking the zip now/);
   assert.ok(folderView.indexOf('async function uploadFileToSignedUrl') < folderView.indexOf('async function uploadZip()'));
   assert.match(folderView, /Choose folder/);
   assert.match(folderView, /Upload folder/);
@@ -1022,6 +1133,7 @@ test('project chat stays inside the project content shell', () => {
   const show = read('src/views/jobs/show.ejs');
   const routes = read('src/routes/jobs.js');
   const migration = read('supabase/migrations/20260702143535_project_chat_photo_attachments.sql');
+  const readMigration = read('supabase/migrations/20260708153000_project_chat_message_reads.sql');
 
   const opsShellStart = show.indexOf('<div class="ops-shell">');
   const chatStart = show.indexOf('<details class="chat-panel card mb-6 overflow-hidden"');
@@ -1060,6 +1172,17 @@ test('project chat stays inside the project content shell', () => {
   assert.match(show, /method: 'PUT'/);
   assert.match(show, /formData\.append\('photo_storage_key', uploadPrep\.storageKey\)/);
   assert.match(show, /class="chat-photo"/);
+  assert.match(readMigration, /CREATE TABLE IF NOT EXISTS public\.project_chat_message_reads/);
+  assert.match(readMigration, /UNIQUE\(message_id, user_id\)/);
+  assert.match(routes, /function markProjectChatMessagesRead\(messages, userId\)/);
+  assert.match(routes, /\.from\('project_chat_message_reads'\)\s*\.upsert\(rows, \{ onConflict: 'message_id,user_id' \}\)/);
+  assert.match(routes, /function loadProjectChatReads\(messageIds\)/);
+  assert.match(routes, /seen_by:/);
+  assert.match(routes, /isMissingProjectChatReadsSchema/);
+  assert.match(show, /function seenReceiptHtml\(msg\)/);
+  assert.match(show, /data-seen-receipt/);
+  assert.match(show, /updateSeenReceipt\(existing, msg\)/);
+  assert.match(show, /class="chat-seen"/);
 });
 
 test('project financials live on a dedicated billing tab', () => {
@@ -1097,6 +1220,18 @@ test('project contractor rollup includes bill-only vendors from Forge bills', ()
   assert.match(service, /\.from\('bills'\)[\s\S]*\.eq\('job_id', jobId\)[\s\S]*\.in\('status', \['draft', 'approved', 'paid'\]\)/);
   assert.match(service, /Bill entered in Forge/);
   assert.doesNotMatch(service, /if \(rfpIds\.length === 0\) return \[\]/);
+});
+
+test('project contractor financial rollup uses raw contract cost for remaining', () => {
+  const service = read('src/services/project-contractor-rollup.js');
+  const financials = read('src/views/jobs/financials.ejs');
+
+  assert.match(service, /\.select\('vendor, description, total_cost'\)/);
+  assert.match(service, /contract_value \+= toNum\(li\.total_cost\)/);
+  assert.match(service, /const remaining = entry\.contract_value - billed/);
+  assert.match(financials, /<td class="text-right">\$<%= ff\(c\.contract_value\) %><\/td>/);
+  assert.match(financials, /<td class="text-right font-medium <%= c\.remaining >= 0 \? 'text-green-700' : 'text-recon-red' %>">\$<%= ff\(c\.remaining\) %><\/td>/);
+  assert.doesNotMatch(service, /total_with_markup/);
 });
 
 test('bills are entered without a visible approval status step', () => {
@@ -1204,4 +1339,71 @@ test('contractor scope PDFs show contractor raw unit and total pricing only', ()
   assert.doesNotMatch(service, /renderContractorHandoffPdf[\s\S]*item\.total_with_markup[\s\S]*doc\.end\(\);/);
   assert.doesNotMatch(service, /renderContractorHandoffPdf[\s\S]*general_requirements_pct[\s\S]*doc\.end\(\);/);
   assert.doesNotMatch(service, /renderContractorHandoffPdf[\s\S]*markup_pct[\s\S]*doc\.end\(\);/);
+});
+
+test('project subcontract agreement PDFs use contractor raw pricing, not Recon markup', () => {
+  const service = read('src/services/contract-pdf.js');
+  const routes = read('src/routes/jobs.js');
+  const preview = read('src/views/jobs/contract-preview.ejs');
+
+  assert.match(routes, /unit_cost, total_cost, final_unit_cost, total_with_markup/);
+  assert.match(routes, /total_cost: Number\(item\.total_cost \|\| 0\)/);
+  assert.match(routes, /const contractTotal = items\.reduce\(\(sum, item\) => sum \+ Number\(item\.total_cost \|\| 0\), 0\)/);
+  assert.match(service, /Pricing source', value: 'Approved RFP contractor cost'/);
+  assert.match(service, /unit_cost: fmtMoney\(toNum\(item\.unit_cost\)\)/);
+  assert.match(service, /line_total: fmtMoney\(toNum\(item\.total_cost\)\)/);
+  assert.match(preview, /fmtMoney\(item\.unit_cost\)/);
+  assert.match(preview, /fmtMoney\(item\.total_cost\)/);
+  assert.doesNotMatch(service, /unit_cost: fmtMoney\(toNum\(item\.final_unit_cost/);
+  assert.doesNotMatch(service, /line_total: fmtMoney\(toNum\(item\.total_with_markup/);
+  assert.doesNotMatch(preview, /fmtMoney\(item\.final_unit_cost/);
+  assert.doesNotMatch(preview, /fmtMoney\(item\.total_with_markup\)/);
+});
+
+test('project subcontract agreement identifies parties and return instructions', () => {
+  const service = read('src/services/contract-pdf.js');
+  const preview = read('src/views/jobs/contract-preview.ejs');
+
+  assert.match(service, /function drawAgreementIntro\(doc, contractorName\)/);
+  assert.match(service, /This subcontract agreement is between Recon Enterprises and \$\{safe\(contractorName\)/);
+  assert.match(service, /drawAgreementIntro\(doc, contractor\?\.name \|\| vendorName\)/);
+  assert.match(service, /Please sign, date, and return this agreement to Office@reconenterprises\.net\./);
+  assert.doesNotMatch(service, /`Project #\$\{project\.id\}`/);
+  assert.doesNotMatch(service, /label: 'Customer \/ Owner'[\s\S]*customer\?\.email[\s\S]*label: 'Recon Contact'/);
+  assert.doesNotMatch(service, /label: 'Customer \/ Owner'[\s\S]*customer\?\.phone[\s\S]*label: 'Recon Contact'/);
+  assert.doesNotMatch(service, /label: 'Customer \/ Owner'[\s\S]*addressLines\(customer\)[\s\S]*label: 'Recon Contact'/);
+  assert.match(preview, /This subcontract agreement is between Recon Enterprises and <%= contractorName %>/);
+  assert.match(preview, /Please sign, date, and return this agreement to Office@reconenterprises\.net\./);
+});
+
+test('project subcontract agreement PDF terms render full-width after contract sum', () => {
+  const service = read('src/services/contract-pdf.js');
+
+  assert.match(service, /function sectionTitle\(doc, title\)/);
+  assert.match(service, /const width = right - left/);
+  assert.match(service, /\.text\(title\.toUpperCase\(\), left, doc\.y, \{ width \}\)/);
+  assert.match(service, /\.text\(`\$\{idx \+ 1\}\. \$\{title\}`, left, doc\.y, \{ width \}\)/);
+  assert.match(service, /\.text\(body, left, doc\.y, \{\s*width,/);
+  assert.match(service, /doc\.x = doc\.page\.margins\.left/);
+});
+
+test('project financials show estimated profit margin and markup percent', () => {
+  const service = read('src/services/project-financials.js');
+  const panel = read('src/views/jobs/_financial_panel.ejs');
+  const overview = read('src/views/jobs/_financial_overview.ejs');
+
+  assert.match(service, /const estimated_profit = revised_contract_value - total_committed/);
+  assert.match(service, /const estimated_profit_pct =\s*revised_contract_value > 0 \? \(estimated_profit \/ revised_contract_value\) \* 100 : 0/);
+  assert.match(service, /const estimated_markup_pct =\s*total_committed > 0 \? \(estimated_profit \/ total_committed\) \* 100 : 0/);
+  assert.match(service, /estimated_profit_pct: Number\(estimated_profit_pct\.toFixed\(1\)\)/);
+  assert.match(service, /estimated_markup_pct: Number\(estimated_markup_pct\.toFixed\(1\)\)/);
+  assert.match(service, /realized_profit_to_date_pct: Number\(realized_profit_to_date_pct\.toFixed\(1\)\)/);
+  assert.match(service, /realized_markup_to_date_pct: Number\(realized_markup_to_date_pct\.toFixed\(1\)\)/);
+  assert.match(panel, /function pct\(val\)/);
+  assert.match(panel, /Margin: <%= fmt\(f\.estimated_profit\) %> \/ <%= pct\(f\.estimated_profit_pct\) %>/);
+  assert.match(panel, /Markup: <%= fmt\(f\.estimated_profit\) %> \/ <%= pct\(f\.estimated_markup_pct\) %>/);
+  assert.match(panel, /Margin: <%= fmt\(f\.realized_profit_to_date\) %> \/ <%= pct\(f\.realized_profit_to_date_pct\) %>/);
+  assert.match(panel, /Markup: <%= fmt\(f\.realized_profit_to_date\) %> \/ <%= pct\(f\.realized_markup_to_date_pct\) %>/);
+  assert.match(overview, /var markupPct = costComm > 0 \? \(profit \/ costComm\) \* 100 : 0/);
+  assert.match(overview, /Markup: <%= markupPct\.toFixed\(1\) %>%/);
 });
