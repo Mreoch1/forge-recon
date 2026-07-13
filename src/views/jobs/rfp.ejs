@@ -408,7 +408,7 @@
                         <div class="flex items-center gap-2">
                           <span class="text-xs text-recon-fog"><%= liApprovedSubs %> of <%= liSubCount %> approved</span>
                           <button type="button" class="btn btn-secondary text-xs" onclick="saveRfpLineEditor('<%= item.id %>')">Save line item</button>
-                          <button type="button" class="btn btn-secondary text-xs" onclick="closeRfpLineEditor('<%= item.id %>')">Close</button>
+                          <button type="button" class="btn btn-secondary text-xs" onclick="event.stopPropagation();closeRfpLineEditor('<%= item.id %>')">Close</button>
                         </div>
                       </div>
 
@@ -679,6 +679,9 @@
   .rfp-items-table tbody tr.rfp-line-editor-modal {
     display: block;
   }
+  .rfp-items-table tbody tr.rfp-line-editor-modal.hidden {
+    display: none !important;
+  }
   .rfp-items-table th,
   .rfp-items-table td {
     padding-left: .75rem;
@@ -923,7 +926,10 @@
     if (typeof window.updateRfpEditorSummary === 'function') window.updateRfpEditorSummary(itemId);
     var row = document.getElementById('rfp-line-' + itemId);
     var editor = document.getElementById('rfp-line-editor-' + itemId);
-    if (editor) editor.classList.add('hidden');
+    if (editor) {
+      editor.classList.add('hidden');
+      editor.style.display = 'none';
+    }
     document.body.classList.remove('overflow-hidden');
     if (row) row.classList.remove('bg-recon-cloud/20');
     var chevron = row && row.querySelector('.rfp-li-chevron');
@@ -939,6 +945,7 @@
     document.querySelectorAll('.rfp-line-editor-modal').forEach(function(other) {
       if (other !== editor) {
         other.classList.add('hidden');
+        other.style.display = 'none';
         var otherId = other.id.replace('rfp-line-editor-', '');
         var otherRow = document.getElementById('rfp-line-' + otherId);
         if (otherRow) {
@@ -949,6 +956,7 @@
       }
     });
     editor.classList.remove('hidden');
+    editor.style.display = 'block';
     document.body.classList.add('overflow-hidden');
     row.classList.add('bg-recon-cloud/20');
     var chevron = row.querySelector('.rfp-li-chevron');

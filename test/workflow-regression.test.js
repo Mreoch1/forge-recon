@@ -865,6 +865,14 @@ test('RFP line item table keeps numeric columns aligned', () => {
   assert.match(view, /white-space:\s*nowrap/);
 });
 
+test('RFP line editor modal close is not overridden by row display CSS', () => {
+  const view = read('src/views/jobs/rfp.ejs');
+
+  assert.match(view, /\.rfp-items-table tbody tr\.rfp-line-editor-modal\.hidden\s*\{[^}]*display:\s*none !important/s);
+  assert.match(view, /editor\.style\.display = 'none'/);
+  assert.match(view, /event\.stopPropagation\(\);closeRfpLineEditor/);
+});
+
 test('RFP parent rows roll up approved sub-lines only', () => {
   const view = read('src/views/jobs/rfp.ejs');
 
