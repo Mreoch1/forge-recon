@@ -619,6 +619,95 @@ router.delete('/projects/rfps/items/:itemId', requireRfpEditAccess, async (req, 
   res.json({ ok: true });
 });
 
+// ── D-105: POST /projects/rfps/items/reorder — drag-drop save new sort order ──
+// NOTE: must be registered BEFORE the generic '/:itemId' route below — Express
+// matches routes in declaration order, and '/:itemId' matches the literal
+// segment "reorder" just as well as a numeric id, silently swallowing this
+// route otherwise (drag-drop reorder would appear to work client-side but
+// never actually persist, so it reverted after refresh).
+router.post('/projects/rfps/items/reorder', requireRfpEditAccess, async (req, res) => {
+  const { rfp_id } = req.body;
+  let itemIds = req.body.item_ids;
+  if (typeof itemIds === 'string' && itemIds.trim().startsWith('[')) {
+    try { itemIds = JSON.parse(itemIds); } catch (e) { itemIds = []; }
+  }
+  if (typeof itemIds === 'string') itemIds = [itemIds];
+  if (!Array.isArray(itemIds) || itemIds.length === 0) return res.status(400).json({ error: 'item_ids array required' });
+  const updates = itemIds.map((id, i) => ({ id, sort_order: i }));
+  for (const u of updates) {
+    const { error } = await supabase.from('rfp_line_items').update({ sort_order: u.sort_order }).eq('id', u.id);
+    if (error) throw error;
+  }
+  const { data: rfp, error: rfpError } = await supabase.from('project_rfps').select('job_id').eq('id', rfp_id).single();
+  if (rfpError) throw rfpError;
+  res.redirect(`/projects/${rfp?.job_id}/rfp`);
+});
+
+// ── Bulk save all RFP line items — POST /projects/rfps/items/bulk-save ──
+// Same route-ordering note as '/reorder' above — must precede '/:itemId'.
+router.post('/projects/rfps/items/bulk-save', requireRfpEditAccess, async (req, res) => {
+  const items = req.body.items;
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ ok: false, error: 'items array is required' });
+  }
+
+  function lastOf(v) { return Array.isArray(v) ? v[v.length - 1] : v; }
+
+  const results = { saved: 0, errors: [] };
+
+  for (const entry of items) {
+    const itemId = parseInt(entry.id, 10);
+    if (!itemId) { results.errors.push({ id: entry.id, error: 'Invalid item id' }); continue; }
+
+    const vendor = lastOf(entry.vendor);
+    const description = lastOf(entry.description);
+    const quantity = lastOf(entry.quantity);
+    const contractor_cost = lastOf(entry.contractor_cost);
+    const vendor_cost = lastOf(entry.vendor_cost);
+    const markup_pct = lastOf(entry.markup_pct);
+    const general_requirements_pct = lastOf(entry.general_requirements_pct);
+    const approved = lastOf(entry.approved);
+
+    const markup = parseNumberOrDefault(markup_pct, DEFAULT_RFP_MARKUP_PCT);
+    const cCost = parseNumberOrDefault(contractor_cost, 0);
+    const vCost = parseNumberOrDefault(vendor_cost, 0);
+    const qty = parseNumberOrDefault(quantity, 0);
+    const gr = parseFloat(general_requirements_pct);
+    const grPct = isFinite(gr) ? gr : DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT;
+
+    const computedUnit = cCost + vCost;
+    const baseCost = computedUnit * qty;
+    const withMarkup = baseCost * (1 + (markup + grPct) / 100);
+
+    const updateData = {};
+    if (vendor !== undefined) updateData.vendor = vendor || null;
+    if (description !== undefined) updateData.description = description || '';
+    if (quantity !== undefined) updateData.quantity = qty || null;
+    if (contractor_cost !== undefined) updateData.contractor_cost = cCost || null;
+    updateData.unit_cost = computedUnit || null;
+    updateData.total_cost = baseCost || null;
+    updateData.markup_pct = markup;
+    updateData.total_with_markup = withMarkup;
+    updateData.final_unit_cost = baseCost > 0 ? withMarkup / (qty || 1) : 0;
+    if (general_requirements_pct !== undefined) updateData.general_requirements_pct = grPct;
+    if (approved !== undefined) updateData.approved = approved === '1' || approved === 'true' || approved === true;
+    updateData.updated_at = new Date().toISOString();
+
+    const { error } = await supabase
+      .from('rfp_line_items')
+      .update(updateData)
+      .eq('id', itemId);
+
+    if (error) {
+      results.errors.push({ id: itemId, error: error.message });
+    } else {
+      results.saved++;
+    }
+  }
+
+  res.json({ ok: true, ...results });
+});
+
 // ── POST /projects/rfps/items/:itemId — update a line item (D-101 inline edit) ──
 router.post('/projects/rfps/items/:itemId', requireRfpEditAccess, async (req, res) => {
   // D-119 fix: when an HTML form has BOTH a hidden input (value="0") AND a
@@ -760,25 +849,6 @@ function computeSubLineTotals(params) {
   };
 }
 
-// ── D-105: POST /projects/rfps/items/reorder — drag-drop save new sort order ──
-router.post('/projects/rfps/items/reorder', requireRfpEditAccess, async (req, res) => {
-  const { rfp_id } = req.body;
-  let itemIds = req.body.item_ids;
-  if (typeof itemIds === 'string' && itemIds.trim().startsWith('[')) {
-    try { itemIds = JSON.parse(itemIds); } catch (e) { itemIds = []; }
-  }
-  if (typeof itemIds === 'string') itemIds = [itemIds];
-  if (!Array.isArray(itemIds) || itemIds.length === 0) return res.status(400).json({ error: 'item_ids array required' });
-  const updates = itemIds.map((id, i) => ({ id, sort_order: i }));
-  for (const u of updates) {
-    const { error } = await supabase.from('rfp_line_items').update({ sort_order: u.sort_order }).eq('id', u.id);
-    if (error) throw error;
-  }
-  const { data: rfp, error: rfpError } = await supabase.from('project_rfps').select('job_id').eq('id', rfp_id).single();
-  if (rfpError) throw rfpError;
-  res.redirect(`/projects/${rfp?.job_id}/rfp`);
-});
-
 // ── F-007: POST /projects/rfps/items/:itemId/approve — AJAX toggle ──
 router.post('/projects/rfps/items/:itemId/approve', requireRfpEditAccess, async (req, res) => {
   const itemId = parseInt(req.params.itemId, 10);
@@ -787,70 +857,6 @@ router.post('/projects/rfps/items/:itemId/approve', requireRfpEditAccess, async 
   const { error } = await supabase.from('rfp_line_items').update({ approved: approved ? 1 : 0 }).eq('id', itemId);
   if (error) return res.status(500).json({ ok: false, error: error.message });
   res.json({ ok: true, approved });
-});
-
-// ── Bulk save all RFP line items — POST /projects/rfps/items/bulk-save ──
-router.post('/projects/rfps/items/bulk-save', requireRfpEditAccess, async (req, res) => {
-  const items = req.body.items;
-  if (!Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ ok: false, error: 'items array is required' });
-  }
-
-  function lastOf(v) { return Array.isArray(v) ? v[v.length - 1] : v; }
-
-  const results = { saved: 0, errors: [] };
-
-  for (const entry of items) {
-    const itemId = parseInt(entry.id, 10);
-    if (!itemId) { results.errors.push({ id: entry.id, error: 'Invalid item id' }); continue; }
-
-    const vendor = lastOf(entry.vendor);
-    const description = lastOf(entry.description);
-    const quantity = lastOf(entry.quantity);
-    const contractor_cost = lastOf(entry.contractor_cost);
-    const vendor_cost = lastOf(entry.vendor_cost);
-    const markup_pct = lastOf(entry.markup_pct);
-    const general_requirements_pct = lastOf(entry.general_requirements_pct);
-    const approved = lastOf(entry.approved);
-
-    const markup = parseNumberOrDefault(markup_pct, DEFAULT_RFP_MARKUP_PCT);
-    const cCost = parseNumberOrDefault(contractor_cost, 0);
-    const vCost = parseNumberOrDefault(vendor_cost, 0);
-    const qty = parseNumberOrDefault(quantity, 0);
-    const gr = parseFloat(general_requirements_pct);
-    const grPct = isFinite(gr) ? gr : DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT;
-
-    const computedUnit = cCost + vCost;
-    const baseCost = computedUnit * qty;
-    const withMarkup = baseCost * (1 + (markup + grPct) / 100);
-
-    const updateData = {};
-    if (vendor !== undefined) updateData.vendor = vendor || null;
-    if (description !== undefined) updateData.description = description || '';
-    if (quantity !== undefined) updateData.quantity = qty || null;
-    if (contractor_cost !== undefined) updateData.contractor_cost = cCost || null;
-    updateData.unit_cost = computedUnit || null;
-    updateData.total_cost = baseCost || null;
-    updateData.markup_pct = markup;
-    updateData.total_with_markup = withMarkup;
-    updateData.final_unit_cost = baseCost > 0 ? withMarkup / (qty || 1) : 0;
-    if (general_requirements_pct !== undefined) updateData.general_requirements_pct = grPct;
-    if (approved !== undefined) updateData.approved = approved === '1' || approved === 'true' || approved === true;
-    updateData.updated_at = new Date().toISOString();
-
-    const { error } = await supabase
-      .from('rfp_line_items')
-      .update(updateData)
-      .eq('id', itemId);
-
-    if (error) {
-      results.errors.push({ id: itemId, error: error.message });
-    } else {
-      results.saved++;
-    }
-  }
-
-  res.json({ ok: true, ...results });
 });
 
 // ── F-006: RFP export routes (PDF, CSV, XLSX) ──────────────────────────
