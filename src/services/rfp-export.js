@@ -895,13 +895,27 @@ function renderBidRequestPdf(project, rfp, items, recipientName) {
       return (a.id || 0) - (b.id || 0);
     });
 
+    // D-142: Unit Cost / Total are intentionally left blank — this PDF never
+    // carries Michael's own pricing. They're fillable columns for whichever
+    // contractor/vendor the bid request goes out to.
+    const priceColWidth = 85;
+    const qtyColWidth = 60;
     const cols = [
-      { label: 'SCOPE / DESCRIPTION', width: tableWidth - 75, align: 'left' },
-      { label: 'QTY', width: 75, align: 'right' },
+      { label: 'SCOPE / DESCRIPTION', width: tableWidth - qtyColWidth - priceColWidth * 2, align: 'left' },
+      { label: 'QTY', width: qtyColWidth, align: 'right' },
+      { label: 'UNIT COST', width: priceColWidth, align: 'right' },
+      { label: 'TOTAL', width: priceColWidth, align: 'right' },
     ];
     const headerHeight = 22;
     const rowHeight = 18;
     let pageBottom = doc.page.height - doc.page.margins.bottom - 50;
+
+    const colBoundaries = () => {
+      const xs = [left];
+      let cx = left;
+      cols.forEach(c => { cx += c.width; xs.push(cx); });
+      return xs;
+    };
 
     const drawHeader = () => {
       doc.fillColor(COLOR.cloud).rect(left, y, tableWidth, headerHeight).fill();
@@ -941,6 +955,11 @@ function renderBidRequestPdf(project, rfp, items, recipientName) {
           .text(displayDesc, left + 4, y + 4, { width: cols[0].width - 8, lineGap: 1 });
         doc.font('Helvetica').fontSize(9).fillColor(COLOR.charcoal)
           .text(String(qtyVal), left + cols[0].width + 4, y + 4, { width: cols[1].width - 8, align: 'right' });
+        // Unit Cost / Total columns stay blank — fillable by the bidder.
+        colBoundaries().forEach(cx => {
+          doc.strokeColor(COLOR.mist).lineWidth(0.5)
+            .moveTo(cx, y).lineTo(cx, y + actualRowHeight).stroke();
+        });
         doc.strokeColor(COLOR.mist).lineWidth(0.5)
           .moveTo(left, y + actualRowHeight).lineTo(right, y + actualRowHeight).stroke();
         y += actualRowHeight;
