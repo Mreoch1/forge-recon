@@ -1022,6 +1022,22 @@ router.get('/projects/:id/rfp/bid-request.pdf', requireRfpAccess, async (req, re
     return res.status(404).send('One or more selected bid request line items were not found for this project.');
   }
 
+  const { data: childItems, error: childItemsErr } = await supabase
+    .from('rfp_line_items')
+    .select('id, parent_line_item_id, quantity, approved')
+    .in('parent_line_item_id', itemIds)
+    .order('sort_order', { ascending: true })
+    .order('id', { ascending: true });
+  if (childItemsErr) throw childItemsErr;
+
+  const childrenByParent = {};
+  (childItems || []).forEach(child => {
+    (childrenByParent[child.parent_line_item_id] = childrenByParent[child.parent_line_item_id] || []).push(child);
+  });
+  selectedItems.forEach(item => {
+    item.bid_request_children = childrenByParent[item.id] || [];
+  });
+
   const recipientName = String(req.query.for || '').trim() || null;
   const buf = await rfpExport.renderSelectedBidRequestPdf(job, selectedItems, recipientName);
   const cleanProject = exportFilenameBase(job, req.params.id).replace(/-RFP$/, '');

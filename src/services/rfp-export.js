@@ -88,6 +88,12 @@ function numberOrDefault(value, fallback) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function bidRequestQtyForItem(item) {
+  const children = item?.bid_request_children || item?.children || [];
+  if (!children.length) return Number(item?.quantity) || 0;
+  return parentRollupQty(item, children.filter(child => child.approved));
+}
+
 function computedLineTotalCost(line) {
   const qty = numberOrDefault(line && line.quantity, 0);
   const splitUnit = numberOrDefault(line && line.contractor_cost, 0) + numberOrDefault(line && line.vendor_cost, 0);
@@ -1132,7 +1138,7 @@ function renderSelectedBidRequestPdf(project, items, recipientName) {
 
         group.items.forEach(item => {
           const displayDesc = pdfText(item.description || item.name || '');
-          const qtyVal = Number(item.quantity) || 0;
+          const qtyVal = bidRequestQtyForItem(item);
           const descH = measurePdfText(doc, displayDesc, cols[0].width - 8, 'Helvetica', 9);
           const actualRowHeight = Math.max(rowHeight, descH + 8);
           if (y + actualRowHeight > pageBottom) {
@@ -1395,5 +1401,6 @@ module.exports = {
     computeProjectGrandTotal,
     buildExportRows,
     buildProjectExportRows,
+    bidRequestQtyForItem,
   },
 };

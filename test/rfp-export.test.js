@@ -208,8 +208,11 @@ test('selected bid request PDF renders only chosen lines across categories', asy
         rfp_id: 10,
         project_rfps: { id: 10, contractor_name: 'Cabinets', notes: 'Include shop drawings.' },
         description: 'Cabinet install at kitchens',
-        quantity: 14,
+        quantity: 0,
         sort_order: 1,
+        bid_request_children: [
+          { id: 101, parent_line_item_id: 100, quantity: 14, approved: true },
+        ],
       },
       {
         id: 200,
@@ -225,6 +228,16 @@ test('selected bid request PDF renders only chosen lines across categories', asy
 
   assert.ok(Buffer.isBuffer(pdf));
   assert.ok(pdf.length > 1000);
+  assert.equal(
+    rfpExport._internal.bidRequestQtyForItem({
+      quantity: 0,
+      bid_request_children: [
+        { quantity: 166, approved: true },
+        { quantity: 999, approved: false },
+      ],
+    }),
+    166
+  );
 });
 
 test('project RFP XLSX export aligns readable columns', async () => {
