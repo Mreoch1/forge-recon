@@ -3,24 +3,37 @@
 <div class="ops-shell">
   <div class="mb-4 flex items-center justify-between gap-3 flex-wrap">
     <a href="/projects/<%= job.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; Back to <%= job.title || job.name %></a>
-    <div class="flex items-center gap-2 flex-wrap">
-      <a href="/projects/<%= job.id %>/rfp/export.pdf" class="btn btn-secondary text-sm" target="_blank">PDF</a>
-      <a href="/projects/<%= job.id %>/rfp/export.csv" class="btn btn-secondary text-sm" target="_blank">CSV</a>
-      <a href="/projects/<%= job.id %>/rfp/export.xlsx" class="btn btn-secondary text-sm" target="_blank">XLSX</a>
-      <form id="rfp-bid-request-form" action="/projects/<%= job.id %>/rfp/bid-request.pdf" method="GET" target="_blank" class="flex items-center gap-2 flex-wrap">
-        <input name="for" class="input text-sm" placeholder="Prepared for (optional)" list="rfp-line-entity-options" style="min-width:210px">
-        <button id="rfp-bid-request-submit" type="submit" class="btn btn-secondary text-sm" disabled>Bid request PDF</button>
-        <span id="rfp-bid-request-count" class="text-xs text-recon-fog">0 selected</span>
-      </form>
+  </div>
+
+  <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h1 class="page-h1">RFP / Bid Comparison</h1>
+      <p class="text-sm text-recon-fog mt-1">Project: <a href="/projects/<%= job.id %>" class="text-recon-red hover:underline"><%= job.title || job.name %></a></p>
+    </div>
+    <div class="flex items-center gap-3">
+      <span id="rfp-autosave-status" class="text-xs font-medium text-recon-fog">Autosave on</span>
       <button onclick="document.getElementById('rfp-new-form').classList.toggle('hidden')"
               class="btn btn-primary text-sm">+ Add category</button>
-      <span id="rfp-autosave-status" class="text-xs text-recon-fog px-2">Autosave on</span>
     </div>
   </div>
 
-  <div class="mb-6">
-    <h1 class="page-h1">RFP / Bid Comparison</h1>
-    <p class="text-sm text-recon-fog mt-1">Project: <a href="/projects/<%= job.id %>" class="text-recon-red hover:underline"><%= job.title || job.name %></a></p>
+  <div class="rfp-action-bar mb-6">
+    <div class="rfp-action-group">
+      <span class="rfp-action-label">Export</span>
+      <div class="rfp-action-buttons">
+        <a href="/projects/<%= job.id %>/rfp/export.pdf" class="btn btn-secondary text-sm" target="_blank">PDF</a>
+        <a href="/projects/<%= job.id %>/rfp/export.csv" class="btn btn-secondary text-sm" target="_blank">CSV</a>
+        <a href="/projects/<%= job.id %>/rfp/export.xlsx" class="btn btn-secondary text-sm" target="_blank">XLSX</a>
+      </div>
+    </div>
+    <form id="rfp-bid-request-form" action="/projects/<%= job.id %>/rfp/bid-request.pdf" method="GET" target="_blank" class="rfp-bid-request-tools">
+      <label class="rfp-bid-recipient">
+        <span class="rfp-action-label">Bid request</span>
+        <input name="for" class="input text-sm" placeholder="Prepared for (optional)" list="rfp-line-entity-options">
+      </label>
+      <button id="rfp-bid-request-submit" type="submit" class="btn btn-secondary text-sm" disabled>Bid request PDF</button>
+      <span id="rfp-bid-request-count" class="rfp-selected-count">0 selected</span>
+    </form>
   </div>
 
 
@@ -599,10 +612,72 @@
 
 <!-- D-105: SortableJS drag-drop + auto-total calculator + rename-on-dblclick -->
 <style>
+  .rfp-action-bar {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .85rem 1rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+  }
+  .rfp-action-group,
+  .rfp-bid-request-tools,
+  .rfp-action-buttons {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    flex-wrap: wrap;
+  }
+  .rfp-action-label {
+    display: block;
+    color: #8a8f98;
+    font-size: .66rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .rfp-bid-recipient {
+    display: grid;
+    gap: .35rem;
+    min-width: min(24rem, 100%);
+  }
+  .rfp-bid-recipient .input {
+    width: 100%;
+    min-height: 2.35rem;
+  }
+  .rfp-selected-count {
+    color: #8a8f98;
+    font-size: .78rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  #rfp-bid-request-submit:disabled {
+    opacity: .55;
+    cursor: not-allowed;
+  }
   /* D-120: field-sizing ensures textareas start at rows="1" even inside hidden containers */
   .rfp-items-table textarea.input { field-sizing: content; min-height: 1.5rem; }
   .rfp-line-editor-modal label { min-width: 0; }
   .rfp-line-editor-modal .input { max-width: 100%; }
+  @media (max-width: 860px) {
+    .rfp-action-bar {
+      align-items: stretch;
+      flex-direction: column;
+    }
+    .rfp-action-group,
+    .rfp-bid-request-tools {
+      align-items: stretch;
+    }
+    .rfp-bid-request-tools .btn,
+    .rfp-bid-recipient {
+      width: 100%;
+    }
+  }
 </style>
 <script>
 (function(){
