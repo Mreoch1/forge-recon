@@ -68,6 +68,9 @@ function validate(body) {
 }
 
 router.get('/', async (req, res) => {
+  const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+  return res.redirect(302, '/companies' + qs);
+
   const q = sanitizePostgrestSearch((req.query.q || '').trim());
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;

@@ -50,6 +50,9 @@ function validate(body) {
 }
 
 router.get('/', async (req, res) => {
+  const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+  return res.redirect(302, '/companies' + qs);
+
   // F4: sanitize before interpolating into PostgREST .or() filter.
   const q = sanitizePostgrestSearch((req.query.q || '').trim());
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);

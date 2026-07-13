@@ -152,7 +152,9 @@ test('navigation is grouped by workflow and role tier', () => {
   assert.doesNotMatch(desktopNav[1], /href="\/accounting"/);
   assert.ok(mobileNav[1].indexOf('>Dashboard</a>') < mobileNav[1].indexOf('>Work Orders</a>'));
   assert.match(header, /<div class="more-menu-heading">Sales<\/div>[\s\S]*href="\/estimates"[\s\S]*href="\/invoices"/);
-  assert.match(header, /<div class="more-menu-heading">Vendors & costs<\/div>[\s\S]*href="\/vendors"[\s\S]*href="\/contractors"[\s\S]*href="\/vendor-intake\/directory"/);
+  assert.match(header, /<div class="more-menu-heading">Vendors & costs<\/div>[\s\S]*href="\/companies"[\s\S]*>Companies<\/a>[\s\S]*href="\/vendor-intake\/directory"/);
+  assert.doesNotMatch(header, /href="\/vendors" class="more-menu-link/);
+  assert.doesNotMatch(header, /href="\/contractors" class="more-menu-link/);
   assert.match(header, /<% if \(_isAdminNav\) \{ %>[\s\S]*href="\/bills"/);
   assert.match(header, /<% if \(_isAdminNav\) \{ %>[\s\S]*href="\/accounting"[\s\S]*href="\/admin\/users"/);
   assert.match(header, /<% if \(_canManageNav\) \{ %>[\s\S]*id="more-dropdown"/);
@@ -160,6 +162,7 @@ test('navigation is grouped by workflow and role tier', () => {
 
 test('list search and filter forms update live without stealing typing focus', () => {
   const footer = read('src/views/layouts/footer.ejs');
+  const companies = read('src/views/companies/index.ejs');
   const vendors = read('src/views/vendors/index.ejs');
   const workOrders = read('src/views/work-orders/index.ejs');
   const customers = read('src/views/customers/index.ejs');
@@ -172,6 +175,7 @@ test('list search and filter forms update live without stealing typing focus', (
   assert.match(footer, /fetch\(url\.toString\(\)/);
   assert.match(footer, /restoreFocus\(currentShell, focusState\)/);
   assert.match(footer, /currentShell\.innerHTML = nextShell\.innerHTML/);
+  assert.match(companies, /class="list-utility-bar"/);
   assert.match(vendors, /class="list-utility-bar"/);
   assert.match(workOrders, /class="list-utility-bar"/);
   assert.match(customers, /class="list-utility-bar customer-toolbar"/);
@@ -180,18 +184,25 @@ test('list search and filter forms update live without stealing typing focus', (
 
 test('managers can manage vendor and contractor records but cannot delete them', () => {
   const app = read('src/app.js');
+  const companies = read('src/routes/companies.js');
   const vendors = read('src/routes/vendors.js');
   const contractors = read('src/routes/contractors.js');
   const header = read('src/views/layouts/header.ejs');
 
+  assert.match(app, /const companiesRoutes = require\('\.\/routes\/companies'\)/);
+  assert.match(app, /app\.use\('\/companies', requireAuth, requireManager, companiesRoutes\)/);
   assert.match(app, /app\.use\('\/vendors', requireAuth, requireManager, vendorsRoutes\)/);
   assert.match(app, /app\.use\('\/contractors', requireAuth, requireManager, contractorsRoutes\)/);
+  assert.match(companies, /function mergeCompanies\(vendors = \[\], contractors = \[\]\)/);
+  assert.match(companies, /roles\.includes\('Vendor'\)/);
+  assert.match(companies, /roles\.includes\('Contractor'\)/);
+  assert.match(companies, /res\.render\('companies\/index'/);
+  assert.match(vendors, /res\.redirect\(302, '\/companies' \+ qs\)/);
+  assert.match(contractors, /res\.redirect\(302, '\/companies' \+ qs\)/);
   assert.match(vendors, /router\.post\('\/:id\/delete', requireAdmin,/);
   assert.match(contractors, /router\.post\('\/:id\/delete', requireAdmin,/);
-  assert.match(header, /_canManageNav[\s\S]*href="\/vendors"/);
-  assert.match(header, /_canManageNav[\s\S]*href="\/contractors"/);
-  assert.match(header, /_canManageMobile[\s\S]*href="\/vendors"/);
-  assert.match(header, /_canManageMobile[\s\S]*href="\/contractors"/);
+  assert.match(header, /_canManageNav[\s\S]*href="\/companies"/);
+  assert.match(header, /_canManageMobile[\s\S]*href="\/companies"/);
 });
 
 test('trade intake has public start form and manager-only directory', () => {

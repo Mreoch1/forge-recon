@@ -1,0 +1,71 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<div class="ops-shell">
+  <div class="ops-header">
+    <div class="ops-title-block">
+      <h1 class="page-h1">Companies</h1>
+      <p class="page-sub"><%= total %> total<% if (q) { %> &middot; filter: "<%= q %>"<% } %></p>
+    </div>
+    <div class="ops-actions">
+      <a href="/vendor-intake/start" class="btn btn-primary" target="_blank" rel="noopener">+ New company</a>
+    </div>
+  </div>
+
+  <div class="ops-summary">
+    <div class="ops-summary-item"><div class="ops-summary-label">Total</div><div class="ops-summary-value"><%= total %></div><div class="ops-summary-meta">companies</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">Contractors</div><div class="ops-summary-value"><%= contractorCount %></div><div class="ops-summary-meta">with contractor role</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">Vendors</div><div class="ops-summary-value"><%= vendorCount %></div><div class="ops-summary-meta">with vendor role</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">Both</div><div class="ops-summary-value"><%= combinedCount %></div><div class="ops-summary-meta">merged names</div></div>
+  </div>
+
+  <form method="get" class="list-utility-bar">
+    <input type="text" name="q" value="<%= q %>" placeholder="Search name, email, phone, trade..." class="list-search">
+    <button class="btn btn-secondary">Search</button>
+    <% if (q) { %><a href="/companies" class="list-clear">Clear</a><% } %>
+  </form>
+
+  <% if (!companies || companies.length === 0) { %>
+    <div class="ops-panel">
+      <div class="ops-panel-head"><div class="ops-panel-title">Company directory</div><div class="text-xs text-recon-fog">0 shown</div></div>
+      <div class="ops-empty">
+        <% if (q) { %>No companies match "<%= q %>".<% } else { %>No companies yet. Use <strong>+ New company</strong> to add one contractor/vendor profile.<% } %>
+        <% if (q) { %><div class="mt-3"><a href="/companies" class="btn btn-ghost">Clear filter</a></div><% } %>
+      </div>
+    </div>
+  <% } else { %>
+    <div class="ops-panel ops-table">
+      <div class="ops-panel-head"><div class="ops-panel-title">Company directory</div><div class="text-xs text-recon-fog"><%= companies.length %> shown</div></div>
+      <div class="ops-panel-body">
+        <table class="data">
+          <thead><tr><th>Name</th><th>Roles</th><th>Trade</th><th>Email</th><th>Phone</th><th>Location</th></tr></thead>
+          <tbody>
+            <% companies.forEach(function(c) { 
+              var primaryHref = c.contractor_id ? ('/contractors/' + c.contractor_id) : ('/vendors/' + c.vendor_id);
+            %>
+              <tr class="row-link" data-href="<%= primaryHref %>">
+                <td><%= c.name %></td>
+                <td>
+                  <div class="flex flex-wrap gap-1">
+                    <% if (c.contractor_id) { %><a href="/contractors/<%= c.contractor_id %>" class="badge badge-general" onclick="event.stopPropagation()">Contractor</a><% } %>
+                    <% if (c.vendor_id) { %><a href="/vendors/<%= c.vendor_id %>" class="badge" onclick="event.stopPropagation()">Vendor</a><% } %>
+                  </div>
+                </td>
+                <td><% if (c.trade) { %><span class="badge badge-<%= c.trade %>"><%= c.trade %></span><% } else { %>-<% } %></td>
+                <td><%= c.email || '-' %></td>
+                <td><%= c.phone || '-' %></td>
+                <td><%= [c.city, c.state].filter(Boolean).join(', ') || '-' %></td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="flex justify-between items-center mt-4 text-sm text-recon-fog">
+      <span>Page <%= page %> of <%= totalPages %></span>
+      <div class="flex gap-2">
+        <% if (page > 1) { %><a href="/companies?page=<%= page - 1 %><%= q ? '&q=' + q : '' %>" class="btn btn-ghost text-xs">Previous</a><% } %>
+        <% if (page < totalPages) { %><a href="/companies?page=<%= page + 1 %><%= q ? '&q=' + q : '' %>" class="btn btn-ghost text-xs">Next</a><% } %>
+      </div>
+    </div>
+  <% } %>
+</div>
+<%- include('../layouts/footer') %>

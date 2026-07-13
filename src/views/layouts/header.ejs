@@ -284,7 +284,7 @@
           <div class="relative" id="more-dropdown">
             <%
               var _activeNav = (typeof activeNav !== 'undefined') ? activeNav : '';
-              var moreActive = _activeNav === 'estimates' || _activeNav === 'invoices' || _activeNav === 'vendors' || _activeNav === 'contractors' || _activeNav === 'intake' || _activeNav === 'bills' || _activeNav === 'documents' || _activeNav === 'accounting' || _activeNav === 'admin';
+              var moreActive = _activeNav === 'estimates' || _activeNav === 'invoices' || _activeNav === 'companies' || _activeNav === 'vendors' || _activeNav === 'contractors' || _activeNav === 'intake' || _activeNav === 'bills' || _activeNav === 'documents' || _activeNav === 'accounting' || _activeNav === 'admin';
             %>
             <button class="navlink more-toggle<%= moreActive ? ' active' : '' %>">More ▾</button>
             <div class="more-menu hidden absolute top-full right-0 mt-1 bg-recon-steel border border-recon-ash rounded-lg shadow-xl py-1 min-w-[210px] z-50">
@@ -298,8 +298,7 @@
                 <% if (_isAdminNav) { %>
                   <a href="/bills" class="more-menu-link<%= typeof activeNav !== 'undefined' && activeNav === 'bills' ? ' active' : '' %>">Bills</a>
                 <% } %>
-                <a href="/vendors" class="more-menu-link<%= typeof activeNav !== 'undefined' && activeNav === 'vendors' ? ' active' : '' %>">Vendors</a>
-                <a href="/contractors" class="more-menu-link<%= typeof activeNav !== 'undefined' && activeNav === 'contractors' ? ' active' : '' %>">Contractors</a>
+                <a href="/companies" class="more-menu-link<%= typeof activeNav !== 'undefined' && (activeNav === 'companies' || activeNav === 'vendors' || activeNav === 'contractors') ? ' active' : '' %>">Companies</a>
                 <a href="/vendor-intake/directory" class="more-menu-link<%= typeof activeNav !== 'undefined' && activeNav === 'intake' ? ' active' : '' %>">Trade intake</a>
               </div>
               <% if (_isAdminNav) { %>
@@ -377,8 +376,7 @@
           <% if (_isAdminMobile) { %>
             <a href="/bills" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'bills' ? ' active' : '' %>">Bills</a>
           <% } %>
-          <a href="/vendors" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'vendors' ? ' active' : '' %>">Vendors</a>
-          <a href="/contractors" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'contractors' ? ' active' : '' %>">Contractors</a>
+          <a href="/companies" class="navlink<%= typeof activeNav !== 'undefined' && (activeNav === 'companies' || activeNav === 'vendors' || activeNav === 'contractors') ? ' active' : '' %>">Companies</a>
           <a href="/vendor-intake/directory" class="navlink<%= typeof activeNav !== 'undefined' && activeNav === 'intake' ? ' active' : '' %>">Trade intake</a>
         <% } %>
         <% if (_isAdminMobile) { %>
