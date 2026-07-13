@@ -77,11 +77,8 @@
 
   <!-- Shared datalist for line-item vendor/contractor selection (used inside each RFP tab below) -->
   <datalist id="rfp-line-entity-options">
-    <% (contractors || []).forEach(function(c) { %>
-      <option value="<%= c.name %>" data-type="contractor"><%= c.name %> — Contractor<% if (c.trade) { %> (<%= c.trade %>)<% } %></option>
-    <% }); %>
-    <% (vendors || []).forEach(function(v) { %>
-      <option value="<%= v.name %>" data-type="vendor"><%= v.name %> — Vendor</option>
+    <% (companies || []).forEach(function(c) { %>
+      <option value="<%= c.name %>" data-type="company"><%= c.name %><% if (c.is_vendor && c.is_contractor) { %> — Contractor / Vendor<% } else if (c.is_contractor) { %> — Contractor<% if (c.trades && c.trades.length) { %> (<%= c.trades.join(', ') %>)<% } %><% } else { %> — Vendor<% } %></option>
     <% }); %>
   </datalist>
 
@@ -1502,11 +1499,14 @@
 <!-- RFP autocomplete data (rendered server-side) -->
 <script>
 window.RFP_SOURCES = [
-<% (vendors || []).forEach(function(v, i){ %>
-  <%= i > 0 ? ',' : '' %>{name:<%= JSON.stringify(v.name) %>,label:'(Vendor)',type:'vendor'}
-<% }); %>
-<% (contractors || []).forEach(function(c, i){ %>
-  <%= i > 0 || ((vendors || []).length > 0) ? ',' : '' %>{name:<%= JSON.stringify(c.name) %>,label:<%= JSON.stringify('(Contractor' + (c.trade ? ', ' + c.trade : '') + ')') %>,type:'contractor'}
+<% (companies || []).forEach(function(c, i){ 
+  var label = c.is_vendor && c.is_contractor
+    ? '(Contractor / Vendor)'
+    : (c.is_contractor
+      ? ('(Contractor' + ((c.trades && c.trades.length) ? ', ' + c.trades.join(', ') : '') + ')')
+      : '(Vendor)');
+%>
+  <%= i > 0 ? ',' : '' %>{name:<%= JSON.stringify(c.name) %>,label:<%= JSON.stringify(label) %>,type:'company'}
 <% }); %>
 ];
 </script>

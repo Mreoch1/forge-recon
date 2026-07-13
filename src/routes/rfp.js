@@ -64,10 +64,56 @@ function fallbackVendors() {
   return FALLBACK_VENDOR_NAMES.map(name => ({ id: null, name }));
 }
 
+function mergeCompanySources(vendors = [], contractors = []) {
+  const companiesByName = new Map();
+
+  function normalizeName(name) {
+    return String(name || '').trim();
+  }
+
+  function getOrCreateCompany(name) {
+    const normalizedName = normalizeName(name);
+    if (!normalizedName) return null;
+    const key = normalizedName.toLowerCase();
+    if (!companiesByName.has(key)) {
+      companiesByName.set(key, {
+        name: normalizedName,
+        is_vendor: false,
+        is_contractor: false,
+        trades: [],
+      });
+    }
+    return companiesByName.get(key);
+  }
+
+  (vendors || []).forEach((vendor) => {
+    const company = getOrCreateCompany(vendor && vendor.name);
+    if (!company) return;
+    company.vendor_id = vendor.id || company.vendor_id || null;
+    company.is_vendor = true;
+  });
+
+  (contractors || []).forEach((contractor) => {
+    const company = getOrCreateCompany(contractor && contractor.name);
+    if (!company) return;
+    company.contractor_id = contractor.id || company.contractor_id || null;
+    company.is_contractor = true;
+    if (contractor.trade && !company.trades.includes(contractor.trade)) {
+      company.trades.push(contractor.trade);
+    }
+  });
+
+  return Array.from(companiesByName.values())
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 function normalizeAutocompleteSources(vendors, contractors) {
+  const normalizedVendors = vendors && vendors.length ? vendors : fallbackVendors();
+  const normalizedContractors = contractors && contractors.length ? contractors : FALLBACK_CONTRACTORS;
   return {
-    vendors: vendors && vendors.length ? vendors : fallbackVendors(),
-    contractors: contractors && contractors.length ? contractors : FALLBACK_CONTRACTORS,
+    vendors: normalizedVendors,
+    contractors: normalizedContractors,
+    companies: mergeCompanySources(normalizedVendors, normalizedContractors),
   };
 }
 
@@ -374,6 +420,7 @@ router.get('/projects/:id/rfp', requireAuth, requireRfpAccess, async (req, res) 
     customers: job.customers || {},
     vendors: sources.vendors,
     contractors: sources.contractors,
+    companies: sources.companies,
   });
 });
 

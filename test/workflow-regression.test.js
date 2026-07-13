@@ -733,6 +733,23 @@ test('RFP line items open a pricing editor instead of dropdown sub rows', () => 
   assert.doesNotMatch(view, /form\.addEventListener\('submit', function\(e\) \{ e\.preventDefault\(\); \}\)/);
 });
 
+test('RFP company picker merges contractor and vendor names without rewriting old rows', () => {
+  const view = read('src/views/jobs/rfp.ejs');
+  const routes = read('src/routes/rfp.js');
+
+  assert.match(routes, /function mergeCompanySources\(vendors = \[\], contractors = \[\]\)/);
+  assert.match(routes, /const companiesByName = new Map\(\)/);
+  assert.match(routes, /const key = normalizedName\.toLowerCase\(\)/);
+  assert.match(routes, /is_vendor: false/);
+  assert.match(routes, /is_contractor: false/);
+  assert.match(routes, /companies: mergeCompanySources\(normalizedVendors, normalizedContractors\)/);
+  assert.match(routes, /companies: sources\.companies/);
+  assert.match(view, /\(companies \|\| \[\]\)\.forEach/);
+  assert.match(view, /Contractor \/ Vendor/);
+  assert.match(view, /type:'company'/);
+  assert.match(view, /name="vendor"[\s\S]*value="<%= sub\.vendor \|\| '' %>"/);
+});
+
 test('RFP page filters categories and approved-only line items client-side', () => {
   const view = read('src/views/jobs/rfp.ejs');
 
