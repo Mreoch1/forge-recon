@@ -449,6 +449,16 @@ test('bank transactions and account defaults are wired for accounting categoriza
   assert.match(contractors, /loadExpenseAccounts\(\)/);
   assert.match(contractorForm, /name="default_expense_account_id"/);
   assert.match(vendorForm, /name="default_expense_account_id"/);
+  assert.match(contractors, /VALID_COMPANY_ROLES = \['vendor', 'contractor', 'both'\]/);
+  assert.match(contractors, /syncVendorRole\(data, req\.session\.userId\)/);
+  assert.match(contractors, /active: data\.company_role !== 'vendor'/);
+  assert.match(vendorForm, /name="company_role"/);
+  assert.match(vendorForm, /data-contractor-fields/);
+  assert.match(vendorForm, /name="license_number"/);
+  assert.match(vendorForm, /name="insurance_expiry_date"/);
+  assert.match(contractorForm, /name="company_role"/);
+  assert.match(contractorForm, /data-vendor-fields/);
+  assert.match(contractorForm, /data-contractor-fields/);
   assert.match(migration, /create table if not exists public\.bank_transactions/);
   assert.match(migration, /alter table public\.bank_transactions enable row level security/);
   assert.match(header, /href="\/accounting\/bank-transactions"/);

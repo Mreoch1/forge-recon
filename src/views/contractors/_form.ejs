@@ -1,9 +1,19 @@
 <%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<% var related = typeof relatedVendor !== 'undefined' && relatedVendor ? relatedVendor : {}; %>
 <div class="max-w-2xl mx-auto px-4 py-6">
-  <div class="mb-4"><a href="/contractors" class="text-sm text-recon-fog hover:text-recon-red">&larr; Contractors</a></div>
+  <div class="mb-4"><a href="/companies" class="text-sm text-recon-fog hover:text-recon-red">&larr; Companies</a></div>
   <h1 class="page-h1 mb-6"><%= title %></h1>
   <div class="card p-6">
     <form action="<%= contractor.id ? '/contractors/' + contractor.id : '/contractors' %>" method="post" class="space-y-4">
+      <div>
+        <label class="label">Company role</label>
+        <select name="company_role" class="input" data-company-role>
+          <option value="vendor" <%= contractor.company_role === 'vendor' ? 'selected' : '' %>>Vendor</option>
+          <option value="contractor" <%= (contractor.company_role || 'contractor') === 'contractor' ? 'selected' : '' %>>Contractor</option>
+          <option value="both" <%= contractor.company_role === 'both' ? 'selected' : '' %>>Both</option>
+        </select>
+        <p class="text-xs text-recon-fog mt-1">Contractors include trade, license, and insurance tracking. Vendors can receive bills and AP payments.</p>
+      </div>
       <div><label class="label">Name <span class="text-recon-red">*</span>
           <span class="ml-1 text-recon-fog cursor-help" title="Contractor or subcontractor name as they appear on their business cards and invoices.">ⓘ</span>
         </label>
@@ -25,44 +35,69 @@
         <div><label class="label">State</label><input type="text" name="state" value="<%= contractor.state || '' %>" class="input" maxlength="2"></div>
         <div><label class="label">ZIP</label><input type="text" name="zip" value="<%= contractor.zip || '' %>" class="input" maxlength="10"></div>
       </div>
-      <div class="grid grid-cols-2 gap-4">
-        <div><label class="label">Trade
-          <span class="ml-1 text-recon-fog cursor-help" title="Type of subcontractor work they perform.">ⓘ</span>
-        </label>
-          <select name="trade" class="input<%= errors.trade ? ' border-red-500' : '' %>">
-            <option value="">— Select —</option>
-            <option value="drywall" <%= contractor.trade === 'drywall' ? 'selected' : '' %>>Drywall</option>
-            <option value="plumbing" <%= contractor.trade === 'plumbing' ? 'selected' : '' %>>Plumbing</option>
-            <option value="electrical" <%= contractor.trade === 'electrical' ? 'selected' : '' %>>Electrical</option>
-            <option value="HVAC" <%= contractor.trade === 'HVAC' ? 'selected' : '' %>>HVAC</option>
-            <option value="general" <%= contractor.trade === 'general' ? 'selected' : '' %>>General</option>
-            <option value="other" <%= contractor.trade === 'other' ? 'selected' : '' %>>Other</option>
-          </select>
-          <% if (errors.trade) { %><p class="text-sm text-red-600 mt-1"><%= errors.trade %></p><% } %></div>
-        <div><label class="label">License #
-          <span class="ml-1 text-recon-fog cursor-help" title="State contractor license number.">ⓘ</span>
-        </label><input type="text" name="license_number" value="<%= contractor.license_number || '' %>" class="input"></div>
+      <div data-contractor-fields class="space-y-4 rounded border border-recon-mist bg-recon-cloud/10 p-4">
+        <div class="text-xs font-semibold uppercase tracking-wider text-recon-fog">Contractor tracking</div>
+        <div class="grid grid-cols-2 gap-4">
+          <div><label class="label">Trade
+            <span class="ml-1 text-recon-fog cursor-help" title="Type of subcontractor work they perform.">ⓘ</span>
+          </label>
+            <select name="trade" class="input<%= errors.trade ? ' border-red-500' : '' %>">
+              <option value="">— Select —</option>
+              <option value="drywall" <%= contractor.trade === 'drywall' ? 'selected' : '' %>>Drywall</option>
+              <option value="plumbing" <%= contractor.trade === 'plumbing' ? 'selected' : '' %>>Plumbing</option>
+              <option value="electrical" <%= contractor.trade === 'electrical' ? 'selected' : '' %>>Electrical</option>
+              <option value="HVAC" <%= contractor.trade === 'HVAC' ? 'selected' : '' %>>HVAC</option>
+              <option value="general" <%= contractor.trade === 'general' ? 'selected' : '' %>>General</option>
+              <option value="other" <%= contractor.trade === 'other' ? 'selected' : '' %>>Other</option>
+            </select>
+            <% if (errors.trade) { %><p class="text-sm text-red-600 mt-1"><%= errors.trade %></p><% } %></div>
+          <div><label class="label">License #
+            <span class="ml-1 text-recon-fog cursor-help" title="State contractor license number.">ⓘ</span>
+          </label><input type="text" name="license_number" value="<%= contractor.license_number || '' %>" class="input"></div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div><label class="label">Insurance expiry date
+            <span class="ml-1 text-recon-fog cursor-help" title="Date contractor's general liability / workers comp insurance expires.">ⓘ</span>
+          </label><input type="date" name="insurance_expiry_date" value="<%= contractor.insurance_expiry_date || '' %>" class="input"></div>
+          <div><label class="label">Chart account
+            <span class="text-recon-fog text-xs font-normal">(expense)</span>
+            <span class="ml-1 text-recon-fog cursor-help" title="Default expense account used later when bills, bank payments, and project costs are categorized for this contractor.">ⓘ</span>
+          </label>
+            <select name="default_expense_account_id" class="input">
+              <option value="">— Select —</option>
+              <% (typeof accounts !== 'undefined' ? accounts : []).forEach(function(a) { %>
+                <option value="<%= a.id %>" <%= String(contractor.default_expense_account_id || '') === String(a.id) ? 'selected' : '' %>><%= a.code %> — <%= a.name %></option>
+              <% }); %>
+            </select></div>
+        </div>
       </div>
-      <div class="grid grid-cols-2 gap-4">
-        <div><label class="label">Insurance expiry date
-          <span class="ml-1 text-recon-fog cursor-help" title="Date contractor's general liability / workers comp insurance expires.">ⓘ</span>
-        </label><input type="date" name="insurance_expiry_date" value="<%= contractor.insurance_expiry_date || '' %>" class="input"></div>
-        <div><label class="label">Chart account
-          <span class="text-recon-fog text-xs font-normal">(expense)</span>
-          <span class="ml-1 text-recon-fog cursor-help" title="Default expense account used later when bills, bank payments, and project costs are categorized for this contractor.">ⓘ</span>
-        </label>
-          <select name="default_expense_account_id" class="input">
-            <option value="">— Select —</option>
-            <% (typeof accounts !== 'undefined' ? accounts : []).forEach(function(a) { %>
-              <option value="<%= a.id %>" <%= String(contractor.default_expense_account_id || '') === String(a.id) ? 'selected' : '' %>><%= a.code %> — <%= a.name %></option>
-            <% }); %>
-          </select></div>
+      <div data-vendor-fields class="space-y-4 rounded border border-recon-mist bg-recon-cloud/10 p-4">
+        <div class="text-xs font-semibold uppercase tracking-wider text-recon-fog">Vendor / AP tracking</div>
+        <div><label class="label">EIN / Tax ID
+          <span class="ml-1 text-recon-fog cursor-help" title="Federal tax ID used for vendor payments and 1099s.">ⓘ</span>
+        </label><input type="text" name="ein" value="<%= related.ein || contractor.ein || '' %>" class="input"></div>
       </div>
       <div><label class="label">Notes
           <span class="ml-1 text-recon-fog cursor-help" title="Internal notes about this contractor (crew size, specialties, rates, etc.). Not shown outside the company.">ⓘ</span>
         </label><textarea name="notes" class="input" rows="3" data-autosize><%= contractor.notes || '' %></textarea></div>
-      <div class="flex gap-2 pt-4 border-t"><button type="submit" class="btn btn-primary">Save</button><a href="/contractors" class="btn btn-ghost">Cancel</a></div>
+      <div class="flex gap-2 pt-4 border-t"><button type="submit" class="btn btn-primary">Save</button><a href="/companies" class="btn btn-ghost">Cancel</a></div>
     </form>
   </div>
 </div>
+<script>
+(function(){
+  var role = document.querySelector('[data-company-role]');
+  var vendorFields = document.querySelector('[data-vendor-fields]');
+  var contractorFields = document.querySelector('[data-contractor-fields]');
+  function syncRoleFields() {
+    if (!role) return;
+    var showVendor = role.value === 'vendor' || role.value === 'both';
+    var showContractor = role.value === 'contractor' || role.value === 'both';
+    if (vendorFields) vendorFields.style.display = showVendor ? '' : 'none';
+    if (contractorFields) contractorFields.style.display = showContractor ? '' : 'none';
+  }
+  if (role) role.addEventListener('change', syncRoleFields);
+  syncRoleFields();
+})();
+</script>
 <%- include('../layouts/footer') %>

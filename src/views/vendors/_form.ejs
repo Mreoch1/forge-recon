@@ -1,9 +1,19 @@
 <%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<% var related = typeof relatedContractor !== 'undefined' && relatedContractor ? relatedContractor : {}; %>
 <div class="max-w-2xl mx-auto px-4 py-6">
-  <div class="mb-4"><a href="/vendors" class="text-sm text-recon-fog hover:text-recon-red">&larr; Vendors</a></div>
+  <div class="mb-4"><a href="/companies" class="text-sm text-recon-fog hover:text-recon-red">&larr; Companies</a></div>
   <h1 class="page-h1 mb-6"><%= title %></h1>
   <div class="card p-6">
     <form action="<%= vendor.id ? '/vendors/' + vendor.id : '/vendors' %>" method="post" class="space-y-4">
+      <div>
+        <label class="label">Company role</label>
+        <select name="company_role" class="input" data-company-role>
+          <option value="vendor" <%= (vendor.company_role || 'vendor') === 'vendor' ? 'selected' : '' %>>Vendor</option>
+          <option value="contractor" <%= vendor.company_role === 'contractor' ? 'selected' : '' %>>Contractor</option>
+          <option value="both" <%= vendor.company_role === 'both' ? 'selected' : '' %>>Both</option>
+        </select>
+        <p class="text-xs text-recon-fog mt-1">Contractors include trade, license, and insurance tracking. Vendors can receive bills and AP payments.</p>
+      </div>
       <div><label class="label">Name <span class="text-recon-red">*</span>
           <span class="ml-1 text-recon-fog cursor-help" title="Vendor or supplier name as it appears on their invoices and your payments.">ⓘ</span>
         </label>
@@ -40,11 +50,48 @@
             <% }); %>
           </select></div>
       </div>
+      <div data-contractor-fields class="space-y-4 rounded border border-recon-mist bg-recon-cloud/10 p-4">
+        <div class="text-xs font-semibold uppercase tracking-wider text-recon-fog">Contractor tracking</div>
+        <div class="grid grid-cols-2 gap-4">
+          <div><label class="label">Trade
+            <span class="ml-1 text-recon-fog cursor-help" title="Type of subcontractor work they perform.">ⓘ</span>
+          </label>
+            <select name="trade" class="input<%= errors.trade ? ' border-red-500' : '' %>">
+              <option value="">— Select —</option>
+              <option value="drywall" <%= (related.trade || vendor.trade) === 'drywall' ? 'selected' : '' %>>Drywall</option>
+              <option value="plumbing" <%= (related.trade || vendor.trade) === 'plumbing' ? 'selected' : '' %>>Plumbing</option>
+              <option value="electrical" <%= (related.trade || vendor.trade) === 'electrical' ? 'selected' : '' %>>Electrical</option>
+              <option value="HVAC" <%= (related.trade || vendor.trade) === 'HVAC' ? 'selected' : '' %>>HVAC</option>
+              <option value="general" <%= (related.trade || vendor.trade) === 'general' ? 'selected' : '' %>>General</option>
+              <option value="other" <%= (related.trade || vendor.trade) === 'other' ? 'selected' : '' %>>Other</option>
+            </select>
+            <% if (errors.trade) { %><p class="text-sm text-red-600 mt-1"><%= errors.trade %></p><% } %></div>
+          <div><label class="label">License #
+            <span class="ml-1 text-recon-fog cursor-help" title="State contractor license number.">ⓘ</span>
+          </label><input type="text" name="license_number" value="<%= related.license_number || vendor.license_number || '' %>" class="input"></div>
+        </div>
+        <div><label class="label">Insurance expiry date
+          <span class="ml-1 text-recon-fog cursor-help" title="Date contractor's general liability / workers comp insurance expires.">ⓘ</span>
+        </label><input type="date" name="insurance_expiry_date" value="<%= related.insurance_expiry_date || vendor.insurance_expiry_date || '' %>" class="input"></div>
+      </div>
       <div><label class="label">Notes
           <span class="ml-1 text-recon-fog cursor-help" title="Internal notes about this vendor (account number, rep, payment quirks). Not shown outside the company.">ⓘ</span>
         </label><textarea name="notes" class="input" rows="3" data-autosize><%= vendor.notes || '' %></textarea></div>
-      <div class="flex gap-2 pt-4 border-t"><button type="submit" class="btn btn-primary">Save</button><a href="/vendors" class="btn btn-ghost">Cancel</a></div>
+      <div class="flex gap-2 pt-4 border-t"><button type="submit" class="btn btn-primary">Save</button><a href="/companies" class="btn btn-ghost">Cancel</a></div>
     </form>
   </div>
 </div>
+<script>
+(function(){
+  var role = document.querySelector('[data-company-role]');
+  var contractorFields = document.querySelector('[data-contractor-fields]');
+  function syncRoleFields() {
+    if (!role || !contractorFields) return;
+    var showContractor = role.value === 'contractor' || role.value === 'both';
+    contractorFields.style.display = showContractor ? '' : 'none';
+  }
+  if (role) role.addEventListener('change', syncRoleFields);
+  syncRoleFields();
+})();
+</script>
 <%- include('../layouts/footer') %>

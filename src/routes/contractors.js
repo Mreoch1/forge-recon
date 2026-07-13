@@ -23,6 +23,7 @@ const router = express.Router();
 const PAGE_SIZE = 25;
 
 const VALID_TRADES = ['drywall', 'plumbing', 'electrical', 'HVAC', 'general', 'other'];
+const VALID_COMPANY_ROLES = ['vendor', 'contractor', 'both'];
 
 function emptyToNull(v) {
   if (typeof v !== 'string') return null;
@@ -46,11 +47,13 @@ function validate(body) {
   const name = emptyToNull(body.name);
   if (!name) errors.name = 'Name is required.';
   if (name && name.length > 200) errors.name = 'Name is too long (max 200).';
+  const company_role = VALID_COMPANY_ROLES.includes(body.company_role) ? body.company_role : 'contractor';
   const trade = emptyToNull(body.trade);
   if (trade && !VALID_TRADES.includes(trade)) errors.trade = 'Invalid trade selected.';
   return {
     errors,
     data: {
+      company_role,
       name,
       email: emptyToNull(body.email),
       phone: emptyToNullFormattedPhone(body.phone),
@@ -58,12 +61,91 @@ function validate(body) {
       city: emptyToNull(body.city),
       state: emptyToNull(body.state),
       zip: emptyToNull(body.zip),
+      ein: emptyToNull(body.ein),
       trade,
       default_expense_account_id: parseInt(body.default_expense_account_id, 10) || null,
       license_number: emptyToNull(body.license_number),
       insurance_expiry_date: emptyToNull(body.insurance_expiry_date),
       notes: emptyToNull(body.notes),
     }
+  };
+}
+
+async function findVendorByName(name) {
+  if (!name) return null;
+  const { data, error } = await supabase
+    .from('vendors')
+    .select('*')
+    .eq('name', name)
+    .order('id', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data || null;
+}
+
+async function syncVendorRole(data, userId) {
+  const vendor = await findVendorByName(data.name);
+  const wantsVendor = data.company_role === 'vendor' || data.company_role === 'both';
+
+  if (!wantsVendor) {
+    if (vendor) {
+      const { error } = await supabase.from('vendors').update({ archived: true, updated_at: new Date().toISOString() }).eq('id', vendor.id);
+      if (error) throw error;
+    }
+    return vendor;
+  }
+
+  const payload = {
+    name: data.name,
+    email: data.email,
+    phone: data.phone,
+    address: data.address,
+    city: data.city,
+    state: data.state,
+    zip: data.zip,
+    ein: data.ein,
+    default_expense_account_id: data.default_expense_account_id,
+    notes: data.notes,
+    archived: false,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (vendor) {
+    const { error } = await supabase.from('vendors').update(payload).eq('id', vendor.id);
+    if (error) throw error;
+    return vendor;
+  }
+
+  const { data: newVendor, error } = await supabase
+    .from('vendors')
+    .insert(payload)
+    .select()
+    .single();
+  if (error) throw error;
+  try {
+    const filesSvc = require('../services/files');
+    await filesSvc.ensureRootFolder('vendor', newVendor.id, userId)
+      .catch(e => console.warn('[files] ensureRootFolder(vendor):', e.message));
+  } catch (e) {}
+  return newVendor;
+}
+
+function contractorPayload(data) {
+  return {
+    name: data.name,
+    email: data.email,
+    phone: data.phone,
+    address: data.address,
+    city: data.city,
+    state: data.state,
+    zip: data.zip,
+    trade: data.trade,
+    default_expense_account_id: data.default_expense_account_id,
+    license_number: data.license_number,
+    insurance_expiry_date: data.insurance_expiry_date,
+    notes: data.notes,
+    active: data.company_role !== 'vendor',
   };
 }
 
@@ -97,37 +179,30 @@ router.get('/', async (req, res) => {
 
 router.get('/new', async (req, res) => {
   const accounts = await loadExpenseAccounts();
-  res.render('contractors/new', { title: 'New contractor', activeNav: 'contractors', contractor: {}, errors: {}, accounts });
+  res.render('contractors/new', { title: 'New company', activeNav: 'companies', contractor: { company_role: 'contractor' }, relatedVendor: {}, errors: {}, accounts });
 });
 
 router.post('/', async (req, res) => {
   const { errors, data } = validate(req.body);
   if (Object.keys(errors).length) {
     const accounts = await loadExpenseAccounts();
-    return res.status(400).render('contractors/new', { title: 'New contractor', activeNav: 'contractors', contractor: { id: null, ...data }, errors, accounts });
+    return res.status(400).render('contractors/new', { title: 'New company', activeNav: 'companies', contractor: { id: null, ...data }, relatedVendor: data, errors, accounts });
   }
   const { data: newContractor, error: insertError } = await supabase
     .from('contractors')
-    .insert({
-      name: data.name, email: data.email, phone: data.phone,
-      address: data.address, city: data.city, state: data.state,
-      zip: data.zip, trade: data.trade,
-      default_expense_account_id: data.default_expense_account_id,
-      license_number: data.license_number,
-      insurance_expiry_date: data.insurance_expiry_date,
-      notes: data.notes,
-    })
+    .insert(contractorPayload(data))
     .select()
     .single();
   if (insertError) throw insertError;
+  await syncVendorRole(data, req.session.userId);
   // Auto-create root folder (mirrors vendors pattern).
   try {
     const filesSvc = require('../services/files');
     await filesSvc.ensureRootFolder('contractor', newContractor.id, req.session.userId)
       .catch(e => console.warn('[files] ensureRootFolder(contractor):', e.message));
   } catch (e) { /* folder creation best effort */ }
-  setFlash(req, 'success', 'Contractor "' + data.name + '" created.');
-  res.redirect('/contractors/' + newContractor.id);
+  setFlash(req, 'success', 'Company "' + data.name + '" created.');
+  res.redirect('/companies');
 });
 
 router.get('/:id', async (req, res) => {
@@ -271,7 +346,11 @@ router.get('/:id/edit', async (req, res) => {
   if (cError) throw cError;
   if (!contractor) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Contractor not found.' });
   const accounts = await loadExpenseAccounts();
-  res.render('contractors/edit', { title: 'Edit ' + contractor.name, activeNav: 'contractors', contractor, errors: {}, accounts });
+  const relatedVendor = await findVendorByName(contractor.name);
+  contractor.company_role = relatedVendor && relatedVendor.archived !== true
+    ? (contractor.active === false ? 'vendor' : 'both')
+    : 'contractor';
+  res.render('contractors/edit', { title: 'Edit ' + contractor.name, activeNav: 'companies', contractor, relatedVendor, errors: {}, accounts });
 });
 
 router.post('/:id', async (req, res) => {
@@ -283,15 +362,16 @@ router.post('/:id', async (req, res) => {
   if (Object.keys(errors).length) {
     const contractor_merged = { id: contractor.id, ...data };
     const accounts = await loadExpenseAccounts();
-    return res.status(400).render('contractors/edit', { title: 'Edit ' + (data.name || contractor.name), activeNav: 'contractors', contractor: contractor_merged, errors, accounts });
+    return res.status(400).render('contractors/edit', { title: 'Edit ' + (data.name || contractor.name), activeNav: 'companies', contractor: contractor_merged, relatedVendor: data, errors, accounts });
   }
   const { error: updateError } = await supabase
     .from('contractors')
-    .update({ ...data, updated_at: new Date().toISOString() })
+    .update({ ...contractorPayload(data), updated_at: new Date().toISOString() })
     .eq('id', id);
   if (updateError) throw updateError;
-  setFlash(req, 'success', 'Contractor "' + data.name + '" updated.');
-  res.redirect('/contractors/' + id);
+  await syncVendorRole(data, req.session.userId);
+  setFlash(req, 'success', 'Company "' + data.name + '" updated.');
+  res.redirect('/companies');
 });
 
 router.post('/:id/delete', requireAdmin, async (req, res) => {
