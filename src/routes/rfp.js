@@ -1004,7 +1004,7 @@ router.get('/projects/:id/rfp/bid-request.pdf', requireRfpAccess, async (req, re
   if (!itemIds.length) return res.status(400).send('Select at least one line item for the bid request PDF.');
 
   const [{ data: job, error: jobErr }, { data: items, error: itemsErr }] = await Promise.all([
-    supabase.from('jobs').select('id, title, name, address, city, state, zip').eq('id', req.params.id).maybeSingle(),
+    supabase.from('jobs').select('id, title, address, city, state, zip').eq('id', req.params.id).maybeSingle(),
     supabase
       .from('rfp_line_items')
       .select('*, project_rfps!inner(id, job_id, contractor_name, notes, created_at)')
