@@ -324,17 +324,17 @@
         <div class="overflow-x-auto">
           <table class="data text-xs rfp-items-table table-fixed" data-rfp-id="<%= rfp.id %>">
             <colgroup>
-              <col class="w-10">
-              <col class="w-[28%]">
-              <col class="w-[8%]">
-              <col class="w-[12%]">
-              <col class="w-[10%]">
-              <col class="w-[8%]">
-              <col class="w-[8%]">
-              <col class="w-[10%]">
-              <col class="w-[8%]">
-              <col class="w-10">
-              <col class="w-20">
+              <col style="width:3.5rem">
+              <col style="width:28rem">
+              <col style="width:5.5rem">
+              <col style="width:9.5rem">
+              <col style="width:10.5rem">
+              <col style="width:6rem">
+              <col style="width:5.5rem">
+              <col style="width:11rem">
+              <col style="width:8.5rem">
+              <col style="width:3.5rem">
+              <col style="width:5rem">
             </colgroup>
             <thead>
               <tr>
@@ -596,8 +596,7 @@
             <tfoot>
               <tr class="font-semibold bg-recon-deeper/50">
                 <td colspan="9" class="text-right">Grand Total (approved)</td>
-                <td class="text-right text-recon-red" data-rfp-grand-total="<%= rfp.id %>">$<%= grandTotal.toFixed(2) %></td>
-                <td></td>
+                <td colspan="2" class="text-right text-recon-red" data-rfp-grand-total="<%= rfp.id %>">$<%= grandTotal.toFixed(2) %></td>
               </tr>
             </tfoot>
           </table>
@@ -659,6 +658,30 @@
   #rfp-bid-request-submit:disabled {
     opacity: .55;
     cursor: not-allowed;
+  }
+  .rfp-items-table {
+    min-width: 96rem;
+    table-layout: fixed;
+  }
+  .rfp-items-table th,
+  .rfp-items-table td {
+    vertical-align: middle;
+  }
+  .rfp-items-table th {
+    white-space: normal;
+    line-height: 1.15;
+  }
+  .rfp-items-table td:nth-child(n+3):not(:nth-child(10)),
+  .rfp-items-table th:nth-child(n+3):not(:nth-child(10)) {
+    text-align: right;
+  }
+  .rfp-items-table td:nth-child(10),
+  .rfp-items-table th:nth-child(10) {
+    text-align: center;
+  }
+  .rfp-items-table td:nth-child(2) textarea {
+    width: 100%;
+    min-width: 0;
   }
   /* D-120: field-sizing ensures textareas start at rows="1" even inside hidden containers */
   .rfp-items-table textarea.input { field-sizing: content; min-height: 1.5rem; }
