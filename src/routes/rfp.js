@@ -363,6 +363,26 @@ router.get('/projects/:id/rfp', requireAuth, requireRfpAccess, async (req, res) 
     }
   }
 
+  // D-142: bidder invitations — who a category's unpriced SOW PDF should be
+  // addressed to, independent of any priced pricing sub-lines.
+  let rfpInvitationsMap = {};
+  if (rfps && rfps.length) {
+    try {
+      const rfpIds = rfps.map(r => r.id);
+      const { data: allInvitations, error: invitationsError } = await supabase
+        .from('rfp_bid_invitations')
+        .select('*')
+        .in('rfp_id', rfpIds)
+        .order('created_at', { ascending: true });
+      if (invitationsError) throw invitationsError;
+      (allInvitations || []).forEach(inv => {
+        (rfpInvitationsMap[inv.rfp_id] = rfpInvitationsMap[inv.rfp_id] || []).push(inv);
+      });
+    } catch (e) {
+      if (!isMissingOptionalRfpTable(e)) throw e;
+    }
+  }
+
   const sources = normalizeAutocompleteSources(vendorsError ? [] : vendors, contractorsError ? [] : contractors);
 
   res.render('jobs/rfp', {
@@ -371,10 +391,54 @@ router.get('/projects/:id/rfp', requireAuth, requireRfpAccess, async (req, res) 
     job,
     rfps: rfpsError ? [] : (rfps || []),
     rfpItemsMap,
+    rfpInvitationsMap,
     customers: job.customers || {},
     vendors: sources.vendors,
     contractors: sources.contractors,
   });
+});
+
+// ── D-142: POST /projects/:id/rfps/:rId/invitations — add a bid invitee ──
+router.post('/projects/:id/rfps/:rId/invitations', requireRfpEditAccess, async (req, res) => {
+  const rfpId = req.params.rId;
+  const raw = String(req.body.recipient || '').trim();
+  if (!raw) return res.redirect(rfpRedirect(req.params.id, { open_rfp: rfpId }));
+
+  // recipient value is "contractor:<id>:<name>" / "vendor:<id>:<name>" from
+  // the combined picker, or just a plain typed name with no picker match.
+  let recipientType = null;
+  let recipientId = null;
+  let recipientName = raw;
+  const match = raw.match(/^(contractor|vendor):(\d*):(.*)$/);
+  if (match) {
+    recipientType = match[1];
+    recipientId = match[2] ? parseInt(match[2], 10) : null;
+    recipientName = match[3];
+  }
+  if (!recipientName) return res.redirect(rfpRedirect(req.params.id, { open_rfp: rfpId }));
+
+  const insertPayload = {
+    rfp_id: rfpId,
+    recipient_name: recipientName,
+    recipient_type: recipientType,
+    contractor_id: recipientType === 'contractor' ? recipientId : null,
+    vendor_id: recipientType === 'vendor' ? recipientId : null,
+    created_by_user_id: req.session?.userId || null,
+  };
+  const { error } = await supabase.from('rfp_bid_invitations').insert(insertPayload);
+  if (error) throw error;
+  res.redirect(rfpRedirect(req.params.id, { open_rfp: rfpId }));
+});
+
+// ── D-142: POST /projects/:id/rfps/:rId/invitations/:invId/delete ──
+router.post('/projects/:id/rfps/:rId/invitations/:invId/delete', requireRfpEditAccess, async (req, res) => {
+  const { error } = await supabase
+    .from('rfp_bid_invitations')
+    .delete()
+    .eq('id', req.params.invId)
+    .eq('rfp_id', req.params.rId);
+  if (error) throw error;
+  res.redirect(rfpRedirect(req.params.id, { open_rfp: req.params.rId }));
 });
 
 // ── GET /api/rfp-sources — JSON endpoint with vendors + contractors for autocomplete ──
@@ -1093,15 +1157,19 @@ router.get('/projects/:id/rfps/:rId/bid-request.pdf', requireRfpAccess, async (r
     .order('id', { ascending: true });
   if (itemsErr) throw itemsErr;
 
-  const buf = await rfpExport.renderBidRequestPdf(job, rfp, items || []);
+  const recipientName = String(req.query.for || '').trim() || null;
+  const buf = await rfpExport.renderBidRequestPdf(job, rfp, items || [], recipientName);
   const cleanProject = exportFilenameBase(job, req.params.id).replace(/-RFP$/, '');
   const cleanCategory = String(rfp.contractor_name || `rfp-${rfp.id}`)
     .replace(/&/g, 'and')
     .replace(/[^a-z0-9]+/gi, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 60) || `rfp-${rfp.id}`;
+  const cleanRecipient = recipientName
+    ? '-' + recipientName.replace(/&/g, 'and').replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 40)
+    : '';
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="${cleanProject}-${cleanCategory}-bid-request.pdf"`);
+  res.setHeader('Content-Disposition', `attachment; filename="${cleanProject}-${cleanCategory}${cleanRecipient}-bid-request.pdf"`);
   res.send(buf);
 });
 

@@ -266,6 +266,48 @@
                       data-rfp-autosave-category data-job-id="<%= job.id %>" data-rfp-id="<%= rfp.id %>" data-field="notes" data-original-value="<%- (rfp.notes || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;') %>"><%= rfp.notes || '' %></textarea>
           </div>
         </div>
+
+        <!-- D-142: Invite to bid — addressed, unpriced SOW PDFs for prospective
+             bidders, decoupled from the priced vendor/contractor sub-lines. -->
+        <div class="px-5 py-3 border-b border-recon-mist bg-recon-deeper/10" onclick="event.stopPropagation()">
+          <div class="mb-2">
+            <div class="text-xs font-semibold uppercase tracking-wide text-recon-fog">Invite to bid</div>
+            <div class="text-xs text-recon-fog">Send this trade's scope (no pricing) to a contractor or vendor for bidding — doesn't touch your priced sub-lines below.</div>
+          </div>
+          <%
+          var invitees = (typeof rfpInvitationsMap !== 'undefined' && rfpInvitationsMap[rfp.id]) || [];
+          %>
+          <% if (invitees.length) { %>
+            <div class="flex flex-wrap gap-2 mb-2">
+              <% invitees.forEach(function(inv) { %>
+                <span class="inline-flex items-center gap-1.5 rounded bg-white border border-recon-mist px-2 py-1 text-xs">
+                  <%= inv.recipient_name %>
+                  <a class="text-recon-fog hover:text-recon-charcoal underline" href="/projects/<%= job.id %>/rfps/<%= rfp.id %>/bid-request.pdf?for=<%= encodeURIComponent(inv.recipient_name) %>" target="_blank" rel="noopener" title="Download SOW PDF addressed to this bidder">PDF</a>
+                  <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/invitations/<%= inv.id %>/delete" method="POST" class="inline">
+                    <button type="submit" class="text-recon-fog hover:text-recon-red" title="Remove">&times;</button>
+                  </form>
+                </span>
+              <% }); %>
+            </div>
+          <% } %>
+          <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/invitations" method="POST" class="flex gap-2 items-center text-xs">
+            <select name="recipient" class="input text-xs flex-1 max-w-xs" required>
+              <option value="">Select a contractor or vendor…</option>
+              <optgroup label="Contractors">
+                <% (contractors || []).forEach(function(c) { %>
+                  <option value="contractor:<%= c.id || '' %>:<%= c.name %>"><%= c.name %></option>
+                <% }); %>
+              </optgroup>
+              <optgroup label="Vendors">
+                <% (vendors || []).forEach(function(v) { %>
+                  <option value="vendor:<%= v.id || '' %>:<%= v.name %>"><%= v.name %></option>
+                <% }); %>
+              </optgroup>
+            </select>
+            <button type="submit" class="btn btn-secondary text-xs">+ Add bidder</button>
+          </form>
+        </div>
+
         <div class="px-5 py-2 border-b border-recon-mist bg-recon-deeper/10 flex items-center justify-between">
           <span class="text-xs font-medium text-recon-fog">Line items</span>
           <div class="flex items-center gap-2">

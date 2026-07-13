@@ -828,7 +828,7 @@ function renderContractorHandoffPdf(contractor, project, items) {
  * it shows the BuildingConnected instructions and Forge scope lines, but no
  * Recon markup or contractor pricing.
  */
-function renderBidRequestPdf(project, rfp, items) {
+function renderBidRequestPdf(project, rfp, items, recipientName) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: 'LETTER',
@@ -861,6 +861,12 @@ function renderBidRequestPdf(project, rfp, items) {
     doc.fontSize(14).font('Helvetica-Bold').fillColor(COLOR.red)
       .text(rfp.contractor_name || 'Trade / Category', left, y);
     y = doc.y + 4;
+
+    if (recipientName) {
+      doc.fontSize(11).font('Helvetica-Bold').fillColor(COLOR.charcoal)
+        .text('Prepared for: ' + recipientName, left, y);
+      y = doc.y + 4;
+    }
 
     doc.fontSize(12).font('Helvetica').fillColor(COLOR.ash)
       .text(project.title || project.name || '', left, y);
