@@ -36,7 +36,7 @@ async function loadExpenseAccounts() {
     .from('accounts')
     .select('id, code, name')
     .eq('type', 'expense')
-    .eq('active', true)
+    .eq('active', 1)
     .order('code', { ascending: true });
   if (error) throw error;
   return data || [];
@@ -90,7 +90,7 @@ async function syncVendorRole(data, userId) {
 
   if (!wantsVendor) {
     if (vendor) {
-      const { error } = await supabase.from('vendors').update({ archived: true, updated_at: new Date().toISOString() }).eq('id', vendor.id);
+      const { error } = await supabase.from('vendors').update({ archived: 1, updated_at: new Date().toISOString() }).eq('id', vendor.id);
       if (error) throw error;
     }
     return vendor;
@@ -107,7 +107,7 @@ async function syncVendorRole(data, userId) {
     ein: data.ein,
     default_expense_account_id: data.default_expense_account_id,
     notes: data.notes,
-    archived: false,
+    archived: 0,
     updated_at: new Date().toISOString(),
   };
 

@@ -132,7 +132,7 @@ function vendorPayload(data) {
     ein: data.ein,
     default_expense_account_id: data.default_expense_account_id,
     notes: data.notes,
-    archived: data.company_role === 'contractor',
+    archived: data.company_role === 'contractor' ? 1 : 0,
   };
 }
 

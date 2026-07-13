@@ -78,7 +78,7 @@ router.get('/', async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
 
   const [vendorResult, contractorResult] = await Promise.all([
-    supabase.from('vendors').select('id, name, email, phone, city, state, archived').neq('archived', true).order('name', { ascending: true }).limit(2000),
+    supabase.from('vendors').select('id, name, email, phone, city, state, archived').neq('archived', 1).order('name', { ascending: true }).limit(2000),
     supabase.from('contractors').select('id, name, email, phone, city, state, trade, active').neq('active', false).order('name', { ascending: true }).limit(2000),
   ]);
 
