@@ -1353,13 +1353,11 @@ test('contractor scope PDFs show contractor raw unit and total pricing only', ()
   assert.match(service, /const unitCost = Number\(item\.unit_cost\) \|\| 0/);
   assert.match(service, /const totalCost = Number\(item\.total_cost\) \|\| \(qtyVal \* unitCost\)/);
   assert.match(service, /const pricingTotals = sortedItems\.reduce/);
-  assert.match(service, /totals\.unit \+= unitCost/);
   assert.match(service, /totals\.total \+= totalCost/);
-  assert.match(service, /FINAL UNIT TOTAL/);
+  assert.doesNotMatch(service, /FINAL UNIT TOTAL/);
   assert.match(service, /FINAL TOTAL/);
   assert.match(service, /const labelWidth = 135/);
   assert.match(service, /lineBreak: false/);
-  assert.match(service, /fmtMoney\(pricingTotals\.unit\)/);
   assert.match(service, /fmtMoney\(pricingTotals\.total\)/);
   assert.doesNotMatch(service, /renderContractorHandoffPdf[\s\S]*item\.total_with_markup[\s\S]*doc\.end\(\);/);
   assert.doesNotMatch(service, /renderContractorHandoffPdf[\s\S]*general_requirements_pct[\s\S]*doc\.end\(\);/);

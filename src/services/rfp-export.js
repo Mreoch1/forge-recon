@@ -711,10 +711,9 @@ function renderContractorHandoffPdf(contractor, project, items) {
       const qtyVal = Number(item.quantity) || 0;
       const unitCost = Number(item.unit_cost) || 0;
       const totalCost = Number(item.total_cost) || (qtyVal * unitCost);
-      totals.unit += unitCost;
       totals.total += totalCost;
       return totals;
-    }, { unit: 0, total: 0 });
+    }, { total: 0 });
 
     y = doc.y;
     if (y + headerHeight + rowHeight > doc.page.height - doc.page.margins.bottom - 60) {
@@ -788,7 +787,7 @@ function renderContractorHandoffPdf(contractor, project, items) {
     }
 
     if (sortedItems.length > 0) {
-      const summaryHeight = 42;
+      const summaryHeight = 28;
       if (y + summaryHeight > pageBottom) {
         doc.addPage();
         y = doc.page.margins.top;
@@ -803,12 +802,6 @@ function renderContractorHandoffPdf(contractor, project, items) {
       const labelWidth = 135;
       const amountX = right - amountWidth - 4;
       const labelX = amountX - labelWidth - 12;
-      const summaryRowGap = 15;
-      doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR.charcoal)
-        .text('FINAL UNIT TOTAL', labelX, y, { width: labelWidth, align: 'right', lineBreak: false });
-      doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR.charcoal)
-        .text(fmtMoney(pricingTotals.unit), amountX, y, { width: amountWidth, align: 'right', lineBreak: false });
-      y += summaryRowGap;
 
       doc.font('Helvetica-Bold').fontSize(10).fillColor(COLOR.charcoal)
         .text('FINAL TOTAL', labelX, y, { width: labelWidth, align: 'right', lineBreak: false });
