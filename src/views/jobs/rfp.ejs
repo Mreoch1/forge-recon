@@ -322,7 +322,7 @@
         var grandTotalAll = allItems.reduce(function(s, i) { return s + Number(i.total_with_markup || 0); }, 0);
         %>
         <div class="overflow-x-auto">
-          <table class="data text-xs rfp-items-table table-fixed" data-rfp-id="<%= rfp.id %>">
+          <table class="data text-xs rfp-items-table" data-rfp-id="<%= rfp.id %>">
             <colgroup>
               <col style="width:3.5rem">
               <col style="width:28rem">
@@ -660,9 +660,24 @@
     cursor: not-allowed;
   }
   .rfp-items-table {
-    width: 96rem !important;
+    width: 100% !important;
     min-width: 96rem;
-    table-layout: fixed;
+    table-layout: auto;
+  }
+  .rfp-items-table thead,
+  .rfp-items-table tbody,
+  .rfp-items-table tfoot {
+    display: block;
+  }
+  .rfp-items-table thead tr,
+  .rfp-items-table tbody tr.rfp-li-row,
+  .rfp-items-table tfoot tr {
+    display: grid;
+    grid-template-columns: 3.5rem minmax(24rem, 2fr) 5.5rem 9.5rem 10.5rem 6rem 5.5rem 11rem 8.5rem 3.5rem 5rem;
+    align-items: center;
+  }
+  .rfp-items-table tbody tr.rfp-line-editor-modal {
+    display: block;
   }
   .rfp-items-table th,
   .rfp-items-table td {
@@ -672,6 +687,7 @@
   .rfp-items-table th,
   .rfp-items-table td {
     vertical-align: middle;
+    min-width: 0;
   }
   .rfp-items-table th {
     white-space: normal;
@@ -689,6 +705,12 @@
   .rfp-items-table td:nth-child(2) textarea {
     width: 100%;
     min-width: 0;
+  }
+  .rfp-items-table tfoot td:first-child {
+    grid-column: 1 / 10;
+  }
+  .rfp-items-table tfoot td:last-child {
+    grid-column: 10 / 12;
   }
   /* D-120: field-sizing ensures textareas start at rows="1" even inside hidden containers */
   .rfp-items-table textarea.input { field-sizing: content; min-height: 1.5rem; }
