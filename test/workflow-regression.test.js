@@ -862,6 +862,7 @@ test('RFP line item table keeps numeric columns aligned', () => {
   assert.match(view, /<col style="width:10\.5rem">/);
   assert.match(view, /data-rfp-parent-total-cost/);
   assert.match(view, /grid-template-columns:\s*3\.5rem minmax\(24rem, 2fr\) 5\.5rem 9\.5rem 10\.5rem 6rem 5\.5rem 11rem 8\.5rem 3\.5rem 5rem/);
+  assert.match(view, /tbody tr\.rfp-li-row > td,\s*[\s\S]*?\{\s*display:\s*block/);
   assert.match(view, /white-space:\s*nowrap/);
 });
 
