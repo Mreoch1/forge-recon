@@ -230,9 +230,17 @@ function numberInputValue(n) {
   </div>
 </form>
 
-<script src="/js/line-items.js"></script>
+<script src="/js/line-items.js?v=20260714-description-enter"></script>
 <script>
 (function(){
+  document.addEventListener('keydown', function(event){
+    if (event.key !== 'Enter') return;
+    var target = event.target;
+    if (!target || target.tagName !== 'TEXTAREA') return;
+    if (!target.matches('textarea[data-field="description"]')) return;
+    event.stopImmediatePropagation();
+  }, true);
+
   document.querySelectorAll('[data-payment-terms-select]').forEach(function(select){
     var custom = select.parentElement.querySelector('[data-payment-terms-custom]');
     if (!custom) return;

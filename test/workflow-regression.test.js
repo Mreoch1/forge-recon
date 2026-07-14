@@ -1356,7 +1356,9 @@ test('estimate line item enter key moves through fields but allows textarea newl
   const lineItems = read('public/js/line-items.js');
   const estimateForm = read('src/views/estimates/_form.ejs');
 
-  assert.match(estimateForm, /<script src="\/js\/line-items\.js"><\/script>/);
+  assert.match(estimateForm, /<script src="\/js\/line-items\.js\?v=20260714-description-enter"><\/script>/);
+  assert.match(estimateForm, /textarea\[data-field="description"\]/);
+  assert.match(estimateForm, /event\.stopImmediatePropagation\(\)/);
   assert.match(lineItems, /event\.key !== 'Enter'/);
   assert.match(lineItems, /input\.tagName === 'TEXTAREA'\) return/);
   assert.match(lineItems, /event\.preventDefault\(\)/);
