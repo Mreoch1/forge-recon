@@ -1441,10 +1441,6 @@
     el.addEventListener('change', function() { updateRfpLiveCalculatorFrom(el); });
   });
 
-  document.querySelectorAll('[data-rfp-editor-summary]').forEach(function(summary) {
-    updateRfpEditorSummary(summary.getAttribute('data-rfp-editor-summary'));
-  });
-
   document.querySelectorAll('form[id^="rfp-sub-form-"]').forEach(function(form) {
     form.addEventListener('submit', function(e) {
       e.preventDefault();

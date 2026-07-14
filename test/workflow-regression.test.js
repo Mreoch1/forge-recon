@@ -1005,7 +1005,7 @@ test('RFP line editor live-calculates row and combined approved totals', () => {
   assert.match(view, /parentRow\.setAttribute\('data-rfp-line-total', moneyPlain\(approvedTotalWithMarkup\)\)/);
   assert.match(view, /function associatedFormData\(form\)/);
   assert.match(view, /body: associatedFormData\(form\)/);
-  assert.match(view, /querySelectorAll\('\[data-rfp-editor-summary\]'\)/);
+  assert.doesNotMatch(view, /querySelectorAll\('\[data-rfp-editor-summary\]'\)[\s\S]*?updateRfpEditorSummary\(summary\.getAttribute\('data-rfp-editor-summary'\)\)/);
   assert.match(view, /window\.saveRfpEditorFields = function\(itemId\)/);
   assert.match(view, /form\[id\^="rfp-sub-form-"\]/);
   assert.match(view, /if \(row\.getAttribute\('data-rfp-line-approved'\) === '1'\) \{\s*approvedCount \+= 1;\s*total \+= rowTotal;/);
