@@ -357,11 +357,13 @@
                 <% var liQty = liHasSubs ? rfpParentRollupQty(item, liRollupChildren) : (Number(item.quantity) || 0); %>
                 <% var liTotalCost = liRollupChildren.reduce(function(s,c){return s + rfpComputedTotalCost(c);},0); %>
                 <% var liTotal = liRollupChildren.reduce(function(s,c){return s + rfpComputedTotalWithMarkup(c);},0); %>
+                <% var liDirectTotalCost = rfpComputedTotalCost(item); %>
+                <% var liDirectTotal = rfpComputedTotalWithMarkup(item); %>
                 <!-- D-105: Line item container row — Item name + auto-rolled-up totals from approved sub-lines.
                      Falls back to direct values on the line item itself when no sub-lines exist (legacy data). -->
                 <% var liSubCount = children.length; var liApprovedSubs = apprChildren.length; %>
-                <% var liDisplayTotal = liHasSubs ? liTotal : (Number(item.total_with_markup) || 0); %>
-                <% var liDisplayUnit = liHasSubs ? (liQty > 0 ? liTotal / liQty : 0) : (Number(item.final_unit_cost) || 0); %>
+                <% var liDisplayTotal = liHasSubs ? liTotal : (liDirectTotal || Number(item.total_with_markup) || 0); %>
+                <% var liDisplayUnit = liHasSubs ? (liQty > 0 ? liTotal / liQty : 0) : (liQty > 0 && liDirectTotal ? liDirectTotal / liQty : (Number(item.final_unit_cost) || 0)); %>
                 <% var liDisplayBaseUnit = liHasSubs ? (liQty > 0 ? liTotalCost / liQty : 0) : (Number(item.unit_cost) || 0); %>
                 <% var liMarkup = liHasSubs ? rfpPercentSummary(apprChildren, 'markup_pct', DEFAULT_RFP_MARKUP_PCT) : (item.markup_pct == null ? '—' : formatPercentValue(numberOrDefault(item.markup_pct, 0))); %>
                 <% var liGr = liHasSubs ? rfpPercentSummary(apprChildren, 'general_requirements_pct', DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT) : (item.general_requirements_pct == null ? '—' : formatPercentValue(numberOrDefault(item.general_requirements_pct, 0))); %>
@@ -380,7 +382,7 @@
                   </td>
                   <td class="text-right"><span class="font-medium text-xs" data-rfp-parent-qty="<%= item.id %>"><%= liQty %></span></td>
                   <td class="text-right font-medium" data-rfp-parent-unit-cost="<%= item.id %>">$<%= (liHasSubs ? liDisplayBaseUnit : Number(item.unit_cost) || 0).toFixed(2) %></td>
-                  <td class="text-right font-medium" data-rfp-parent-total-cost="<%= item.id %>">$<%= (liHasSubs ? liTotalCost : Number(item.total_cost) || 0).toFixed(2) %></td>
+                  <td class="text-right font-medium" data-rfp-parent-total-cost="<%= item.id %>">$<%= (liHasSubs ? liTotalCost : (liDirectTotalCost || Number(item.total_cost) || 0)).toFixed(2) %></td>
                   <td class="text-right text-xs" data-rfp-parent-markup="<%= item.id %>"><%= liMarkup %></td>
                   <td class="text-right text-xs" data-rfp-parent-gr="<%= item.id %>"><%= liGr %></td>
                   <td class="text-right font-medium" data-rfp-parent-total="<%= item.id %>">$<%= liDisplayTotal.toFixed(2) %></td>
@@ -454,7 +456,7 @@
                             <% var subDisplayTotalWithMarkup = rfpComputedTotalWithMarkup(sub); %>
                             <% var subDisplayFinalUnit = rfpComputedFinalUnit(sub); %>
                             <form id="<%= subFid %>" action="/projects/rfps/items/<%= sub.id %>" method="POST"></form>
-                            <div class="rounded border border-recon-mist bg-recon-cloud/5 p-3" data-rfp-pricing-line data-parent-item-id="<%= item.id %>">
+                            <div class="rounded border border-recon-mist bg-recon-cloud/5 p-3" data-rfp-pricing-line data-parent-item-id="<%= item.id %>" data-rfp-unit-cost-fallback="<%= numberOrDefault(sub.unit_cost, 0) %>">
                               <div class="grid min-w-0 gap-3 lg:grid-cols-12 lg:items-end">
                                 <label class="block min-w-0 lg:col-span-2">
                                   <span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Type</span>
@@ -1169,6 +1171,11 @@
     return Number.isFinite(n) ? n : (fallback || 0);
   }
 
+  function numberValue(value, fallback) {
+    var n = parseFloat(value);
+    return Number.isFinite(n) ? n : (fallback || 0);
+  }
+
   function rfpLiveLineHasData(line) {
     if (!line || !line.hasAttribute('data-rfp-new-line')) return true;
     return ['vendor', 'description', 'quantity', 'contractor_cost'].some(function(name) {
@@ -1179,7 +1186,9 @@
 
   function computeRfpLiveLine(line) {
     var qty = numberInput(line, 'quantity', 0);
-    var unit = numberInput(line, 'contractor_cost', 0) + numberInput(line, 'vendor_cost', 0);
+    var splitUnit = numberInput(line, 'contractor_cost', 0) + numberInput(line, 'vendor_cost', 0);
+    var fallbackUnit = numberValue(line && line.getAttribute('data-rfp-unit-cost-fallback'), 0);
+    var unit = splitUnit > 0 ? splitUnit : fallbackUnit;
     var markup = numberInput(line, 'markup_pct', 16);
     var gr = numberInput(line, 'general_requirements_pct', 4);
     var totalCost = qty * unit;

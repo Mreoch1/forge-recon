@@ -918,8 +918,10 @@ test('RFP parent rows roll up approved sub-lines only', () => {
   assert.match(view, /var liRollupChildren = liHasSubs \? apprChildren : \[\]/);
   assert.match(view, /function rfpParentRollupQty\(item, approvedChildren\)/);
   assert.match(view, /var liQty = liHasSubs \? rfpParentRollupQty\(item, liRollupChildren\) : \(Number\(item\.quantity\) \|\| 0\)/);
-  assert.match(view, /var liDisplayTotal = liHasSubs \? liTotal : \(Number\(item\.total_with_markup\) \|\| 0\)/);
+  assert.match(view, /var liDirectTotalCost = rfpComputedTotalCost\(item\)/);
+  assert.match(view, /var liDisplayTotal = liHasSubs \? liTotal : \(liDirectTotal \|\| Number\(item\.total_with_markup\) \|\| 0\)/);
   assert.match(view, /var liDisplayBaseUnit = liHasSubs \? \(liQty > 0 \? liTotalCost \/ liQty : 0\) : \(Number\(item\.unit_cost\) \|\| 0\)/);
+  assert.match(view, /liDirectTotalCost \|\| Number\(item\.total_cost\) \|\| 0/);
   assert.doesNotMatch(view, /var liQty = liHasSubs \? \(Number\(item\.quantity\) \|\| 1\)/);
   assert.doesNotMatch(view, /apprChildren\.length > 0 \? apprChildren\.reduce[\s\S]*: children\.reduce/);
   assert.doesNotMatch(view, /liTotal \|\| \(Number\(item\.total_with_markup\)/);
@@ -989,10 +991,13 @@ test('RFP line editor live-calculates row and combined approved totals', () => {
   assert.match(view, /Combined total w\/ MU \+ GR/);
   assert.match(view, /data-rfp-editor-summary-total-with-markup/);
   assert.match(view, /data-rfp-pricing-line data-parent-item-id="<%= item\.id %>"/);
+  assert.match(view, /data-rfp-unit-cost-fallback="<%= numberOrDefault\(sub\.unit_cost, 0\) %>"/);
   assert.match(view, /data-rfp-live-calc data-rfp-autosave-item/);
   assert.match(view, /data-rfp-parent-total="<%= item\.id %>"/);
   assert.match(view, /function updateRfpEditorSummary\(parentItemId\)/);
   assert.match(view, /computeRfpLiveLine\(line\)/);
+  assert.match(view, /var fallbackUnit = numberValue\(line && line\.getAttribute\('data-rfp-unit-cost-fallback'\), 0\)/);
+  assert.match(view, /var unit = splitUnit > 0 \? splitUnit : fallbackUnit/);
   assert.match(view, /var isNewLine = line\.hasAttribute\('data-rfp-new-line'\)/);
   assert.match(view, /totalCost \+= computed\.totalCost/);
   assert.match(view, /totalWithMarkup \+= computed\.totalWithMarkup/);
@@ -1008,6 +1013,8 @@ test('RFP line editor live-calculates row and combined approved totals', () => {
 
   assert.match(routes, /function hasField\(name\)/);
   assert.match(routes, /hasField\('contractor_cost'\) \? parseNumberOrDefault\(contractor_cost, 0\) : parseNumberOrDefault\(item\.contractor_cost, 0\)/);
+  assert.match(routes, /\.select\('id, rfp_id, parent_line_item_id, vendor, description, quantity, contractor_cost, vendor_cost, unit_cost,/);
+  assert.match(routes, /unit_cost: \(hasField\('contractor_cost'\) \|\| hasField\('vendor_cost'\)\) \? 0 : parseNumberOrDefault\(item\.unit_cost, 0\)/);
   assert.match(routes, /vendor_cost: next\.vendor_cost \|\| null/);
 });
 

@@ -358,6 +358,7 @@ function buildLineItemAutosaveUpdate(item, field, value) {
 
   if (['quantity', 'contractor_cost', 'vendor_cost', 'markup_pct', 'general_requirements_pct'].includes(field)) {
     const next = { ...item, [field]: parsed };
+    if (field === 'contractor_cost' || field === 'vendor_cost') next.unit_cost = 0;
     const computed = computeSubLineTotals(next);
     updateData.unit_cost = computed.unit_cost || null;
     updateData.total_cost = computed.total_cost || null;
@@ -779,7 +780,7 @@ router.post('/projects/rfps/items/:itemId', requireRfpEditAccess, async (req, re
   // First get the rfp_id so we can redirect back
   const { data: item, error: fetchError } = await supabase
     .from('rfp_line_items')
-    .select('id, rfp_id, parent_line_item_id, vendor, description, quantity, contractor_cost, vendor_cost, markup_pct, general_requirements_pct, approved, scope_type')
+    .select('id, rfp_id, parent_line_item_id, vendor, description, quantity, contractor_cost, vendor_cost, unit_cost, markup_pct, general_requirements_pct, approved, scope_type')
     .eq('id', req.params.itemId)
     .single();
   if (fetchError) throw fetchError;
@@ -790,6 +791,7 @@ router.post('/projects/rfps/items/:itemId', requireRfpEditAccess, async (req, re
     quantity: hasField('quantity') ? parseNumberOrDefault(quantity, 0) : parseNumberOrDefault(item.quantity, 0),
     contractor_cost: hasField('contractor_cost') ? parseNumberOrDefault(contractor_cost, 0) : parseNumberOrDefault(item.contractor_cost, 0),
     vendor_cost: hasField('vendor_cost') ? parseNumberOrDefault(vendor_cost, 0) : parseNumberOrDefault(item.vendor_cost, 0),
+    unit_cost: (hasField('contractor_cost') || hasField('vendor_cost')) ? 0 : parseNumberOrDefault(item.unit_cost, 0),
     markup_pct: hasField('markup_pct') ? parseNumberOrDefault(markup_pct, DEFAULT_RFP_MARKUP_PCT) : parseNumberOrDefault(item.markup_pct, DEFAULT_RFP_MARKUP_PCT),
     general_requirements_pct: hasField('general_requirements_pct') ? parseNumberOrDefault(gr, DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT) : parseNumberOrDefault(item.general_requirements_pct, DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT),
     approved: hasField('approved') ? (approved === '1' || approved === 'true' || approved === 'on') : !!item.approved,
@@ -880,10 +882,12 @@ function computeSubLineTotals(params) {
   const qty = parseNumberOrDefault(params.quantity, 0);
   const cCost = parseNumberOrDefault(params.contractor_cost, 0);
   const vCost = parseNumberOrDefault(params.vendor_cost, 0);
+  const fallbackUnit = parseNumberOrDefault(params.unit_cost, 0);
   const markup = parseNumberOrDefault(params.markup_pct, DEFAULT_RFP_MARKUP_PCT);
   const gr = parseNumberOrDefault(params.general_requirements_pct, DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT);
   
-  const computedUnit = cCost + vCost;
+  const splitUnit = cCost + vCost;
+  const computedUnit = splitUnit > 0 ? splitUnit : fallbackUnit;
   const baseCost = computedUnit * qty;
   // D-140: Markup + GR are ADDITIVE percentages applied once, not compounding.
   const withMarkup = baseCost * (1 + (markup + gr) / 100);
