@@ -998,6 +998,10 @@ test('RFP line editor live-calculates row and combined approved totals', () => {
   const routes = read('src/routes/rfp.js');
 
   assert.match(view, /data-rfp-editor-summary="<%= item\.id %>"/);
+  assert.match(view, /var editorSummaryTotalCost = children\.reduce\(function\(s,c\)\{return s \+ rfpComputedTotalCost\(c\);\},0\)/);
+  assert.match(view, /var editorSummaryTotal = children\.reduce\(function\(s,c\)\{return s \+ rfpComputedTotalWithMarkup\(c\);\},0\)/);
+  assert.match(view, /data-rfp-editor-summary-total-cost>\$<%= editorSummaryTotalCost\.toFixed\(2\) %>/);
+  assert.match(view, /data-rfp-editor-summary-total-with-markup>\$<%= editorSummaryTotal\.toFixed\(2\) %>/);
   assert.match(view, /Combined total w\/ MU \+ GR/);
   assert.match(view, /data-rfp-editor-summary-total-with-markup/);
   assert.match(view, /data-rfp-pricing-line data-parent-item-id="<%= item\.id %>"/);

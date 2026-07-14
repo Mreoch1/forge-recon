@@ -454,18 +454,21 @@
                           <div class="mb-3 rounded border border-dashed border-recon-mist bg-recon-cloud/10 p-3 text-sm text-recon-fog">No vendor or contractor pricing lines yet. Add one below.</div>
                         <% } %>
 
+                        <% var editorSummaryTotalCost = children.reduce(function(s,c){return s + rfpComputedTotalCost(c);},0); %>
+                        <% var editorSummaryTotal = children.reduce(function(s,c){return s + rfpComputedTotalWithMarkup(c);},0); %>
+                        <% var editorSummaryQty = children.reduce(function(max,c){ var q = Number(c.quantity) || 0; return q > max ? q : max; },0); %>
                         <div class="mb-3 grid gap-3 rounded border border-recon-mist bg-recon-deeper/30 p-3 sm:grid-cols-3" data-rfp-editor-summary="<%= item.id %>">
                           <div>
                             <div class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Combined total cost</div>
-                            <div class="text-lg font-semibold" data-rfp-editor-summary-total-cost>$0.00</div>
+                            <div class="text-lg font-semibold" data-rfp-editor-summary-total-cost>$<%= editorSummaryTotalCost.toFixed(2) %></div>
                           </div>
                           <div>
                             <div class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Combined total w/ MU + GR</div>
-                            <div class="text-lg font-semibold text-recon-red" data-rfp-editor-summary-total-with-markup>$0.00</div>
+                            <div class="text-lg font-semibold text-recon-red" data-rfp-editor-summary-total-with-markup>$<%= editorSummaryTotal.toFixed(2) %></div>
                           </div>
                           <div>
                             <div class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Combined final unit</div>
-                            <div class="text-lg font-semibold" data-rfp-editor-summary-final-unit>$0.00</div>
+                            <div class="text-lg font-semibold" data-rfp-editor-summary-final-unit>$<%= (editorSummaryQty > 0 ? editorSummaryTotal / editorSummaryQty : 0).toFixed(2) %></div>
                           </div>
                         </div>
 
