@@ -738,6 +738,11 @@ test('RFP line items open a pricing editor instead of dropdown sub rows', () => 
   assert.match(view, /if \(el\.dataset\.field === 'approved'\) refreshApprovedTotalsFor\(el\)/);
   assert.match(view, /function syncRfpItemField\(itemId, field, saved, sourceEl\)/);
   assert.match(view, /peer\.dataset\.originalValue = value/);
+  assert.match(view, /var inFlightSaves = new Map\(\)/);
+  assert.match(view, /var activeSave = inFlightSaves\.get\(saveKey\)/);
+  assert.match(view, /if \(activeSave && activeSave\.value === value\) return activeSave\.promise/);
+  assert.match(view, /function autosaveValuesMatchClient\(field, a, b\)/);
+  assert.match(view, /autosaveValuesMatchClient\(el\.dataset\.field, data\.currentValue, value\)/);
   assert.match(view, /parentRow\.setAttribute\('data-rfp-line-search', value\.toLowerCase\(\)\)/);
   assert.match(view, /syncRfpItemField\(el\.dataset\.itemId, el\.dataset\.field, saved, el\)/);
   assert.match(view, /onclick="saveRfpLineEditor\('<%= item\.id %>'\)">Save line item/);

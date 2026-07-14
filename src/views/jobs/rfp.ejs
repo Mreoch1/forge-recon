@@ -1060,6 +1060,7 @@
 <script>
 (function(){
   var timers = new WeakMap();
+  var inFlightSaves = new Map();
 
   function fieldValue(el) {
     if (el.type === 'checkbox') return el.checked ? '1' : '0';
@@ -1167,6 +1168,20 @@
       }
       if (typeof window.applyRfpFilters === 'function') window.applyRfpFilters();
     }
+  }
+
+  function autosaveValuesMatchClient(field, a, b) {
+    if (field === 'approved') {
+      var left = a === true || a === 1 || a === '1' || a === 'true' || a === 'on';
+      var right = b === true || b === 1 || b === '1' || b === 'true' || b === 'on';
+      return left === right;
+    }
+    if (['quantity', 'contractor_cost', 'vendor_cost', 'markup_pct', 'general_requirements_pct'].indexOf(field) !== -1) {
+      var an = parseFloat(a);
+      var bn = parseFloat(b);
+      return Math.abs((Number.isFinite(an) ? an : 0) - (Number.isFinite(bn) ? bn : 0)) < 0.000001;
+    }
+    return String(a == null ? '' : a) === String(b == null ? '' : b);
   }
 
   function formatPercentValue(value) {
@@ -1373,8 +1388,11 @@
       restoreRenameInput(el);
       return Promise.resolve();
     }
+    var saveKey = autosaveUrl(el) + '|' + (el.dataset.field || '');
+    var activeSave = inFlightSaves.get(saveKey);
+    if (activeSave && activeSave.value === value) return activeSave.promise;
     showAutosaveStatus('Saving...', 'success');
-    return fetch(autosaveUrl(el), {
+    var savePromise = fetch(autosaveUrl(el), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1385,7 +1403,16 @@
     }).then(function(r) {
       return r.json().then(function(data) {
         if (!r.ok) {
-          if (r.status === 409 && data && data.conflict) markConflict(el, data);
+          if (r.status === 409 && data && data.conflict) {
+            if (autosaveValuesMatchClient(el.dataset.field, data.currentValue, value)) {
+              if (el.hasAttribute('data-rfp-autosave-item')) syncRfpItemField(el.dataset.itemId, el.dataset.field, data.currentValue, el);
+              else el.dataset.originalValue = value == null ? '' : String(value);
+              clearFieldState(el);
+              showAutosaveStatus('Saved just now', 'success');
+              return data;
+            }
+            markConflict(el, data);
+          }
           else {
             showAutosaveStatus('Autosave failed', 'error');
             showAutosaveToast(data && data.error ? data.error : 'Autosave failed.', 'error');
@@ -1400,7 +1427,12 @@
         showAutosaveStatus('Autosave failed', 'error');
       }
       throw err;
+    }).finally(function() {
+      var latest = inFlightSaves.get(saveKey);
+      if (latest && latest.promise === savePromise) inFlightSaves.delete(saveKey);
     });
+    inFlightSaves.set(saveKey, { value: value, promise: savePromise });
+    return savePromise;
   }
 
   function queueSave(el) {
