@@ -183,7 +183,7 @@
     $$('input, select, textarea', row).forEach(input => {
       input.addEventListener('keydown', event => {
         if (event.key !== 'Enter') return;
-        if (event.shiftKey && input.tagName === 'TEXTAREA') return;
+        if (input.tagName === 'TEXTAREA') return;
         if (event.ctrlKey || event.metaKey || event.altKey) return;
         if (input.type === 'checkbox' || input.type === 'button' || input.type === 'submit') return;
         event.preventDefault();

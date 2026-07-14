@@ -1352,15 +1352,16 @@ test('invoice line item totals update with blank labor and zero markup', () => {
   assert.doesNotMatch(invoiceRoutes, /const unitPrice = parseFloat\(li\.unit_price\)/);
 });
 
-test('estimate line item enter key moves through rows instead of submitting', () => {
+test('estimate line item enter key moves through fields but allows textarea newlines', () => {
   const lineItems = read('public/js/line-items.js');
   const estimateForm = read('src/views/estimates/_form.ejs');
 
   assert.match(estimateForm, /<script src="\/js\/line-items\.js"><\/script>/);
   assert.match(lineItems, /event\.key !== 'Enter'/);
+  assert.match(lineItems, /input\.tagName === 'TEXTAREA'\) return/);
   assert.match(lineItems, /event\.preventDefault\(\)/);
   assert.match(lineItems, /focusNextLineField\(input, row, addLine\)/);
-  assert.match(lineItems, /event\.shiftKey && input\.tagName === 'TEXTAREA'/);
+  assert.doesNotMatch(lineItems, /event\.shiftKey && input\.tagName === 'TEXTAREA'/);
   assert.match(lineItems, /nextRow = addLine\(\)/);
   assert.match(lineItems, /table\._forgeAddLine = addLine/);
   assert.match(lineItems, /visibleRows\(tbody\)\.forEach\(bindRow\)/);
