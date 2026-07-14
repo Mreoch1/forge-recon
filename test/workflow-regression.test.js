@@ -918,8 +918,10 @@ test('RFP parent rows roll up approved sub-lines only', () => {
   assert.match(view, /var liRollupChildren = liHasSubs \? apprChildren : \[\]/);
   assert.match(view, /function rfpParentRollupQty\(item, approvedChildren\)/);
   assert.match(view, /var liQty = liHasSubs \? rfpParentRollupQty\(item, liRollupChildren\) : \(Number\(item\.quantity\) \|\| 0\)/);
-  assert.match(view, /var liDirectTotalCost = rfpComputedTotalCost\(item\)/);
-  assert.match(view, /var liDisplayTotal = liHasSubs \? liTotal : \(liDirectTotal \|\| Number\(item\.total_with_markup\) \|\| 0\)/);
+  assert.match(view, /function rfpDirectBaseTotal\(line\)/);
+  assert.match(view, /function rfpDirectFinalTotal\(line\)/);
+  assert.match(view, /var liDirectTotalCost = rfpDirectBaseTotal\(item\)/);
+  assert.match(view, /var liDisplayTotal = liHasSubs \? liTotal : liDirectTotal/);
   assert.match(view, /var liDisplayBaseUnit = liHasSubs \? \(liQty > 0 \? liTotalCost \/ liQty : 0\) : \(Number\(item\.unit_cost\) \|\| 0\)/);
   assert.match(view, /liDirectTotalCost \|\| Number\(item\.total_cost\) \|\| 0/);
   assert.doesNotMatch(view, /var liQty = liHasSubs \? \(Number\(item\.quantity\) \|\| 1\)/);
@@ -966,9 +968,11 @@ test('RFP parent markup and GR show actual approved values instead of mixed', ()
   const view = read('src/views/jobs/rfp.ejs');
 
   assert.match(view, /function rfpPercentSummary\(lines, field, fallback\)/);
+  assert.match(view, /function rfpDirectMarkupDisplay\(line, baseTotal, finalTotal\)/);
   assert.ok(view.includes("return values.length ? values.join(' / ') : '—';"));
   assert.match(view, /var liMarkup = liHasSubs \? rfpPercentSummary\(apprChildren, 'markup_pct', DEFAULT_RFP_MARKUP_PCT\)/);
-  assert.match(view, /var liGr = liHasSubs \? rfpPercentSummary\(apprChildren, 'general_requirements_pct', DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT\)/);
+  assert.match(view, /rfpDirectMarkupDisplay\(item, liDirectTotalCost, liDirectTotal\)/);
+  assert.match(view, /var liGr = liHasSubs \? rfpPercentSummary\(apprChildren, 'general_requirements_pct', DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT\) : formatPercentValue\(numberOrDefault\(item\.general_requirements_pct, DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT\)\)/);
   assert.doesNotMatch(view, /'mixed'/);
 });
 

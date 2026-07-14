@@ -157,6 +157,26 @@
       var qty = numberOrDefault(line && line.quantity, 0);
       return qty > 0 ? rfpComputedTotalWithMarkup(line) / qty : 0;
     }
+    function rfpDirectBaseTotal(line) {
+      var computed = rfpComputedTotalCost(line);
+      if (computed > 0) return computed;
+      return numberOrDefault(line && line.total_cost, 0);
+    }
+    function rfpDirectFinalTotal(line) {
+      var stored = numberOrDefault(line && line.total_with_markup, 0);
+      if (stored > 0) return stored;
+      return rfpComputedTotalWithMarkup(line);
+    }
+    function rfpDirectMarkupDisplay(line, baseTotal, finalTotal) {
+      if (line && line.markup_pct != null) return formatPercentValue(numberOrDefault(line.markup_pct, 0));
+      if (baseTotal > 0 && finalTotal > 0) {
+        var gr = numberOrDefault(line && line.general_requirements_pct, 0);
+        var combinedPct = ((finalTotal / baseTotal) - 1) * 100;
+        var inferredMarkup = combinedPct - gr;
+        return formatPercentValue(Math.max(0, inferredMarkup));
+      }
+      return '—';
+    }
     function formatPercentValue(value) {
       var n = Number(value);
       if (!Number.isFinite(n)) return '';
@@ -357,16 +377,16 @@
                 <% var liQty = liHasSubs ? rfpParentRollupQty(item, liRollupChildren) : (Number(item.quantity) || 0); %>
                 <% var liTotalCost = liRollupChildren.reduce(function(s,c){return s + rfpComputedTotalCost(c);},0); %>
                 <% var liTotal = liRollupChildren.reduce(function(s,c){return s + rfpComputedTotalWithMarkup(c);},0); %>
-                <% var liDirectTotalCost = rfpComputedTotalCost(item); %>
-                <% var liDirectTotal = rfpComputedTotalWithMarkup(item); %>
+                <% var liDirectTotalCost = rfpDirectBaseTotal(item); %>
+                <% var liDirectTotal = rfpDirectFinalTotal(item); %>
                 <!-- D-105: Line item container row — Item name + auto-rolled-up totals from approved sub-lines.
                      Falls back to direct values on the line item itself when no sub-lines exist (legacy data). -->
                 <% var liSubCount = children.length; var liApprovedSubs = apprChildren.length; %>
-                <% var liDisplayTotal = liHasSubs ? liTotal : (liDirectTotal || Number(item.total_with_markup) || 0); %>
+                <% var liDisplayTotal = liHasSubs ? liTotal : liDirectTotal; %>
                 <% var liDisplayUnit = liHasSubs ? (liQty > 0 ? liTotal / liQty : 0) : (liQty > 0 && liDirectTotal ? liDirectTotal / liQty : (Number(item.final_unit_cost) || 0)); %>
                 <% var liDisplayBaseUnit = liHasSubs ? (liQty > 0 ? liTotalCost / liQty : 0) : (Number(item.unit_cost) || 0); %>
-                <% var liMarkup = liHasSubs ? rfpPercentSummary(apprChildren, 'markup_pct', DEFAULT_RFP_MARKUP_PCT) : (item.markup_pct == null ? '—' : formatPercentValue(numberOrDefault(item.markup_pct, 0))); %>
-                <% var liGr = liHasSubs ? rfpPercentSummary(apprChildren, 'general_requirements_pct', DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT) : (item.general_requirements_pct == null ? '—' : formatPercentValue(numberOrDefault(item.general_requirements_pct, 0))); %>
+                <% var liMarkup = liHasSubs ? rfpPercentSummary(apprChildren, 'markup_pct', DEFAULT_RFP_MARKUP_PCT) : rfpDirectMarkupDisplay(item, liDirectTotalCost, liDirectTotal); %>
+                <% var liGr = liHasSubs ? rfpPercentSummary(apprChildren, 'general_requirements_pct', DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT) : formatPercentValue(numberOrDefault(item.general_requirements_pct, DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT)); %>
                 <% var liApproved = liHasSubs ? (apprChildren.length === children.length ? true : false) : !!item.approved; %>
                 <tr id="rfp-line-<%= item.id %>" class="rfp-li-row bg-recon-deeper/20 hover:bg-recon-cloud/20 border-t-2 border-recon-mist/40" style="cursor:pointer" data-rfp-line-total="<%= liDisplayTotal.toFixed(2) %>" data-rfp-line-approved="<%= liHasSubs ? (liApprovedSubs > 0 ? '1' : '0') : (item.approved ? '1' : '0') %>" data-rfp-line-search="<%= (item.description || '').toLowerCase() %>" onclick="toggleRfpLineEditor('<%= item.id %>');">
                   <td class="text-center" onclick="event.stopPropagation();">
