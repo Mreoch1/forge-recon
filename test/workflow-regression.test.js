@@ -966,6 +966,8 @@ test('RFP markup and GR calculations preserve explicit zero values', () => {
 
 test('RFP parent markup and GR show actual approved values instead of mixed', () => {
   const view = read('src/views/jobs/rfp.ejs');
+  const phoneFormat = read('public/js/phone-format.js');
+  const footer = read('src/views/layouts/footer.ejs');
 
   assert.match(view, /function rfpPercentSummary\(lines, field, fallback\)/);
   assert.match(view, /function rfpDirectMarkupDisplay\(line, baseTotal, finalTotal\)/);
@@ -973,6 +975,10 @@ test('RFP parent markup and GR show actual approved values instead of mixed', ()
   assert.match(view, /var liMarkup = liHasSubs \? rfpPercentSummary\(apprChildren, 'markup_pct', DEFAULT_RFP_MARKUP_PCT\)/);
   assert.match(view, /rfpDirectMarkupDisplay\(item, liDirectTotalCost, liDirectTotal\)/);
   assert.match(view, /var liGr = liHasSubs \? rfpPercentSummary\(apprChildren, 'general_requirements_pct', DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT\) : formatPercentValue\(numberOrDefault\(item\.general_requirements_pct, DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT\)\)/);
+  assert.doesNotMatch(phoneFormat, /RFP parent MU and GR hotfix/);
+  assert.doesNotMatch(phoneFormat, /data-rfp-editor-summary/);
+  assert.doesNotMatch(phoneFormat, /rfp-line-/);
+  assert.match(footer, /\/js\/phone-format\.js\?v=20260714-rfp-hotfix-removed/);
   assert.doesNotMatch(view, /'mixed'/);
 });
 
