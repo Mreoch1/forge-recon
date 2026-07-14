@@ -858,6 +858,7 @@ test('RFP editing autosaves individual fields with conflict checks', () => {
   assert.match(routes, /router\.patch\('\/projects\/rfps\/items\/:itemId\/autosave'/);
   assert.match(routes, /originalValue/);
   assert.match(routes, /conflict: true/);
+  assert.match(routes, /field !== 'description' && originalValue !== undefined && !autosaveValuesMatch\(field, item\[field\], originalValue\)/);
   assert.match(routes, /loadRfpItemWithJob\(itemId\)/);
 
   assert.match(view, /id="rfp-autosave-status"/);

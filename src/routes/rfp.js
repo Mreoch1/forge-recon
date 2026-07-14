@@ -856,7 +856,7 @@ router.patch('/projects/rfps/items/:itemId/autosave', requireAuth, async (req, r
     return res.status(403).json({ ok: false, error: 'Could not verify project access.' });
   }
 
-  if (originalValue !== undefined && !autosaveValuesMatch(field, item[field], originalValue)) {
+  if (field !== 'description' && originalValue !== undefined && !autosaveValuesMatch(field, item[field], originalValue)) {
     return res.status(409).json({
       ok: false,
       conflict: true,
