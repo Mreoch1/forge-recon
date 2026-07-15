@@ -395,10 +395,15 @@
       return Promise.resolve();
     }
     showStatus('Saving...', 'success');
+    var body = new URLSearchParams(new FormData(form));
     return fetch(form.action, {
       method: 'POST',
-      body: new FormData(form),
-      headers: { 'X-Requested-With': 'fetch', 'Accept': 'application/json' }
+      body: body.toString(),
+      headers: {
+        'X-Requested-With': 'fetch',
+        'Accept': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+      }
     }).then(function(response) {
       return jsonFromResponse(response, 'Add line failed.').then(function(data) {
         if (!response.ok || !data || !data.item) throw new Error(data && data.error ? data.error : 'Add line failed.');

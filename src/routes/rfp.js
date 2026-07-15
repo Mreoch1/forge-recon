@@ -574,6 +574,16 @@ router.post('/projects/:id/rfps/:rId/items', requireRfpEditAccess, async (req, r
   const approvedInput = Array.isArray(req.body.approved) ? req.body.approved[req.body.approved.length - 1] : req.body.approved;
   const wantsJson = req.get('X-Requested-With') === 'fetch' || req.accepts(['json', 'html']) === 'json';
 
+  // Editor requests always add a child line. Reject an unparsed/empty request instead
+  // of silently creating a blank top-level item and reporting success.
+  if (req.get('X-Requested-With') === 'fetch' && !parent_id) {
+    console.error('[rfp] pricing line request missing parent_id', {
+      contentType: req.get('content-type') || null,
+      rfpId: req.params.rId,
+    });
+    return res.status(400).json({ ok: false, error: 'The pricing line was not received. Please try saving again.' });
+  }
+
   let parentItem = null;
   let existingChildCount = 0;
 

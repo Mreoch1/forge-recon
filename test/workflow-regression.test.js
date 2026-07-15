@@ -1051,14 +1051,17 @@ test('RFP line editor live-calculates row and combined approved totals', () => {
   assert.match(view, /data-rfp-unit-cost-fallback="<%= numberOrDefault\(sub\.unit_cost, 0\) %>"/);
   assert.match(view, /var rfpLiveCalcAttrs = 'data-rfp-live-calc oninput="window\.recalculateRfpPricingLine&&window\.recalculateRfpPricingLine\(this\)"/);
   assert.match(view, /<%- rfpLiveCalcAttrs %> data-rfp-autosave-item/);
-  assert.match(view, /\/js\/rfp-live-calculator\.js\?v=20260715-subline-save-v2/);
+  assert.match(view, /\/js\/rfp-live-calculator\.js\?v=20260715-subline-save-v3/);
   assert.match(liveCalculator, /document\.addEventListener\(eventName, handle, true\)/);
   assert.match(liveCalculator, /window\.recalculateRfpPricingLine = recalculateFrom/);
   assert.match(liveCalculator, /setMoneyOutput\(line\.querySelector\('\[data-rfp-live-total-with-markup\]'\), computed\.totalWithMarkup\)/);
   assert.match(liveCalculator, /button\.textContent = 'Saving\.\.\.'/);
   assert.match(liveCalculator, /button\.textContent = 'Saved'/);
   assert.match(liveCalculator, /appendSavedLines\(form, Array\.isArray\(data\.items\)/);
+  assert.match(liveCalculator, /new URLSearchParams\(new FormData\(form\)\)/);
+  assert.match(liveCalculator, /Content-Type': 'application\/x-www-form-urlencoded;charset=UTF-8'/);
   assert.match(routes, /insertRfpLineItems\(\[convertedParentPricing, insertPayload\]\)/);
+  assert.match(routes, /pricing line request missing parent_id/);
   assert.match(liveCalculator, /setMoneyOutput\(summary\.querySelector\('\[data-rfp-editor-summary-total-with-markup\]'\), totalWithMarkup\)/);
   assert.match(view, /data-rfp-parent-total="<%= item\.id %>"/);
   assert.match(view, /function updateRfpEditorSummary\(parentItemId\)/);
