@@ -309,6 +309,13 @@
     updateSummary(parentItemId);
   }
 
+  function appendSavedLines(form, items) {
+    (items || []).forEach(function(item) {
+      if (!item || document.getElementById('rfp-sub-form-' + item.id)) return;
+      appendSavedLine(form, item);
+    });
+  }
+
   function saveAutosaveField(el) {
     var itemId = el && el.getAttribute('data-item-id');
     var field = el && el.getAttribute('data-field');
@@ -320,8 +327,7 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         field: field,
-        value: value,
-        originalValue: el.dataset.originalValue || ''
+        value: value
       })
     }).then(function(response) {
       return jsonFromResponse(response, 'Pricing line save failed.').then(function(data) {
@@ -352,6 +358,22 @@
     });
   }
 
+  function saveEditorFields(itemId, excludeForm) {
+    var editor = document.getElementById('rfp-line-editor-' + itemId);
+    if (!editor) return Promise.resolve([]);
+    showStatus('Saving...', 'success');
+    var fields = Array.from(editor.querySelectorAll('[data-rfp-autosave-item]')).filter(function(el) {
+      return !(excludeForm && excludeForm.contains(el));
+    });
+    var saves = fields.map(saveAutosaveField);
+    return Promise.all(saves).then(function(results) {
+      var associated = editor.querySelector('[data-rfp-live-calc]');
+      recalculateFrom(associated);
+      showStatus('Saved just now', 'success');
+      return results.filter(Boolean);
+    });
+  }
+
   function bindSavedSubForm(form) {
     if (!form || form.dataset.rfpStandaloneSubBound === '1') return;
     form.dataset.rfpStandaloneSubBound = '1';
@@ -376,11 +398,11 @@
     return fetch(form.action, {
       method: 'POST',
       body: new FormData(form),
-      headers: { 'X-Requested-With': 'fetch' }
+      headers: { 'X-Requested-With': 'fetch', 'Accept': 'application/json' }
     }).then(function(response) {
       return jsonFromResponse(response, 'Add line failed.').then(function(data) {
         if (!response.ok || !data || !data.item) throw new Error(data && data.error ? data.error : 'Add line failed.');
-        appendSavedLine(form, data.item);
+        appendSavedLines(form, Array.isArray(data.items) && data.items.length ? data.items : [data.item]);
         resetAddForm(form);
         showStatus('Saved just now', 'success');
         showToast('Pricing line added.', 'success');
@@ -389,6 +411,45 @@
         return data;
       });
     });
+  }
+
+  var editorSavePromises = {};
+
+  function saveLineEditor(itemId) {
+    if (editorSavePromises[itemId]) return editorSavePromises[itemId];
+    var addForm = document.getElementById('rfp-add-sub-form-' + itemId);
+    var shouldCreateSubLine = addLineFormHasData(addForm);
+    var button = document.querySelector('[data-rfp-editor-save="' + itemId + '"]');
+    var originalText = button ? button.textContent : 'Save line item';
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Saving...';
+    }
+    editorSavePromises[itemId] = saveEditorFields(itemId, addForm)
+      .then(function() {
+        if (shouldCreateSubLine) return submitAddLineForm(addForm);
+        showStatus('Saved just now', 'success');
+        showToast('Line item saved.', 'success');
+        return null;
+      })
+      .then(function(result) {
+        if (button) button.textContent = 'Saved';
+        return result;
+      })
+      .catch(function(error) {
+        showStatus('Save failed', 'error');
+        showToast(error && error.message ? error.message : 'Line item save failed.', 'error');
+        throw error;
+      })
+      .finally(function() {
+        delete editorSavePromises[itemId];
+        if (!button) return;
+        window.setTimeout(function() {
+          button.disabled = false;
+          button.textContent = originalText;
+        }, 1200);
+      });
+    return editorSavePromises[itemId];
   }
 
   function bindAddLineForm(form) {
@@ -426,4 +487,8 @@
   window.recalculateRfpPricingLine = recalculateFrom;
   window.updateRfpEditorSummary = window.updateRfpEditorSummary || updateSummary;
   window.submitStandaloneRfpAddLineForm = submitAddLineForm;
+  window.saveRfpLineEditor = function(itemId) {
+    saveLineEditor(itemId).catch(function() {});
+    return false;
+  };
 })();

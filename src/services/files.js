@@ -17,15 +17,22 @@ async function checkedFileRead(query, label) {
   return assertFileRead(await query, label);
 }
 
-async function ensureRootFolder(entityType, entityId, createdByUserId) {
+async function findRootFolder(entityType, entityId, selectColumns = '*', label = 'file root folder read failed') {
   if (!entityType || !entityId) return null;
-  const { data: existing } = await checkedFileRead(supabase
+  const { data } = await checkedFileRead(supabase
     .from('folders')
-    .select('id')
+    .select(selectColumns)
     .eq('entity_type', entityType)
     .eq('entity_id', String(entityId))
     .eq('is_root', 1)
-    .maybeSingle(), 'file root folder lookup failed');
+    .order('id', { ascending: true })
+    .limit(1), label);
+  return (data && data[0]) || null;
+}
+
+async function ensureRootFolder(entityType, entityId, createdByUserId) {
+  if (!entityType || !entityId) return null;
+  const existing = await findRootFolder(entityType, entityId, 'id', 'file root folder lookup failed');
   if (existing) return existing.id;
   const { data: inserted, error } = await supabase
     .from('folders')
@@ -45,14 +52,7 @@ async function ensureRootFolder(entityType, entityId, createdByUserId) {
 }
 
 async function getRootFolder(entityType, entityId) {
-  const { data } = await checkedFileRead(supabase
-    .from('folders')
-    .select('*')
-    .eq('entity_type', entityType)
-    .eq('entity_id', String(entityId))
-    .eq('is_root', 1)
-    .maybeSingle(), 'file root folder read failed');
-  return data || null;
+  return findRootFolder(entityType, entityId);
 }
 
 async function getFolderContents(folderId) {

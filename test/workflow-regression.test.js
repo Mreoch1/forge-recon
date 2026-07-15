@@ -205,6 +205,14 @@ test('managers can manage vendor and contractor records but cannot delete them',
   assert.match(header, /_canManageMobile[\s\S]*href="\/companies"/);
 });
 
+test('file root folder lookup tolerates merged duplicate roots', () => {
+  const files = read('src/services/files.js');
+
+  assert.match(files, /async function findRootFolder/);
+  assert.match(files, /\.eq\('is_root', 1\)\s*\.order\('id', \{ ascending: true \}\)\s*\.limit\(1\)/);
+  assert.doesNotMatch(files, /\.eq\('is_root', 1\)\s*\.maybeSingle\(\), 'file root folder/);
+});
+
 test('trade intake has public start form and manager-only directory', () => {
   const app = read('src/app.js');
   const routes = read('src/routes/vendor-intake.js');
@@ -754,17 +762,10 @@ test('RFP line items open a pricing editor instead of dropdown sub rows', () => 
   assert.match(view, /autosaveValuesMatchClient\(el\.dataset\.field, data\.currentValue, value\)/);
   assert.match(view, /parentRow\.setAttribute\('data-rfp-line-search', value\.toLowerCase\(\)\)/);
   assert.match(view, /syncRfpItemField\(el\.dataset\.itemId, el\.dataset\.field, saved, el\)/);
-  assert.match(view, /onclick="event\.stopPropagation\(\);saveRfpLineEditor\('<%= item\.id %>'\)">Save line item/);
+  assert.match(view, /data-rfp-editor-save="<%= item\.id %>" onclick="event\.stopPropagation\(\);window\.saveRfpLineEditor&&window\.saveRfpLineEditor\('<%= item\.id %>'\)">Save line item/);
   assert.match(view, /id="rfp-add-sub-form-<%= item\.id %>"/);
   assert.match(view, /<input name="approved" type="hidden" value="1">/);
-  assert.match(view, /function rfpAddLineFormHasData\(form\)/);
   assert.doesNotMatch(view, /addForm\.requestSubmit\(\)/);
-  assert.match(view, /window\.saveRfpEditorFields\(itemId, \{ silentAlreadySaved: true \}\)/);
-  assert.match(view, /function renderRfpSavedPricingLine\(item, parentItemId\)/);
-  assert.match(view, /function appendRfpSavedPricingLine\(form, item\)/);
-  assert.match(view, /function submitRfpAddLineForm\(form\)/);
-  assert.match(view, /headers: \{ 'X-Requested-With': 'fetch' \}/);
-  assert.match(view, /appendRfpSavedPricingLine\(form, data\.item\)/);
   assert.match(liveCalculator, /function bindAddLineForm\(form\)/);
   assert.match(liveCalculator, /event\.stopImmediatePropagation\(\)/);
   assert.match(liveCalculator, /function saveAutosaveField\(el\)/);
@@ -772,20 +773,19 @@ test('RFP line items open a pricing editor instead of dropdown sub rows', () => 
   assert.match(liveCalculator, /method: 'PATCH'/);
   assert.match(liveCalculator, /function jsonFromResponse\(response, fallbackMessage\)/);
   assert.match(liveCalculator, /submitAddLineForm\(form\)/);
-  assert.match(liveCalculator, /appendSavedLine\(form, data\.item\)/);
+  assert.match(liveCalculator, /appendSavedLines\(form, Array\.isArray\(data\.items\)/);
   assert.match(liveCalculator, /document\.querySelectorAll\('form\[id\^="rfp-add-sub-form-"\]'\)\.forEach\(bindAddLineForm\)/);
   assert.match(liveCalculator, /document\.querySelectorAll\('form\[id\^="rfp-sub-form-"\]'\)\.forEach\(bindSavedSubForm\)/);
-  assert.match(view, /resetRfpAddLineForm\(form\)/);
-  assert.match(view, /bindRfpSubForm\(newForm\)/);
+  assert.match(liveCalculator, /function saveLineEditor\(itemId\)/);
+  assert.match(liveCalculator, /window\.saveRfpLineEditor = function\(itemId\)/);
   assert.doesNotMatch(view, /form\.submit\(\)/);
-  assert.match(view, /e\.stopImmediatePropagation\(\)/);
-  assert.match(view, /window\.saveRfpLineEditor = saveRfpLineEditor/);
+  assert.doesNotMatch(view, /window\.saveRfpLineEditor = saveRfpLineEditor/);
   assert.match(routes, /insertPayload\.approved = approvedInput === undefined \? true/);
   assert.match(routes, /req\.get\('X-Requested-With'\) === 'fetch'/);
-  assert.match(routes, /res\.json\(\{ ok: true, item: data \}\)/);
+  assert.match(routes, /res\.json\(\{ ok: true, item: data, items: insertedItems \|\| \[\] \}\)/);
   assert.doesNotMatch(view, /<td class="text-right flex gap-1 items-center">/);
   assert.match(view, /if\(event\.target === this\) closeRfpLineEditor\('<%= item\.id %>'\)/);
-  assert.match(view, /onclick="event\.stopPropagation\(\);saveRfpLineEditor\('<%= item\.id %>'\)">Save line item/);
+  assert.match(view, /data-rfp-editor-save="<%= item\.id %>"/);
   assert.doesNotMatch(view, /type="submit" form="<%= subFid %>" class="btn btn-secondary text-xs" onclick="event\.stopPropagation\(\);">Save/);
   assert.doesNotMatch(view, /class="btn btn-secondary text-xs" onclick="event\.stopPropagation\(\);">Save<\/button><form id="' \+ delFormId/);
   assert.doesNotMatch(liveCalculator, /class="btn btn-secondary text-xs" onclick="event\.stopPropagation\(\);">Save<\/button><form id="' \+ delFormId/);
@@ -1051,10 +1051,14 @@ test('RFP line editor live-calculates row and combined approved totals', () => {
   assert.match(view, /data-rfp-unit-cost-fallback="<%= numberOrDefault\(sub\.unit_cost, 0\) %>"/);
   assert.match(view, /var rfpLiveCalcAttrs = 'data-rfp-live-calc oninput="window\.recalculateRfpPricingLine&&window\.recalculateRfpPricingLine\(this\)"/);
   assert.match(view, /<%- rfpLiveCalcAttrs %> data-rfp-autosave-item/);
-  assert.match(view, /\/js\/rfp-live-calculator\.js\?v=20260715-direct-pricing/);
+  assert.match(view, /\/js\/rfp-live-calculator\.js\?v=20260715-subline-save-v2/);
   assert.match(liveCalculator, /document\.addEventListener\(eventName, handle, true\)/);
   assert.match(liveCalculator, /window\.recalculateRfpPricingLine = recalculateFrom/);
   assert.match(liveCalculator, /setMoneyOutput\(line\.querySelector\('\[data-rfp-live-total-with-markup\]'\), computed\.totalWithMarkup\)/);
+  assert.match(liveCalculator, /button\.textContent = 'Saving\.\.\.'/);
+  assert.match(liveCalculator, /button\.textContent = 'Saved'/);
+  assert.match(liveCalculator, /appendSavedLines\(form, Array\.isArray\(data\.items\)/);
+  assert.match(routes, /insertRfpLineItems\(\[convertedParentPricing, insertPayload\]\)/);
   assert.match(liveCalculator, /setMoneyOutput\(summary\.querySelector\('\[data-rfp-editor-summary-total-with-markup\]'\), totalWithMarkup\)/);
   assert.match(view, /data-rfp-parent-total="<%= item\.id %>"/);
   assert.match(view, /function updateRfpEditorSummary\(parentItemId\)/);

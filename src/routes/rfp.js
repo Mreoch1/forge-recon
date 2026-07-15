@@ -152,6 +152,24 @@ async function insertRfpLineItem(payload) {
   return result;
 }
 
+async function insertRfpLineItems(payloads) {
+  const result = await supabase
+    .from('rfp_line_items')
+    .insert(payloads)
+    .select();
+
+  if (result.error && payloads.some(payload => payload.scope_type) && isMissingScopeTypeSchema(result.error)) {
+    const fallbackPayloads = payloads.map(({ scope_type, ...payload }) => payload);
+    console.warn('[rfp] scope_type column missing; inserting pricing lines without material sync classification.');
+    return supabase
+      .from('rfp_line_items')
+      .insert(fallbackPayloads)
+      .select();
+  }
+
+  return result;
+}
+
 async function updateRfpLineItem(itemId, updateData) {
   let result = await supabase
     .from('rfp_line_items')
@@ -554,15 +572,44 @@ router.post('/projects/:id/rfps/:rId/items', requireRfpEditAccess, async (req, r
   const { vendor, description, quantity, contractor_cost, vendor_cost,
           unit_cost, total_cost, markup_pct, parent_id, scope_type } = req.body;
   const approvedInput = Array.isArray(req.body.approved) ? req.body.approved[req.body.approved.length - 1] : req.body.approved;
+  const wantsJson = req.get('X-Requested-With') === 'fetch' || req.accepts(['json', 'html']) === 'json';
+
+  let parentItem = null;
+  let existingChildCount = 0;
 
   // D-132: reject creating a child of a child (sub-sub-line)
   if (parent_id) {
-    const { data: parentItem } = await supabase
-      .from('rfp_line_items')
-      .select('parent_line_item_id')
-      .eq('id', parent_id)
-      .maybeSingle();
+    const [parentResult, childrenResult] = await Promise.all([
+      supabase
+        .from('rfp_line_items')
+        .select('id, rfp_id, parent_line_item_id, vendor, description, quantity, contractor_cost, vendor_cost, unit_cost, total_cost, markup_pct, general_requirements_pct, total_with_markup, final_unit_cost, approved, scope_type')
+        .eq('id', parent_id)
+        .eq('rfp_id', req.params.rId)
+        .maybeSingle(),
+      supabase
+        .from('rfp_line_items')
+        .select('id', { count: 'exact', head: true })
+        .eq('parent_line_item_id', parent_id),
+    ]);
+    if (parentResult.error || childrenResult.error) {
+      const error = parentResult.error || childrenResult.error;
+      console.error('[rfp] pricing line parent lookup failed', { parentId: parent_id, rfpId: req.params.rId, error: error.message });
+      if (wantsJson) return res.status(500).json({ ok: false, error: error.message || 'Could not load the parent line item.' });
+      throw error;
+    }
+    parentItem = parentResult.data;
+    existingChildCount = childrenResult.count || 0;
+    if (!parentItem) {
+      if (wantsJson) return res.status(404).json({ ok: false, error: 'Parent line item not found in this RFP category.' });
+      return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Parent line item not found in this RFP category.' });
+    }
     if (parentItem && parentItem.parent_line_item_id) {
+      if (wantsJson) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Cannot create a sub-line under another sub-line. Only two levels are supported: Line item to Sub-line.',
+        });
+      }
       return res.status(400).render('error', {
         title: 'Bad request', code: 400,
         message: 'Cannot create a sub-line under another sub-line. Only two levels are supported: Line item → Sub-line.'
@@ -614,10 +661,67 @@ router.post('/projects/:id/rfps/:rId/items', requireRfpEditAccess, async (req, r
     insertPayload.approved = approvedInput === undefined ? true : (approvedInput === '1' || approvedInput === 'true' || approvedInput === true || approvedInput === 'on');
   }
 
-  const { data, error } = await insertRfpLineItem(insertPayload);
-  if (error) throw error;
-  if (req.get('X-Requested-With') === 'fetch') {
-    return res.json({ ok: true, item: data });
+  const parentHasDirectPricing = !!(
+    parentItem && existingChildCount === 0 && (
+      parentItem.vendor ||
+      parseNumberOrDefault(parentItem.contractor_cost, 0) > 0 ||
+      parseNumberOrDefault(parentItem.vendor_cost, 0) > 0 ||
+      parseNumberOrDefault(parentItem.unit_cost, 0) > 0 ||
+      parseNumberOrDefault(parentItem.total_cost, 0) > 0
+    )
+  );
+
+  let data;
+  let insertedItems;
+  let error;
+  if (parentHasDirectPricing) {
+    const parentQty = parseNumberOrDefault(parentItem.quantity, 0);
+    const parentContractorCost = parseNumberOrDefault(parentItem.contractor_cost, 0);
+    const parentVendorCost = parseNumberOrDefault(parentItem.vendor_cost, 0);
+    const parentStoredUnit = parseNumberOrDefault(parentItem.unit_cost, 0);
+    const parentDerivedUnit = parentQty > 0 ? parseNumberOrDefault(parentItem.total_cost, 0) / parentQty : 0;
+    const parentUnit = (parentContractorCost + parentVendorCost) || parentStoredUnit || parentDerivedUnit;
+    const parentComputed = computeSubLineTotals({
+      quantity: parentQty,
+      contractor_cost: parentContractorCost || parentUnit,
+      vendor_cost: parentVendorCost,
+      markup_pct: parentItem.markup_pct,
+      general_requirements_pct: parentItem.general_requirements_pct,
+    });
+    const convertedParentPricing = {
+      rfp_id: req.params.rId,
+      parent_line_item_id: parent_id,
+      vendor: parentItem.vendor || null,
+      description: parentItem.description || '',
+      quantity: parentQty || null,
+      contractor_cost: parentContractorCost || (parentVendorCost ? null : (parentUnit || null)),
+      vendor_cost: parentVendorCost || null,
+      unit_cost: parentComputed.unit_cost || null,
+      total_cost: parentComputed.total_cost || null,
+      markup_pct: parseNumberOrDefault(parentItem.markup_pct, DEFAULT_RFP_MARKUP_PCT),
+      general_requirements_pct: parseNumberOrDefault(parentItem.general_requirements_pct, DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT),
+      total_with_markup: parentComputed.total_with_markup,
+      final_unit_cost: parentComputed.final_unit_cost,
+      approved: !!parentItem.approved,
+      scope_type: normalizeScopeType(parentItem.scope_type),
+    };
+    const result = await insertRfpLineItems([convertedParentPricing, insertPayload]);
+    insertedItems = result.data;
+    error = result.error;
+    data = Array.isArray(insertedItems) ? insertedItems[insertedItems.length - 1] : null;
+  } else {
+    const result = await insertRfpLineItem(insertPayload);
+    data = result.data;
+    error = result.error;
+    insertedItems = data ? [data] : [];
+  }
+  if (error) {
+    console.error('[rfp] pricing line insert failed', { parentId: parent_id || null, rfpId: req.params.rId, error: error.message });
+    if (wantsJson) return res.status(500).json({ ok: false, error: error.message || 'Pricing line add failed.' });
+    throw error;
+  }
+  if (wantsJson) {
+    return res.json({ ok: true, item: data, items: insertedItems || [] });
   }
   res.redirect(rfpRedirect(req.params.id, {
     open_rfp: req.params.rId,
