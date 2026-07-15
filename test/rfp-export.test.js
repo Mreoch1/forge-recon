@@ -240,6 +240,19 @@ test('selected bid request PDF renders only chosen lines across categories', asy
   );
 });
 
+test('both bid request PDFs ask for pricing coverage on every scope row', () => {
+  const source = require('node:fs').readFileSync(
+    require.resolve('../src/services/rfp-export'),
+    'utf8'
+  );
+
+  assert.match(source, /Does your pricing include materials or labor only\?/);
+  assert.match(source, /Labor \+ materials/);
+  assert.match(source, /Labor only/);
+  assert.equal((source.match(/drawBidPricingResponse\(doc, left \+ 4/g) || []).length, 2);
+  assert.equal((source.match(/Math\.max\(rowHeight \+ BID_PRICING_RESPONSE_HEIGHT/g) || []).length, 2);
+});
+
 test('project RFP XLSX export aligns readable columns', async () => {
   const rfps = [{ id: 10, contractor_name: 'Plumbing & Fixtures', status: 'awarded' }];
   const itemsByRfp = {

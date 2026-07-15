@@ -197,6 +197,26 @@ function drawBidInstructionSections(doc, sections, left, right, y) {
   return y + 10;
 }
 
+const BID_PRICING_QUESTION = 'Does your pricing include materials or labor only?';
+const BID_PRICING_RESPONSE_HEIGHT = 24;
+
+function drawBidPricingResponse(doc, x, y, width) {
+  doc.font('Helvetica-Bold').fontSize(7).fillColor(COLOR.fog)
+    .text(BID_PRICING_QUESTION, x, y, { width, lineBreak: false });
+
+  const optionY = y + 11;
+  const boxSize = 7;
+  const firstOptionX = x;
+  const secondOptionX = x + 116;
+
+  doc.strokeColor(COLOR.fog).lineWidth(0.7)
+    .rect(firstOptionX, optionY, boxSize, boxSize).stroke()
+    .rect(secondOptionX, optionY, boxSize, boxSize).stroke();
+  doc.font('Helvetica').fontSize(7).fillColor(COLOR.charcoal)
+    .text('Labor + materials', firstOptionX + 11, optionY - 1, { lineBreak: false })
+    .text('Labor only', secondOptionX + 11, optionY - 1, { lineBreak: false });
+}
+
 /**
  * Build a flat sorted array of row objects for export.
  * Each row has: parent_id, level ('parent'|'sub'), vendor, description,
@@ -943,7 +963,7 @@ function renderBidRequestPdf(project, rfp, items, recipientName) {
         const displayDesc = pdfText(item.description || item.name || '');
         const qtyVal = Number(item.quantity) || 0;
         const descH = measurePdfText(doc, displayDesc, cols[0].width - 8, 'Helvetica', 9);
-        const actualRowHeight = Math.max(rowHeight, descH + 8);
+        const actualRowHeight = Math.max(rowHeight + BID_PRICING_RESPONSE_HEIGHT, descH + BID_PRICING_RESPONSE_HEIGHT + 8);
         if (y + actualRowHeight > pageBottom) {
           doc.addPage();
           y = doc.page.margins.top;
@@ -952,6 +972,7 @@ function renderBidRequestPdf(project, rfp, items, recipientName) {
         }
         doc.font('Helvetica').fontSize(9).fillColor(COLOR.charcoal)
           .text(displayDesc, left + 4, y + 4, { width: cols[0].width - 8, lineGap: 1 });
+        drawBidPricingResponse(doc, left + 4, y + descH + 8, cols[0].width - 8);
         doc.font('Helvetica').fontSize(9).fillColor(COLOR.charcoal)
           .text(String(qtyVal), left + cols[0].width + 4, y + 4, { width: cols[1].width - 8, align: 'right' });
         // Unit Cost / Total columns stay blank — fillable by the bidder.
@@ -1133,7 +1154,7 @@ function renderSelectedBidRequestPdf(project, items, recipientName) {
           const displayDesc = pdfText(item.description || item.name || '');
           const qtyVal = bidRequestQtyForItem(item);
           const descH = measurePdfText(doc, displayDesc, cols[0].width - 8, 'Helvetica', 9);
-          const actualRowHeight = Math.max(rowHeight, descH + 8);
+          const actualRowHeight = Math.max(rowHeight + BID_PRICING_RESPONSE_HEIGHT, descH + BID_PRICING_RESPONSE_HEIGHT + 8);
           if (y + actualRowHeight > pageBottom) {
             doc.addPage();
             y = doc.page.margins.top;
@@ -1142,6 +1163,7 @@ function renderSelectedBidRequestPdf(project, items, recipientName) {
           }
           doc.font('Helvetica').fontSize(9).fillColor(COLOR.charcoal)
             .text(displayDesc, left + 4, y + 4, { width: cols[0].width - 8, lineGap: 1 });
+          drawBidPricingResponse(doc, left + 4, y + descH + 8, cols[0].width - 8);
           doc.font('Helvetica').fontSize(9).fillColor(COLOR.charcoal)
             .text(String(qtyVal), left + cols[0].width + 4, y + 4, { width: cols[1].width - 8, align: 'right' });
           colBoundaries().forEach(cx => {
