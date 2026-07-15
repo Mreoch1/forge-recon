@@ -1015,6 +1015,7 @@ test('RFP line editor shows final unit cost with markup and GR', () => {
 test('RFP line editor live-calculates row and combined approved totals', () => {
   const view = read('src/views/jobs/rfp.ejs');
   const routes = read('src/routes/rfp.js');
+  const liveCalculator = read('public/js/rfp-live-calculator.js');
 
   assert.match(view, /data-rfp-editor-summary="<%= item\.id %>"/);
   assert.match(view, /var editorSummaryTotalCost = children\.reduce\(function\(s,c\)\{return s \+ rfpComputedTotalCost\(c\);\},0\)/);
@@ -1027,6 +1028,11 @@ test('RFP line editor live-calculates row and combined approved totals', () => {
   assert.match(view, /data-rfp-unit-cost-fallback="<%= numberOrDefault\(sub\.unit_cost, 0\) %>"/);
   assert.match(view, /var rfpLiveCalcAttrs = 'data-rfp-live-calc oninput="window\.recalculateRfpPricingLine&&window\.recalculateRfpPricingLine\(this\)"/);
   assert.match(view, /<%- rfpLiveCalcAttrs %> data-rfp-autosave-item/);
+  assert.match(view, /\/js\/rfp-live-calculator\.js\?v=20260715-live/);
+  assert.match(liveCalculator, /document\.addEventListener\(eventName, handle, true\)/);
+  assert.match(liveCalculator, /window\.recalculateRfpPricingLine = recalculateFrom/);
+  assert.match(liveCalculator, /setMoneyOutput\(line\.querySelector\('\[data-rfp-live-total-with-markup\]'\), computed\.totalWithMarkup\)/);
+  assert.match(liveCalculator, /setMoneyOutput\(summary\.querySelector\('\[data-rfp-editor-summary-total-with-markup\]'\), totalWithMarkup\)/);
   assert.match(view, /data-rfp-parent-total="<%= item\.id %>"/);
   assert.match(view, /function updateRfpEditorSummary\(parentItemId\)/);
   assert.match(view, /computeRfpLiveLine\(line\)/);
