@@ -1359,6 +1359,11 @@
     if (parentItemId) updateRfpEditorSummary(parentItemId);
   }
 
+  function handleRfpLiveCalcEvent(event) {
+    var el = event && event.target && event.target.closest && event.target.closest('[data-rfp-live-calc]');
+    if (el) updateRfpLiveCalculatorFrom(el);
+  }
+
   function refreshApprovedTotalsFor(el) {
     var table = el.closest('.rfp-items-table');
     if (!table) return;
@@ -1578,6 +1583,8 @@
   document.querySelectorAll('[data-rfp-autosave-item], [data-rfp-autosave-category]').forEach(bindRfpAutosaveControl);
   document.querySelectorAll('[data-rfp-live-calc]').forEach(bindRfpLiveCalcControl);
   document.querySelectorAll('form[id^="rfp-sub-form-"]').forEach(bindRfpSubForm);
+  document.addEventListener('input', handleRfpLiveCalcEvent);
+  document.addEventListener('change', handleRfpLiveCalcEvent);
 
   function resetRfpAddLineForm(form) {
     form.querySelectorAll('input, textarea, select').forEach(function(el) {

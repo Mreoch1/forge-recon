@@ -1029,6 +1029,9 @@ test('RFP line editor live-calculates row and combined approved totals', () => {
   assert.match(view, /data-rfp-parent-total="<%= item\.id %>"/);
   assert.match(view, /function updateRfpEditorSummary\(parentItemId\)/);
   assert.match(view, /computeRfpLiveLine\(line\)/);
+  assert.match(view, /function handleRfpLiveCalcEvent\(event\)/);
+  assert.match(view, /document\.addEventListener\('input', handleRfpLiveCalcEvent\)/);
+  assert.match(view, /document\.addEventListener\('change', handleRfpLiveCalcEvent\)/);
   assert.match(view, /var fallbackUnit = numberValue\(line && line\.getAttribute\('data-rfp-unit-cost-fallback'\), 0\)/);
   assert.match(view, /var unit = splitUnit > 0 \? splitUnit : fallbackUnit/);
   assert.match(view, /var isNewLine = line\.hasAttribute\('data-rfp-new-line'\)/);
