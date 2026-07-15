@@ -776,7 +776,9 @@ test('RFP line items open a pricing editor instead of dropdown sub rows', () => 
   assert.doesNotMatch(view, /<td class="text-right flex gap-1 items-center">/);
   assert.match(view, /if\(event\.target === this\) closeRfpLineEditor\('<%= item\.id %>'\)/);
   assert.match(view, /onclick="event\.stopPropagation\(\);saveRfpLineEditor\('<%= item\.id %>'\)">Save line item/);
-  assert.match(view, /type="submit" form="<%= subFid %>" class="btn btn-secondary text-xs" onclick="event\.stopPropagation\(\);">Save/);
+  assert.doesNotMatch(view, /type="submit" form="<%= subFid %>" class="btn btn-secondary text-xs" onclick="event\.stopPropagation\(\);">Save/);
+  assert.doesNotMatch(view, /class="btn btn-secondary text-xs" onclick="event\.stopPropagation\(\);">Save<\/button><form id="' \+ delFormId/);
+  assert.doesNotMatch(liveCalculator, /class="btn btn-secondary text-xs" onclick="event\.stopPropagation\(\);">Save<\/button><form id="' \+ delFormId/);
   assert.match(view, /class="btn btn-primary text-xs" onclick="event\.stopPropagation\(\);">Add line/);
   assert.doesNotMatch(view, /class="rfp-sub-row/);
   assert.doesNotMatch(view, /while\s*\(next && next\.classList\.contains\('rfp-sub-row'\)\)/);
@@ -1039,7 +1041,7 @@ test('RFP line editor live-calculates row and combined approved totals', () => {
   assert.match(view, /data-rfp-unit-cost-fallback="<%= numberOrDefault\(sub\.unit_cost, 0\) %>"/);
   assert.match(view, /var rfpLiveCalcAttrs = 'data-rfp-live-calc oninput="window\.recalculateRfpPricingLine&&window\.recalculateRfpPricingLine\(this\)"/);
   assert.match(view, /<%- rfpLiveCalcAttrs %> data-rfp-autosave-item/);
-  assert.match(view, /\/js\/rfp-live-calculator\.js\?v=20260715-save-fix/);
+  assert.match(view, /\/js\/rfp-live-calculator\.js\?v=20260715-one-save/);
   assert.match(liveCalculator, /document\.addEventListener\(eventName, handle, true\)/);
   assert.match(liveCalculator, /window\.recalculateRfpPricingLine = recalculateFrom/);
   assert.match(liveCalculator, /setMoneyOutput\(line\.querySelector\('\[data-rfp-live-total-with-markup\]'\), computed\.totalWithMarkup\)/);
