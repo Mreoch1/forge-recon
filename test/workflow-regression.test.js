@@ -1037,6 +1037,8 @@ test('RFP line editor live-calculates row and combined approved totals', () => {
   assert.match(view, /document\.addEventListener\(eventName, handleRfpLiveCalcEvent, eventName === 'blur'\)/);
   assert.match(view, /confirm\(&quot;Delete this vendor\/contractor line\?&quot;\)/);
   assert.doesNotMatch(view, /confirm\(\\\\'Delete this vendor\/contractor line/);
+  assert.match(view, /function jsLiteral\(value\) \{ return JSON\.stringify\(value == null \? '' : value\)\.replace\(/);
+  assert.match(view, /name:<%- jsLiteral\(c\.name\) %>,label:<%- jsLiteral\(label\) %>/);
   assert.match(view, /var fallbackUnit = numberValue\(line && line\.getAttribute\('data-rfp-unit-cost-fallback'\), 0\)/);
   assert.match(view, /var unit = splitUnit > 0 \? splitUnit : fallbackUnit/);
   assert.match(view, /var isNewLine = line\.hasAttribute\('data-rfp-new-line'\)/);

@@ -1689,6 +1689,7 @@
 <!-- RFP autocomplete data (rendered server-side) -->
 <script>
 window.RFP_SOURCES = [
+<% function jsLiteral(value) { return JSON.stringify(value == null ? '' : value).replace(/</g, '\\u003c'); } %>
 <% (companies || []).forEach(function(c, i){ 
   var label = c.is_vendor && c.is_contractor
     ? '(Contractor / Vendor)'
@@ -1696,7 +1697,7 @@ window.RFP_SOURCES = [
       ? ('(Contractor' + ((c.trades && c.trades.length) ? ', ' + c.trades.join(', ') : '') + ')')
       : '(Vendor)');
 %>
-  <%= i > 0 ? ',' : '' %>{name:<%= JSON.stringify(c.name) %>,label:<%= JSON.stringify(label) %>,type:'company'}
+  <%= i > 0 ? ',' : '' %>{name:<%- jsLiteral(c.name) %>,label:<%- jsLiteral(label) %>,type:'company'}
 <% }); %>
 ];
 </script>
