@@ -750,8 +750,18 @@ test('RFP line items open a pricing editor instead of dropdown sub rows', () => 
   assert.match(view, /<input name="approved" type="hidden" value="1">/);
   assert.match(view, /function rfpAddLineFormHasData\(form\)/);
   assert.match(view, /addForm\.requestSubmit\(\)/);
+  assert.match(view, /function renderRfpSavedPricingLine\(item, parentItemId\)/);
+  assert.match(view, /function appendRfpSavedPricingLine\(form, item\)/);
+  assert.match(view, /function submitRfpAddLineForm\(form\)/);
+  assert.match(view, /headers: \{ 'X-Requested-With': 'fetch' \}/);
+  assert.match(view, /appendRfpSavedPricingLine\(form, data\.item\)/);
+  assert.match(view, /resetRfpAddLineForm\(form\)/);
+  assert.match(view, /bindRfpSubForm\(newForm\)/);
+  assert.doesNotMatch(view, /form\.submit\(\)/);
   assert.match(view, /window\.saveRfpLineEditor = saveRfpLineEditor/);
   assert.match(routes, /insertPayload\.approved = approvedInput === undefined \? true/);
+  assert.match(routes, /req\.get\('X-Requested-With'\) === 'fetch'/);
+  assert.match(routes, /res\.json\(\{ ok: true, item: data \}\)/);
   assert.doesNotMatch(view, /<td class="text-right flex gap-1 items-center">/);
   assert.match(view, /type="submit" form="<%= subFid %>" class="btn btn-secondary text-xs">Save/);
   assert.doesNotMatch(view, /class="rfp-sub-row/);

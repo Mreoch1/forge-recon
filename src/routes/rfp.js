@@ -616,6 +616,9 @@ router.post('/projects/:id/rfps/:rId/items', requireRfpEditAccess, async (req, r
 
   const { data, error } = await insertRfpLineItem(insertPayload);
   if (error) throw error;
+  if (req.get('X-Requested-With') === 'fetch') {
+    return res.json({ ok: true, item: data });
+  }
   res.redirect(rfpRedirect(req.params.id, {
     open_rfp: req.params.rId,
     open_item: parent_id || data?.id,
