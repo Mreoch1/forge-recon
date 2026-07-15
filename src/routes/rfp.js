@@ -9,6 +9,7 @@ const express = require('express');
 const supabase = require('../db/supabase');
 const { requireAdmin, requireAuth } = require('../middleware/auth');
 const { loadProjectAccess, denyProjectAccess } = require('./jobs');
+const { selectedBidRequestItemIds } = require('../services/rfp-query');
 
 const router = express.Router();
 const DEFAULT_RFP_MARKUP_PCT = 16;
@@ -1120,15 +1121,6 @@ function exportFilenameBase(job, fallbackId) {
     .replace(/^-+|-+$/g, '')
     .slice(0, 80);
   return `${clean || `project-${fallbackId}`}-RFP`;
-}
-
-function selectedBidRequestItemIds(queryValue) {
-  const raw = Array.isArray(queryValue) ? queryValue : [queryValue];
-  return raw
-    .flatMap(value => String(value || '').split(','))
-    .map(value => value.trim())
-    .filter(Boolean)
-    .filter((value, index, arr) => arr.indexOf(value) === index);
 }
 
 function cleanFilenamePart(value, fallback, maxLength = 60) {
