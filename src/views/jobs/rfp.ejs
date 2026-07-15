@@ -599,9 +599,6 @@
                                 </label>
                               </div>
                             </div>
-                            <div class="lg:col-span-12 flex justify-end">
-                              <button type="submit" class="btn btn-primary text-xs" onclick="event.stopPropagation();">Add line</button>
-                            </div>
                             <input name="parent_id" type="hidden" value="<%= item.id %>">
                             <input name="approved" type="hidden" value="1">
                           </form>
@@ -1002,18 +999,35 @@
 
   function saveRfpLineEditor(itemId) {
     var addForm = document.getElementById('rfp-add-sub-form-' + itemId);
-    if (rfpAddLineFormHasData(addForm)) {
-      addForm.requestSubmit();
-      return;
+    var saveExisting = typeof window.saveRfpEditorFields === 'function'
+      ? window.saveRfpEditorFields(itemId, { silentAlreadySaved: true })
+      : Promise.resolve();
+    Promise.resolve(saveExisting).then(function() {
+      if (rfpAddLineFormHasData(addForm) && typeof submitRfpAddLineForm === 'function') {
+        return submitRfpAddLineForm(addForm);
+      }
+      showAutosaveStatus('Saved just now', 'success');
+      showAutosaveToast('Line item saved.', 'success');
+      return null;
+    }).catch(function() {
+      showAutosaveStatus('Save failed', 'error');
+      showAutosaveToast('Line item save failed.', 'error');
+    });
+    return false;
+  }
+
+  function saveRfpAddLineButton(event, itemId) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
     }
-    if (typeof window.saveRfpEditorFields === 'function') {
-      window.saveRfpEditorFields(itemId);
-    }
+    return saveRfpLineEditor(itemId);
   }
 
   window.closeRfpLineEditor = closeRfpLineEditor;
   window.openRfpLineEditor = openRfpLineEditor;
   window.saveRfpLineEditor = saveRfpLineEditor;
+  window.saveRfpAddLineButton = saveRfpAddLineButton;
   window.toggleRfpLineEditor = function(itemId) {
     var editor = document.getElementById('rfp-line-editor-' + itemId);
     if (!editor) return null;
@@ -1511,9 +1525,10 @@
     return data;
   }
 
-  window.saveRfpEditorFields = function(itemId) {
+  window.saveRfpEditorFields = function(itemId, options) {
+    options = options || {};
     var editor = document.getElementById('rfp-line-editor-' + itemId);
-    if (!editor) return;
+    if (!editor) return Promise.resolve([]);
     var saves = [];
     editor.querySelectorAll('[data-rfp-autosave-item]').forEach(function(el) {
       if (timers.has(el)) {
@@ -1524,12 +1539,14 @@
     });
     if (!saves.length) {
       showAutosaveStatus('Saved just now', 'success');
-      showAutosaveToast('Line item is already saved.', 'success');
-      return;
+      if (!options.silentAlreadySaved) showAutosaveToast('Line item is already saved.', 'success');
+      return Promise.resolve([]);
     }
-    Promise.allSettled(saves).then(function(results) {
+    return Promise.allSettled(saves).then(function(results) {
       var failed = results.some(function(r) { return r.status === 'rejected'; });
+      if (failed) throw new Error('Line item save failed.');
       if (!failed) showAutosaveToast('Line item saved.', 'success');
+      return results;
     });
   };
 
@@ -1664,6 +1681,7 @@
   document.querySelectorAll('form[id^="rfp-add-sub-form-"]').forEach(function(form) {
     form.addEventListener('submit', function(e) {
       e.preventDefault();
+      e.stopImmediatePropagation();
       var itemId = form.getAttribute('data-parent-item-id');
       var editor = itemId && document.getElementById('rfp-line-editor-' + itemId);
       if (!editor) return submitRfpAddLineForm(form).catch(function(){});
@@ -1684,7 +1702,7 @@
 </script>
 
 <%- include('../layouts/footer') %>
-<script src="/js/rfp-live-calculator.js?v=20260715-one-save"></script>
+<script src="/js/rfp-live-calculator.js?v=20260715-top-save-add"></script>
 
 <!-- RFP autocomplete data (rendered server-side) -->
 <script>
