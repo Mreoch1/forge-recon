@@ -221,6 +221,16 @@
     return data;
   }
 
+  function jsonFromResponse(response, fallbackMessage) {
+    var type = response.headers.get('content-type') || '';
+    if (type.indexOf('application/json') === -1) {
+      return response.text().then(function() {
+        throw new Error(fallbackMessage || 'Save failed.');
+      });
+    }
+    return response.json();
+  }
+
   function addLineFormHasData(form) {
     if (!form) return false;
     return ['vendor', 'description', 'quantity', 'contractor_cost'].some(function(name) {
@@ -297,26 +307,46 @@
     updateSummary(parentItemId);
   }
 
+  function saveAutosaveField(el) {
+    var itemId = el && el.getAttribute('data-item-id');
+    var field = el && el.getAttribute('data-field');
+    if (!itemId || !field) return Promise.resolve(null);
+    var value = fieldValue(el);
+    if (value === (el.dataset.originalValue || '')) return Promise.resolve(null);
+    return fetch('/projects/rfps/items/' + encodeURIComponent(itemId) + '/autosave', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        field: field,
+        value: value,
+        originalValue: el.dataset.originalValue || ''
+      })
+    }).then(function(response) {
+      return jsonFromResponse(response, 'Pricing line save failed.').then(function(data) {
+        if (!response.ok) throw new Error(data && data.error ? data.error : 'Pricing line save failed.');
+        if (data && data.item && Object.prototype.hasOwnProperty.call(data.item, field)) {
+          value = field === 'approved' ? (data.item[field] ? '1' : '0') : String(data.item[field] == null ? '' : data.item[field]);
+          if (el.type === 'checkbox') el.checked = value === '1';
+          else el.value = value;
+        }
+        el.dataset.originalValue = value == null ? '' : String(value);
+        el.classList.remove('border-recon-red');
+        el.title = '';
+        return data;
+      });
+    });
+  }
+
   function saveAssociatedForm(form) {
     if (!form) return Promise.resolve();
     showStatus('Saving...', 'success');
-    return fetch(form.action, {
-      method: 'POST',
-      body: associatedFormData(form),
-      headers: { 'X-Requested-With': 'fetch' }
-    }).then(function(response) {
-      return response.json().then(function(data) {
-        if (!response.ok) throw new Error(data && data.error ? data.error : 'Save failed.');
-        document.querySelectorAll('[form="' + form.id + '"][data-rfp-autosave-item]').forEach(function(el) {
-          el.dataset.originalValue = fieldValue(el);
-          el.classList.remove('border-recon-red');
-          el.title = '';
-        });
-        var associated = document.querySelector('[form="' + form.id + '"][data-rfp-live-calc]');
-        recalculateFrom(associated);
-        showStatus('Saved just now', 'success');
-        return data;
-      });
+    var fields = Array.from(document.querySelectorAll('[form="' + form.id + '"][data-rfp-autosave-item]'));
+    var saves = fields.map(saveAutosaveField);
+    return Promise.all(saves).then(function(results) {
+      var associated = document.querySelector('[form="' + form.id + '"][data-rfp-live-calc]');
+      recalculateFrom(associated);
+      showStatus('Saved just now', 'success');
+      return results.filter(Boolean);
     });
   }
 
@@ -346,7 +376,7 @@
       body: new FormData(form),
       headers: { 'X-Requested-With': 'fetch' }
     }).then(function(response) {
-      return response.json().then(function(data) {
+      return jsonFromResponse(response, 'Add line failed.').then(function(data) {
         if (!response.ok || !data || !data.item) throw new Error(data && data.error ? data.error : 'Add line failed.');
         appendSavedLine(form, data.item);
         resetAddForm(form);

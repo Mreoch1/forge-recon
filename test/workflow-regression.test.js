@@ -758,6 +758,10 @@ test('RFP line items open a pricing editor instead of dropdown sub rows', () => 
   assert.match(view, /appendRfpSavedPricingLine\(form, data\.item\)/);
   assert.match(liveCalculator, /function bindAddLineForm\(form\)/);
   assert.match(liveCalculator, /event\.stopImmediatePropagation\(\)/);
+  assert.match(liveCalculator, /function saveAutosaveField\(el\)/);
+  assert.match(liveCalculator, /\/projects\/rfps\/items\/' \+ encodeURIComponent\(itemId\) \+ '\/autosave/);
+  assert.match(liveCalculator, /method: 'PATCH'/);
+  assert.match(liveCalculator, /function jsonFromResponse\(response, fallbackMessage\)/);
   assert.match(liveCalculator, /submitAddLineForm\(form\)/);
   assert.match(liveCalculator, /appendSavedLine\(form, data\.item\)/);
   assert.match(liveCalculator, /document\.querySelectorAll\('form\[id\^="rfp-add-sub-form-"\]'\)\.forEach\(bindAddLineForm\)/);
@@ -1035,7 +1039,7 @@ test('RFP line editor live-calculates row and combined approved totals', () => {
   assert.match(view, /data-rfp-unit-cost-fallback="<%= numberOrDefault\(sub\.unit_cost, 0\) %>"/);
   assert.match(view, /var rfpLiveCalcAttrs = 'data-rfp-live-calc oninput="window\.recalculateRfpPricingLine&&window\.recalculateRfpPricingLine\(this\)"/);
   assert.match(view, /<%- rfpLiveCalcAttrs %> data-rfp-autosave-item/);
-  assert.match(view, /\/js\/rfp-live-calculator\.js\?v=20260715-add-line/);
+  assert.match(view, /\/js\/rfp-live-calculator\.js\?v=20260715-save-fix/);
   assert.match(liveCalculator, /document\.addEventListener\(eventName, handle, true\)/);
   assert.match(liveCalculator, /window\.recalculateRfpPricingLine = recalculateFrom/);
   assert.match(liveCalculator, /setMoneyOutput\(line\.querySelector\('\[data-rfp-live-total-with-markup\]'\), computed\.totalWithMarkup\)/);
