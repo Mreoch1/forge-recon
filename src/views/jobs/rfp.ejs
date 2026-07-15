@@ -1361,7 +1361,13 @@
 
   function handleRfpLiveCalcEvent(event) {
     var el = event && event.target && event.target.closest && event.target.closest('[data-rfp-live-calc]');
-    if (el) updateRfpLiveCalculatorFrom(el);
+    if (!el) return;
+    updateRfpLiveCalculatorFrom(el);
+    if (window.requestAnimationFrame) {
+      window.requestAnimationFrame(function() {
+        updateRfpLiveCalculatorFrom(el);
+      });
+    }
   }
 
   function refreshApprovedTotalsFor(el) {
@@ -1544,8 +1550,9 @@
   function bindRfpLiveCalcControl(el) {
     if (!el || el.dataset.rfpLiveCalcBound === '1') return;
     el.dataset.rfpLiveCalcBound = '1';
-    el.addEventListener('input', function() { updateRfpLiveCalculatorFrom(el); });
-    el.addEventListener('change', function() { updateRfpLiveCalculatorFrom(el); });
+    ['input', 'change', 'keyup', 'mouseup', 'blur'].forEach(function(eventName) {
+      el.addEventListener(eventName, function() { updateRfpLiveCalculatorFrom(el); });
+    });
   }
 
   function bindRfpSubForm(form) {
@@ -1583,8 +1590,9 @@
   document.querySelectorAll('[data-rfp-autosave-item], [data-rfp-autosave-category]').forEach(bindRfpAutosaveControl);
   document.querySelectorAll('[data-rfp-live-calc]').forEach(bindRfpLiveCalcControl);
   document.querySelectorAll('form[id^="rfp-sub-form-"]').forEach(bindRfpSubForm);
-  document.addEventListener('input', handleRfpLiveCalcEvent);
-  document.addEventListener('change', handleRfpLiveCalcEvent);
+  ['input', 'change', 'keyup', 'mouseup', 'blur'].forEach(function(eventName) {
+    document.addEventListener(eventName, handleRfpLiveCalcEvent, eventName === 'blur');
+  });
 
   function resetRfpAddLineForm(form) {
     form.querySelectorAll('input, textarea, select').forEach(function(el) {
