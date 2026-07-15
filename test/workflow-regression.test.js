@@ -721,6 +721,7 @@ test('RFP edits return users to the open category and line item', () => {
 test('RFP line items open a pricing editor instead of dropdown sub rows', () => {
   const view = read('src/views/jobs/rfp.ejs');
   const routes = read('src/routes/rfp.js');
+  const liveCalculator = read('public/js/rfp-live-calculator.js');
 
   assert.match(view, /class="rfp-line-editor-modal hidden fixed inset-0/);
   assert.doesNotMatch(view, /class="rfp-line-editor-modal hidden fixed inset-0[^"]*\bblock\b/);
@@ -755,6 +756,12 @@ test('RFP line items open a pricing editor instead of dropdown sub rows', () => 
   assert.match(view, /function submitRfpAddLineForm\(form\)/);
   assert.match(view, /headers: \{ 'X-Requested-With': 'fetch' \}/);
   assert.match(view, /appendRfpSavedPricingLine\(form, data\.item\)/);
+  assert.match(liveCalculator, /function bindAddLineForm\(form\)/);
+  assert.match(liveCalculator, /event\.stopImmediatePropagation\(\)/);
+  assert.match(liveCalculator, /submitAddLineForm\(form\)/);
+  assert.match(liveCalculator, /appendSavedLine\(form, data\.item\)/);
+  assert.match(liveCalculator, /document\.querySelectorAll\('form\[id\^="rfp-add-sub-form-"\]'\)\.forEach\(bindAddLineForm\)/);
+  assert.match(liveCalculator, /document\.querySelectorAll\('form\[id\^="rfp-sub-form-"\]'\)\.forEach\(bindSavedSubForm\)/);
   assert.match(view, /resetRfpAddLineForm\(form\)/);
   assert.match(view, /bindRfpSubForm\(newForm\)/);
   assert.doesNotMatch(view, /form\.submit\(\)/);
@@ -1028,7 +1035,7 @@ test('RFP line editor live-calculates row and combined approved totals', () => {
   assert.match(view, /data-rfp-unit-cost-fallback="<%= numberOrDefault\(sub\.unit_cost, 0\) %>"/);
   assert.match(view, /var rfpLiveCalcAttrs = 'data-rfp-live-calc oninput="window\.recalculateRfpPricingLine&&window\.recalculateRfpPricingLine\(this\)"/);
   assert.match(view, /<%- rfpLiveCalcAttrs %> data-rfp-autosave-item/);
-  assert.match(view, /\/js\/rfp-live-calculator\.js\?v=20260715-live/);
+  assert.match(view, /\/js\/rfp-live-calculator\.js\?v=20260715-add-line/);
   assert.match(liveCalculator, /document\.addEventListener\(eventName, handle, true\)/);
   assert.match(liveCalculator, /window\.recalculateRfpPricingLine = recalculateFrom/);
   assert.match(liveCalculator, /setMoneyOutput\(line\.querySelector\('\[data-rfp-live-total-with-markup\]'\), computed\.totalWithMarkup\)/);
