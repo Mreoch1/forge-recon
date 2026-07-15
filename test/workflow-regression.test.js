@@ -745,7 +745,7 @@ test('RFP line items open a pricing editor instead of dropdown sub rows', () => 
   assert.match(view, /autosaveValuesMatchClient\(el\.dataset\.field, data\.currentValue, value\)/);
   assert.match(view, /parentRow\.setAttribute\('data-rfp-line-search', value\.toLowerCase\(\)\)/);
   assert.match(view, /syncRfpItemField\(el\.dataset\.itemId, el\.dataset\.field, saved, el\)/);
-  assert.match(view, /onclick="saveRfpLineEditor\('<%= item\.id %>'\)">Save line item/);
+  assert.match(view, /onclick="event\.stopPropagation\(\);saveRfpLineEditor\('<%= item\.id %>'\)">Save line item/);
   assert.match(view, /id="rfp-add-sub-form-<%= item\.id %>"/);
   assert.match(view, /<input name="approved" type="hidden" value="1">/);
   assert.match(view, /function rfpAddLineFormHasData\(form\)/);
@@ -763,7 +763,10 @@ test('RFP line items open a pricing editor instead of dropdown sub rows', () => 
   assert.match(routes, /req\.get\('X-Requested-With'\) === 'fetch'/);
   assert.match(routes, /res\.json\(\{ ok: true, item: data \}\)/);
   assert.doesNotMatch(view, /<td class="text-right flex gap-1 items-center">/);
-  assert.match(view, /type="submit" form="<%= subFid %>" class="btn btn-secondary text-xs">Save/);
+  assert.match(view, /if\(event\.target === this\) closeRfpLineEditor\('<%= item\.id %>'\)/);
+  assert.match(view, /onclick="event\.stopPropagation\(\);saveRfpLineEditor\('<%= item\.id %>'\)">Save line item/);
+  assert.match(view, /type="submit" form="<%= subFid %>" class="btn btn-secondary text-xs" onclick="event\.stopPropagation\(\);">Save/);
+  assert.match(view, /class="btn btn-primary text-xs" onclick="event\.stopPropagation\(\);">Add line/);
   assert.doesNotMatch(view, /class="rfp-sub-row/);
   assert.doesNotMatch(view, /while\s*\(next && next\.classList\.contains\('rfp-sub-row'\)\)/);
   assert.doesNotMatch(view, /form\.addEventListener\('submit', function\(e\) \{ e\.preventDefault\(\); \}\)/);

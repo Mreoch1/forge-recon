@@ -417,7 +417,7 @@
                   </td>
                 </tr>
                 <tr id="rfp-line-editor-<%= item.id %>" class="rfp-line-editor-modal hidden fixed inset-0 z-[80] bg-black/50">
-                  <td colspan="11" class="block h-screen overflow-y-auto p-4 sm:p-6" onclick="closeRfpLineEditor('<%= item.id %>');">
+                  <td colspan="11" class="block h-screen overflow-y-auto p-4 sm:p-6" onclick="if(event.target === this) closeRfpLineEditor('<%= item.id %>');">
                     <div class="mx-auto my-8 w-full max-w-6xl rounded-lg border border-recon-mist bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="rfp-line-editor-title-<%= item.id %>" onclick="event.stopPropagation();">
                       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-recon-mist px-4 py-3">
                         <div>
@@ -426,7 +426,7 @@
                         </div>
                         <div class="flex items-center gap-2">
                           <span class="text-xs text-recon-fog"><%= liApprovedSubs %> of <%= liSubCount %> approved</span>
-                          <button type="button" class="btn btn-secondary text-xs" onclick="saveRfpLineEditor('<%= item.id %>')">Save line item</button>
+                          <button type="button" class="btn btn-secondary text-xs" onclick="event.stopPropagation();saveRfpLineEditor('<%= item.id %>')">Save line item</button>
                           <button type="button" class="btn btn-secondary text-xs" onclick="event.stopPropagation();closeRfpLineEditor('<%= item.id %>')">Close</button>
                         </div>
                       </div>
@@ -538,7 +538,7 @@
                                       <span class="text-xs">Approved</span>
                                     </label>
                                     <div class="flex items-center justify-end gap-2">
-                                      <button type="submit" form="<%= subFid %>" class="btn btn-secondary text-xs">Save</button>
+                                      <button type="submit" form="<%= subFid %>" class="btn btn-secondary text-xs" onclick="event.stopPropagation();">Save</button>
                                       <form id="<%= subDid %>" action="/projects/rfps/items/<%= sub.id %>/delete" method="POST" onsubmit="return confirm('Delete this vendor/contractor line?')"></form>
                                       <button type="submit" form="<%= subDid %>" class="text-recon-fog hover:text-recon-red text-sm">&times;</button>
                                     </div>
@@ -600,7 +600,7 @@
                               </div>
                             </div>
                             <div class="lg:col-span-12 flex justify-end">
-                              <button type="submit" class="btn btn-primary text-xs">Add line</button>
+                              <button type="submit" class="btn btn-primary text-xs" onclick="event.stopPropagation();">Add line</button>
                             </div>
                             <input name="parent_id" type="hidden" value="<%= item.id %>">
                             <input name="approved" type="hidden" value="1">
@@ -1177,7 +1177,7 @@
       '<div class="min-w-[7rem] text-right"><span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Total w/ MU + GR</span><div class="font-semibold" data-rfp-live-total-with-markup>' + moneyText(totalWithMarkup) + '</div></div>',
       '<div class="min-w-[8rem] text-right"><span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Final unit w/ MU + GR</span><div class="font-semibold" data-rfp-live-final-unit>' + moneyText(finalUnit) + '</div></div>',
       '<label class="flex items-center gap-2"><input form="' + formId + '" type="hidden" name="approved" value="0"><input form="' + formId + '" type="checkbox" name="approved" value="1"' + (approved ? ' checked' : '') + ' data-rfp-live-calc data-rfp-autosave-item data-item-id="' + id + '" data-field="approved" data-original-value="' + (approved ? '1' : '0') + '"><span class="text-xs">Approved</span></label>',
-      '<div class="flex items-center justify-end gap-2"><button type="submit" form="' + formId + '" class="btn btn-secondary text-xs">Save</button><form id="' + delFormId + '" action="/projects/rfps/items/' + encodeURIComponent(id) + '/delete" method="POST" onsubmit="return confirm(\\'Delete this vendor/contractor line?\\')"></form><button type="submit" form="' + delFormId + '" class="text-recon-fog hover:text-recon-red text-sm">&times;</button></div>',
+      '<div class="flex items-center justify-end gap-2"><button type="submit" form="' + formId + '" class="btn btn-secondary text-xs" onclick="event.stopPropagation();">Save</button><form id="' + delFormId + '" action="/projects/rfps/items/' + encodeURIComponent(id) + '/delete" method="POST" onsubmit="return confirm(\\'Delete this vendor/contractor line?\\')"></form><button type="submit" form="' + delFormId + '" class="text-recon-fog hover:text-recon-red text-sm">&times;</button></div>',
       '</div></div></div></div>'
     ].join('');
   }
