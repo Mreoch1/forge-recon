@@ -731,6 +731,14 @@ test('RFP line items open a pricing editor instead of dropdown sub rows', () => 
   assert.match(view, /Save line item/);
   assert.match(view, /<th class="text-right">Lines<\/th>/);
   assert.match(view, /Approved vendor \/ contractor lines/);
+  assert.match(view, /var liHasDirectPricing = !liHasSubs/);
+  assert.match(view, /var liDisplayLineCount = liHasSubs \? liSubCount : \(liHasDirectPricing \? 1 : 0\)/);
+  assert.match(view, /children\.length === 0 && !liHasDirectPricing/);
+  assert.match(view, /<% if \(liHasDirectPricing\) \{ %>/);
+  assert.match(view, /data-rfp-pricing-line data-rfp-direct-pricing data-parent-item-id="<%= item\.id %>" data-rfp-unit-cost-fallback="<%= numberOrDefault\(item\.unit_cost, 0\) %>"/);
+  assert.match(view, /var directPricing = list\.querySelector\('\[data-rfp-direct-pricing\]'\)/);
+  assert.match(liveCalculator, /var directPricing = list\.querySelector\('\[data-rfp-direct-pricing\]'\)/);
+  assert.match(view, /value="<%= directUnitCost %>"/);
   assert.match(view, /<td class="text-center" onclick="event\.stopPropagation\(\);">/);
   assert.match(view, /data-rfp-summary-total="<%= rfp\.id %>"/);
   assert.match(view, /data-rfp-line-total="<%= liDisplayTotal\.toFixed\(2\) %>"/);
@@ -1033,8 +1041,8 @@ test('RFP line editor live-calculates row and combined approved totals', () => {
   const liveCalculator = read('public/js/rfp-live-calculator.js');
 
   assert.match(view, /data-rfp-editor-summary="<%= item\.id %>"/);
-  assert.match(view, /var editorSummaryTotalCost = children\.reduce\(function\(s,c\)\{return s \+ rfpComputedTotalCost\(c\);\},0\)/);
-  assert.match(view, /var editorSummaryTotal = children\.reduce\(function\(s,c\)\{return s \+ rfpComputedTotalWithMarkup\(c\);\},0\)/);
+  assert.match(view, /var editorSummaryTotalCost = liHasSubs \? children\.reduce\(function\(s,c\)\{return s \+ rfpComputedTotalCost\(c\);\},0\) : \(liHasDirectPricing \? liDirectTotalCost : 0\)/);
+  assert.match(view, /var editorSummaryTotal = liHasSubs \? children\.reduce\(function\(s,c\)\{return s \+ rfpComputedTotalWithMarkup\(c\);\},0\) : \(liHasDirectPricing \? liDisplayTotal : 0\)/);
   assert.match(view, /data-rfp-editor-summary-total-cost>\$<%= editorSummaryTotalCost\.toFixed\(2\) %>/);
   assert.match(view, /data-rfp-editor-summary-total-with-markup>\$<%= editorSummaryTotal\.toFixed\(2\) %>/);
   assert.match(view, /Combined total w\/ MU \+ GR/);
@@ -1043,7 +1051,7 @@ test('RFP line editor live-calculates row and combined approved totals', () => {
   assert.match(view, /data-rfp-unit-cost-fallback="<%= numberOrDefault\(sub\.unit_cost, 0\) %>"/);
   assert.match(view, /var rfpLiveCalcAttrs = 'data-rfp-live-calc oninput="window\.recalculateRfpPricingLine&&window\.recalculateRfpPricingLine\(this\)"/);
   assert.match(view, /<%- rfpLiveCalcAttrs %> data-rfp-autosave-item/);
-  assert.match(view, /\/js\/rfp-live-calculator\.js\?v=20260715-top-save-add/);
+  assert.match(view, /\/js\/rfp-live-calculator\.js\?v=20260715-direct-pricing/);
   assert.match(liveCalculator, /document\.addEventListener\(eventName, handle, true\)/);
   assert.match(liveCalculator, /window\.recalculateRfpPricingLine = recalculateFrom/);
   assert.match(liveCalculator, /setMoneyOutput\(line\.querySelector\('\[data-rfp-live-total-with-markup\]'\), computed\.totalWithMarkup\)/);

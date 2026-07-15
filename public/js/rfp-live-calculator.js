@@ -296,6 +296,8 @@
     var addBox = form.closest('[id^="add-sub-"]');
     var list = addBox && addBox.previousElementSibling;
     if (!list) return;
+    var directPricing = list.querySelector('[data-rfp-direct-pricing]');
+    if (directPricing) directPricing.remove();
     var emptyNotice = addBox.parentElement && addBox.parentElement.querySelector('.border-dashed');
     if (emptyNotice) emptyNotice.remove();
     list.insertAdjacentHTML('beforeend', renderSavedLine(item, parentItemId));
