@@ -34,7 +34,7 @@ const { listEntityActivity } = require('../services/activity');
 const router = express.Router();
 
 const PAGE_SIZE = 25;
-const VALID_STATUSES = ['new', 'draft', 'sent', 'pending', 'approved', 'rejected', 'expired'];
+const VALID_STATUSES = ['new', 'draft', 'sent', 'pending', 'approved', 'accepted', 'rejected', 'expired'];
 const VALID_UNITS = ['ea', 'hr', 'sqft', 'lf', 'ton', 'lot'];
 const PAYMENT_TERMS_PRESETS = ['Due on receipt', 'Net 15', 'Net 30', 'Net 45', 'Net 60'];
 
@@ -571,6 +571,43 @@ router.post('/:id', async (req, res) => {
 
   setFlash(req, 'success', `${existing.display_number} updated.`);
   res.redirect(`/estimates/${existing.id}`);
+});
+
+router.post('/:id/status', requireManager, async (req, res) => {
+  const estimate = await loadEstimate(req.params.id);
+  if (!estimate) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Estimate not found.' });
+  if (estimate.archived_at) {
+    setFlash(req, 'error', `${estimate.display_number} is archived and its status cannot be changed.`);
+    return res.redirect(`/estimates/${estimate.id}`);
+  }
+
+  const nextStatus = String(req.body.status || '').trim();
+  if (!VALID_STATUSES.includes(nextStatus)) {
+    setFlash(req, 'error', 'Choose a valid estimate status.');
+    return res.redirect(`/estimates/${estimate.id}`);
+  }
+
+  if (estimate.status !== nextStatus) {
+    const now = new Date().toISOString();
+    const updates = { status: nextStatus, updated_at: now };
+    if (nextStatus === 'sent' && !estimate.sent_at) {
+      updates.sent_at = now;
+      updates.sent_by_user_id = req.session.userId;
+      updates.sent_to_email = estimate.customer_email || estimate.customer_billing_email || null;
+      updates.sent_to_name = estimate.customer_name || null;
+    }
+    if (['approved', 'accepted'].includes(nextStatus) && !estimate.accepted_at) updates.accepted_at = now;
+
+    await updateEstimate(estimate.id, updates, { optionalFields: ['sent_to_email', 'sent_to_name'] });
+    await writeAudit({
+      entityType: 'estimate', entityId: estimate.id, action: 'status_changed',
+      before: { status: estimate.status }, after: { status: nextStatus },
+      source: 'user', userId: req.session.userId,
+    });
+  }
+
+  setFlash(req, 'success', `${estimate.display_number} status changed to ${nextStatus.replace(/_/g, ' ')}.`);
+  res.redirect(`/estimates/${estimate.id}`);
 });
 
 async function statusTransition(req, res, fromStatus, toStatus, timestampField) {

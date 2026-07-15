@@ -25,6 +25,7 @@ const numbering = require('../services/numbering');
 const storage = require('../services/storage');
 const { sanitizePostgrestSearch } = require('../services/sanitize');
 const { listEntityActivity } = require('../services/activity');
+const { writeAudit } = require('../services/audit');
 
 // PDF service is optional in some envs — wrap import so test boots don't fail
 let pdf;
@@ -1487,6 +1488,43 @@ router.post('/:id', async (req, res) => {
 
   setFlash(req, 'success', `WO-${newDisplay} updated.`);
   res.redirect(`/work-orders/${existing.id}`);
+});
+
+router.post('/:id/status', async (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+
+  const wo = await loadWorkOrder(req.params.id);
+  if (!wo) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Work order not found.' });
+
+  const nextStatus = String(req.body.status || '').trim();
+  if (!VALID_STATUSES.includes(nextStatus)) {
+    setFlash(req, 'error', 'Choose a valid work order status.');
+    return res.redirect(`/work-orders/${wo.id}`);
+  }
+
+  if (wo.status !== nextStatus) {
+    const terminalStatuses = ['closed', 'complete'];
+    const updates = {
+      status: nextStatus,
+      updated_at: new Date().toISOString(),
+      completed_date: terminalStatuses.includes(nextStatus)
+        ? (wo.completed_date || new Date().toISOString().slice(0, 10))
+        : null,
+    };
+    const { error: updateError } = await supabase
+      .from('work_orders')
+      .update(updates)
+      .eq('id', wo.id);
+    if (updateError) throw updateError;
+    await writeAudit({
+      entityType: 'work_order', entityId: wo.id, action: 'status_changed',
+      before: { status: wo.status }, after: { status: nextStatus },
+      source: 'user', userId: req.session.userId,
+    });
+  }
+
+  setFlash(req, 'success', `WO-${wo.display_number} status changed to ${nextStatus.replace(/_/g, ' ')}.`);
+  res.redirect(`/work-orders/${wo.id}`);
 });
 
 router.post('/:id/send', async (req, res) => {

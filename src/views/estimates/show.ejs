@@ -20,6 +20,7 @@ const EST_STATUS_HINTS = {
 const estStatusHint = EST_STATUS_HINTS[estimate.status] || estimate.status;
 const isAdmin = currentUser && currentUser.role === 'admin';
 const canManageInvoices = currentUser && ['admin', 'manager'].includes(currentUser.role);
+const estimateStatusOptions = ['new', 'draft', 'sent', 'pending', 'approved', 'accepted', 'rejected', 'expired'];
 const customerLabel = estimate.customer_name || 'Customer';
 %>
 
@@ -32,7 +33,18 @@ const customerLabel = estimate.customer_name || 'Customer';
     <div>
       <div class="flex items-center gap-3">
         <h1 class="page-h1"><%= estimate.display_number %></h1>
-        <span class="badge badge-<%= estimate.status %>" title="<%= estStatusHint %>"><%= estimate.status %></span>
+        <% if (canManageInvoices) { %>
+          <form action="/estimates/<%= estimate.id %>/status" method="post" class="inline-status-form">
+            <select name="status" class="badge badge-<%= estimate.status %> inline-status-select" aria-label="Change estimate status"
+                    title="<%= estStatusHint %> Click to change." onchange="this.form.requestSubmit()">
+              <% estimateStatusOptions.forEach(function(statusOption) { %>
+                <option value="<%= statusOption %>" <%= estimate.status === statusOption ? 'selected' : '' %>><%= statusOption.replace(/_/g, ' ') %></option>
+              <% }); %>
+            </select>
+          </form>
+        <% } else { %>
+          <span class="badge badge-<%= estimate.status %>" title="<%= estStatusHint %>"><%= estimate.status %></span>
+        <% } %>
         <% if (estimate.sent_at && estimate.status !== 'draft') { %>
           <div class="text-xs text-recon-fog mt-1">
             Sent <%= (estimate.sent_at || '').slice(0,10) %>

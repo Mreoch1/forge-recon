@@ -18,6 +18,7 @@ const { renderSubcontractAgreementPdf } = require('../services/contract-pdf');
 const { sendEmail } = require('../services/email');
 const numbering = require('../services/numbering');
 const storage = require('../services/storage');
+const { writeAudit } = require('../services/audit');
 
 const router = express.Router();
 const PAGE_SIZE = 25;
@@ -1484,6 +1485,42 @@ router.get('/:id/edit', async (req, res) => {
     title: `Edit ${job.title}`, activeNav: 'projects',
     job, customers: customers || [], users: users || [], errors: {}, statuses: VALID_STATUSES
   });
+});
+
+router.post('/:id/status', async (req, res) => {
+  const id = req.params.id;
+  const allowed = await requireProjectAccess(req, res, id, 'manage');
+  if (!allowed) return;
+
+  const nextStatus = String(req.body.status || '').trim();
+  if (!VALID_STATUSES.includes(nextStatus)) {
+    setFlash(req, 'error', 'Choose a valid project status.');
+    return res.redirect(`/projects/${id}`);
+  }
+
+  const { data: job, error: findError } = await supabase
+    .from('jobs')
+    .select('id, title, status')
+    .eq('id', id)
+    .maybeSingle();
+  if (findError) throw findError;
+  if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Project not found.' });
+
+  if (job.status !== nextStatus) {
+    const { error: updateError } = await supabase
+      .from('jobs')
+      .update({ status: nextStatus, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (updateError) throw updateError;
+    await writeAudit({
+      entityType: 'project', entityId: job.id, action: 'status_changed',
+      before: { status: job.status }, after: { status: nextStatus },
+      source: 'user', userId: req.session.userId,
+    });
+  }
+
+  setFlash(req, 'success', `Project "${job.title}" status changed to ${nextStatus.replace(/[_-]/g, ' ')}.`);
+  res.redirect(`/projects/${id}`);
 });
 
 router.post('/:id', async (req, res) => {

@@ -6,6 +6,7 @@ function dateOnly(d) { return d ? String(d).slice(0,10) : '—'; }
 var siteParts = [job.address, [job.city, job.state, job.zip].filter(Boolean).join(' ')].filter(Boolean);
 var custSiteSame = job.customers && (job.address === job.customers.address) && (job.city === job.customers.city);
 var headerAccess = typeof projectAccess !== 'undefined' ? projectAccess : { canSeeBilling: true };
+var projectStatuses = ['lead', 'estimating', 'scheduled', 'in_progress', 'complete', 'cancelled', 'active', 'pending', 'pre-construction'];
 %>
 
 <div class="card overflow-hidden mb-6">
@@ -14,7 +15,18 @@ var headerAccess = typeof projectAccess !== 'undefined' ? projectAccess : { canS
       <div class="min-w-0">
         <div class="flex items-center gap-3 flex-wrap">
           <h1 class="text-2xl font-bold tracking-tight"><%= job.title %></h1>
-          <span class="badge badge-<%= job.status %>"><%= job.status.replace('_',' ') %></span>
+          <% if (headerAccess.canManageMembers) { %>
+            <form action="/projects/<%= job.id %>/status" method="post" class="inline-status-form">
+              <select name="status" class="badge badge-<%= job.status %> inline-status-select" aria-label="Change project status"
+                      title="Change project status" onchange="this.form.requestSubmit()">
+                <% projectStatuses.forEach(function(projectStatus) { %>
+                  <option value="<%= projectStatus %>" <%= job.status === projectStatus ? 'selected' : '' %>><%= projectStatus.replace(/[_-]/g, ' ') %></option>
+                <% }); %>
+              </select>
+            </form>
+          <% } else { %>
+            <span class="badge badge-<%= job.status %>"><%= job.status.replace(/[_-]/g, ' ') %></span>
+          <% } %>
           <% if (job.archived) { %><span class="badge badge-archived">archived</span><% } %>
         </div>
         <p class="text-recon-fog text-sm mt-1">

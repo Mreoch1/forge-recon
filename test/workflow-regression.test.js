@@ -323,7 +323,8 @@ test('managers can create and send invoices while admin keeps accounting control
   assert.match(invoiceShow, /href="\/invoices\/<%= invoice\.id %>\/csv"/);
   assert.match(invoiceShow, /action="\/invoices\/<%= invoice\.id %>\/mark-sent"/);
   assert.match(invoiceShow, /action="\/invoices\/<%= invoice\.id %>\/status"/);
-  assert.match(invoiceShow, /Manual invoice status/);
+  assert.match(invoiceShow, /aria-label="Change invoice status"/);
+  assert.doesNotMatch(invoiceShow, />Update status</);
   assert.match(invoiceIndex, /action="\/invoices\/batch-status"/);
   assert.match(invoiceIndex, /id="batch-status-select"/);
   assert.match(invoiceIndex, /id="batch-status-btn"/);
@@ -362,6 +363,27 @@ test('managers can create and send invoices while admin keeps accounting control
   assert.match(invoices, /router\.post\('\/:id\/delete', requireAdmin,/);
   assert.match(header, /_canManageNav[\s\S]*href="\/invoices"/);
   assert.match(header, /_canManageMobile[\s\S]*href="\/invoices"/);
+});
+
+test('document status badges save immediately without opening edit forms', () => {
+  const jobsRoutes = read('src/routes/jobs.js');
+  const projectHeader = read('src/views/jobs/_project_header.ejs');
+  const workOrderRoutes = read('src/routes/work-orders.js');
+  const workOrderShow = read('src/views/work-orders/show.ejs');
+  const estimateRoutes = read('src/routes/estimates.js');
+  const estimateShow = read('src/views/estimates/show.ejs');
+  const invoiceRoutes = read('src/routes/invoices.js');
+  const invoiceShow = read('src/views/invoices/show.ejs');
+
+  assert.match(jobsRoutes, /router\.post\('\/:id\/status'/);
+  assert.match(workOrderRoutes, /router\.post\('\/:id\/status'/);
+  assert.match(estimateRoutes, /router\.post\('\/:id\/status', requireManager,/);
+  assert.match(invoiceRoutes, /router\.post\('\/:id\/status', requireAdmin,/);
+
+  [projectHeader, workOrderShow, estimateShow, invoiceShow].forEach(view => {
+    assert.match(view, /class="inline-status-form"/);
+    assert.match(view, /onchange="this\.form\.requestSubmit\(\)"/);
+  });
 });
 
 test('project files open in a Forge viewer with sibling navigation', () => {

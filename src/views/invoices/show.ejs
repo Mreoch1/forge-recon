@@ -11,6 +11,7 @@ const marginPct = subtotal > 0 ? ((margin / subtotal) * 100).toFixed(1) : '—';
 const invoiceStatusLabel = (displayStatus || invoice.status || '').replace(/_/g, ' ');
 const isAdmin = currentUser && currentUser.role === 'admin';
 const manualStatuses = invoice.status === 'paid' ? ['billing_complete'] : ['draft', 'sent', 'overdue', 'billing_complete'];
+const invoiceStatusOptions = Array.from(new Set([displayStatus || invoice.status, invoice.status].concat(manualStatuses)));
 %>
 
 <div class="document-shell">
@@ -22,7 +23,18 @@ const manualStatuses = invoice.status === 'paid' ? ['billing_complete'] : ['draf
     <div>
       <div class="flex items-center gap-3">
         <h1 class="page-h1"><%= invoice.display_number %></h1>
-        <span class="badge badge-<%= displayStatus || invoice.status %>"><%= invoiceStatusLabel %></span>
+        <% if (isAdmin) { %>
+          <form action="/invoices/<%= invoice.id %>/status" method="post" class="inline-status-form">
+            <select name="status" class="badge badge-<%= displayStatus || invoice.status %> inline-status-select" aria-label="Change invoice status"
+                    title="Change invoice status. Payments and voids use their dedicated actions." onchange="this.form.requestSubmit()">
+              <% invoiceStatusOptions.forEach(function(statusOption) { %>
+                <option value="<%= statusOption %>" <%= (displayStatus || invoice.status) === statusOption ? 'selected' : '' %>><%= statusOption.replace(/_/g, ' ') %></option>
+              <% }); %>
+            </select>
+          </form>
+        <% } else { %>
+          <span class="badge badge-<%= displayStatus || invoice.status %>"><%= invoiceStatusLabel %></span>
+        <% } %>
       </div>
       <p class="page-sub">
         WO: <a href="/work-orders/<%= invoice.wo_id %>" class="hover:text-recon-red">WO-<%= invoice.wo_display_number %></a>
@@ -62,17 +74,6 @@ const manualStatuses = invoice.status === 'paid' ? ['billing_complete'] : ['draf
         <form action="/invoices/<%= invoice.id %>/reopen-billing" method="post" class="m-0 inline"
               onsubmit="return confirm('Reopen billing for <%= invoice.display_number %>?');">
           <button class="btn btn-secondary" title="Move this invoice back to sent if billing was completed by mistake.">Reopen billing</button>
-        </form>
-      <% } %>
-      <% if (isAdmin) { %>
-        <form action="/invoices/<%= invoice.id %>/status" method="post" class="m-0 inline-flex items-center gap-2"
-              onsubmit="return confirm('Change <%= invoice.display_number %> status manually?');">
-          <select name="status" class="input text-sm py-1.5 w-auto" title="Manual invoice status">
-            <% manualStatuses.forEach(function(statusOption) { %>
-              <option value="<%= statusOption %>" <%= invoice.status === statusOption ? 'selected' : '' %>><%= statusOption.replace(/_/g, ' ') %></option>
-            <% }); %>
-          </select>
-          <button class="btn btn-secondary" title="Manually update the invoice status. Payments and voids still use their dedicated controls.">Update status</button>
         </form>
       <% } %>
     </div>
