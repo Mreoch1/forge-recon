@@ -1025,11 +1025,13 @@ test('RFP line editor live-calculates row and combined approved totals', () => {
   assert.match(view, /data-rfp-editor-summary-total-with-markup/);
   assert.match(view, /data-rfp-pricing-line data-parent-item-id="<%= item\.id %>"/);
   assert.match(view, /data-rfp-unit-cost-fallback="<%= numberOrDefault\(sub\.unit_cost, 0\) %>"/);
-  assert.match(view, /data-rfp-live-calc data-rfp-autosave-item/);
+  assert.match(view, /var rfpLiveCalcAttrs = 'data-rfp-live-calc oninput="window\.recalculateRfpPricingLine&&window\.recalculateRfpPricingLine\(this\)"/);
+  assert.match(view, /<%- rfpLiveCalcAttrs %> data-rfp-autosave-item/);
   assert.match(view, /data-rfp-parent-total="<%= item\.id %>"/);
   assert.match(view, /function updateRfpEditorSummary\(parentItemId\)/);
   assert.match(view, /computeRfpLiveLine\(line\)/);
   assert.match(view, /function handleRfpLiveCalcEvent\(event\)/);
+  assert.match(view, /window\.recalculateRfpPricingLine = recalculateRfpPricingLine/);
   assert.match(view, /window\.requestAnimationFrame/);
   assert.match(view, /\['input', 'change', 'keyup', 'mouseup', 'blur'\]\.forEach\(function\(eventName\)/);
   assert.match(view, /document\.addEventListener\(eventName, handleRfpLiveCalcEvent, eventName === 'blur'\)/);
