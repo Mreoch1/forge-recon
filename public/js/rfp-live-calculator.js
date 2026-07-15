@@ -120,11 +120,9 @@
     var totalCost = 0;
     var totalWithMarkup = 0;
     var qty = 0;
-    var approvedTotalCost = 0;
     var approvedTotalWithMarkup = 0;
-    var approvedQty = 0;
-    var approvedMarkupValues = [];
-    var approvedGrValues = [];
+    var markupValues = [];
+    var grValues = [];
     var approvedCount = 0;
     var lineCount = 0;
 
@@ -141,13 +139,13 @@
       totalCost += computed.totalCost;
       totalWithMarkup += computed.totalWithMarkup;
       qty = Math.max(qty, computed.qty || 0);
+      if (!isNewLine) {
+        markupValues.push(percentInput(line, 'markup_pct', 16));
+        grValues.push(percentInput(line, 'general_requirements_pct', 4));
+      }
       if (approved && !isNewLine) {
         approvedCount += 1;
-        approvedTotalCost += computed.totalCost;
         approvedTotalWithMarkup += computed.totalWithMarkup;
-        approvedQty = Math.max(approvedQty, computed.qty || 0);
-        approvedMarkupValues.push(percentInput(line, 'markup_pct', 16));
-        approvedGrValues.push(percentInput(line, 'general_requirements_pct', 4));
       }
     });
 
@@ -158,13 +156,13 @@
     if (!parentRow) return;
     parentRow.setAttribute('data-rfp-line-total', moneyPlain(approvedTotalWithMarkup));
     parentRow.setAttribute('data-rfp-line-approved', approvedCount > 0 ? '1' : '0');
-    setPlainOutput(parentRow.querySelector('[data-rfp-parent-qty="' + parentItemId + '"]'), approvedQty || 0);
-    setMoneyOutput(parentRow.querySelector('[data-rfp-parent-unit-cost="' + parentItemId + '"]'), approvedQty > 0 ? approvedTotalCost / approvedQty : 0);
-    setMoneyOutput(parentRow.querySelector('[data-rfp-parent-total-cost="' + parentItemId + '"]'), approvedTotalCost);
-    setPlainOutput(parentRow.querySelector('[data-rfp-parent-markup="' + parentItemId + '"]'), percentSummary(approvedMarkupValues));
-    setPlainOutput(parentRow.querySelector('[data-rfp-parent-gr="' + parentItemId + '"]'), percentSummary(approvedGrValues));
-    setMoneyOutput(parentRow.querySelector('[data-rfp-parent-total="' + parentItemId + '"]'), approvedTotalWithMarkup);
-    setMoneyOutput(parentRow.querySelector('[data-rfp-parent-final-unit="' + parentItemId + '"]'), approvedQty > 0 ? approvedTotalWithMarkup / approvedQty : 0);
+    setPlainOutput(parentRow.querySelector('[data-rfp-parent-qty="' + parentItemId + '"]'), qty || 0);
+    setMoneyOutput(parentRow.querySelector('[data-rfp-parent-unit-cost="' + parentItemId + '"]'), qty > 0 ? totalCost / qty : 0);
+    setMoneyOutput(parentRow.querySelector('[data-rfp-parent-total-cost="' + parentItemId + '"]'), totalCost);
+    setPlainOutput(parentRow.querySelector('[data-rfp-parent-markup="' + parentItemId + '"]'), percentSummary(markupValues));
+    setPlainOutput(parentRow.querySelector('[data-rfp-parent-gr="' + parentItemId + '"]'), percentSummary(grValues));
+    setMoneyOutput(parentRow.querySelector('[data-rfp-parent-total="' + parentItemId + '"]'), totalWithMarkup);
+    setMoneyOutput(parentRow.querySelector('[data-rfp-parent-final-unit="' + parentItemId + '"]'), qty > 0 ? totalWithMarkup / qty : 0);
 
     var approvedIcon = parentRow.querySelector('[data-rfp-parent-approved-icon="' + parentItemId + '"]');
     if (approvedIcon) {
@@ -272,7 +270,7 @@
       '<div class="min-w-[7rem] text-right"><span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Total w/ MU + GR</span><div class="font-semibold" data-rfp-live-total-with-markup>' + moneyText(totalWithMarkup) + '</div></div>',
       '<div class="min-w-[8rem] text-right"><span class="text-[10px] font-semibold uppercase tracking-wider text-recon-fog">Final unit w/ MU + GR</span><div class="font-semibold" data-rfp-live-final-unit>' + moneyText(finalUnit) + '</div></div>',
       '<label class="flex items-center gap-2"><input form="' + formId + '" type="hidden" name="approved" value="0"><input form="' + formId + '" type="checkbox" name="approved" value="1"' + (approved ? ' checked' : '') + liveCalcAttrs(id, 'approved', approved ? '1' : '0') + '><span class="text-xs">Approved</span></label>',
-      '<div class="flex items-center justify-end gap-2"><form id="' + delFormId + '" action="/projects/rfps/items/' + encodeURIComponent(id) + '/delete" method="POST" onsubmit="return confirm(&quot;Delete this vendor/contractor line?&quot;)"></form><button type="submit" form="' + delFormId + '" class="text-recon-fog hover:text-recon-red text-sm">&times;</button></div>',
+      '<div class="flex items-center justify-end gap-2"><form id="' + delFormId + '" action="/projects/rfps/items/' + encodeURIComponent(id) + '/delete" method="POST" data-rfp-delete-sub-line data-item-id="' + escapeHtml(id) + '" data-parent-item-id="' + escapeHtml(parentItemId) + '"></form><button type="submit" form="' + delFormId + '" class="text-recon-fog hover:text-recon-red text-sm">&times;</button></div>',
       '</div></div></div></div>'
     ].join('');
   }
@@ -303,6 +301,7 @@
     list.insertAdjacentHTML('beforeend', renderSavedLine(item, parentItemId));
     var newForm = document.getElementById('rfp-sub-form-' + item.id);
     bindSavedSubForm(newForm);
+    bindDeleteSubForm(document.getElementById('rfp-sub-del-' + item.id));
     if (typeof window.autosize === 'function') {
       document.querySelectorAll('[data-rfp-autosave-item][data-item-id="' + item.id + '"][data-autosize]').forEach(function(el) { window.autosize(el); });
     }
@@ -385,6 +384,38 @@
       }).catch(function(error) {
         showStatus('Save failed', 'error');
         showToast(error && error.message ? error.message : 'Pricing line save failed.', 'error');
+      });
+    }, true);
+  }
+
+  function bindDeleteSubForm(form) {
+    if (!form || form.dataset.rfpDeleteSubBound === '1') return;
+    form.dataset.rfpDeleteSubBound = '1';
+    form.addEventListener('submit', function(event) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (!window.confirm('Delete this vendor/contractor line?')) return;
+
+      var itemId = form.getAttribute('data-item-id');
+      var parentItemId = form.getAttribute('data-parent-item-id');
+      var pricingLine = form.closest('[data-rfp-pricing-line]');
+      showStatus('Deleting...', 'success');
+      fetch(form.action, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'fetch', 'Accept': 'application/json' }
+      }).then(function(response) {
+        return jsonFromResponse(response, 'Delete failed.').then(function(data) {
+          if (!response.ok || !data || !data.ok) throw new Error(data && data.error ? data.error : 'Delete failed.');
+          var editForm = document.getElementById('rfp-sub-form-' + itemId);
+          if (pricingLine) pricingLine.remove();
+          if (editForm) editForm.remove();
+          updateSummary(parentItemId);
+          showStatus('Saved just now', 'success');
+          showToast('Pricing line deleted.', 'success');
+        });
+      }).catch(function(error) {
+        showStatus('Delete failed', 'error');
+        showToast(error && error.message ? error.message : 'Pricing line delete failed.', 'error');
       });
     }, true);
   }
@@ -488,6 +519,7 @@
 
   document.querySelectorAll('form[id^="rfp-add-sub-form-"]').forEach(bindAddLineForm);
   document.querySelectorAll('form[id^="rfp-sub-form-"]').forEach(bindSavedSubForm);
+  document.querySelectorAll('form[data-rfp-delete-sub-line]').forEach(bindDeleteSubForm);
 
   window.recalculateRfpPricingLine = recalculateFrom;
   window.updateRfpEditorSummary = window.updateRfpEditorSummary || updateSummary;

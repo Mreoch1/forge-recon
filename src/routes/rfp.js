@@ -754,6 +754,7 @@ router.post('/projects/:id/rfps/:rId/delete', requireRfpEditAccess, async (req, 
 //    was DELETE via ?_method=DELETE which silently no-op'd because method-override
 //    isn't installed; clicks on × actually hit the POST update route below) ──
 router.post('/projects/rfps/items/:itemId/delete', requireRfpEditAccess, async (req, res) => {
+  const wantsJson = req.get('X-Requested-With') === 'fetch' || req.accepts(['json', 'html']) === 'json';
   // Resolve job_id BEFORE delete so we can redirect back to the right project
   const { data: lineItem, error: lineItemError } = await supabase
     .from('rfp_line_items')
@@ -763,6 +764,42 @@ router.post('/projects/rfps/items/:itemId/delete', requireRfpEditAccess, async (
   if (lineItemError) throw lineItemError;
   const jobId = lineItem?.project_rfps?.job_id;
   await deleteRfpLineItemTree(req.params.itemId);
+  let remainingCount = null;
+  if (lineItem?.parent_line_item_id) {
+    const { count, error: remainingError } = await supabase
+      .from('rfp_line_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('parent_line_item_id', lineItem.parent_line_item_id);
+    if (remainingError) throw remainingError;
+    remainingCount = count || 0;
+
+    // Once the last pricing child is removed, clear legacy direct-pricing fields
+    // so deleted pricing cannot reappear after a refresh.
+    if (remainingCount === 0) {
+      const { error: clearError } = await supabase
+        .from('rfp_line_items')
+        .update({
+          vendor: null,
+          contractor_cost: null,
+          vendor_cost: null,
+          unit_cost: null,
+          total_cost: null,
+          total_with_markup: 0,
+          final_unit_cost: 0,
+          approved: false,
+        })
+        .eq('id', lineItem.parent_line_item_id);
+      if (clearError) throw clearError;
+    }
+  }
+  if (wantsJson) {
+    return res.json({
+      ok: true,
+      itemId: Number(req.params.itemId),
+      parentItemId: lineItem?.parent_line_item_id || null,
+      remainingCount,
+    });
+  }
   if (jobId) return res.redirect(rfpRedirect(jobId, {
     open_rfp: lineItem?.rfp_id,
     open_item: lineItem?.parent_line_item_id || '',

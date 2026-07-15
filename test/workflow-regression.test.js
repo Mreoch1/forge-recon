@@ -749,7 +749,7 @@ test('RFP line items open a pricing editor instead of dropdown sub rows', () => 
   assert.match(view, /value="<%= directUnitCost %>"/);
   assert.match(view, /<td class="text-center" onclick="event\.stopPropagation\(\);">/);
   assert.match(view, /data-rfp-summary-total="<%= rfp\.id %>"/);
-  assert.match(view, /data-rfp-line-total="<%= liDisplayTotal\.toFixed\(2\) %>"/);
+  assert.match(view, /data-rfp-line-total="<%= \(liHasSubs \? liApprovedTotal : liDisplayTotal\)\.toFixed\(2\) %>"/);
   assert.match(view, /data-rfp-grand-total="<%= rfp\.id %>"/);
   assert.match(view, /function refreshApprovedTotalsFor\(el\)/);
   assert.match(view, /if \(el\.dataset\.field === 'approved'\) refreshApprovedTotalsFor\(el\)/);
@@ -954,12 +954,14 @@ test('RFP line editor modal close is not overridden by row display CSS', () => {
   assert.match(view, /event\.stopPropagation\(\);closeRfpLineEditor/);
 });
 
-test('RFP parent rows roll up approved sub-lines only', () => {
+test('RFP parent rows display all sub-lines while approved totals remain scoped', () => {
   const view = read('src/views/jobs/rfp.ejs');
 
-  assert.match(view, /var liRollupChildren = liHasSubs \? apprChildren : \[\]/);
-  assert.match(view, /function rfpParentRollupQty\(item, approvedChildren\)/);
+  assert.match(view, /var liRollupChildren = liHasSubs \? children : \[\]/);
+  assert.match(view, /function rfpParentRollupQty\(item, pricingChildren\)/);
   assert.match(view, /var liQty = liHasSubs \? rfpParentRollupQty\(item, liRollupChildren\) : \(Number\(item\.quantity\) \|\| 0\)/);
+  assert.match(view, /var liApprovedTotal = apprChildren\.reduce/);
+  assert.match(view, /data-rfp-line-total="<%= \(liHasSubs \? liApprovedTotal : liDisplayTotal\)\.toFixed\(2\) %>"/);
   assert.match(view, /function rfpDirectBaseTotal\(line\)/);
   assert.match(view, /function rfpDirectFinalTotal\(line\)/);
   assert.match(view, /var liDirectTotalCost = rfpDirectBaseTotal\(item\)/);
@@ -1006,7 +1008,7 @@ test('RFP markup and GR calculations preserve explicit zero values', () => {
   assert.match(exportService, /const DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT = 4/);
 });
 
-test('RFP parent markup and GR show actual approved values instead of mixed', () => {
+test('RFP parent markup and GR show the values from all visible pricing lines', () => {
   const view = read('src/views/jobs/rfp.ejs');
   const phoneFormat = read('public/js/phone-format.js');
   const footer = read('src/views/layouts/footer.ejs');
@@ -1014,9 +1016,9 @@ test('RFP parent markup and GR show actual approved values instead of mixed', ()
   assert.match(view, /function rfpPercentSummary\(lines, field, fallback\)/);
   assert.match(view, /function rfpDirectMarkupDisplay\(line, baseTotal, finalTotal\)/);
   assert.ok(view.includes("return values.length ? values.join(' / ') : '—';"));
-  assert.match(view, /var liMarkup = liHasSubs \? rfpPercentSummary\(apprChildren, 'markup_pct', DEFAULT_RFP_MARKUP_PCT\)/);
+  assert.match(view, /var liMarkup = liHasSubs \? rfpPercentSummary\(children, 'markup_pct', DEFAULT_RFP_MARKUP_PCT\)/);
   assert.match(view, /rfpDirectMarkupDisplay\(item, liDirectTotalCost, liDirectTotal\)/);
-  assert.match(view, /var liGr = liHasSubs \? rfpPercentSummary\(apprChildren, 'general_requirements_pct', DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT\) : formatPercentValue\(numberOrDefault\(item\.general_requirements_pct, DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT\)\)/);
+  assert.match(view, /var liGr = liHasSubs \? rfpPercentSummary\(children, 'general_requirements_pct', DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT\) : formatPercentValue\(numberOrDefault\(item\.general_requirements_pct, DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT\)\)/);
   assert.doesNotMatch(phoneFormat, /RFP parent MU and GR hotfix/);
   assert.doesNotMatch(phoneFormat, /data-rfp-editor-summary/);
   assert.doesNotMatch(phoneFormat, /rfp-line-/);
@@ -1051,7 +1053,7 @@ test('RFP line editor live-calculates row and combined approved totals', () => {
   assert.match(view, /data-rfp-unit-cost-fallback="<%= numberOrDefault\(sub\.unit_cost, 0\) %>"/);
   assert.match(view, /var rfpLiveCalcAttrs = 'data-rfp-live-calc oninput="window\.recalculateRfpPricingLine&&window\.recalculateRfpPricingLine\(this\)"/);
   assert.match(view, /<%- rfpLiveCalcAttrs %> data-rfp-autosave-item/);
-  assert.match(view, /\/js\/rfp-live-calculator\.js\?v=20260715-subline-save-v3/);
+  assert.match(view, /\/js\/rfp-live-calculator\.js\?v=20260715-subline-delete-v1/);
   assert.match(liveCalculator, /document\.addEventListener\(eventName, handle, true\)/);
   assert.match(liveCalculator, /window\.recalculateRfpPricingLine = recalculateFrom/);
   assert.match(liveCalculator, /setMoneyOutput\(line\.querySelector\('\[data-rfp-live-total-with-markup\]'\), computed\.totalWithMarkup\)/);
@@ -1062,6 +1064,10 @@ test('RFP line editor live-calculates row and combined approved totals', () => {
   assert.match(liveCalculator, /Content-Type': 'application\/x-www-form-urlencoded;charset=UTF-8'/);
   assert.match(routes, /insertRfpLineItems\(\[convertedParentPricing, insertPayload\]\)/);
   assert.match(routes, /pricing line request missing parent_id/);
+  assert.match(view, /data-rfp-delete-sub-line data-item-id="<%= sub\.id %>" data-parent-item-id="<%= item\.id %>"/);
+  assert.match(liveCalculator, /function bindDeleteSubForm\(form\)/);
+  assert.match(liveCalculator, /showToast\('Pricing line deleted\.'/);
+  assert.match(routes, /remainingCount === 0/);
   assert.match(liveCalculator, /setMoneyOutput\(summary\.querySelector\('\[data-rfp-editor-summary-total-with-markup\]'\), totalWithMarkup\)/);
   assert.match(view, /data-rfp-parent-total="<%= item\.id %>"/);
   assert.match(view, /function updateRfpEditorSummary\(parentItemId\)/);

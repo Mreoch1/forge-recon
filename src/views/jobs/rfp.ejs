@@ -129,9 +129,9 @@
     }
     var DEFAULT_RFP_MARKUP_PCT = 16;
     var DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT = 4;
-    function rfpParentRollupQty(item, approvedChildren) {
+    function rfpParentRollupQty(item, pricingChildren) {
       var parentQty = Number(item && item.quantity);
-      var childQtys = (approvedChildren || [])
+      var childQtys = (pricingChildren || [])
         .map(function(c) { return Number(c.quantity) || 0; })
         .filter(function(q) { return q > 0; });
       if (parentQty > 0 && parentQty !== 1) return parentQty;
@@ -374,25 +374,27 @@
                 <% var itemFormId = 'rfp-li-form-' + item.id; var itemDelFormId = 'rfp-li-del-' + item.id; var children = subItems[item.id] || []; %>
                 <% var liHasSubs = children.length > 0; %>
                 <% var apprChildren = children.filter(function(s){return s.approved;}); %>
-                <% var liRollupChildren = liHasSubs ? apprChildren : []; %>
+                <% var liRollupChildren = liHasSubs ? children : []; %>
                 <% var liQty = liHasSubs ? rfpParentRollupQty(item, liRollupChildren) : (Number(item.quantity) || 0); %>
                 <% var liTotalCost = liRollupChildren.reduce(function(s,c){return s + rfpComputedTotalCost(c);},0); %>
                 <% var liTotal = liRollupChildren.reduce(function(s,c){return s + rfpComputedTotalWithMarkup(c);},0); %>
+                <% var liApprovedTotal = apprChildren.reduce(function(s,c){return s + rfpComputedTotalWithMarkup(c);},0); %>
                 <% var liDirectTotalCost = rfpDirectBaseTotal(item); %>
                 <% var liDirectTotal = rfpDirectFinalTotal(item); %>
-                <!-- D-105: Line item container row — Item name + auto-rolled-up totals from approved sub-lines.
+                <!-- D-105: Line item container row — Item name + visible pricing from all sub-lines.
+                     The category approved total still uses approved sub-lines only.
                      Falls back to direct values on the line item itself when no sub-lines exist (legacy data). -->
                 <% var liSubCount = children.length; var liApprovedSubs = apprChildren.length; %>
                 <% var liDisplayTotal = liHasSubs ? liTotal : liDirectTotal; %>
                 <% var liDisplayUnit = liHasSubs ? (liQty > 0 ? liTotal / liQty : 0) : (liQty > 0 && liDirectTotal ? liDirectTotal / liQty : (Number(item.final_unit_cost) || 0)); %>
                 <% var liDisplayBaseUnit = liHasSubs ? (liQty > 0 ? liTotalCost / liQty : 0) : (Number(item.unit_cost) || 0); %>
-                <% var liMarkup = liHasSubs ? rfpPercentSummary(apprChildren, 'markup_pct', DEFAULT_RFP_MARKUP_PCT) : rfpDirectMarkupDisplay(item, liDirectTotalCost, liDirectTotal); %>
-                <% var liGr = liHasSubs ? rfpPercentSummary(apprChildren, 'general_requirements_pct', DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT) : formatPercentValue(numberOrDefault(item.general_requirements_pct, DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT)); %>
+                <% var liMarkup = liHasSubs ? rfpPercentSummary(children, 'markup_pct', DEFAULT_RFP_MARKUP_PCT) : rfpDirectMarkupDisplay(item, liDirectTotalCost, liDirectTotal); %>
+                <% var liGr = liHasSubs ? rfpPercentSummary(children, 'general_requirements_pct', DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT) : formatPercentValue(numberOrDefault(item.general_requirements_pct, DEFAULT_RFP_GENERAL_REQUIREMENTS_PCT)); %>
                 <% var liApproved = liHasSubs ? (apprChildren.length === children.length ? true : false) : !!item.approved; %>
                 <% var liHasDirectPricing = !liHasSubs && (liDirectTotalCost > 0 || liDirectTotal > 0 || Number(item.quantity) > 0 || Number(item.contractor_cost) > 0 || Number(item.vendor_cost) > 0 || Number(item.unit_cost) > 0); %>
                 <% var liDisplayLineCount = liHasSubs ? liSubCount : (liHasDirectPricing ? 1 : 0); %>
                 <% var liDisplayApprovedCount = liHasSubs ? liApprovedSubs : (liHasDirectPricing && item.approved ? 1 : 0); %>
-                <tr id="rfp-line-<%= item.id %>" class="rfp-li-row bg-recon-deeper/20 hover:bg-recon-cloud/20 border-t-2 border-recon-mist/40" style="cursor:pointer" data-rfp-line-total="<%= liDisplayTotal.toFixed(2) %>" data-rfp-line-approved="<%= liHasSubs ? (liApprovedSubs > 0 ? '1' : '0') : (item.approved ? '1' : '0') %>" data-rfp-line-search="<%= (item.description || '').toLowerCase() %>" onclick="toggleRfpLineEditor('<%= item.id %>');">
+                <tr id="rfp-line-<%= item.id %>" class="rfp-li-row bg-recon-deeper/20 hover:bg-recon-cloud/20 border-t-2 border-recon-mist/40" style="cursor:pointer" data-rfp-line-total="<%= (liHasSubs ? liApprovedTotal : liDisplayTotal).toFixed(2) %>" data-rfp-line-approved="<%= liHasSubs ? (liApprovedSubs > 0 ? '1' : '0') : (item.approved ? '1' : '0') %>" data-rfp-line-search="<%= (item.description || '').toLowerCase() %>" onclick="toggleRfpLineEditor('<%= item.id %>');">
                   <td class="text-center" onclick="event.stopPropagation();">
                     <input form="rfp-bid-request-form" type="checkbox" name="item_ids" value="<%= item.id %>" class="h-4 w-4" data-rfp-bid-item>
                   </td>
@@ -607,7 +609,7 @@
                                       <span class="text-xs">Approved</span>
                                     </label>
                                     <div class="flex items-center justify-end gap-2">
-                                      <form id="<%= subDid %>" action="/projects/rfps/items/<%= sub.id %>/delete" method="POST" onsubmit="return confirm('Delete this vendor/contractor line?')"></form>
+                                      <form id="<%= subDid %>" action="/projects/rfps/items/<%= sub.id %>/delete" method="POST" data-rfp-delete-sub-line data-item-id="<%= sub.id %>" data-parent-item-id="<%= item.id %>"></form>
                                       <button type="submit" form="<%= subDid %>" class="text-recon-fog hover:text-recon-red text-sm">&times;</button>
                                     </div>
                                   </div>
@@ -1343,11 +1345,9 @@
     var totalCost = 0;
     var totalWithMarkup = 0;
     var qty = 0;
-    var approvedTotalCost = 0;
     var approvedTotalWithMarkup = 0;
-    var approvedQty = 0;
-    var approvedMarkupValues = [];
-    var approvedGrValues = [];
+    var markupValues = [];
+    var grValues = [];
     var approvedCount = 0;
     var lineCount = 0;
     document.querySelectorAll('[data-rfp-pricing-line][data-parent-item-id="' + parentItemId + '"]').forEach(function(line) {
@@ -1363,14 +1363,14 @@
       totalCost += computed.totalCost;
       totalWithMarkup += computed.totalWithMarkup;
       qty = Math.max(qty, computed.qty || 0);
+      if (!isNewLine) {
+        markupValues.push(percentInput(line, 'markup_pct', 16));
+        grValues.push(percentInput(line, 'general_requirements_pct', 4));
+      }
       if (approved) {
         if (!isNewLine) {
           approvedCount += 1;
-          approvedTotalCost += computed.totalCost;
           approvedTotalWithMarkup += computed.totalWithMarkup;
-          approvedQty = Math.max(approvedQty, computed.qty || 0);
-          approvedMarkupValues.push(percentInput(line, 'markup_pct', 16));
-          approvedGrValues.push(percentInput(line, 'general_requirements_pct', 4));
         }
       }
     });
@@ -1380,13 +1380,13 @@
     if (parentRow) {
       parentRow.setAttribute('data-rfp-line-total', moneyPlain(approvedTotalWithMarkup));
       parentRow.setAttribute('data-rfp-line-approved', approvedCount > 0 ? '1' : '0');
-      setPlainOutput(parentRow.querySelector('[data-rfp-parent-qty="' + parentItemId + '"]'), approvedQty || 0);
-      setMoneyOutput(parentRow.querySelector('[data-rfp-parent-unit-cost="' + parentItemId + '"]'), approvedQty > 0 ? approvedTotalCost / approvedQty : 0);
-      setMoneyOutput(parentRow.querySelector('[data-rfp-parent-total-cost="' + parentItemId + '"]'), approvedTotalCost);
-      setPlainOutput(parentRow.querySelector('[data-rfp-parent-markup="' + parentItemId + '"]'), percentSummary(approvedMarkupValues));
-      setPlainOutput(parentRow.querySelector('[data-rfp-parent-gr="' + parentItemId + '"]'), percentSummary(approvedGrValues));
-      setMoneyOutput(parentRow.querySelector('[data-rfp-parent-total="' + parentItemId + '"]'), approvedTotalWithMarkup);
-      setMoneyOutput(parentRow.querySelector('[data-rfp-parent-final-unit="' + parentItemId + '"]'), approvedQty > 0 ? approvedTotalWithMarkup / approvedQty : 0);
+      setPlainOutput(parentRow.querySelector('[data-rfp-parent-qty="' + parentItemId + '"]'), qty || 0);
+      setMoneyOutput(parentRow.querySelector('[data-rfp-parent-unit-cost="' + parentItemId + '"]'), qty > 0 ? totalCost / qty : 0);
+      setMoneyOutput(parentRow.querySelector('[data-rfp-parent-total-cost="' + parentItemId + '"]'), totalCost);
+      setPlainOutput(parentRow.querySelector('[data-rfp-parent-markup="' + parentItemId + '"]'), percentSummary(markupValues));
+      setPlainOutput(parentRow.querySelector('[data-rfp-parent-gr="' + parentItemId + '"]'), percentSummary(grValues));
+      setMoneyOutput(parentRow.querySelector('[data-rfp-parent-total="' + parentItemId + '"]'), totalWithMarkup);
+      setMoneyOutput(parentRow.querySelector('[data-rfp-parent-final-unit="' + parentItemId + '"]'), qty > 0 ? totalWithMarkup / qty : 0);
       var approvedIcon = parentRow.querySelector('[data-rfp-parent-approved-icon="' + parentItemId + '"]');
       if (approvedIcon) {
         var allApproved = lineCount > 0 && approvedCount === lineCount;
@@ -1723,7 +1723,7 @@
 </script>
 
 <%- include('../layouts/footer') %>
-<script src="/js/rfp-live-calculator.js?v=20260715-subline-save-v3"></script>
+<script src="/js/rfp-live-calculator.js?v=20260715-subline-delete-v1"></script>
 
 <!-- RFP autocomplete data (rendered server-side) -->
 <script>
