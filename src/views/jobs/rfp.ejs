@@ -308,8 +308,12 @@
         <div class="px-5 py-2 border-b border-recon-mist bg-recon-deeper/10 flex items-center justify-between">
           <span class="text-xs font-medium text-recon-fog">Line items — check Bid PDF boxes for the batch request</span>
           <div class="flex items-center gap-2">
-            <button onclick="document.getElementById('rfp-item-form-<%= rfp.id %>').classList.toggle('hidden')"
-                    class="btn btn-primary text-xs" style="padding:.3rem .7rem;">+ Add line item</button>
+            <button type="button"
+                    class="btn btn-primary text-xs"
+                    style="padding:.3rem .7rem;"
+                    data-rfp-add-item-toggle="<%= rfp.id %>"
+                    aria-controls="rfp-item-form-<%= rfp.id %>"
+                    aria-expanded="false">+ Add line item</button>
           </div>
         </div>
 
@@ -987,6 +991,30 @@
     return document.getElementById('rfp-row-' + rfpId) || section;
   }
 
+  function toggleRfpCategoryItemForm(rfpId, forceOpen) {
+    if (!rfpId) return null;
+    var formPanel = document.getElementById('rfp-item-form-' + rfpId);
+    var toggle = document.querySelector('[data-rfp-add-item-toggle="' + rfpId + '"]');
+    if (!formPanel) return null;
+    var shouldOpen = forceOpen === true || (forceOpen !== false && formPanel.classList.contains('hidden'));
+    formPanel.classList.toggle('hidden', !shouldOpen);
+    if (toggle) toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+    if (shouldOpen) {
+      var description = formPanel.querySelector('[name="description"]');
+      if (description) setTimeout(function() { description.focus(); }, 0);
+    }
+    return formPanel;
+  }
+
+  document.querySelectorAll('[data-rfp-add-item-toggle]').forEach(function(toggle) {
+    toggle.addEventListener('click', function(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleRfpCategoryItemForm(toggle.getAttribute('data-rfp-add-item-toggle'));
+    });
+  });
+  window.toggleRfpCategoryItemForm = toggleRfpCategoryItemForm;
+
   // D-141: BuildingConnected bid instructions — collapsible per category,
   // remembered across page reloads (this page reloads a lot from other
   // actions, so an in-memory-only toggle would re-expand constantly).
@@ -1087,12 +1115,20 @@
     var rfpId = params.get('open_rfp');
     var itemId = params.get('open_item');
     var showSubForm = params.get('show_sub_form');
-    if (!rfpId && !itemId && !showSubForm) return;
+    var showCategoryForm = params.get('show_category_form');
+    var openEditor = params.get('open_editor');
+    if (!rfpId && !itemId && !showSubForm && !showCategoryForm && !openEditor) return;
 
     var target = expandRfp(rfpId);
+    if (showCategoryForm && rfpId) {
+      target = toggleRfpCategoryItemForm(rfpId, true) || target;
+    }
     if (itemId) {
       var itemRow = document.getElementById('rfp-line-' + itemId);
       if (itemRow) target = itemRow;
+    }
+    if (openEditor) {
+      target = openRfpLineEditor(openEditor) || target;
     }
     if (showSubForm) {
       var subForm = document.getElementById('add-sub-' + showSubForm);

@@ -749,6 +749,7 @@ test('RFP edits return users to the open category and line item', () => {
   assert.match(routes, /function rfpRedirect\(jobId, params = \{\}\)/);
   assert.match(routes, /open_rfp: req\.params\.rId/);
   assert.match(routes, /open_item: parent_id \|\| data\?\.id/);
+  assert.match(routes, /open_editor: parent_id \? '' : data\?\.id/);
   assert.match(routes, /show_sub_form: parent_id \|\| ''/);
   assert.match(routes, /open_item: item\.parent_line_item_id \|\| req\.params\.itemId/);
 
@@ -761,8 +762,23 @@ test('RFP edits return users to the open category and line item', () => {
   assert.match(view, /params\.get\('open_rfp'\)/);
   assert.match(view, /params\.get\('open_item'\)/);
   assert.match(view, /params\.get\('show_sub_form'\)/);
+  assert.match(view, /params\.get\('show_category_form'\)/);
+  assert.match(view, /params\.get\('open_editor'\)/);
+  assert.match(view, /target = openRfpLineEditor\(openEditor\) \|\| target/);
   assert.match(view, /document\.getElementById\('rfp-line-' \+ itemId\)/);
   assert.doesNotMatch(view, /if \(itemId\) target = openRfpLineEditor\(itemId\) \|\| target/);
+});
+
+test('new RFP categories reliably open the first line item form', () => {
+  const view = read('src/views/jobs/rfp.ejs');
+  const routes = read('src/routes/rfp.js');
+
+  assert.match(view, /type="button"[\s\S]*data-rfp-add-item-toggle="<%= rfp\.id %>"/);
+  assert.match(view, /function toggleRfpCategoryItemForm\(rfpId, forceOpen\)/);
+  assert.match(view, /toggleRfpCategoryItemForm\(rfpId, true\)/);
+  assert.match(view, /toggle\.addEventListener\('click'/);
+  assert.match(view, /description\.focus\(\)/);
+  assert.match(routes, /show_category_form: 1/);
 });
 
 test('RFP line items open a pricing editor instead of dropdown sub rows', () => {

@@ -737,6 +737,7 @@ router.post('/projects/:id/rfps/:rId/items', requireRfpEditAccess, async (req, r
   res.redirect(rfpRedirect(req.params.id, {
     open_rfp: req.params.rId,
     open_item: parent_id || data?.id,
+    open_editor: parent_id ? '' : data?.id,
     show_sub_form: parent_id || '',
   }));
 });
