@@ -322,28 +322,97 @@ router.get('/', async (req, res) => {
   });
 });
 
-// D-144: load open projects + open WOs so the bill form's Project/WO pickers
-// have real data to choose from (Hermes' F-010 added the pickers but the
-// route wasn't passing the dropdown data).
-async function loadProjectsAndWorkOrders() {
+// Load bill-linking context in one pass. Completed work orders remain available
+// because vendor invoices commonly arrive after the field work is finished.
+const BILL_WORK_ORDER_SELECT = `
+  id, display_number, status, unit_number, description, job_id,
+  jobs!left(title, address, city, state, customers!left(name)),
+  customers!left(name, address, city, state)
+`;
+
+async function loadProjectsAndWorkOrders({ projectId = null, workOrderId = null } = {}) {
+  const selectedProjectId = parseInt(projectId, 10) || null;
+  const selectedWorkOrderId = parseInt(workOrderId, 10) || null;
   const [pRes, woRes] = await Promise.all([
     supabase.from('jobs')
       .select('id, title, status')
-      .not('status', 'in', '("closed","cancelled","archived","complete","completed")')
       .order('id', { ascending: false })
-      .limit(500),
+      .limit(1000),
     supabase.from('work_orders')
-      .select('id, display_number, status, jobs(title), customers(name)')
-      .not('status', 'in', '("closed","cancelled","complete")')
+      .select(BILL_WORK_ORDER_SELECT)
+      .neq('status', 'cancelled')
       .order('id', { ascending: false })
-      .limit(500),
+      .limit(1000),
   ]);
-  const projects = (pRes.data || []).map(j => ({ id: j.id, title: j.title || `Project #${j.id}` }));
-  const workOrders = (woRes.data || []).map(w => ({
+  if (pRes.error) throw pRes.error;
+  if (woRes.error) throw woRes.error;
+
+  const projectRows = [...(pRes.data || [])];
+  if (selectedProjectId && !projectRows.some(j => j.id === selectedProjectId)) {
+    const { data, error } = await supabase
+      .from('jobs')
+      .select('id, title, status')
+      .eq('id', selectedProjectId)
+      .maybeSingle();
+    if (error) throw error;
+    if (data) projectRows.push(data);
+  }
+
+  const workOrderRows = [...(woRes.data || [])];
+  if (selectedWorkOrderId && !workOrderRows.some(w => w.id === selectedWorkOrderId)) {
+    const { data, error } = await supabase
+      .from('work_orders')
+      .select(BILL_WORK_ORDER_SELECT)
+      .eq('id', selectedWorkOrderId)
+      .maybeSingle();
+    if (error) throw error;
+    if (data) workOrderRows.push(data);
+  }
+
+  const woIds = workOrderRows.map(w => w.id);
+  let invoiceRows = [];
+  if (woIds.length) {
+    const chunks = [];
+    for (let i = 0; i < woIds.length; i += 200) chunks.push(woIds.slice(i, i + 200));
+    const invoiceResults = await Promise.all(chunks.map(ids => supabase
+      .from('invoices')
+      .select('id, status, work_order_id, created_at')
+      .in('work_order_id', ids)
+      .order('created_at', { ascending: false })));
+    invoiceResults.forEach(result => {
+      if (result.error) throw result.error;
+      invoiceRows.push(...(result.data || []));
+    });
+  }
+
+  const invoiceByWorkOrder = new Map();
+  invoiceRows.forEach(invoice => {
+    if (!invoiceByWorkOrder.has(invoice.work_order_id)) {
+      invoiceByWorkOrder.set(invoice.work_order_id, invoice);
+    }
+  });
+
+  const projects = projectRows.map(j => ({
+    id: j.id,
+    title: j.title || `Project #${j.id}`,
+    status: j.status || '',
+  }));
+  const workOrders = workOrderRows.map(w => ({
     id: w.id,
     display_number: w.display_number,
+    status: w.status || '',
+    unit_number: w.unit_number || '',
+    description: w.description || '',
+    job_id: w.job_id || null,
     job_title: w.jobs?.title || '',
-    customer_name: w.customers?.name || '',
+    customer_name: w.customers?.name || w.jobs?.customers?.name || '',
+    address: [
+      w.jobs?.address || w.customers?.address,
+      w.jobs?.city || w.customers?.city,
+      w.jobs?.state || w.customers?.state,
+    ].filter(Boolean).join(', '),
+    invoice_id: invoiceByWorkOrder.get(w.id)?.id || null,
+    invoice_status: invoiceByWorkOrder.get(w.id)?.status || '',
   }));
   return { projects, workOrders };
 }
@@ -368,9 +437,12 @@ router.get('/new', async (req, res) => {
 
 router.post('/', async (req, res) => {
   const { vendors, expenseAccounts } = await loadVendorsAndAccounts();
-  const { projects, workOrders } = await loadProjectsAndWorkOrders();
   const { errors, data } = await validateBill(req.body);
   if (Object.keys(errors).length) {
+    const { projects, workOrders } = await loadProjectsAndWorkOrders({
+      projectId: data.job_id,
+      workOrderId: data.work_order_id,
+    });
     return res.status(400).render('bills/new', {
       title: 'New bill', activeNav: 'bills',
       bill: { id: null, ...data }, vendors, expenseAccounts, projects, workOrders, errors,
@@ -456,7 +528,10 @@ router.get('/:id/edit', async (req, res) => {
     return res.redirect(`/bills/${bill.id}`);
   }
   const { vendors, expenseAccounts } = await loadVendorsAndAccounts();
-  const { projects, workOrders } = await loadProjectsAndWorkOrders();
+  const { projects, workOrders } = await loadProjectsAndWorkOrders({
+    projectId: bill.job_id,
+    workOrderId: bill.work_order_id,
+  });
   res.render('bills/edit', {
     title: `Edit bill #${bill.id}`, activeNav: 'bills',
     bill, vendors, expenseAccounts, projects, workOrders, errors: {},
@@ -472,9 +547,12 @@ router.post('/:id', async (req, res) => {
     return res.redirect(`/bills/${existing.id}`);
   }
   const { vendors, expenseAccounts } = await loadVendorsAndAccounts();
-  const { projects, workOrders } = await loadProjectsAndWorkOrders();
   const { errors, data } = await validateBill(req.body);
   if (Object.keys(errors).length) {
+    const { projects, workOrders } = await loadProjectsAndWorkOrders({
+      projectId: data.job_id || existing.job_id,
+      workOrderId: data.work_order_id || existing.work_order_id,
+    });
     return res.status(400).render('bills/edit', {
       title: `Edit bill #${existing.id}`, activeNav: 'bills',
       bill: { ...existing, ...data }, vendors, expenseAccounts, projects, workOrders, errors,

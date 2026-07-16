@@ -4,6 +4,21 @@ const linesToRender = (bill.lines && bill.lines.length) ? bill.lines : [{
   account_id: '', description: '', quantity: 1, unit_price: 0, line_total: 0
 }];
 function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
+function woSearchLabel(w) {
+  const description = String(w.description || '').replace(/\s+/g, ' ').trim();
+  return [
+    `WO-${w.display_number}`,
+    w.customer_name,
+    w.job_title && w.job_title !== w.customer_name ? w.job_title : '',
+    w.unit_number ? `Unit ${w.unit_number}` : '',
+    w.address,
+    description ? description.slice(0, 80) : '',
+    w.invoice_id ? `INV-${w.display_number}` : '',
+    w.status ? `Status ${String(w.status).replace(/_/g, ' ')}` : '',
+  ].filter(Boolean).join(' | ');
+}
+const selectedWorkOrder = (workOrders || []).find(w => String(w.id) === String(bill.work_order_id));
+const workOrdersJson = JSON.stringify(workOrders || []).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
 %>
 <form action="<%= formAction %>" method="post" class="space-y-6">
   <div class="card p-5">
@@ -47,33 +62,51 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
     </div>
   </div>
 
-  <!-- F-010: Project + WO links for propagation. Form posts project_id; bills.js maps it to the legacy DB column. -->
+  <!-- Project + WO links for propagation. Form posts project_id; bills.js maps it to the legacy DB column. -->
   <div class="card p-5">
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="flex items-start justify-between gap-4 mb-4">
       <div>
-        <label class="label" for="project_id">Project
-          <span class="ml-1 text-recon-fog cursor-help" title="Link this bill to a project. The project's financial panel and cost actuals will auto-update.">ⓘ</span>
-        </label>
+        <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog">Link to Forge work</h3>
+        <p class="text-xs text-recon-fog mt-1">Search the details printed on the vendor invoice instead of looking up the WO in another tab.</p>
+      </div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="md:col-span-2">
+        <label class="label" for="work-order-search">Find work order</label>
+        <div class="flex items-center gap-2">
+          <input type="text" id="work-order-search" list="work-order-list" class="input text-sm"
+                 value="<%= selectedWorkOrder ? woSearchLabel(selectedWorkOrder) : '' %>"
+                 placeholder="Search WO #, customer/site, unit, description, or invoice..." autocomplete="off">
+          <button type="button" id="clear-work-order" class="btn btn-secondary" title="Clear linked work order" aria-label="Clear linked work order">&times;</button>
+        </div>
+        <datalist id="work-order-list">
+          <% (workOrders || []).forEach(function(w){ %>
+            <option value="<%= woSearchLabel(w) %>"></option>
+          <% }); %>
+        </datalist>
+        <input type="hidden" name="work_order_id" id="work_order_id" value="<%= bill.work_order_id || '' %>">
+        <p id="work-order-hint" class="text-xs text-recon-fog mt-2">Start typing any detail, then choose the matching work order.</p>
+      </div>
+      <div>
+        <label class="label" for="project_id">Project</label>
         <select name="project_id" id="project_id" class="input text-sm">
           <option value="">— None —</option>
           <% (projects || []).forEach(function(j){ %>
-            <option value="<%= j.id %>" <%= String(bill.job_id) === String(j.id) ? 'selected' : '' %>><%= j.title %></option>
-          <% }); %>
-        </select>
-      </div>
-      <div>
-        <label class="label" for="work_order_id">Work order
-          <span class="ml-1 text-recon-fog cursor-help" title="Link this bill to a specific WO. The WO's billing panel and linked estimate/invoice cost actuals will auto-update.">ⓘ</span>
-        </label>
-        <select name="work_order_id" id="work_order_id" class="input text-sm">
-          <option value="">— None —</option>
-          <% (workOrders || []).forEach(function(w){ %>
-            <option value="<%= w.id %>" <%= String(bill.work_order_id) === String(w.id) ? 'selected' : '' %>><%= w.display_number %> — <%= w.customer_name || w.job_title || '' %></option>
+            <option value="<%= j.id %>" <%= String(bill.job_id) === String(j.id) ? 'selected' : '' %>><%= j.title %><%= j.status && !['open', 'active', 'pending', 'in_progress'].includes(j.status) ? ' (' + j.status.replace(/_/g, ' ') + ')' : '' %></option>
           <% }); %>
         </select>
       </div>
     </div>
-    <p class="text-xs text-recon-fog mt-2">Linking this bill to a project + work order will automatically update the project's financial panel, the WO's billing list, and the linked estimate/invoice cost actuals.</p>
+    <div id="work-order-match" class="mt-4 pt-4 border-t border-recon-mist <%= selectedWorkOrder ? '' : 'hidden' %>">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
+        <div><div class="text-xs uppercase text-recon-fog">Work order</div><a id="matched-wo-link" class="font-semibold text-recon-red hover:underline" href="<%= selectedWorkOrder ? '/work-orders/' + selectedWorkOrder.id : '#' %>"><%= selectedWorkOrder ? 'WO-' + selectedWorkOrder.display_number : '' %></a></div>
+        <div><div class="text-xs uppercase text-recon-fog">Customer / project</div><div id="matched-wo-customer" class="font-medium"><%= selectedWorkOrder ? ([selectedWorkOrder.customer_name, selectedWorkOrder.job_title].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(' · ') || '—') : '' %></div></div>
+        <div><div class="text-xs uppercase text-recon-fog">Unit / area</div><div id="matched-wo-unit" class="font-medium"><%= selectedWorkOrder ? (selectedWorkOrder.unit_number || '—') : '' %></div></div>
+        <div><div class="text-xs uppercase text-recon-fog">Forge invoice</div><div id="matched-wo-invoice"><% if (selectedWorkOrder && selectedWorkOrder.invoice_id) { %><a class="font-semibold text-recon-red hover:underline" href="/invoices/<%= selectedWorkOrder.invoice_id %>">INV-<%= selectedWorkOrder.display_number %></a><% } else if (selectedWorkOrder) { %>None yet<% } %></div></div>
+      </div>
+      <p id="matched-wo-description" class="text-xs text-recon-fog mt-3"><%= selectedWorkOrder ? (selectedWorkOrder.description || '') : '' %></p>
+    </div>
+    <p class="text-xs text-recon-fog mt-3">Selecting a work order also selects its project and updates the project financials, WO billing list, and linked estimate/invoice costs.</p>
   </div>
 
   <div class="card overflow-hidden">
@@ -204,6 +237,86 @@ function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) :
     var match = vendors.find(function(v){ return v.name === selectedName; });
     if (!match) { hidden.value = ''; }
   });
+})();
+
+// Match vendor paperwork to Forge by any detail visible on the bill. The hidden
+// work_order_id remains the posted value; the richer search label is UI only.
+(function(){
+  var workOrders = <%- workOrdersJson %>;
+  var search = document.getElementById('work-order-search');
+  var hidden = document.getElementById('work_order_id');
+  var project = document.getElementById('project_id');
+  var clear = document.getElementById('clear-work-order');
+  var matchPanel = document.getElementById('work-order-match');
+  var hint = document.getElementById('work-order-hint');
+  if (!search || !hidden) return;
+
+  function labelFor(w) {
+    var description = String(w.description || '').replace(/\s+/g, ' ').trim();
+    return [
+      'WO-' + w.display_number,
+      w.customer_name,
+      w.job_title && w.job_title !== w.customer_name ? w.job_title : '',
+      w.unit_number ? 'Unit ' + w.unit_number : '',
+      w.address,
+      description ? description.slice(0, 80) : '',
+      w.invoice_id ? 'INV-' + w.display_number : '',
+      w.status ? 'Status ' + String(w.status).replace(/_/g, ' ') : ''
+    ].filter(Boolean).join(' | ');
+  }
+
+  function findMatch(value) {
+    var normalized = String(value || '').trim().toLowerCase();
+    if (!normalized) return null;
+    return workOrders.find(function(w) {
+      return labelFor(w).toLowerCase() === normalized ||
+        ('wo-' + String(w.display_number)).toLowerCase() === normalized ||
+        String(w.display_number).toLowerCase() === normalized;
+    }) || null;
+  }
+
+  function renderMatch(w) {
+    if (!w) {
+      hidden.value = '';
+      matchPanel.classList.add('hidden');
+      hint.textContent = search.value ? 'Choose a matching result to link this bill.' : 'Start typing any detail, then choose the matching work order.';
+      return;
+    }
+    hidden.value = w.id;
+    if (w.job_id && project) project.value = String(w.job_id);
+    search.value = labelFor(w);
+    document.getElementById('matched-wo-link').href = '/work-orders/' + w.id;
+    document.getElementById('matched-wo-link').textContent = 'WO-' + w.display_number;
+    document.getElementById('matched-wo-customer').textContent = [w.customer_name, w.job_title].filter(Boolean).filter(function(value, index, values) { return values.indexOf(value) === index; }).join(' · ') || '—';
+    document.getElementById('matched-wo-unit').textContent = w.unit_number || '—';
+    document.getElementById('matched-wo-description').textContent = w.description || '';
+    var invoice = document.getElementById('matched-wo-invoice');
+    invoice.textContent = '';
+    if (w.invoice_id) {
+      var link = document.createElement('a');
+      link.href = '/invoices/' + w.invoice_id;
+      link.className = 'font-semibold text-recon-red hover:underline';
+      link.textContent = 'INV-' + w.display_number;
+      invoice.appendChild(link);
+    } else {
+      invoice.textContent = 'None yet';
+    }
+    matchPanel.classList.remove('hidden');
+    hint.textContent = 'Matched. Selecting another result will replace this link.';
+  }
+
+  function syncMatch() { renderMatch(findMatch(search.value)); }
+  search.addEventListener('input', syncMatch);
+  search.addEventListener('change', syncMatch);
+  clear.addEventListener('click', function() {
+    search.value = '';
+    renderMatch(null);
+    search.focus();
+  });
+
+  if (hidden.value) {
+    renderMatch(workOrders.find(function(w) { return String(w.id) === String(hidden.value); }) || null);
+  }
 })();
 
 // D-144: real-time totals — line $, subtotal, tax, total recompute as the user

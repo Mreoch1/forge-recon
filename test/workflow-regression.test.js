@@ -31,6 +31,23 @@ test('bill-created paperwork uses configurable default markup', () => {
   assert.match(service, /DEFAULT_BILL_MARKUP_PCT/);
 });
 
+test('bill entry can find a work order from vendor invoice details', () => {
+  const routes = read('src/routes/bills.js');
+  const form = read('src/views/bills/_form.ejs');
+
+  assert.match(routes, /unit_number, description, job_id/);
+  assert.match(routes, /jobs!left\(title, address, city, state, customers!left\(name\)\)/);
+  assert.match(routes, /customers!left\(name, address, city, state\)/);
+  assert.match(routes, /\.neq\('status', 'cancelled'\)/);
+  assert.match(routes, /\.from\('invoices'\)/);
+  assert.match(routes, /invoice_id: invoiceByWorkOrder\.get\(w\.id\)\?\.id \|\| null/);
+  assert.match(form, /id="work-order-search" list="work-order-list"/);
+  assert.match(form, /Search WO #, customer\/site, unit, description, or invoice/);
+  assert.match(form, /name="work_order_id" id="work_order_id"/);
+  assert.match(form, /if \(w\.job_id && project\) project\.value = String\(w\.job_id\)/);
+  assert.match(form, /href = '\/invoices\/' \+ w\.invoice_id/);
+});
+
 test('project member form has non-HTMX fallback actions', () => {
   const partial = read('src/views/jobs/_members_list.ejs');
   assert.match(partial, /method="post"\s+action="\/projects\/<%= job\.id %>\/members"/);
