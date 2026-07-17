@@ -69,6 +69,7 @@ test('submittal packet routes and project navigation are wired', () => {
   const routes = fs.readFileSync(path.join(ROOT, 'src/routes/submittals.js'), 'utf8');
   const tabs = fs.readFileSync(path.join(ROOT, 'src/views/jobs/_project_tabs.ejs'), 'utf8');
   const view = fs.readFileSync(path.join(ROOT, 'src/views/jobs/submittals.ejs'), 'utf8');
+  const coverImage = path.join(ROOT, 'public/images/submittals/modern-office-cover.jpg');
 
   assert.match(app, /app\.use\('\/projects', requireAuth, requireManager, submittalRoutes\)/);
   assert.match(routes, /submittals\/packet\.pdf/);
@@ -81,6 +82,7 @@ test('submittal packet routes and project navigation are wired', () => {
   assert.match(view, /Forge reads text-based PDFs and fills blank details/);
   assert.doesNotMatch(view, /name="title"[^>]*required/);
   assert.match(view, /class="ops-shell"/);
+  assert.equal(fs.existsSync(coverImage), true);
 });
 
 test('pageCount reads uploaded manufacturer PDFs', async () => {
