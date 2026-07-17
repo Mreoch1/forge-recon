@@ -25,6 +25,7 @@ const estimatesRoutes = require('./routes/estimates');
 const jobsRoutes = require('./routes/jobs');
 const rfpRoutes = require('./routes/rfp');
 const materialsRoutes = require('./routes/materials');
+const submittalRoutes = require('./routes/submittals');
 const workOrdersRoutes = require('./routes/work-orders');
 const invoicesRoutes = require('./routes/invoices');
 const scheduleRoutes = require('./routes/schedule');
@@ -244,6 +245,7 @@ app.use('/customers', requireAuth, requireManager, customersRoutes);
 // D-007: Projects layer — Jobs renamed Projects in UI. /projects is canonical;
 // /jobs preserved as a redirect so older links keep working.
 app.use('/projects', requireAuth, requireManager, jobsRoutes);
+app.use('/projects', requireAuth, requireManager, submittalRoutes);
 app.use('/jobs', requireAuth, requireAdmin, (req, res) => {
   const tail = req.url === '/' ? '' : req.url;
   res.redirect(302, '/projects' + tail);

@@ -1,0 +1,357 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<%
+function dateValue(value) { return value ? String(value).slice(0, 10) : ''; }
+function fileSize(bytes) {
+  var size = Number(bytes || 0);
+  if (size >= 1024 * 1024) return (size / 1024 / 1024).toFixed(1) + ' MB';
+  return Math.max(1, Math.round(size / 1024)) + ' KB';
+}
+%>
+
+<div class="ops-shell">
+  <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <a href="/projects/<%= job.id %>" class="text-sm text-recon-fog hover:text-recon-red">&larr; Project overview</a>
+    <div class="flex flex-wrap gap-2">
+      <button type="button" class="btn btn-secondary text-sm" id="show-import-submittals">Import packet</button>
+      <a href="/projects/<%= job.id %>/submittals/packet.pdf" class="btn btn-primary text-sm" target="_blank">Build packet PDF</a>
+    </div>
+  </div>
+
+  <%- include('_project_header', { job: job, projectManager: null, projectAccess: access }) %>
+  <%- include('_project_tabs', { job: job, projectAccess: access, activeProjectTab: 'submittals' }) %>
+
+  <section id="submittal-import-panel" class="card mb-6 overflow-hidden hidden">
+    <header class="px-5 py-4 border-b border-recon-mist flex items-center justify-between gap-3">
+      <div>
+        <h2 class="font-semibold">Import a prior packet</h2>
+        <p class="text-xs text-recon-fog mt-0.5">Copies every entry and PDF into this project. The source project stays unchanged.</p>
+      </div>
+      <button type="button" class="btn btn-ghost text-sm" id="hide-import-submittals" aria-label="Close import panel">Close</button>
+    </header>
+    <form method="post" action="/projects/<%= job.id %>/submittals/import" class="p-5 grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+      <div class="md:col-span-7">
+        <label class="label" for="source-job-id">Source project</label>
+        <select id="source-job-id" name="source_job_id" class="input w-full" required>
+          <option value="">Select a project with a submittal packet...</option>
+          <% sourcePackets.forEach(function(source){ %>
+            <option value="<%= source.job_id %>"><%= source.project_title %> - <%= source.packet_title %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div class="md:col-span-3">
+        <label class="label" for="import-mode">Import method</label>
+        <select id="import-mode" name="import_mode" class="input w-full">
+          <option value="append">Add to current packet</option>
+          <option value="replace">Replace current packet</option>
+        </select>
+      </div>
+      <div class="md:col-span-2">
+        <button type="submit" class="btn btn-primary w-full">Import</button>
+      </div>
+      <% if (!sourcePackets.length) { %>
+        <p class="md:col-span-12 text-sm text-recon-fog">No other project has a saved submittal packet yet.</p>
+      <% } %>
+    </form>
+  </section>
+
+  <section class="card mb-6 overflow-hidden">
+    <header class="px-5 py-4 border-b border-recon-mist flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h2 class="font-semibold">Packet details</h2>
+        <p class="text-xs text-recon-fog mt-0.5">Shown on the Recon cover sheet and table of contents.</p>
+      </div>
+      <span class="text-xs uppercase tracking-wider text-recon-fog"><%= items.length %> submittal<%= items.length === 1 ? '' : 's' %></span>
+    </header>
+    <form method="post" action="/projects/<%= job.id %>/submittals/packet" class="p-5 grid grid-cols-1 md:grid-cols-12 gap-4">
+      <div class="md:col-span-6">
+        <label class="label" for="packet-title">Packet title</label>
+        <input id="packet-title" name="packet_title" class="input w-full" value="<%= packet.packet_title || '' %>" required>
+      </div>
+      <div class="md:col-span-3">
+        <label class="label" for="issue-date">Issue date</label>
+        <input id="issue-date" type="date" name="issue_date" class="input w-full" value="<%= dateValue(packet.issue_date) %>">
+      </div>
+      <div class="md:col-span-3">
+        <label class="label" for="packet-revision">Revision</label>
+        <input id="packet-revision" name="revision" class="input w-full" value="<%= packet.revision || '' %>" placeholder="Original issue">
+      </div>
+      <div class="md:col-span-6">
+        <label class="label" for="prepared-for">Prepared for</label>
+        <input id="prepared-for" name="prepared_for" class="input w-full" value="<%= packet.prepared_for || '' %>" placeholder="General contractor / reviewer">
+      </div>
+      <div class="md:col-span-6">
+        <label class="label" for="prepared-by">Prepared by</label>
+        <input id="prepared-by" name="prepared_by" class="input w-full" value="<%= packet.prepared_by || '' %>" placeholder="Eric / Recon Enterprises">
+      </div>
+      <div class="md:col-span-12">
+        <label class="label" for="cover-notes">Cover notes</label>
+        <textarea id="cover-notes" name="cover_notes" class="input w-full" rows="3" placeholder="Package-wide notes, substitutions, or review instructions"><%= packet.cover_notes || '' %></textarea>
+      </div>
+      <div class="md:col-span-12 flex justify-end">
+        <button type="submit" class="btn btn-secondary">Save packet details</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card mb-6 overflow-hidden">
+    <header class="px-5 py-4 border-b border-recon-mist flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h2 class="font-semibold">Product submittals</h2>
+        <p class="text-xs text-recon-fog mt-0.5">Order these the way they should appear in the final packet.</p>
+      </div>
+      <button type="button" class="btn btn-primary text-sm" id="show-new-submittal">+ Add submittal</button>
+    </header>
+
+    <form id="new-submittal-form" class="p-5 border-b border-recon-mist bg-recon-cloud hidden">
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
+        <div class="md:col-span-2">
+          <label class="label" for="new-section-number">Spec section</label>
+          <input id="new-section-number" name="section_number" class="input w-full" placeholder="08 71 00">
+        </div>
+        <div class="md:col-span-5">
+          <label class="label" for="new-submittal-title">Submittal title</label>
+          <input id="new-submittal-title" name="title" class="input w-full" placeholder="Door hardware" required>
+        </div>
+        <div class="md:col-span-5">
+          <label class="label" for="new-manufacturer">Manufacturer</label>
+          <input id="new-manufacturer" name="manufacturer" class="input w-full" placeholder="Manufacturer name">
+        </div>
+        <div class="md:col-span-4">
+          <label class="label" for="new-product-name">Product</label>
+          <input id="new-product-name" name="product_name" class="input w-full" placeholder="Product name">
+        </div>
+        <div class="md:col-span-3">
+          <label class="label" for="new-model-number">Model / product number</label>
+          <input id="new-model-number" name="model_number" class="input w-full" placeholder="Model number">
+        </div>
+        <div class="md:col-span-5">
+          <label class="label" for="new-submittal-files">Product-spec PDFs</label>
+          <input id="new-submittal-files" type="file" accept="application/pdf,.pdf" multiple class="input w-full" required>
+        </div>
+        <div class="md:col-span-12">
+          <label class="label" for="new-submittal-notes">Notes</label>
+          <textarea id="new-submittal-notes" name="notes" class="input w-full" rows="2" placeholder="Selections, colors, deviations, or review notes"></textarea>
+        </div>
+      </div>
+      <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <p id="new-submittal-status" class="text-sm text-recon-fog">PDF only, up to <%= maxFileSizeMb %> MB per file.</p>
+        <div class="flex gap-2">
+          <button type="button" class="btn btn-ghost" id="cancel-new-submittal">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="save-new-submittal">Upload and add</button>
+        </div>
+      </div>
+    </form>
+
+    <% if (!items.length) { %>
+      <div class="px-5 py-12 text-center">
+        <h3 class="font-semibold">No product submittals yet</h3>
+        <p class="text-sm text-recon-fog mt-1">Upload the first product-spec PDF or import a packet from another project.</p>
+      </div>
+    <% } %>
+
+    <% items.forEach(function(item, index){ %>
+      <details id="submittal-<%= item.id %>" class="border-b border-recon-mist last:border-b-0" <%= items.length <= 3 ? 'open' : '' %>>
+        <summary class="cursor-pointer px-5 py-4 hover:bg-recon-cloud flex flex-wrap items-center justify-between gap-3">
+          <div class="min-w-0 flex items-center gap-3">
+            <span class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded bg-recon-charcoal text-xs font-bold text-white"><%= index + 1 %></span>
+            <div class="min-w-0">
+              <div class="font-semibold truncate"><%= item.title %></div>
+              <div class="text-xs text-recon-fog truncate">
+                <%= [item.section_number ? 'Section ' + item.section_number : '', item.manufacturer, item.product_name, item.model_number].filter(Boolean).join(' | ') || 'Product details not entered' %>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2" onclick="event.stopPropagation()">
+            <span class="text-xs text-recon-fog"><%= item.files.length %> PDF<%= item.files.length === 1 ? '' : 's' %></span>
+            <form method="post" action="/projects/<%= job.id %>/submittals/items/<%= item.id %>/move" class="m-0">
+              <input type="hidden" name="direction" value="up">
+              <button type="submit" class="btn btn-ghost text-sm px-2" title="Move up" aria-label="Move up" <%= index === 0 ? 'disabled' : '' %>>&uarr;</button>
+            </form>
+            <form method="post" action="/projects/<%= job.id %>/submittals/items/<%= item.id %>/move" class="m-0">
+              <input type="hidden" name="direction" value="down">
+              <button type="submit" class="btn btn-ghost text-sm px-2" title="Move down" aria-label="Move down" <%= index === items.length - 1 ? 'disabled' : '' %>>&darr;</button>
+            </form>
+          </div>
+        </summary>
+        <div class="px-5 pb-5">
+          <form method="post" action="/projects/<%= job.id %>/submittals/items/<%= item.id %>" class="grid grid-cols-1 md:grid-cols-12 gap-3 border-t border-recon-mist pt-4">
+            <div class="md:col-span-2">
+              <label class="label">Spec section</label>
+              <input name="section_number" class="input w-full" value="<%= item.section_number || '' %>">
+            </div>
+            <div class="md:col-span-5">
+              <label class="label">Submittal title</label>
+              <input name="title" class="input w-full" value="<%= item.title || '' %>" required>
+            </div>
+            <div class="md:col-span-5">
+              <label class="label">Manufacturer</label>
+              <input name="manufacturer" class="input w-full" value="<%= item.manufacturer || '' %>">
+            </div>
+            <div class="md:col-span-4">
+              <label class="label">Product</label>
+              <input name="product_name" class="input w-full" value="<%= item.product_name || '' %>">
+            </div>
+            <div class="md:col-span-3">
+              <label class="label">Model / product number</label>
+              <input name="model_number" class="input w-full" value="<%= item.model_number || '' %>">
+            </div>
+            <div class="md:col-span-5">
+              <label class="label">Notes</label>
+              <textarea name="notes" class="input w-full" rows="2"><%= item.notes || '' %></textarea>
+            </div>
+            <div class="md:col-span-12 flex justify-end">
+              <button type="submit" class="btn btn-secondary text-sm">Save changes</button>
+            </div>
+          </form>
+
+          <div class="mt-4 border-t border-recon-mist pt-4">
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+              <h3 class="text-sm font-semibold">Product-spec PDFs</h3>
+              <form class="submittal-attachment-form flex flex-wrap items-center gap-2" data-item-id="<%= item.id %>">
+                <input type="file" accept="application/pdf,.pdf" multiple class="input text-sm submittal-attachment-input" required>
+                <button type="submit" class="btn btn-secondary text-sm">Add PDF</button>
+                <span class="text-xs text-recon-fog submittal-attachment-status"></span>
+              </form>
+            </div>
+            <% if (!item.files.length) { %>
+              <p class="text-sm text-recon-fog">No PDFs attached. This divider will still appear in the packet.</p>
+            <% } else { %>
+              <div class="divide-y divide-recon-mist border-y border-recon-mist">
+                <% item.files.forEach(function(file){ %>
+                  <div class="py-2 flex flex-wrap items-center justify-between gap-3 text-sm">
+                    <div class="min-w-0">
+                      <a href="/projects/<%= job.id %>/submittals/files/<%= file.id %>" target="_blank" class="font-medium text-recon-charcoal hover:text-recon-red"><%= file.file_name %></a>
+                      <span class="ml-2 text-xs text-recon-fog"><%= file.page_count %> page<%= file.page_count === 1 ? '' : 's' %> | <%= fileSize(file.size_bytes) %></span>
+                    </div>
+                    <form method="post" action="/projects/<%= job.id %>/submittals/files/<%= file.id %>/delete" class="m-0" onsubmit="return confirm('Remove this product-spec PDF?');">
+                      <button type="submit" class="btn btn-ghost text-xs text-recon-red">Remove</button>
+                    </form>
+                  </div>
+                <% }); %>
+              </div>
+            <% } %>
+          </div>
+
+          <div class="mt-4 flex justify-end">
+            <form method="post" action="/projects/<%= job.id %>/submittals/items/<%= item.id %>/delete" class="m-0" onsubmit="return confirm('Delete this submittal and all of its PDFs?');">
+              <button type="submit" class="btn btn-ghost text-sm text-recon-red">Delete submittal</button>
+            </form>
+          </div>
+        </div>
+      </details>
+    <% }); %>
+  </section>
+</div>
+
+<script>
+(function(){
+  var projectId = '<%= job.id %>';
+  var maxFileSize = <%= maxFileSizeMb %> * 1024 * 1024;
+  var importPanel = document.getElementById('submittal-import-panel');
+  var showImport = document.getElementById('show-import-submittals');
+  var hideImport = document.getElementById('hide-import-submittals');
+  if (showImport) showImport.addEventListener('click', function(){ importPanel.classList.remove('hidden'); importPanel.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  if (hideImport) hideImport.addEventListener('click', function(){ importPanel.classList.add('hidden'); });
+
+  var newForm = document.getElementById('new-submittal-form');
+  var showNew = document.getElementById('show-new-submittal');
+  var cancelNew = document.getElementById('cancel-new-submittal');
+  if (showNew) showNew.addEventListener('click', function(){ newForm.classList.remove('hidden'); document.getElementById('new-submittal-title').focus(); });
+  if (cancelNew) cancelNew.addEventListener('click', function(){ newForm.classList.add('hidden'); });
+
+  async function readJson(response) {
+    var data = await response.json().catch(function(){ return {}; });
+    if (!response.ok || data.ok === false) throw new Error(data.error || ('Request failed with status ' + response.status));
+    return data;
+  }
+
+  async function uploadToSignedUrl(uploadUrl, file) {
+    var rawResponse = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': 'application/pdf' }, body: file });
+    if (rawResponse.ok) return;
+    var rawText = await rawResponse.text().catch(function(){ return ''; });
+    if (rawResponse.status !== 400) throw new Error('Upload failed: ' + rawResponse.status + (rawText ? ' - ' + rawText : ''));
+    var uploadForm = new FormData();
+    uploadForm.append('cacheControl', '3600');
+    uploadForm.append('', file, file.name);
+    var formResponse = await fetch(uploadUrl, { method: 'PUT', body: uploadForm });
+    if (!formResponse.ok) throw new Error('Upload failed: ' + formResponse.status);
+  }
+
+  async function uploadFiles(fileList, statusElement) {
+    var files = Array.from(fileList || []);
+    if (!files.length) throw new Error('Choose at least one PDF.');
+    for (var i = 0; i < files.length; i += 1) {
+      var file = files[i];
+      if (!/\.pdf$/i.test(file.name) || (file.type && file.type !== 'application/pdf')) throw new Error(file.name + ' is not a PDF.');
+      if (file.size > maxFileSize) throw new Error(file.name + ' is larger than <%= maxFileSizeMb %> MB.');
+    }
+    var uploaded = [];
+    for (var index = 0; index < files.length; index += 1) {
+      var current = files[index];
+      statusElement.textContent = 'Uploading ' + (index + 1) + ' of ' + files.length + ': ' + current.name;
+      var params = new URLSearchParams({ name: current.name, size: String(current.size), type: current.type || 'application/pdf' });
+      var signed = await readJson(await fetch('/projects/' + projectId + '/submittals/upload-url?' + params.toString()));
+      await uploadToSignedUrl(signed.uploadUrl, current);
+      uploaded.push({ storage_key: signed.storageKey, file_name: current.name, size_bytes: current.size });
+    }
+    return uploaded;
+  }
+
+  if (newForm) newForm.addEventListener('submit', async function(event){
+    event.preventDefault();
+    var button = document.getElementById('save-new-submittal');
+    var status = document.getElementById('new-submittal-status');
+    button.disabled = true;
+    try {
+      var uploaded = await uploadFiles(document.getElementById('new-submittal-files').files, status);
+      status.textContent = 'Saving submittal...';
+      var values = new FormData(newForm);
+      await readJson(await fetch('/projects/' + projectId + '/submittals/items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          section_number: values.get('section_number'),
+          title: values.get('title'),
+          manufacturer: values.get('manufacturer'),
+          product_name: values.get('product_name'),
+          model_number: values.get('model_number'),
+          notes: values.get('notes'),
+          files: uploaded,
+        }),
+      }));
+      status.textContent = 'Submittal saved.';
+      window.location.reload();
+    } catch (error) {
+      status.textContent = error.message || 'Could not save the submittal.';
+      status.classList.add('text-recon-red');
+      button.disabled = false;
+    }
+  });
+
+  document.querySelectorAll('.submittal-attachment-form').forEach(function(form){
+    form.addEventListener('submit', async function(event){
+      event.preventDefault();
+      var input = form.querySelector('.submittal-attachment-input');
+      var status = form.querySelector('.submittal-attachment-status');
+      var button = form.querySelector('button[type="submit"]');
+      button.disabled = true;
+      try {
+        var uploaded = await uploadFiles(input.files, status);
+        status.textContent = 'Saving PDFs...';
+        await readJson(await fetch('/projects/' + projectId + '/submittals/items/' + form.dataset.itemId + '/files', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files: uploaded }),
+        }));
+        window.location.reload();
+      } catch (error) {
+        status.textContent = error.message || 'Could not add the PDF.';
+        status.classList.add('text-recon-red');
+        button.disabled = false;
+      }
+    });
+  });
+})();
+</script>
+
+<%- include('../layouts/footer') %>
