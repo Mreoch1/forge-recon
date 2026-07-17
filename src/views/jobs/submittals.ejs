@@ -110,7 +110,7 @@ function fileSize(bytes) {
         </div>
         <div class="md:col-span-5">
           <label class="label" for="new-submittal-title">Submittal title</label>
-          <input id="new-submittal-title" name="title" class="input w-full" placeholder="Door hardware" required>
+          <input id="new-submittal-title" name="title" class="input w-full" placeholder="Auto-filled from product spec">
         </div>
         <div class="md:col-span-5">
           <label class="label" for="new-manufacturer">Manufacturer</label>
@@ -134,7 +134,7 @@ function fileSize(bytes) {
         </div>
       </div>
       <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <p id="new-submittal-status" class="text-sm text-recon-fog">PDF only, up to <%= maxFileSizeMb %> MB per file.</p>
+        <p id="new-submittal-status" class="text-sm text-recon-fog">Forge reads text-based PDFs and fills blank details. Up to <%= maxFileSizeMb %> MB per file.</p>
         <div class="flex gap-2">
           <button type="button" class="btn btn-ghost" id="cancel-new-submittal">Cancel</button>
           <button type="submit" class="btn btn-primary" id="save-new-submittal">Upload and add</button>
@@ -304,7 +304,7 @@ function fileSize(bytes) {
     button.disabled = true;
     try {
       var uploaded = await uploadFiles(document.getElementById('new-submittal-files').files, status);
-      status.textContent = 'Saving submittal...';
+      status.textContent = 'Reading product specs and saving submittal...';
       var values = new FormData(newForm);
       await readJson(await fetch('/projects/' + projectId + '/submittals/items', {
         method: 'POST',
@@ -337,7 +337,7 @@ function fileSize(bytes) {
       button.disabled = true;
       try {
         var uploaded = await uploadFiles(input.files, status);
-        status.textContent = 'Saving PDFs...';
+        status.textContent = 'Reading and saving PDFs...';
         await readJson(await fetch('/projects/' + projectId + '/submittals/items/' + form.dataset.itemId + '/files', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

@@ -5,6 +5,7 @@ const storage = require('../services/storage');
 const { setFlash } = require('../middleware/auth');
 const { loadProjectAccess, denyProjectAccess } = require('./jobs');
 const { buildSubmittalPacket, pageCount } = require('../services/submittal-packet-pdf');
+const { extractSubmittalMetadata, fillBlankMetadata } = require('../services/submittal-spec-extractor');
 
 const router = express.Router();
 const BUCKET = 'entity-files';
@@ -146,7 +147,12 @@ async function inspectUploadedPdf(jobId, file) {
     await storage.remove(BUCKET, valid.storageKey).catch(() => {});
     throw new Error(`${valid.fileName} could not be opened as a PDF.`);
   }
-  return { ...valid, pageCount: pages };
+  return { ...valid, pageCount: pages, buffer };
+}
+
+function extractionFlash(extraction, action) {
+  if (extraction.source === 'document') return `${action} Forge filled the available details from the product spec.`;
+  return `${action} The product spec was saved, but its details could not be read automatically.`;
 }
 
 async function removeItemFiles(items) {
@@ -231,8 +237,6 @@ router.post('/:id/submittals/items', requireSubmittalAccess, express.json({ limi
   try {
     const files = Array.isArray(req.body.files) ? req.body.files.slice(0, MAX_FILES_PER_ITEM) : [];
     if (!files.length) return res.status(400).json({ error: 'Choose at least one product-spec PDF.' });
-    const title = text(req.body.title, 240);
-    if (!title) return res.status(400).json({ error: 'Submittal title is required.' });
     const packet = await ensurePacket(req.submittalJob, req.session.userId, res.locals.currentUser?.name);
     const inspectedFiles = [];
     for (const file of files) {
@@ -240,16 +244,18 @@ router.post('/:id/submittals/items', requireSubmittalAccess, express.json({ limi
       inspectedFiles.push(inspected);
       uploadedKeys.push(inspected.storageKey);
     }
+    const extraction = await extractSubmittalMetadata({ files: inspectedFiles, userId: req.session.userId });
+    const metadata = fillBlankMetadata(req.body, extraction.data);
     const item = throwResult(await supabase
       .from('project_submittal_items')
       .insert({
         packet_id: packet.id,
-        section_number: text(req.body.section_number, 80) || null,
-        title,
-        manufacturer: text(req.body.manufacturer, 180) || null,
-        product_name: text(req.body.product_name, 180) || null,
-        model_number: text(req.body.model_number, 180) || null,
-        notes: text(req.body.notes, 3000) || null,
+        section_number: metadata.section_number || null,
+        title: metadata.title,
+        manufacturer: metadata.manufacturer || null,
+        product_name: metadata.product_name || null,
+        model_number: metadata.model_number || null,
+        notes: metadata.notes || null,
         sort_order: await nextSortOrder(packet.id),
         created_by_user_id: req.session.userId || null,
       })
@@ -266,7 +272,8 @@ router.post('/:id/submittals/items', requireSubmittalAccess, express.json({ limi
       page_count: file.pageCount,
       created_by_user_id: req.session.userId || null,
     }))), 'Submittal file registration failed');
-    res.json({ ok: true, item_id: item.id });
+    setFlash(req, 'success', extractionFlash(extraction, 'Submittal saved.'));
+    res.json({ ok: true, item_id: item.id, auto_fill_source: extraction.source });
   } catch (error) {
     if (createdItemId) await supabase.from('project_submittal_items').delete().eq('id', createdItemId);
     await Promise.all(uploadedKeys.map(key => storage.remove(BUCKET, key).catch(() => {})));
@@ -308,7 +315,11 @@ router.post('/:id/submittals/items/:itemId/files', requireSubmittalAccess, expre
   const uploadedKeys = [];
   try {
     const packet = await ensurePacket(req.submittalJob, req.session.userId, res.locals.currentUser?.name);
-    const item = throwResult(await supabase.from('project_submittal_items').select('id').eq('id', req.params.itemId).eq('packet_id', packet.id).maybeSingle(), 'Submittal item load failed');
+    const item = throwResult(await supabase.from('project_submittal_items')
+      .select('id, section_number, title, manufacturer, product_name, model_number, notes')
+      .eq('id', req.params.itemId)
+      .eq('packet_id', packet.id)
+      .maybeSingle(), 'Submittal item load failed');
     if (!item) return res.status(404).json({ error: 'Submittal not found.' });
     const files = Array.isArray(req.body.files) ? req.body.files.slice(0, MAX_FILES_PER_ITEM) : [];
     if (!files.length) return res.status(400).json({ error: 'Choose at least one PDF.' });
@@ -318,6 +329,16 @@ router.post('/:id/submittals/items/:itemId/files', requireSubmittalAccess, expre
       inspected.push(valid);
       uploadedKeys.push(valid.storageKey);
     }
+    const extraction = await extractSubmittalMetadata({ files: inspected, userId: req.session.userId });
+    const metadata = fillBlankMetadata(item, extraction.data);
+    throwResult(await supabase.from('project_submittal_items').update({
+      section_number: metadata.section_number || null,
+      title: metadata.title,
+      manufacturer: metadata.manufacturer || null,
+      product_name: metadata.product_name || null,
+      model_number: metadata.model_number || null,
+      notes: metadata.notes || null,
+    }).eq('id', item.id).eq('packet_id', packet.id), 'Submittal auto-fill update failed');
     throwResult(await supabase.from('project_submittal_files').insert(inspected.map(file => ({
       item_id: item.id,
       file_name: file.fileName,
@@ -328,7 +349,8 @@ router.post('/:id/submittals/items/:itemId/files', requireSubmittalAccess, expre
       page_count: file.pageCount,
       created_by_user_id: req.session.userId || null,
     }))), 'Submittal file registration failed');
-    res.json({ ok: true });
+    setFlash(req, 'success', extractionFlash(extraction, 'Product spec added.'));
+    res.json({ ok: true, auto_fill_source: extraction.source });
   } catch (error) {
     await Promise.all(uploadedKeys.map(key => storage.remove(BUCKET, key).catch(() => {})));
     console.error('[submittals] attachment add failed:', error);

@@ -74,9 +74,12 @@ test('submittal packet routes and project navigation are wired', () => {
   assert.match(routes, /submittals\/packet\.pdf/);
   assert.match(routes, /submittals\/import/);
   assert.match(routes, /storage\.getUploadUrl\(BUCKET, key\)/);
+  assert.match(routes, /extractSubmittalMetadata/);
   assert.match(tabs, /key: 'submittals'/);
   assert.match(view, /Build packet PDF/);
   assert.match(view, /Import a prior packet/);
+  assert.match(view, /Forge reads text-based PDFs and fills blank details/);
+  assert.doesNotMatch(view, /name="title"[^>]*required/);
   assert.match(view, /class="ops-shell"/);
 });
 
