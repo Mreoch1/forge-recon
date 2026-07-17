@@ -7,6 +7,8 @@ const supabase = require('../db/supabase');
 const email = require('./email');
 const pdf = require('./pdf');
 
+const ESTIMATE_APPROVAL_REPLY_TO = process.env.ESTIMATE_APPROVAL_REPLY_TO || 'office@reconenterprises.net';
+
 function escapeHtml(value) {
   return String(value == null ? '' : value)
     .replace(/&/g, '&amp;')
@@ -136,6 +138,8 @@ async function sendEstimateEmail(estimateId, options = {}) {
     `Terms: ${est.payment_terms || c.default_payment_terms || 'Net 30'}`,
     est.valid_until ? `Valid until: ${String(est.valid_until).slice(0, 10)}` : '',
     '',
+    `To approve, reply to this email or return the signed PDF to ${ESTIMATE_APPROVAL_REPLY_TO}.`,
+    '',
     `Thanks,`,
     `${c.company_name || 'Recon Enterprises'}`
   ].filter(line => line !== '').join('\n');
@@ -143,6 +147,7 @@ async function sendEstimateEmail(estimateId, options = {}) {
   const result = await email.sendEmail({
     to: recipient,
     cc,
+    replyTo: ESTIMATE_APPROVAL_REPLY_TO,
     subject,
     text,
     htmlBody: buildEstimateEmailBody(est, c),

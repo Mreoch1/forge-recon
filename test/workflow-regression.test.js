@@ -358,6 +358,8 @@ test('managers can create and send invoices while admin keeps accounting control
   assert.match(invoices, /cc: ccEmails/);
   assert.match(estimateEmail, /async function sendEstimateEmail\(estimateId, options = \{\}\)/);
   assert.match(estimateEmail, /to: recipient,[\s\S]*cc,/);
+  assert.match(estimateEmail, /ESTIMATE_APPROVAL_REPLY_TO[\s\S]*replyTo: ESTIMATE_APPROVAL_REPLY_TO/);
+  assert.match(estimateEmail, /office@reconenterprises\.net/);
   assert.match(estimateSend, /class="document-shell"/);
   assert.match(estimateSend, /name="to_email"/);
   assert.match(estimateSend, /name="cc_emails"/);
