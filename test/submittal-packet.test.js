@@ -3,7 +3,11 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { PDFDocument, StandardFonts } = require('pdf-lib');
-const { buildSubmittalPacket, pageCount } = require('../src/services/submittal-packet-pdf');
+const {
+  buildSubmittalPacket,
+  pageCount,
+  SUBMITTAL_HEADER_LAYOUT,
+} = require('../src/services/submittal-packet-pdf');
 
 const ROOT = path.join(__dirname, '..');
 
@@ -87,4 +91,9 @@ test('submittal packet routes and project navigation are wired', () => {
 
 test('pageCount reads uploaded manufacturer PDFs', async () => {
   assert.equal(await pageCount(await productSpecPdf('Three pages', 3)), 3);
+});
+
+test('submittal page header keeps the complete Recon logo above the red rule', () => {
+  const logoBottom = SUBMITTAL_HEADER_LAYOUT.logoY + SUBMITTAL_HEADER_LAYOUT.logoHeight;
+  assert.ok(logoBottom + 8 <= SUBMITTAL_HEADER_LAYOUT.ruleY);
 });

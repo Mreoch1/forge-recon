@@ -11,6 +11,13 @@ const LOGO_PATH = path.join(__dirname, '../../public/logos/recon.png');
 const COVER_IMAGE_PATH = path.join(__dirname, '../../public/images/submittals/modern-office-cover.jpg');
 const PAGE_WIDTH = 612;
 const PAGE_HEIGHT = 792;
+const SUBMITTAL_HEADER_LAYOUT = Object.freeze({
+  logoX: 54,
+  logoY: 30,
+  logoWidth: 82,
+  logoHeight: 88,
+  ruleY: 126,
+});
 
 function display(value, fallback = '') {
   const text = String(value == null ? '' : value).trim();
@@ -38,13 +45,18 @@ function pdfKitBuffer(render) {
 
 function drawReconMark(doc) {
   if (fs.existsSync(LOGO_PATH)) {
-    doc.image(LOGO_PATH, 54, 46, { width: 88 });
+    doc.image(LOGO_PATH, SUBMITTAL_HEADER_LAYOUT.logoX, SUBMITTAL_HEADER_LAYOUT.logoY, {
+      fit: [SUBMITTAL_HEADER_LAYOUT.logoWidth, SUBMITTAL_HEADER_LAYOUT.logoHeight],
+      align: 'left',
+      valign: 'top',
+    });
   } else {
-    doc.font('Helvetica-Bold').fontSize(20).fillColor(RED).text('RECON', 54, 48);
+    doc.font('Helvetica-Bold').fontSize(20).fillColor(RED)
+      .text('RECON', SUBMITTAL_HEADER_LAYOUT.logoX, 68);
   }
 }
 
-function drawTopRule(doc, y = 108) {
+function drawTopRule(doc, y = SUBMITTAL_HEADER_LAYOUT.ruleY) {
   doc.save().moveTo(54, y).lineTo(558, y).lineWidth(2.5).strokeColor(RED).stroke().restore();
 }
 
@@ -143,11 +155,11 @@ async function renderContents({ packet, job, entries }) {
   return pdfKitBuffer(doc => {
     drawReconMark(doc);
     drawTopRule(doc);
-    doc.font('Helvetica-Bold').fontSize(24).fillColor(CHARCOAL).text('Table of Contents', 54, 132);
+    doc.font('Helvetica-Bold').fontSize(24).fillColor(CHARCOAL).text('Table of Contents', 54, 150);
     doc.font('Helvetica').fontSize(10).fillColor(GRAY)
-      .text(`${display(job.title, 'Project')} | ${display(packet.revision, 'Original issue')}`, 54, 166);
+      .text(`${display(job.title, 'Project')} | ${display(packet.revision, 'Original issue')}`, 54, 184);
 
-    let y = 208;
+    let y = 226;
     const drawHeader = () => {
       doc.rect(54, y, 504, 26).fillColor(LIGHT).fill();
       doc.font('Helvetica-Bold').fontSize(8.5).fillColor(GRAY);
@@ -166,8 +178,8 @@ async function renderContents({ packet, job, entries }) {
         doc.addPage();
         drawReconMark(doc);
         drawTopRule(doc);
-        doc.font('Helvetica-Bold').fontSize(18).fillColor(CHARCOAL).text('Table of Contents (continued)', 54, 132);
-        y = 178;
+        doc.font('Helvetica-Bold').fontSize(18).fillColor(CHARCOAL).text('Table of Contents (continued)', 54, 150);
+        y = 196;
         drawHeader();
       }
       doc.font('Helvetica-Bold').fontSize(9.5).fillColor(RED)
@@ -189,12 +201,12 @@ async function renderDivider({ item, job, index }) {
     drawReconMark(doc);
     drawTopRule(doc);
     doc.font('Helvetica-Bold').fontSize(10).fillColor(GRAY)
-      .text(`SUBMITTAL ${String(index + 1).padStart(2, '0')}`, 54, 142);
+      .text(`SUBMITTAL ${String(index + 1).padStart(2, '0')}`, 54, 154);
     doc.font('Helvetica-Bold').fontSize(27).fillColor(CHARCOAL)
-      .text(display(item.title, 'Product Submittal'), 54, 170, { width: 504 });
+      .text(display(item.title, 'Product Submittal'), 54, 182, { width: 504 });
     if (item.section_number) {
       doc.font('Helvetica-Bold').fontSize(13).fillColor(RED)
-        .text(`Section ${item.section_number}`, 54, 235, { width: 504 });
+        .text(`Section ${item.section_number}`, 54, 247, { width: 504 });
     }
 
     const details = [
@@ -203,7 +215,7 @@ async function renderDivider({ item, job, index }) {
       ['Model / product number', item.model_number],
       ['Project', job.title],
     ].filter(row => display(row[1]));
-    let y = 292;
+    let y = 304;
     details.forEach(([label, value]) => {
       doc.font('Helvetica-Bold').fontSize(8.5).fillColor(GRAY).text(label.toUpperCase(), 54, y, { width: 145 });
       doc.font('Helvetica').fontSize(11).fillColor(CHARCOAL).text(display(value), 210, y - 1, { width: 348 });
@@ -280,4 +292,4 @@ async function buildSubmittalPacket({ packet, job, company = {}, items = [] }) {
   return Buffer.from(await output.save());
 }
 
-module.exports = { buildSubmittalPacket, pageCount };
+module.exports = { buildSubmittalPacket, pageCount, SUBMITTAL_HEADER_LAYOUT };
