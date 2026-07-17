@@ -58,6 +58,12 @@ test('submittal metadata extractor falls back to a filename when PDF text is una
   assert.ok(result.warnings.length > 0);
 });
 
+test('submittal parser dependencies are lazy-loaded so app startup stays isolated', () => {
+  const source = require('node:fs').readFileSync(require.resolve('../src/services/submittal-spec-extractor'), 'utf8');
+  assert.doesNotMatch(source.split('function loadPdfParser')[0], /require\('pdf-parse'\)/);
+  assert.match(source, /require\('@napi-rs\/canvas'\)/);
+});
+
 test('submittal auto-fill preserves metadata the user already entered', () => {
   const merged = fillBlankMetadata(
     { title: 'Eric selected title', manufacturer: '', notes: 'Blue finish' },

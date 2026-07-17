@@ -1,8 +1,14 @@
-const { PDFParse } = require('pdf-parse');
-
 const MAX_SOURCE_CHARS = 7000;
 const MAX_FILES_TO_READ = 3;
 const MAX_PAGES_PER_FILE = 6;
+
+function loadPdfParser() {
+  const canvas = require('@napi-rs/canvas');
+  globalThis.DOMMatrix ||= canvas.DOMMatrix;
+  globalThis.ImageData ||= canvas.ImageData;
+  globalThis.Path2D ||= canvas.Path2D;
+  return require('pdf-parse').PDFParse;
+}
 
 function clean(value, max) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim().slice(0, max);
@@ -32,6 +38,7 @@ function fillBlankMetadata(current = {}, suggested = {}) {
 }
 
 async function textFromPdf(buffer, fileName) {
+  const PDFParse = loadPdfParser();
   const parser = new PDFParse({ data: buffer });
   try {
     const result = await parser.getText({ first: MAX_PAGES_PER_FILE });
