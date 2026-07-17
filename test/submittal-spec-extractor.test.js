@@ -58,6 +58,49 @@ test('submittal metadata extractor falls back to a filename when PDF text is una
   assert.ok(result.warnings.length > 0);
 });
 
+test('submittal metadata extractor analyzes scanned PDFs through file vision', async () => {
+  let attachedFile = null;
+  const result = await extractSubmittalMetadata({
+    files: [{ fileName: 'vanity-light.pdf', buffer: Buffer.from('image-only pdf bytes') }],
+    aiService: {
+      canAnalyzeFiles: () => true,
+      extractFiles: async request => {
+        attachedFile = request.files[0];
+        return {
+          ok: true,
+          data: {
+            section_number: '26 51 00',
+            title: 'LED Vanity Light',
+            manufacturer: 'Example Lighting',
+            product_name: 'LED Vanity and T8 Lamp Vanity',
+            model_number: 'FL4100 Series',
+            notes: 'Satin nickel; Energy Star listed.',
+          },
+        };
+      },
+    },
+  });
+
+  assert.equal(result.source, 'document');
+  assert.equal(result.method, 'file-vision');
+  assert.equal(attachedFile.fileName, 'vanity-light.pdf');
+  assert.equal(result.data.manufacturer, 'Example Lighting');
+  assert.equal(result.data.model_number, 'FL4100 Series');
+});
+
+test('submittal metadata extractor does not report success for a title-only result', async () => {
+  const result = await extractSubmittalMetadata({
+    files: [{ fileName: 'fixture.pdf', buffer: Buffer.from('not a readable pdf') }],
+    aiService: {
+      canAnalyzeFiles: () => true,
+      extractFiles: async () => ({ ok: true, data: { title: 'Fixture' } }),
+    },
+  });
+
+  assert.equal(result.source, 'filename-ai-failed');
+  assert.equal(result.data.title, 'fixture');
+});
+
 test('submittal parser dependencies are lazy-loaded so app startup stays isolated', () => {
   const source = require('node:fs').readFileSync(require.resolve('../src/services/submittal-spec-extractor'), 'utf8');
   assert.doesNotMatch(source.split('function loadPdfParser')[0], /require\('pdf-parse'\)/);

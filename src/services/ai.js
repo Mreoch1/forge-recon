@@ -27,6 +27,8 @@ const { writeAudit } = require('./audit');
 const TIMEOUT_MS = 30_000;
 const MAX_INPUT_CHARS = 8000;
 const MAX_OUTPUT_TOKENS = 2000;
+const MAX_FILE_INPUT_BYTES = 12 * 1024 * 1024;
+const MAX_FILE_INPUTS = 3;
 
 function provider() {
   return (process.env.AI_PROVIDER || 'deepseek').toLowerCase();
@@ -138,7 +140,7 @@ async function callProviderFor({ provider: prov, system, user, json, taskName, u
     return { ok: false, reason: `Unknown provider "${prov}". Use deepseek | openai | anthropic.` };
   }
 
-  if (user.length > MAX_INPUT_CHARS) {
+  if (typeof user === 'string' && user.length > MAX_INPUT_CHARS) {
     user = user.slice(0, MAX_INPUT_CHARS) + '\n\n[truncated]';
   }
 
@@ -187,6 +189,10 @@ async function suggest({ system, user, taskName, userId }) {
  */
 async function extract({ system, user, taskName, userId }) {
   const r = await callProvider({ system, user, json: true, taskName, userId });
+  return parseExtractionResult(r);
+}
+
+function parseExtractionResult(r) {
   if (!r.ok) return r;
   let parsed;
   try {
@@ -195,6 +201,55 @@ async function extract({ system, user, taskName, userId }) {
     return { ok: false, reason: `AI returned non-JSON. Raw: ${r.text.slice(0, 200)}`, tokens: r.tokens };
   }
   return { ok: true, data: parsed, tokens: r.tokens, raw: r.text };
+}
+
+function canAnalyzeFiles() {
+  return Boolean(providerKey('openai'));
+}
+
+/**
+ * Structured extraction from PDFs. OpenAI file inputs can inspect
+ * both selectable text and scanned pages, so callers do not need to OCR PDFs
+ * before sending them here.
+ */
+async function extractFiles({ system, user, files, taskName, userId }) {
+  if (!canAnalyzeFiles()) {
+    return { ok: false, reason: 'OpenAI API key not configured for file analysis.' };
+  }
+  const selected = [];
+  let totalBytes = 0;
+  for (const file of (files || []).slice(0, MAX_FILE_INPUTS)) {
+    const buffer = Buffer.isBuffer(file?.buffer) ? file.buffer : null;
+    if (!buffer?.length || totalBytes + buffer.length > MAX_FILE_INPUT_BYTES) continue;
+    selected.push({
+      fileName: String(file.fileName || 'document.pdf').slice(0, 180),
+      buffer,
+    });
+    totalBytes += buffer.length;
+  }
+  if (!selected.length) {
+    return { ok: false, reason: 'No supported files were available for analysis.' };
+  }
+
+  const content = [
+    { type: 'text', text: String(user || '').slice(0, MAX_INPUT_CHARS) },
+    ...selected.map(file => ({
+      type: 'file',
+      file: {
+        filename: file.fileName,
+        file_data: `data:application/pdf;base64,${file.buffer.toString('base64')}`,
+      },
+    })),
+  ];
+  const result = await callProviderFor({
+    provider: 'openai',
+    system,
+    user: content,
+    json: true,
+    taskName: taskName || 'file-extraction',
+    userId,
+  });
+  return parseExtractionResult(result);
 }
 
 // --- domain extraction: parse a free-text WO description ---
@@ -275,6 +330,6 @@ async function extractWorkOrder({ text, customers, users, userId }) {
 
 module.exports = {
   isConfigured, provider, modelName, providerForTask, configuredProviders,
-  suggest, extract, callProviderFor,
+  suggest, extract, extractFiles, canAnalyzeFiles, callProviderFor,
   extractWorkOrder,
 };

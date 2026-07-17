@@ -5,7 +5,7 @@ const storage = require('../services/storage');
 const { setFlash } = require('../middleware/auth');
 const { loadProjectAccess, denyProjectAccess } = require('./jobs');
 const { buildSubmittalPacket, pageCount } = require('../services/submittal-packet-pdf');
-const { extractSubmittalMetadata, fillBlankMetadata } = require('../services/submittal-spec-extractor');
+const { extractSubmittalMetadata, fillBlankMetadata, filenameTitle } = require('../services/submittal-spec-extractor');
 
 const router = express.Router();
 const BUCKET = 'entity-files';
@@ -355,6 +355,53 @@ router.post('/:id/submittals/items/:itemId/files', requireSubmittalAccess, expre
     await Promise.all(uploadedKeys.map(key => storage.remove(BUCKET, key).catch(() => {})));
     console.error('[submittals] attachment add failed:', error);
     res.status(500).json({ error: error.message || 'Could not add the product spec.' });
+  }
+});
+
+router.post('/:id/submittals/items/:itemId/analyze', requireSubmittalAccess, async (req, res, next) => {
+  try {
+    const packet = await ensurePacket(req.submittalJob, req.session.userId, res.locals.currentUser?.name);
+    const items = await loadItems(packet.id);
+    const item = items.find(row => String(row.id) === String(req.params.itemId));
+    if (!item) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Submittal not found.' });
+    if (!item.files.length) {
+      setFlash(req, 'error', 'Attach a product-spec PDF before filling the details.');
+      return res.redirect(`/projects/${req.params.id}/submittals#submittal-${item.id}`);
+    }
+
+    const files = [];
+    for (const file of item.files.slice(0, 3)) {
+      files.push({
+        fileName: file.file_name,
+        buffer: await storage.downloadBuffer(file.storage_bucket || BUCKET, file.storage_key),
+      });
+    }
+    const extraction = await extractSubmittalMetadata({ files, userId: req.session.userId });
+    if (extraction.source !== 'document') {
+      setFlash(req, 'error', 'Forge could not identify product details in the attached PDF. You can still enter them manually.');
+      return res.redirect(`/projects/${req.params.id}/submittals#submittal-${item.id}`);
+    }
+
+    const current = { ...item };
+    const generatedTitles = item.files.map(file => filenameTitle(file.file_name).toLowerCase());
+    if (generatedTitles.includes(text(item.title, 240).toLowerCase())) current.title = '';
+    const metadata = fillBlankMetadata(current, extraction.data);
+    const fields = ['section_number', 'title', 'manufacturer', 'product_name', 'model_number', 'notes'];
+    const filledCount = fields.filter(field => text(item[field], 3000) !== metadata[field]).length;
+    throwResult(await supabase.from('project_submittal_items').update({
+      section_number: metadata.section_number || null,
+      title: metadata.title,
+      manufacturer: metadata.manufacturer || null,
+      product_name: metadata.product_name || null,
+      model_number: metadata.model_number || null,
+      notes: metadata.notes || null,
+    }).eq('id', item.id).eq('packet_id', packet.id), 'Submittal auto-fill update failed');
+    setFlash(req, 'success', filledCount
+      ? `Forge filled ${filledCount} product detail${filledCount === 1 ? '' : 's'} from the attached PDF.`
+      : 'Forge analyzed the PDF. Existing product details were kept.');
+    res.redirect(`/projects/${req.params.id}/submittals#submittal-${item.id}`);
+  } catch (error) {
+    next(error);
   }
 });
 

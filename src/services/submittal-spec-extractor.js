@@ -2,6 +2,17 @@ const MAX_SOURCE_CHARS = 7000;
 const MAX_FILES_TO_READ = 3;
 const MAX_PAGES_PER_FILE = 6;
 
+const METADATA_SYSTEM_PROMPT = [
+  'Extract construction product-submittal metadata from the supplied product specification.',
+  'Return only valid JSON with these string fields:',
+  '{"section_number":"","title":"","manufacturer":"","product_name":"","model_number":"","notes":""}',
+  'Use only facts present in the supplied document. Never invent missing values.',
+  'The title should be a concise product or system description, not a filename.',
+  'If a sheet lists a product family with several models, use the family or series name and summarize the relevant model range instead of choosing one arbitrarily.',
+  'Notes should be concise and include useful selections such as finish, color, rating, listing, size, or performance data.',
+  'Use an empty string for unknown fields. Ignore headers, footers, legal boilerplate, and contact details.',
+].join('\n');
+
 function loadPdfParser() {
   const canvas = require('@napi-rs/canvas');
   globalThis.DOMMatrix ||= canvas.DOMMatrix;
@@ -31,6 +42,11 @@ function sanitizeMetadata(value = {}) {
   };
 }
 
+function hasProductDetails(value = {}) {
+  const metadata = sanitizeMetadata(value);
+  return Object.entries(metadata).some(([key, detail]) => key !== 'title' && Boolean(detail));
+}
+
 function fillBlankMetadata(current = {}, suggested = {}) {
   const existing = sanitizeMetadata(current);
   const extracted = sanitizeMetadata(suggested);
@@ -43,7 +59,8 @@ async function textFromPdf(buffer, fileName) {
   try {
     const result = await parser.getText({ first: MAX_PAGES_PER_FILE });
     const body = String(result?.text || '').replace(/\u0000/g, '').trim();
-    return body ? `FILE: ${fileName}\n${body}` : '';
+    const substantiveText = body.replace(/--\s*\d+\s+of\s+\d+\s*--/gi, '').trim();
+    return substantiveText ? `FILE: ${fileName}\n${body}` : '';
   } finally {
     await parser.destroy().catch(() => {});
   }
@@ -68,14 +85,35 @@ async function extractSourceText(files) {
 async function extractSubmittalMetadata({ files, userId, aiService }) {
   const fallback = sanitizeMetadata({ title: filenameTitle(files?.[0]?.fileName) });
   const source = await extractSourceText(files);
-  if (!source.text) {
-    return {
-      data: fallback,
-      source: 'filename',
-      warnings: source.warnings,
-    };
-  }
   const provider = aiService || require('./ai');
+  if (!source.text) {
+    if (provider.canAnalyzeFiles?.() && typeof provider.extractFiles === 'function') {
+      const fileResult = await provider.extractFiles({
+        taskName: 'submittal-product-spec-pdf-vision',
+        userId,
+        system: METADATA_SYSTEM_PROMPT,
+        user: 'Read the attached product-spec PDF, including scanned or image-only pages, and extract its product-submittal details.',
+        files,
+      });
+      if (fileResult.ok) {
+        const extracted = sanitizeMetadata(fileResult.data);
+        if (hasProductDetails(extracted)) {
+          return {
+            data: { ...extracted, title: extracted.title || fallback.title },
+            source: 'document',
+            method: 'file-vision',
+            warnings: [],
+          };
+        }
+      }
+      return {
+        data: fallback,
+        source: 'filename-ai-failed',
+        warnings: [...source.warnings, 'Forge could not identify product details in the scanned PDF.'],
+      };
+    }
+    return { data: fallback, source: 'filename', warnings: source.warnings };
+  }
   if (!provider.isConfigured()) {
     return { data: fallback, source: 'filename-no-ai', warnings: source.warnings };
   }
@@ -83,15 +121,7 @@ async function extractSubmittalMetadata({ files, userId, aiService }) {
   const result = await provider.extract({
     taskName: 'submittal-product-spec-extraction',
     userId,
-    system: [
-      'Extract construction product-submittal metadata from product specification text.',
-      'Return only valid JSON with these string fields:',
-      '{"section_number":"","title":"","manufacturer":"","product_name":"","model_number":"","notes":""}',
-      'Use only facts present in the supplied text. Never invent missing values.',
-      'The title should be a concise product or system description, not a filename.',
-      'Notes should be concise and include useful selections such as finish, color, rating, listing, size, or performance data.',
-      'Use an empty string for unknown fields. Ignore headers, footers, legal boilerplate, and contact details.',
-    ].join('\n'),
+    system: METADATA_SYSTEM_PROMPT,
     user: source.text,
   });
 
@@ -104,6 +134,13 @@ async function extractSubmittalMetadata({ files, userId, aiService }) {
   }
 
   const extracted = sanitizeMetadata(result.data);
+  if (!hasProductDetails(extracted)) {
+    return {
+      data: fallback,
+      source: 'filename-ai-failed',
+      warnings: [...source.warnings, 'Forge could not identify product details in the product spec.'],
+    };
+  }
   return {
     data: { ...extracted, title: extracted.title || fallback.title },
     source: 'document',
