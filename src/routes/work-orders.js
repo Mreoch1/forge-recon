@@ -85,6 +85,11 @@ function makeWoStorageKey(woId, filename) {
   return `${woId}/${crypto.randomUUID()}${ext}`;
 }
 
+function makeSignedProposalStorageKey(woId, filename) {
+  const ext = path.extname(filename || '').slice(0, 20);
+  return `${woId}/signed-proposals/${crypto.randomUUID()}${ext}`;
+}
+
 async function loadWorkOrderForFileUpload(req) {
   const { data: wo, error } = await supabase
     .from('work_orders')
@@ -116,6 +121,17 @@ function workerForbidden(res, message = 'You can only access work orders assigne
 function requireManagerRole(req, res) {
   if (req.session?.role === 'worker') {
     workerForbidden(res, 'Manager or admin access required.');
+    return false;
+  }
+  return true;
+}
+
+function requireAdminRole(req, res) {
+  if (req.session?.role !== 'admin') {
+    res.status(403).render('error', {
+      title: 'Forbidden', code: 403,
+      message: 'Admin access required.'
+    });
     return false;
   }
   return true;
@@ -1186,8 +1202,9 @@ router.get('/:id', async (req, res) => {
   try {
     const { data: photoRows } = await supabase
       .from('wo_photos')
-      .select('id, work_order_id, user_id, filename, original_filename, mime_type, size_bytes, caption, created_at')
+      .select('id, work_order_id, user_id, filename, original_filename, mime_type, size_bytes, caption, document_type, created_at')
       .eq('work_order_id', wo.id)
+      .eq('document_type', 'field_attachment')
       .order('created_at', { ascending: false });
     photos = photoRows || [];
     const userIds = Array.from(new Set(photos.map(p => p.user_id).filter(Boolean)));
@@ -1210,6 +1227,36 @@ router.get('/:id', async (req, res) => {
     }));
   } catch (e) {
     // wo_photos may be missing on very old DBs
+  }
+
+  // Signed proposals contain pricing and are deliberately never loaded for
+  // managers or field workers. The dedicated routes enforce the same rule.
+  let signedProposals = [];
+  if (req.session?.role === 'admin') {
+    const { data: proposalRows, error: proposalErr } = await supabase
+      .from('wo_photos')
+      .select('id, work_order_id, user_id, filename, original_filename, mime_type, size_bytes, caption, document_type, created_at')
+      .eq('work_order_id', wo.id)
+      .eq('document_type', 'signed_proposal')
+      .order('created_at', { ascending: false });
+    if (proposalErr) throw proposalErr;
+
+    const uploaderIds = Array.from(new Set((proposalRows || []).map(p => p.user_id).filter(Boolean)));
+    const uploaderById = {};
+    if (uploaderIds.length) {
+      const { data: uploaders, error: uploaderErr } = await supabase
+        .from('users')
+        .select('id, name')
+        .in('id', uploaderIds);
+      if (uploaderErr) throw uploaderErr;
+      (uploaders || []).forEach(u => { uploaderById[u.id] = u.name; });
+    }
+    signedProposals = (proposalRows || []).map(p => ({
+      ...p,
+      user_name: uploaderById[p.user_id] || null,
+      raw_url: `/work-orders/${wo.id}/signed-proposals/${p.id}/raw`,
+      download_url: `/work-orders/${wo.id}/signed-proposals/${p.id}/raw?download=1`,
+    }));
   }
 
   // File count: files attached via folders.entity_type/id
@@ -1251,7 +1298,7 @@ router.get('/:id', async (req, res) => {
 
   res.render('work-orders/show', {
     title: `WO-${wo.display_number}`, activeNav: 'work-orders',
-    wo, estimate, invoice, notes, photos, fileCount, bills, activity
+    wo, estimate, invoice, notes, photos, signedProposals, fileCount, bills, activity
   });
 });
 
@@ -1849,6 +1896,148 @@ router.post('/:id/files/register-direct', async (req, res) => {
   }
 });
 
+// --- signed proposals: admin-only pricing documents ---
+
+router.get('/:id/signed-proposals/upload-url', async (req, res) => {
+  if (req.session?.role !== 'admin') return directUploadError(res, 403, 'Admin access required.');
+
+  const wo = await loadWorkOrderForFileUpload(req);
+  if (!wo) return directUploadError(res, 404, 'Work order not found.');
+
+  const filename = String(req.query.filename || '').trim();
+  const size = Number(req.query.size || 0);
+  const contentType = String(req.query.content_type || 'application/octet-stream').trim();
+  if (!filename) return directUploadError(res, 400, 'Filename is required.');
+  if (isBlockedWoUploadName(filename)) return directUploadError(res, 400, 'File type not allowed.');
+  if (!Number.isFinite(size) || size <= 0) return directUploadError(res, 400, 'File size is required.');
+  if (size > MAX_SIZE) return directUploadError(res, 413, `The signed proposal must be ${Math.round(MAX_SIZE / 1024 / 1024)} MB or smaller.`);
+
+  try {
+    const key = makeSignedProposalStorageKey(wo.id, filename);
+    const signed = await storage.getUploadUrl('wo-photos', key);
+    return res.json({
+      ok: true,
+      uploadUrl: signed.uploadUrl,
+      storageKey: signed.storageKey,
+      contentType,
+      maxFileSize: MAX_SIZE,
+    });
+  } catch (e) {
+    console.error('signed proposal upload URL failed:', e);
+    return directUploadError(res, 500, 'Could not prepare signed proposal upload: ' + e.message);
+  }
+});
+
+router.post('/:id/signed-proposals/register-direct', async (req, res) => {
+  if (req.session?.role !== 'admin') return directUploadError(res, 403, 'Admin access required.');
+
+  const wo = await loadWorkOrderForFileUpload(req);
+  if (!wo) return directUploadError(res, 404, 'Work order not found.');
+
+  const file = req.body.file || {};
+  const storageKey = String(file.storage_key || file.storageKey || '').trim();
+  const originalName = String(file.original_filename || file.originalName || '').trim();
+  const mimeType = String(file.mime_type || file.mimeType || 'application/octet-stream').trim();
+  const sizeBytes = Number(file.size_bytes || file.sizeBytes || 0);
+  const caption = String(req.body.caption || '').trim().slice(0, 200);
+
+  if (!storageKey || !storageKey.startsWith(`${wo.id}/signed-proposals/`) || storageKey.includes('..')) {
+    return directUploadError(res, 400, 'Invalid signed proposal file key.');
+  }
+  if (!originalName || isBlockedWoUploadName(originalName)) {
+    return directUploadError(res, 400, 'Invalid signed proposal filename.');
+  }
+  if (!Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes > MAX_SIZE) {
+    return directUploadError(res, 400, 'Invalid signed proposal file size.');
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('wo_photos')
+      .insert({
+        work_order_id: wo.id,
+        user_id: req.session.userId,
+        filename: storageKey,
+        original_filename: originalName,
+        mime_type: mimeType,
+        size_bytes: Math.round(sizeBytes),
+        caption: caption || null,
+        document_type: 'signed_proposal',
+      })
+      .select('id, original_filename')
+      .single();
+    if (error) throw error;
+
+    await writeAudit({
+      entityType: 'work_order', entityId: wo.id, action: 'signed_proposal_uploaded',
+      before: null,
+      after: { file_id: data.id, original_filename: data.original_filename },
+      source: 'user', userId: req.session.userId,
+    });
+
+    return res.json({ ok: true, file: data });
+  } catch (e) {
+    console.error('signed proposal registration failed:', e);
+    try { await storage.remove('wo-photos', storageKey); } catch (_) {}
+    return directUploadError(res, 500, 'Failed to save signed proposal: ' + e.message);
+  }
+});
+
+router.get('/:id/signed-proposals/:fileId/raw', async (req, res) => {
+  if (!requireAdminRole(req, res)) return;
+
+  const { data: file, error } = await supabase
+    .from('wo_photos')
+    .select('*')
+    .eq('id', req.params.fileId)
+    .eq('work_order_id', req.params.id)
+    .eq('document_type', 'signed_proposal')
+    .maybeSingle();
+  if (error) throw error;
+  if (!file) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Signed proposal not found.' });
+
+  try {
+    const buffer = await storage.downloadBuffer('wo-photos', file.filename);
+    res.setHeader('Content-Type', file.mime_type || 'application/octet-stream');
+    res.setHeader('Content-Disposition', contentDisposition(req.query.download ? 'attachment' : 'inline', file));
+    res.setHeader('Cache-Control', 'private, no-store');
+    return res.send(buffer);
+  } catch (e) {
+    return res.status(500).render('error', { title: 'Storage error', code: 500, message: 'Failed to access signed proposal: ' + e.message });
+  }
+});
+
+router.post('/:id/signed-proposals/:fileId/delete', async (req, res) => {
+  if (!requireAdminRole(req, res)) return;
+
+  const { data: file, error } = await supabase
+    .from('wo_photos')
+    .select('*')
+    .eq('id', req.params.fileId)
+    .eq('work_order_id', req.params.id)
+    .eq('document_type', 'signed_proposal')
+    .maybeSingle();
+  if (error) throw error;
+  if (!file) {
+    setFlash(req, 'error', 'Signed proposal not found.');
+    return res.redirect(`/work-orders/${req.params.id}`);
+  }
+
+  try { await storage.remove('wo-photos', file.filename); } catch (_) {}
+  const { error: deleteError } = await supabase.from('wo_photos').delete().eq('id', file.id);
+  if (deleteError) throw deleteError;
+
+  await writeAudit({
+    entityType: 'work_order', entityId: Number(req.params.id), action: 'signed_proposal_deleted',
+    before: { file_id: file.id, original_filename: file.original_filename },
+    after: null,
+    source: 'user', userId: req.session.userId,
+  });
+
+  setFlash(req, 'success', 'Signed proposal deleted.');
+  return res.redirect(`/work-orders/${req.params.id}`);
+});
+
 // --- files: raw/open original ---
 
 router.get('/:id/files/:fileId/raw', async (req, res) => {
@@ -1866,6 +2055,7 @@ router.get('/:id/files/:fileId/raw', async (req, res) => {
     .select('*')
     .eq('id', req.params.fileId)
     .eq('work_order_id', wo.id)
+    .eq('document_type', 'field_attachment')
     .maybeSingle();
   if (fileErr) throw fileErr;
   if (!file) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'File not found.' });
@@ -1899,6 +2089,7 @@ router.post('/:id/files/:fileId/delete', async (req, res) => {
     .select('*')
     .eq('id', req.params.fileId)
     .eq('work_order_id', wo.id)
+    .eq('document_type', 'field_attachment')
     .maybeSingle();
   if (phErr) throw phErr;
   if (!file) {

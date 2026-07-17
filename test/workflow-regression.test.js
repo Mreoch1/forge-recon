@@ -1618,3 +1618,24 @@ test('project financials show estimated profit margin and markup percent', () =>
   assert.match(overview, /var markupPct = costComm > 0 \? \(profit \/ costComm\) \* 100 : 0/);
   assert.match(overview, /Markup: <%= markupPct\.toFixed\(1\) %>%/);
 });
+
+test('signed work order proposals are stored separately and restricted to admins', () => {
+  const routes = read('src/routes/work-orders.js');
+  const show = read('src/views/work-orders/show.ejs');
+  const migration = read('supabase/migrations/20260717140024_work_order_signed_proposals.sql');
+
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS document_type TEXT NOT NULL DEFAULT 'field_attachment'/);
+  assert.match(migration, /CHECK \(document_type IN \('field_attachment', 'signed_proposal'\)\)/);
+  assert.match(routes, /router\.get\('\/:id\/signed-proposals\/upload-url'/);
+  assert.match(routes, /router\.post\('\/:id\/signed-proposals\/register-direct'/);
+  assert.match(routes, /router\.get\('\/:id\/signed-proposals\/:fileId\/raw'/);
+  assert.match(routes, /router\.post\('\/:id\/signed-proposals\/:fileId\/delete'/);
+  assert.match(routes, /req\.session\?\.role !== 'admin'/);
+  assert.match(routes, /\.eq\('document_type', 'field_attachment'\)/);
+  assert.match(routes, /\.eq\('document_type', 'signed_proposal'\)/);
+  assert.match(routes, /document_type: 'signed_proposal'/);
+  assert.match(show, /<% if \(isAdmin\) \{ %>[\s\S]*Signed proposals[\s\S]*Admin only/);
+  assert.match(show, /id="signed-proposal-upload-form"/);
+  assert.match(show, /\/signed-proposals\/upload-url/);
+  assert.match(show, /\/signed-proposals\/register-direct/);
+});

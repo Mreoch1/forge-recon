@@ -51,6 +51,7 @@ function fileIcon(mime) {
 const woAttachments = (typeof photos !== 'undefined' && photos ? photos : []);
 const woImageAttachments = woAttachments.filter(function(p){ return p.is_image; });
 const woFileAttachments = woAttachments.filter(function(p){ return !p.is_image; });
+const signedProposalFiles = (typeof signedProposals !== 'undefined' && signedProposals ? signedProposals : []);
 const woViewerAttachments = woImageAttachments.concat(woFileAttachments).map(function(p){
   const name = p.original_filename || String(p.filename || '').split('/').pop();
   const mime = String(p.mime_type || '').toLowerCase();
@@ -651,6 +652,63 @@ function safeJson(value) {
           <% } %>
         </div>
       <% } %>
+
+      <% if (isAdmin) { %>
+        <h2 class="ws-h-secondary mt-6">
+          <span>Signed proposals</span>
+          <span class="badge badge-secondary" style="font-size:.58rem;">Admin only</span>
+        </h2>
+
+        <form id="signed-proposal-upload-form" class="py-2 mb-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <label for="signed-proposal-file" class="btn btn-sm btn-secondary cursor-pointer text-center">
+              Choose proposal
+            </label>
+            <input id="signed-proposal-file" type="file" class="sr-only"
+                   accept="application/pdf,.pdf,.doc,.docx,image/*">
+            <button id="signed-proposal-upload-button" type="submit" class="btn btn-sm btn-primary" disabled>Upload</button>
+          </div>
+          <input id="signed-proposal-caption" type="text" class="input text-sm w-full mt-2"
+                 maxlength="200" placeholder="Revision or note (optional)">
+          <div id="signed-proposal-upload-status" class="text-xs text-recon-fog mt-2" aria-live="polite">
+            No file selected.
+          </div>
+        </form>
+
+        <% if (signedProposalFiles.length) { %>
+          <div class="divide-y divide-recon-mist mb-6">
+            <% signedProposalFiles.forEach(function(proposal){ %>
+              <div class="py-2">
+                <div class="flex items-start gap-2">
+                  <span class="text-base flex-shrink-0"><%= fileIcon(proposal.mime_type) %></span>
+                  <div class="min-w-0 flex-1">
+                    <a href="<%= proposal.raw_url %>" target="_blank" rel="noopener"
+                       class="block text-sm font-medium text-recon-charcoal hover:text-recon-red truncate"
+                       title="<%= proposal.original_filename || proposal.filename %>">
+                      <%= proposal.original_filename || proposal.filename.split('/').pop() %>
+                    </a>
+                    <div class="text-xs text-recon-fog">
+                      <%= proposal.created_at ? String(proposal.created_at).slice(0,10) : '' %>
+                      <% if (proposal.user_name) { %> · <%= proposal.user_name %><% } %>
+                      <% if (proposal.size_bytes) { %> · <%= fmtSize(proposal.size_bytes) %><% } %>
+                    </div>
+                    <% if (proposal.caption) { %><div class="text-xs text-recon-fog mt-1"><%= proposal.caption %></div><% } %>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3 mt-2 ml-7">
+                  <a href="<%= proposal.download_url %>" class="text-xs font-medium hover:text-recon-red">Download</a>
+                  <form method="post" action="/work-orders/<%= wo.id %>/signed-proposals/<%= proposal.id %>/delete"
+                        class="m-0" onsubmit="return confirm('Delete this signed proposal?');">
+                    <button type="submit" class="text-xs text-red-600 hover:text-red-800">Delete</button>
+                  </form>
+                </div>
+              </div>
+            <% }); %>
+          </div>
+        <% } else { %>
+          <p class="text-sm text-recon-fog mb-6">No signed proposal uploaded.</p>
+        <% } %>
+      <% } %>
     </div>
   </div>
 
@@ -839,6 +897,115 @@ function safeJson(value) {
     });
   })();
 </script>
+
+<% if (isAdmin) { %>
+  <script>
+    (function(){
+      const form = document.getElementById('signed-proposal-upload-form');
+      const input = document.getElementById('signed-proposal-file');
+      const captionInput = document.getElementById('signed-proposal-caption');
+      const button = document.getElementById('signed-proposal-upload-button');
+      const statusEl = document.getElementById('signed-proposal-upload-status');
+      if (!form || !input || !button || !statusEl || !window.fetch) return;
+
+      const maxSize = 25 * 1024 * 1024;
+
+      async function readJson(response) {
+        const data = await response.json().catch(function(){ return {}; });
+        if (!response.ok || data.ok === false) {
+          throw new Error(data.error || ('Upload failed with status ' + response.status));
+        }
+        return data;
+      }
+
+      async function uploadToSignedUrl(uploadUrl, file) {
+        const contentType = file.type || 'application/octet-stream';
+        const rawResponse = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': contentType },
+          body: file,
+        });
+        if (rawResponse.ok) return;
+
+        const rawText = await rawResponse.text().catch(function(){ return ''; });
+        if (rawResponse.status !== 400) {
+          throw new Error('Upload failed: ' + rawResponse.status + (rawText ? ' - ' + rawText : ''));
+        }
+
+        const uploadForm = new FormData();
+        uploadForm.append('cacheControl', '3600');
+        uploadForm.append('', file, file.name);
+        const formResponse = await fetch(uploadUrl, { method: 'PUT', body: uploadForm });
+        if (!formResponse.ok) {
+          const formText = await formResponse.text().catch(function(){ return ''; });
+          throw new Error('Upload failed: ' + formResponse.status + (formText ? ' - ' + formText : ''));
+        }
+      }
+
+      input.addEventListener('change', function(){
+        const file = input.files && input.files[0];
+        if (!file) {
+          button.disabled = true;
+          statusEl.textContent = 'No file selected.';
+          return;
+        }
+        if (file.size > maxSize) {
+          button.disabled = true;
+          statusEl.textContent = file.name + ' is too large. Maximum size is 25 MB.';
+          return;
+        }
+        button.disabled = false;
+        statusEl.textContent = file.name;
+      });
+
+      form.addEventListener('submit', async function(event){
+        event.preventDefault();
+        const file = input.files && input.files[0];
+        if (!file || file.size > maxSize) return;
+
+        button.disabled = true;
+        input.disabled = true;
+        if (captionInput) captionInput.disabled = true;
+
+        try {
+          statusEl.textContent = 'Preparing upload...';
+          const params = new URLSearchParams({
+            filename: file.name,
+            content_type: file.type || 'application/octet-stream',
+            size: String(file.size),
+          });
+          const upload = await readJson(await fetch('/work-orders/<%= wo.id %>/signed-proposals/upload-url?' + params.toString()));
+
+          statusEl.textContent = 'Uploading ' + file.name + '...';
+          await uploadToSignedUrl(upload.uploadUrl, file);
+
+          statusEl.textContent = 'Saving signed proposal...';
+          await readJson(await fetch('/work-orders/<%= wo.id %>/signed-proposals/register-direct', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              caption: captionInput ? captionInput.value : '',
+              file: {
+                storage_key: upload.storageKey,
+                original_filename: file.name,
+                mime_type: file.type || 'application/octet-stream',
+                size_bytes: file.size,
+              },
+            }),
+          }));
+
+          statusEl.textContent = 'Signed proposal saved.';
+          window.location.reload();
+        } catch (error) {
+          statusEl.textContent = error.message || 'Signed proposal upload failed.';
+          button.disabled = false;
+          input.disabled = false;
+          if (captionInput) captionInput.disabled = false;
+        }
+      });
+    })();
+  </script>
+<% } %>
 
 <% if (woViewerAttachments.length) { %>
   <div class="attachment-viewer" id="wo-attachment-viewer" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="wo-attachment-title">

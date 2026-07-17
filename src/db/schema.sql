@@ -304,9 +304,11 @@ CREATE TABLE IF NOT EXISTS wo_photos (
   mime_type TEXT,
   size_bytes INTEGER,
   caption TEXT,
+  document_type TEXT NOT NULL DEFAULT 'field_attachment' CHECK(document_type IN ('field_attachment', 'signed_proposal')),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_wo_photos_wo ON wo_photos(work_order_id);
+CREATE INDEX IF NOT EXISTS idx_wo_photos_signed_proposals ON wo_photos(work_order_id, created_at DESC) WHERE document_type = 'signed_proposal';
 
 -- Reusable items library (Round 3 placeholder; table exists, UI follows)
 CREATE TABLE IF NOT EXISTS items_library (
