@@ -459,6 +459,15 @@ test('QuickBooks flow uses CSV export instead of live API sync', () => {
   assert.match(read('src/services/quickbooks-sync.js'), /saveInvoiceSync\(invoice, connection, qboInvoice, payload, 'billing_complete'\)/);
 });
 
+test('invoice summary does not count billing-complete invoices as paid', () => {
+  const invoiceIndex = read('src/views/invoices/index.ejs');
+
+  assert.match(invoiceIndex, /i\.status === 'paid';/);
+  assert.doesNotMatch(invoiceIndex, /i\.status === 'paid' \|\| i\.status === 'billing_complete'/);
+  assert.match(invoiceIndex, /billingCompleteCount/);
+  assert.match(invoiceIndex, /billing complete, not paid/);
+});
+
 test('bank transactions and account defaults are wired for accounting categorization', () => {
   const accountingRoutes = read('src/routes/accounting.js');
   const accountingIndex = read('src/views/accounting/index.ejs');

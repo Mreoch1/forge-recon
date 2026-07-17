@@ -10,7 +10,8 @@ function isOverdue(inv) {
 const pageTotal = invoices.reduce(function(s, i){ return s + (Number(i.total) || 0); }, 0);
 const pageBalance = invoices.reduce(function(s, i){ return s + ((Number(i.total) || 0) - (Number(i.amount_paid) || 0)); }, 0);
 const sentCount = invoices.filter(function(i){ return i.status === 'sent' || i.status === 'draft'; }).length;
-const paidCount = invoices.filter(function(i){ return i.status === 'paid' || i.status === 'billing_complete'; }).length;
+const paidCount = invoices.filter(function(i){ return i.status === 'paid'; }).length;
+const billingCompleteCount = invoices.filter(function(i){ return i.status === 'billing_complete'; }).length;
 const isAdmin = currentUser && currentUser.role === 'admin';
 const manualStatuses = ['draft', 'sent', 'overdue', 'billing_complete'];
 %>
@@ -26,7 +27,7 @@ const manualStatuses = ['draft', 'sent', 'overdue', 'billing_complete'];
   <div class="ops-summary">
     <div class="ops-summary-item"><div class="ops-summary-label">Total</div><div class="ops-summary-value"><%= total %></div><div class="ops-summary-meta">invoices</div></div>
     <div class="ops-summary-item"><div class="ops-summary-label">Open / draft</div><div class="ops-summary-value"><%= sentCount %></div><div class="ops-summary-meta">shown on page</div></div>
-    <div class="ops-summary-item"><div class="ops-summary-label">Paid</div><div class="ops-summary-value"><%= paidCount %></div><div class="ops-summary-meta">shown on page</div></div>
+    <div class="ops-summary-item"><div class="ops-summary-label">Paid</div><div class="ops-summary-value"><%= paidCount %></div><div class="ops-summary-meta"><%= billingCompleteCount %> billing complete, not paid</div></div>
     <div class="ops-summary-item"><div class="ops-summary-label">Balance</div><div class="ops-summary-value">$<%= fmt(pageBalance) %></div><div class="ops-summary-meta">$<%= fmt(pageTotal) %> invoiced shown</div></div>
   </div>
 
