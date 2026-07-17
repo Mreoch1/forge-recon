@@ -409,6 +409,7 @@ app.post('/report-error', async (req, res) => {
 app.post('/feedback', async (req, res) => {
   const subject = (req.body.subject || '').trim();
   const message = (req.body.message || '').trim();
+  const pageUrl = String(req.body.page_url || req.headers.referer || '').trim().slice(0, 2000) || null;
   const wantsJson = req.xhr || (req.headers.accept || '').includes('application/json');
   const sendJson = (status, data) => {
     if (wantsJson) return res.status(status).json(data);
@@ -426,7 +427,7 @@ app.post('/feedback', async (req, res) => {
       userId,
       subject,
       message,
-      pageUrl: req.headers.referer || null,
+      pageUrl,
       userAgent: req.headers['user-agent'] || null,
     });
     await supabase.from('audit_logs').insert({

@@ -281,7 +281,9 @@ function submitFeedback(){
       'Accept': 'application/json',
       'X-Requested-With': 'XMLHttpRequest'
     },
-    body: 'subject=' + encodeURIComponent(subj) + '&message=' + encodeURIComponent(msg)
+    body: 'subject=' + encodeURIComponent(subj)
+      + '&message=' + encodeURIComponent(msg)
+      + '&page_url=' + encodeURIComponent(window.location.pathname + window.location.search)
   }).then(function(r){
     return r.json().catch(function(){ return {}; }).then(function(data){
       if (!r.ok) throw new Error(data.error || ('Server returned ' + r.status));

@@ -1639,3 +1639,15 @@ test('signed work order proposals are stored separately and restricted to admins
   assert.match(show, /\/signed-proposals\/upload-url/);
   assert.match(show, /\/signed-proposals\/register-direct/);
 });
+
+test('new work orders preserve customer context and feedback records its page', () => {
+  const routes = read('src/routes/work-orders.js');
+  const app = read('src/app.js');
+  const footer = read('src/views/layouts/footer.ejs');
+
+  assert.match(routes, /const requestedCustomerId = parseInt\(req\.query\.customer_id, 10\) \|\| null/);
+  assert.match(routes, /const presetCustomer = !presetProject && requestedCustomerId/);
+  assert.match(routes, /presetProject\?\.customer_id \|\| presetCustomer\?\.id \|\| ''/);
+  assert.match(app, /req\.body\.page_url \|\| req\.headers\.referer/);
+  assert.match(footer, /page_url=' \+ encodeURIComponent\(window\.location\.pathname \+ window\.location\.search\)/);
+});

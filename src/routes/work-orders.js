@@ -779,6 +779,7 @@ router.get('/', async (req, res) => {
 router.get('/new', async (req, res) => {
   if (!requireManagerRole(req, res)) return;
   const presetProjectId = parseInt(req.query.project_id || req.query.job_id, 10) || null;
+  const requestedCustomerId = parseInt(req.query.customer_id, 10) || null;
 
   const [
     { data: customers, error: customersError },
@@ -810,8 +811,11 @@ router.get('/new', async (req, res) => {
   const presetProject = presetProjectId
     ? projectsWithCustomer.find(p => Number(p.id) === presetProjectId)
     : null;
-  const presetCustomerId = presetProject?.customer_id || '';
-  const presetCustomerName = presetProject?.customer_name || '';
+  const presetCustomer = !presetProject && requestedCustomerId
+    ? (customers || []).find(c => Number(c.id) === requestedCustomerId)
+    : null;
+  const presetCustomerId = presetProject?.customer_id || presetCustomer?.id || '';
+  const presetCustomerName = presetProject?.customer_name || presetCustomer?.name || '';
 
   // Read next number WITHOUT incrementing (just for display)
   const suggestedNumber = settings ? { display: numbering.formatDisplay(settings.next_wo_main_number, 0) } : { display: '' };

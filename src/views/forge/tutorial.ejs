@@ -843,7 +843,9 @@
         'Accept': 'application/json',
         'X-Requested-With': 'XMLHttpRequest'
       },
-      body: 'subject=' + encodeURIComponent(subject) + '&message=' + encodeURIComponent(fullMessage)
+      body: 'subject=' + encodeURIComponent(subject)
+        + '&message=' + encodeURIComponent(fullMessage)
+        + '&page_url=' + encodeURIComponent(window.location.pathname + window.location.search)
     }).then(function(r) {
       return r.json().catch(function() { return {}; }).then(function(data) {
         if (!r.ok) throw new Error(data.error || ('Server returned ' + r.status));
