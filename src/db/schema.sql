@@ -104,6 +104,7 @@ CREATE TABLE IF NOT EXISTS work_orders (
   assigned_to TEXT,  -- free-text fallback for non-employee labor (subs, etc.)
 
   notes TEXT,
+  source_rfp_id INTEGER,
 
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -140,6 +141,7 @@ CREATE TABLE IF NOT EXISTS estimates (
   valid_until TEXT,
   notes TEXT,
   po_number TEXT,
+  source_rfp_id INTEGER,
   sent_at TEXT,
   accepted_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),

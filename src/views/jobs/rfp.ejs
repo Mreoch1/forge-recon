@@ -273,6 +273,16 @@
                 <a href="/projects/<%= job.id %>/rfps/<%= rfp.id %>/export-ginosko.xlsx" target="_blank"
                    onclick="event.stopPropagation()" title="Download Ginosko Bid Sheet for this category"
                    class="text-recon-fog hover:text-recon-red text-xs mr-2">Ginosko</a>
+                <% if (currentUser && ['admin', 'manager'].includes(currentUser.role)) { %>
+                  <form action="/projects/<%= job.id %>/rfps/<%= rfp.id %>/create-recon-estimate" method="POST"
+                        class="inline" onclick="event.stopPropagation()"
+                        onsubmit="return confirm('Create a project work order and draft Recon estimate from the approved pricing in this category?')">
+                    <button type="submit"
+                            class="text-xs mr-2 <%= rfpApprovedCounts[rfp.id] > 0 ? 'text-recon-fog hover:text-recon-red' : 'text-recon-mist cursor-not-allowed' %>"
+                            title="<%= rfpApprovedCounts[rfp.id] > 0 ? 'Create a work order and Recon estimate from approved pricing' : 'Approve at least one pricing line first' %>"
+                            <%= rfpApprovedCounts[rfp.id] > 0 ? '' : 'disabled' %>>Recon</button>
+                  </form>
+                <% } %>
                 <button type="button"
                         onclick="event.stopPropagation();var el=document.getElementById('rfp-items-<%= rfp.id %>');var icon=document.getElementById('rfp-chev-<%= rfp.id %>');if(el){el.classList.remove('hidden');}if(icon){icon.textContent='▼';}"
                         class="text-recon-fog hover:text-recon-red text-xs mr-2">Select bid lines</button>

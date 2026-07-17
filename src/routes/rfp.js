@@ -7,9 +7,10 @@
  */
 const express = require('express');
 const supabase = require('../db/supabase');
-const { requireAdmin, requireAuth } = require('../middleware/auth');
+const { requireAdmin, requireAuth, requireManager, setFlash } = require('../middleware/auth');
 const { loadProjectAccess, denyProjectAccess } = require('./jobs');
 const { selectedBidRequestItemIds } = require('../services/rfp-query');
+const reconEstimate = require('../services/rfp-recon-estimate');
 
 const router = express.Router();
 const DEFAULT_RFP_MARKUP_PCT = 16;
@@ -1318,6 +1319,93 @@ router.get('/projects/:id/rfps/:rId/export-ginosko.xlsx', requireRfpAccess, asyn
   }
 
   sendGinoskoWorkbook(res, result);
+});
+
+// Create one project-linked work order and draft Recon estimate from the
+// approved pricing in a single RFP category. The database RPC owns numbering
+// and all inserts so a failed conversion cannot leave half-created records.
+router.post('/projects/:id/rfps/:rId/create-recon-estimate', requireManager, requireRfpAccess, async (req, res) => {
+  const jobId = req.params.id;
+  const rfpId = req.params.rId;
+  const returnToRfp = () => rfpRedirect(jobId, { open_rfp: rfpId });
+
+  try {
+    const [jobResult, rfpResult, itemsResult, settingsResult] = await Promise.all([
+      supabase.from('jobs').select('id, title, customer_id').eq('id', jobId).maybeSingle(),
+      supabase.from('project_rfps').select('id, job_id, contractor_name').eq('id', rfpId).maybeSingle(),
+      supabase.from('rfp_line_items').select('*').eq('rfp_id', rfpId).order('sort_order').order('id'),
+      supabase.from('company_settings').select('default_tax_rate').eq('id', 1).maybeSingle(),
+    ]);
+
+    if (jobResult.error) throw jobResult.error;
+    if (rfpResult.error) throw rfpResult.error;
+    if (itemsResult.error) throw itemsResult.error;
+    if (settingsResult.error) throw settingsResult.error;
+
+    const job = jobResult.data;
+    const rfp = rfpResult.data;
+    if (!job || !rfp || String(rfp.job_id) !== String(jobId)) {
+      setFlash(req, 'error', 'RFP category not found for this project.');
+      return res.redirect(returnToRfp());
+    }
+
+    const allItems = itemsResult.data || [];
+    const parentItems = allItems.filter(item => !item.parent_line_item_id);
+    const subItemsMap = {};
+    allItems.filter(item => item.parent_line_item_id).forEach((item) => {
+      (subItemsMap[item.parent_line_item_id] = subItemsMap[item.parent_line_item_id] || []).push(item);
+    });
+
+    const estimateLines = reconEstimate.buildReconEstimateLines(parentItems, subItemsMap);
+    if (!estimateLines.length) {
+      setFlash(req, 'error', 'Approve at least one RFP pricing line before creating the Recon estimate.');
+      return res.redirect(returnToRfp());
+    }
+
+    const totals = reconEstimate.totalsForReconEstimate(
+      estimateLines,
+      settingsResult.data?.default_tax_rate
+    );
+    const validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const categoryName = String(rfp.contractor_name || 'RFP category').trim();
+
+    const { data: conversion, error: conversionError } = await supabase.rpc('create_recon_estimate_from_rfp', {
+      payload: {
+        source_rfp_id: rfp.id,
+        job_id: job.id,
+        customer_id: job.customer_id,
+        user_id: req.session.userId || null,
+        work_order_description: `${categoryName} - Recon estimate`,
+        work_order_notes: `Created from approved pricing in the ${categoryName} RFP category for ${job.title || 'this project'}.`,
+        estimate_notes: null,
+        valid_until: validUntil,
+        subtotal: totals.subtotal,
+        tax_rate: totals.taxRate,
+        tax_amount: totals.taxAmount,
+        total: totals.total,
+        cost_total: totals.costTotal,
+        work_order_lines: reconEstimate.workOrderLinesFromEstimateLines(estimateLines),
+        estimate_lines: estimateLines,
+      },
+    });
+    if (conversionError) throw conversionError;
+    if (!conversion?.estimate_id) throw new Error('Recon estimate conversion did not return an estimate.');
+
+    if (conversion.created) {
+      setFlash(
+        req,
+        'success',
+        `WO-${conversion.display_number} and EST-${conversion.display_number} created from ${categoryName}.`
+      );
+    } else {
+      setFlash(req, 'info', `A Recon estimate already exists for ${categoryName}. Opening it now.`);
+    }
+    return res.redirect(`/estimates/${conversion.estimate_id}/edit`);
+  } catch (error) {
+    console.error('[rfp-recon-estimate] conversion failed:', error);
+    setFlash(req, 'error', `Could not create the Recon estimate: ${error.message || 'Unknown error'}`);
+    return res.redirect(returnToRfp());
+  }
 });
 
 router.get('/projects/:id/rfps/:rId/export.pdf', requireRfpAccess, async (req, res) => {

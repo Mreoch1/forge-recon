@@ -120,6 +120,7 @@ CREATE TABLE IF NOT EXISTS work_orders (
   assigned_to_user_id BIGINT REFERENCES users(id),
   assigned_to TEXT,
   notes TEXT,
+  source_rfp_id BIGINT,
   mock BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -154,6 +155,7 @@ CREATE TABLE IF NOT EXISTS estimates (
   valid_until DATE,
   notes TEXT,
   po_number TEXT,
+  source_rfp_id BIGINT,
   sent_at TIMESTAMPTZ,
   accepted_at TIMESTAMPTZ,
   mock BOOLEAN NOT NULL DEFAULT FALSE,
