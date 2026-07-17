@@ -163,8 +163,8 @@ async function renderContents({ packet, job, entries }) {
     const drawHeader = () => {
       doc.rect(54, y, 504, 26).fillColor(LIGHT).fill();
       doc.font('Helvetica-Bold').fontSize(8.5).fillColor(GRAY);
-      doc.text('SECTION', 64, y + 9, { width: 72 });
-      doc.text('SUBMITTAL', 144, y + 9, { width: 340 });
+      doc.text('TRADE', 64, y + 9, { width: 128 });
+      doc.text('SUBMITTAL', 200, y + 9, { width: 284 });
       doc.text('PAGE', 505, y + 9, { width: 43, align: 'right' });
       y += 34;
     };
@@ -183,10 +183,10 @@ async function renderContents({ packet, job, entries }) {
         drawHeader();
       }
       doc.font('Helvetica-Bold').fontSize(9.5).fillColor(RED)
-        .text(display(entry.section_number, String(index + 1).padStart(2, '0')), 64, y + 3, { width: 72 });
-      doc.font('Helvetica-Bold').fontSize(10).fillColor(CHARCOAL).text(title, 144, y + 3, { width: 340 });
+        .text(display(entry.section_number, String(index + 1).padStart(2, '0')), 64, y + 3, { width: 128 });
+      doc.font('Helvetica-Bold').fontSize(10).fillColor(CHARCOAL).text(title, 200, y + 3, { width: 284 });
       if (subtitle) {
-        doc.font('Helvetica').fontSize(8.5).fillColor(GRAY).text(subtitle, 144, y + 20, { width: 340 });
+        doc.font('Helvetica').fontSize(8.5).fillColor(GRAY).text(subtitle, 200, y + 20, { width: 284 });
       }
       doc.font('Helvetica-Bold').fontSize(10).fillColor(CHARCOAL)
         .text(String(entry.packet_page || ''), 505, y + 3, { width: 43, align: 'right' });
@@ -206,7 +206,7 @@ async function renderDivider({ item, job, index }) {
       .text(display(item.title, 'Product Submittal'), 54, 182, { width: 504 });
     if (item.section_number) {
       doc.font('Helvetica-Bold').fontSize(13).fillColor(RED)
-        .text(`Section ${item.section_number}`, 54, 247, { width: 504 });
+        .text(`Trade: ${item.section_number}`, 54, 247, { width: 504 });
     }
 
     const details = [

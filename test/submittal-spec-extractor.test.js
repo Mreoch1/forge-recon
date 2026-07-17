@@ -44,7 +44,7 @@ test('submittal metadata extractor reads PDF text and sanitizes AI suggestions',
   });
   assert.equal(result.source, 'document');
   assert.match(prompt, /Example Hardware Company/);
-  assert.equal(result.data.section_number, '08 71 00');
+  assert.equal(result.data.section_number, 'Doors, Frames & Hardware');
   assert.equal(result.data.model_number, 'LH-200');
 });
 
@@ -84,8 +84,24 @@ test('submittal metadata extractor analyzes scanned PDFs through file vision', a
   assert.equal(result.source, 'document');
   assert.equal(result.method, 'file-vision');
   assert.equal(attachedFile.fileName, 'vanity-light.pdf');
+  assert.equal(result.data.section_number, 'Electrical');
   assert.equal(result.data.manufacturer, 'Example Lighting');
   assert.equal(result.data.model_number, 'FL4100 Series');
+});
+
+test('submittal metadata classifies common products into trade categories', () => {
+  const { normalizeExtractedMetadata } = require('../src/services/submittal-spec-extractor');
+  assert.equal(normalizeExtractedMetadata({ product_name: 'Commercial broadloom carpet' }).section_number, 'Flooring');
+  assert.equal(normalizeExtractedMetadata({ product_name: 'ProMar 200 Interior Latex' }).section_number, 'Paint & Coatings');
+  assert.equal(normalizeExtractedMetadata({ title: 'Vanity light bar' }).section_number, 'Electrical');
+  assert.equal(normalizeExtractedMetadata({ section_number: '22 40 00', title: 'Lavatory faucet' }).section_number, 'Plumbing');
+});
+
+test('stored CSI sections normalize while custom trade categories remain intact', () => {
+  const { normalizeStoredTradeCategory } = require('../src/services/submittal-trade-categories');
+  assert.equal(normalizeStoredTradeCategory({ section_number: '09 65 00', title: 'LVT flooring' }), 'Flooring');
+  assert.equal(normalizeStoredTradeCategory({ section_number: 'Custom Owner Furnishings' }), 'Custom Owner Furnishings');
+  assert.equal(normalizeStoredTradeCategory({ section_number: '' }), '');
 });
 
 test('submittal metadata extractor does not report success for a title-only result', async () => {

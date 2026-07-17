@@ -1,11 +1,14 @@
 const MAX_SOURCE_CHARS = 7000;
 const MAX_FILES_TO_READ = 3;
 const MAX_PAGES_PER_FILE = 6;
+const { SUBMITTAL_TRADE_CATEGORIES, classifySubmittalTrade } = require('./submittal-trade-categories');
 
 const METADATA_SYSTEM_PROMPT = [
   'Extract construction product-submittal metadata from the supplied product specification.',
   'Return only valid JSON with these string fields:',
   '{"section_number":"","title":"","manufacturer":"","product_name":"","model_number":"","notes":""}',
+  `The section_number field is a trade category, not a CSI number. Choose exactly one of: ${SUBMITTAL_TRADE_CATEGORIES.join('; ')}.`,
+  'Examples: carpet and LVT are Flooring; ProMar 200 is Paint & Coatings; a vanity light bar is Electrical.',
   'Use only facts present in the supplied document. Never invent missing values.',
   'The title should be a concise product or system description, not a filename.',
   'If a sheet lists a product family with several models, use the family or series name and summarize the relevant model range instead of choosing one arbitrarily.',
@@ -45,6 +48,11 @@ function sanitizeMetadata(value = {}) {
 function hasProductDetails(value = {}) {
   const metadata = sanitizeMetadata(value);
   return Object.entries(metadata).some(([key, detail]) => key !== 'title' && Boolean(detail));
+}
+
+function normalizeExtractedMetadata(value = {}) {
+  const metadata = sanitizeMetadata(value);
+  return { ...metadata, section_number: classifySubmittalTrade(metadata) };
 }
 
 function fillBlankMetadata(current = {}, suggested = {}) {
@@ -96,8 +104,9 @@ async function extractSubmittalMetadata({ files, userId, aiService }) {
         files,
       });
       if (fileResult.ok) {
-        const extracted = sanitizeMetadata(fileResult.data);
-        if (hasProductDetails(extracted)) {
+        const rawExtracted = sanitizeMetadata(fileResult.data);
+        if (hasProductDetails(rawExtracted)) {
+          const extracted = normalizeExtractedMetadata(rawExtracted);
           return {
             data: { ...extracted, title: extracted.title || fallback.title },
             source: 'document',
@@ -133,14 +142,15 @@ async function extractSubmittalMetadata({ files, userId, aiService }) {
     };
   }
 
-  const extracted = sanitizeMetadata(result.data);
-  if (!hasProductDetails(extracted)) {
+  const rawExtracted = sanitizeMetadata(result.data);
+  if (!hasProductDetails(rawExtracted)) {
     return {
       data: fallback,
       source: 'filename-ai-failed',
       warnings: [...source.warnings, 'Forge could not identify product details in the product spec.'],
     };
   }
+  const extracted = normalizeExtractedMetadata(rawExtracted);
   return {
     data: { ...extracted, title: extracted.title || fallback.title },
     source: 'document',
@@ -153,5 +163,6 @@ module.exports = {
   extractSubmittalMetadata,
   filenameTitle,
   fillBlankMetadata,
+  normalizeExtractedMetadata,
   sanitizeMetadata,
 };

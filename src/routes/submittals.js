@@ -6,6 +6,7 @@ const { setFlash } = require('../middleware/auth');
 const { loadProjectAccess, denyProjectAccess } = require('./jobs');
 const { buildSubmittalPacket, pageCount } = require('../services/submittal-packet-pdf');
 const { extractSubmittalMetadata, fillBlankMetadata, filenameTitle } = require('../services/submittal-spec-extractor');
+const { SUBMITTAL_TRADE_CATEGORIES, normalizeStoredTradeCategory } = require('../services/submittal-trade-categories');
 
 const router = express.Router();
 const BUCKET = 'entity-files';
@@ -109,7 +110,11 @@ async function loadItems(packetId) {
     list.push(file);
     filesByItem.set(String(file.item_id), list);
   });
-  return items.map(item => ({ ...item, files: filesByItem.get(String(item.id)) || [] }));
+  return items.map(item => ({
+    ...item,
+    section_number: normalizeStoredTradeCategory(item),
+    files: filesByItem.get(String(item.id)) || [],
+  }));
 }
 
 async function nextSortOrder(packetId) {
@@ -183,6 +188,7 @@ router.get('/:id/submittals', requireSubmittalAccess, async (req, res, next) => 
       packet,
       items,
       sourcePackets: sourcePackets.map(source => ({ ...source, project_title: source.jobs?.title || `Project ${source.job_id}` })),
+      tradeCategories: SUBMITTAL_TRADE_CATEGORIES,
       maxFileSizeMb: Math.round(MAX_FILE_SIZE / 1024 / 1024),
     });
   } catch (error) {

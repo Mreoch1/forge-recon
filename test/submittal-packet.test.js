@@ -86,6 +86,8 @@ test('submittal packet routes and project navigation are wired', () => {
   assert.match(view, /Import a prior packet/);
   assert.match(view, /Forge reads text and scanned pages/);
   assert.match(view, /Fill details from PDF/);
+  assert.match(view, /Trade category/);
+  assert.match(view, /submittal-trade-categories/);
   assert.doesNotMatch(view, /name="title"[^>]*required/);
   assert.match(view, /class="ops-shell"/);
   assert.equal(fs.existsSync(coverImage), true);
