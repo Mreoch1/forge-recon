@@ -26,6 +26,7 @@ const storage = require('../services/storage');
 const { sanitizePostgrestSearch } = require('../services/sanitize');
 const { listEntityActivity } = require('../services/activity');
 const { writeAudit } = require('../services/audit');
+const { decorateCustomerPickerOptions, decorateProjectPickerOptions } = require('../services/navigation');
 
 // PDF service is optional in some envs — wrap import so test boots don't fail
 let pdf;
@@ -861,7 +862,7 @@ router.get('/new', async (req, res) => {
     wo: { id: null, display_number: '', unit_number: '', suggested_display_number: suggestedNumber.display,
           customer_id: presetCustomerId, project_id: presetProject?.id || '', scheduled_date: '', scheduled_time: '', notes: '', description: '',
           assignee_ids: [], contractor_ids: [], lines: [] },
-    customers: customers || [], projects: projectsWithCustomer, users: users || [], contractors: contractors || [],
+    customers: decorateCustomerPickerOptions(customers), projects: decorateProjectPickerOptions(projectsWithCustomer), users: users || [], contractors: contractors || [],
     customerName: presetCustomerName, errors: {}, units: VALID_UNITS,
   });
 });
@@ -901,7 +902,7 @@ router.post('/', async (req, res) => {
             scheduled_date: data.scheduled_date || '', scheduled_time: data.scheduled_time || '',
             notes: data.notes || '', description: data.description || '',
             assignee_ids: normalizeArr(req.body.assignee_ids), contractor_ids: normalizeArr(req.body.contractor_ids), lines: data.lines || [] },
-      customers: allCustomers || [], projects: projectsWithCustomer, users: users || [], contractors: contractors || [],
+      customers: decorateCustomerPickerOptions(allCustomers), projects: decorateProjectPickerOptions(projectsWithCustomer), users: users || [], contractors: contractors || [],
       customerName: customer?.name || req.body.customer_search || '', errors, units: VALID_UNITS,
     });
   }
@@ -923,7 +924,7 @@ router.post('/', async (req, res) => {
               scheduled_date: data.scheduled_date || '', scheduled_time: data.scheduled_time || '',
               notes: data.notes || '', description: data.description || '',
               assignee_ids: normalizeArr(req.body.assignee_ids), contractor_ids: normalizeArr(req.body.contractor_ids), lines: data.lines || [] },
-        customers: allCustomers || [], projects: [], users: users || [], contractors: contractors || [],
+        customers: decorateCustomerPickerOptions(allCustomers), projects: [], users: users || [], contractors: contractors || [],
         customerName: customer?.name || '', errors, units: VALID_UNITS,
       });
     }
@@ -1381,7 +1382,7 @@ router.get('/:id/edit', async (req, res) => {
       assignee_ids: (wo.assignees || []).map(a => a.id).filter(Boolean),
       contractor_ids: (wo.contractor_assignees || []).map(a => a.id).filter(Boolean),
     },
-    customers: customers || [], projects: projectsWithCustomer, users: users || [], contractors: contractors || [], errors: {}, units: VALID_UNITS
+    customers: decorateCustomerPickerOptions(customers), projects: decorateProjectPickerOptions(projectsWithCustomer), users: users || [], contractors: contractors || [], errors: {}, units: VALID_UNITS
   });
 });
 

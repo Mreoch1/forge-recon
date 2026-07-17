@@ -12,6 +12,7 @@
  */
 
 const supabase = require('../db/supabase');
+const { getBackButtonState } = require('../services/navigation');
 
 const asyncHandler = require('./async-handler');
 
@@ -117,16 +118,9 @@ const loadCurrentUser = asyncHandler(async (req, res, next) => {
       res.locals.isWorker = user.role === 'worker';
       // D-081: detect FORGE route for minimal header
       res.locals.isForgeRoute = /^\/forge/.test(req.path);
-      // D-073: show back button on detail/edit pages (not index pages)
-      const _detailMatch = req.path.match(/^\/(work-orders|customers|vendors|projects|estimates|invoices|bills|schedule)\/\d+/);
-      res.locals.showBackButton = !!_detailMatch || /\/edit$/.test(req.path);
-      // Sensible fallback if no browser history: the entity's index page
-      if (_detailMatch) {
-        const _fallbacks = { 'work-orders':'/work-orders', 'customers':'/customers', 'vendors':'/vendors', 'projects':'/projects', 'estimates':'/estimates', 'invoices':'/invoices', 'bills':'/bills', 'schedule':'/schedule' };
-        res.locals.backButtonFallback = _fallbacks[_detailMatch[1]] || '/';
-      } else {
-        res.locals.backButtonFallback = '/';
-      }
+      const backButton = getBackButtonState(req.path);
+      res.locals.showBackButton = backButton.show;
+      res.locals.backButtonFallback = backButton.fallback;
     } else {
       clearSession(req);
     }

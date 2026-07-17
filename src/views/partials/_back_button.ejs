@@ -1,7 +1,7 @@
-<%# D-073: Universal back button — shown on detail/edit pages %>
+<%# D-073: Universal back button for authenticated pages %>
 <% if (typeof showBackButton !== 'undefined' && showBackButton) { %>
 <div class="page-back-shell">
-  <a href="javascript:history.back()" class="inline-flex items-center gap-1 text-sm text-recon-fog hover:text-recon-red transition" onclick="if (document.referrer && document.referrer.startsWith(window.location.origin)) return true; else { window.location.href = this.getAttribute('data-fallback'); return false; }" data-fallback="<%= backButtonFallback || '/' %>">
+  <a href="<%= backButtonFallback || '/' %>" class="inline-flex items-center gap-1 text-sm text-recon-fog hover:text-recon-red transition" onclick="if (document.referrer && document.referrer.startsWith(window.location.origin)) { history.back(); return false; } return true;">
     <span class="text-lg leading-none">&larr;</span> Back
   </a>
 </div>

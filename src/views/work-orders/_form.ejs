@@ -19,7 +19,7 @@ const selectedProjectId = wo.project_id || '';
                autocomplete="off" value="<%= customerName || '' %>">
         <datalist id="customer-list">
           <% (customers || []).forEach(function(c){ %>
-            <option value="<%= c.name %>" data-id="<%= c.id %>"></option>
+            <option value="<%= c.picker_label || c.name %>" data-id="<%= c.id %>"></option>
           <% }); %>
         </datalist>
         <input type="hidden" name="customer_id" id="customer-id" value="<%= selectedCustomerId %>">
@@ -47,7 +47,7 @@ const selectedProjectId = wo.project_id || '';
                     data-customer-id="<%= p.customer_id || '' %>"
                     data-customer-name="<%= p.customer_name || '' %>"
                     data-address="<%= (p.address || '') %>, <%= (p.city || '') %>, <%= (p.state || '') %>"
-                    <%= (selectedProjectId == p.id) ? 'selected' : '' %>><%= p.title %></option>
+                    <%= (selectedProjectId == p.id) ? 'selected' : '' %>><%= p.picker_label || p.title %></option>
           <% }); %>
         </select>
       </div>
@@ -222,7 +222,7 @@ const selectedProjectId = wo.project_id || '';
     var c = customers.find(function(x){ return x.id == id; });
     if (!c) return;
     hidden.value = c.id;
-    search.value = c.name;
+    search.value = c.picker_label || c.name;
     cName.textContent = c.name;
     cEmail.textContent = c.email || '';
     cPhone.textContent = c.phone || '';
@@ -234,13 +234,13 @@ const selectedProjectId = wo.project_id || '';
 
   search.addEventListener('change', function(){
     var selectedName = search.value;
-    var match = customers.find(function(c){ return c.name === selectedName; });
+    var match = customers.find(function(c){ return (c.picker_label || c.name) === selectedName; });
     if (match) showCustomer(match.id);
   });
 
   search.addEventListener('input', function(){
     var selectedName = search.value;
-    var match = customers.find(function(c){ return c.name === selectedName; });
+    var match = customers.find(function(c){ return (c.picker_label || c.name) === selectedName; });
     if (!match) { hidden.value = ''; card.classList.add('hidden'); }
   });
 
