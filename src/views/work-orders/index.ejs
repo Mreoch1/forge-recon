@@ -105,7 +105,7 @@
   </div>
   <form method="get" action="/work-orders" class="list-utility-bar" style="margin-bottom:.65rem">
     <% if (_projectContext) { %><input type="hidden" name="project_id" value="<%= _projectContext.id %>"><% } %>
-    <input type="text" name="q" value="<%= q %>" placeholder="Search WO #, customer..." class="list-search">
+    <input type="text" name="q" value="<%= q %>" placeholder="Search WO #, customer, project, unit..." class="list-search">
     <select name="status" class="list-filter">
       <option value="">All statuses</option>
       <% _statuses.forEach(function(s){ %>

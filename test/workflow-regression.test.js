@@ -1651,3 +1651,18 @@ test('new work orders preserve customer context and feedback records its page', 
   assert.match(app, /req\.body\.page_url \|\| req\.headers\.referer/);
   assert.match(footer, /page_url=' \+ encodeURIComponent\(window\.location\.pathname \+ window\.location\.search\)/);
 });
+
+test('work order search includes customer, project, unit, and description', () => {
+  const routes = read('src/routes/work-orders.js');
+  const index = read('src/views/work-orders/index.ejs');
+
+  assert.match(routes, /supabase\.from\('customers'\)\.select\('id'\)\.ilike\('name', like\)/);
+  assert.match(routes, /supabase\.from\('jobs'\)\.select\('id'\)\.ilike\('title', like\)/);
+  assert.match(routes, /\.in\('customer_id', matchingCustomerIds\)/);
+  assert.match(routes, /display_number\.ilike\.\$\{like\}/);
+  assert.match(routes, /unit_number\.ilike\.\$\{like\}/);
+  assert.match(routes, /description\.ilike\.\$\{like\}/);
+  assert.match(routes, /customer_id\.in\.\(\$\{Array\.from\(new Set\(matchingCustomerIds\)\)\.join\(','\)\}\)/);
+  assert.match(routes, /job_id\.in\.\(\$\{Array\.from\(new Set\(matchingProjectIds\)\)\.join\(','\)\}\)/);
+  assert.match(index, /Search WO #, customer, project, unit/);
+});

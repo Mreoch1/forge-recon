@@ -704,9 +704,46 @@ router.get('/', async (req, res) => {
     `, { count: 'exact', head: false });
 
   if (q) {
-    // PostgREST OR across nested tables is finicky; restrict to display_number.
+    // Resolve related names first because PostgREST cannot reliably OR filters
+    // across both work_orders and its nested customer/project relationships.
     const like = `%${q}%`;
-    query = query.ilike('display_number', like);
+    const [customerResult, projectResult] = await Promise.all([
+      supabase.from('customers').select('id').ilike('name', like),
+      supabase.from('jobs').select('id').ilike('title', like),
+    ]);
+    if (customerResult.error) throw customerResult.error;
+    if (projectResult.error) throw projectResult.error;
+
+    const matchingCustomerIds = (customerResult.data || [])
+      .map(customer => Number(customer.id))
+      .filter(Number.isInteger);
+    let matchingProjectIds = (projectResult.data || [])
+      .map(project => Number(project.id))
+      .filter(Number.isInteger);
+
+    if (matchingCustomerIds.length) {
+      const { data: customerProjects, error: customerProjectsError } = await supabase
+        .from('jobs')
+        .select('id')
+        .in('customer_id', matchingCustomerIds);
+      if (customerProjectsError) throw customerProjectsError;
+      matchingProjectIds = matchingProjectIds.concat(
+        (customerProjects || []).map(project => Number(project.id)).filter(Number.isInteger)
+      );
+    }
+
+    const searchFilters = [
+      `display_number.ilike.${like}`,
+      `unit_number.ilike.${like}`,
+      `description.ilike.${like}`,
+    ];
+    if (matchingCustomerIds.length) {
+      searchFilters.push(`customer_id.in.(${Array.from(new Set(matchingCustomerIds)).join(',')})`);
+    }
+    if (matchingProjectIds.length) {
+      searchFilters.push(`job_id.in.(${Array.from(new Set(matchingProjectIds)).join(',')})`);
+    }
+    query = query.or(searchFilters.join(','));
   }
   if (status && VALID_STATUSES.includes(status)) {
     query = query.eq('status', status);
