@@ -1666,3 +1666,12 @@ test('work order search includes customer, project, unit, and description', () =
   assert.match(routes, /job_id\.in\.\(\$\{Array\.from\(new Set\(matchingProjectIds\)\)\.join\(','\)\}\)/);
   assert.match(index, /Search WO #, customer, project, unit/);
 });
+
+test('public legal pages resolve the shared root-level layout includes', () => {
+  for (const view of ['src/views/terms.ejs', 'src/views/privacy.ejs']) {
+    const template = read(view);
+    assert.match(template, /include\('layouts\/header'/);
+    assert.match(template, /include\('layouts\/footer'/);
+    assert.doesNotMatch(template, /include\('\.\.\/layouts\//);
+  }
+});

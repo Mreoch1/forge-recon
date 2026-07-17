@@ -1,4 +1,4 @@
-<%- include('../layouts/header', { title: title, currentUser: typeof currentUser !== 'undefined' ? currentUser : null, flash: typeof flash !== 'undefined' ? flash : {} }) %>
+<%- include('layouts/header', { title: title, currentUser: typeof currentUser !== 'undefined' ? currentUser : null, flash: typeof flash !== 'undefined' ? flash : {} }) %>
 
 <div class="max-w-3xl mx-auto px-4 py-10">
   <h1 class="page-h1 mb-6">Terms of Service</h1>
@@ -63,4 +63,4 @@
   </div>
 </div>
 
-<%- include('../layouts/footer') %>
+<%- include('layouts/footer') %>
