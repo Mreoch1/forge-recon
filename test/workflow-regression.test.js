@@ -468,6 +468,14 @@ test('invoice summary does not count billing-complete invoices as paid', () => {
   assert.match(invoiceIndex, /billing complete, not paid/);
 });
 
+test('dashboard accounts receivable includes billing-complete balances', () => {
+  const dashboard = read('src/routes/dashboard.js');
+
+  assert.match(dashboard, /const RECEIVABLE_INVOICE_STATUSES = \['sent', 'overdue', 'billing_complete'\]/);
+  assert.match(dashboard, /select\('total, amount_paid'\)\.in\('status', RECEIVABLE_INVOICE_STATUSES\)/);
+  assert.match(dashboard, /\.in\('status', \['sent', 'overdue'\]\).*\.lt\('due_date', today\)/s);
+});
+
 test('bank transactions and account defaults are wired for accounting categorization', () => {
   const accountingRoutes = read('src/routes/accounting.js');
   const accountingIndex = read('src/views/accounting/index.ejs');

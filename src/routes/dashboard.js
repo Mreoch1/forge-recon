@@ -21,6 +21,7 @@ const WO_DASHBOARD_SELECT = 'id, display_number, status, created_at, customer_id
 const EST_DASHBOARD_SELECT = 'id, status, created_at, total, work_orders!left(display_number, customer_id, customers!left(id, name), jobs!left(id, title, customers!left(id, name)))';
 const INV_DASHBOARD_SELECT = 'id, status, created_at, total, work_orders!left(display_number, customer_id, customers!left(id, name), jobs!left(id, title, customers!left(id, name)))';
 const ACTIVE_WORK_ORDER_STATUSES = ['open', 'scheduled', 'in_progress'];
+const RECEIVABLE_INVOICE_STATUSES = ['sent', 'overdue', 'billing_complete'];
 
 function displayForWorkOrder(wo) {
   const customer = wo?.customers || wo?.jobs?.customers || {};
@@ -73,8 +74,8 @@ router.get('/dashboard-classic', async (req, res) => {
   ] = await Promise.all([
     supabase.from('estimates').select('*', { count: 'exact', head: true }).in('status', ['draft', 'sent']),
     supabase.from('work_orders').select('*', { count: 'exact', head: true }).in('status', ACTIVE_WORK_ORDER_STATUSES),
-    supabase.from('invoices').select('*', { count: 'exact', head: true }).in('status', ['sent', 'overdue']),
-    supabase.from('invoices').select('total, amount_paid').in('status', ['sent', 'overdue']),
+    supabase.from('invoices').select('*', { count: 'exact', head: true }).in('status', RECEIVABLE_INVOICE_STATUSES),
+    supabase.from('invoices').select('total, amount_paid').in('status', RECEIVABLE_INVOICE_STATUSES),
     supabase.from('invoices').select('amount_paid').eq('status', 'paid').not('paid_at', 'is', null).gte('paid_at', currentMonth + '-01'),
     supabase.from('invoices').select('amount_paid').eq('status', 'paid').not('paid_at', 'is', null).gte('paid_at', currentYear + '-01-01'),
     supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'sent').not('due_date', 'is', null).lt('due_date', today),
@@ -282,7 +283,7 @@ router.get('/', async (req, res) => {
 
   // ---------- Bottom metrics ----------
   const [arResult, revMonthResult, revYTDResult, customerCountResult, activeWorkOrdersResult] = await Promise.all([
-    supabase.from('invoices').select('total, amount_paid').in('status', ['sent', 'overdue']),
+    supabase.from('invoices').select('total, amount_paid').in('status', RECEIVABLE_INVOICE_STATUSES),
     supabase.from('invoices').select('amount_paid').eq('status', 'paid').not('paid_at', 'is', null).gte('paid_at', currentMonth + '-01'),
     supabase.from('invoices').select('amount_paid').eq('status', 'paid').not('paid_at', 'is', null).gte('paid_at', currentYear + '-01-01'),
     supabase.from('customers').select('*', { count: 'exact', head: true }),
