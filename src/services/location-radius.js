@@ -30,6 +30,7 @@ const CITY_COORDS = {
   'madison heights|MI': { lat: 42.4859, lon: -83.1052 },
   'mount morris|MI': { lat: 43.1186, lon: -83.6944 },
   'mt morris|MI': { lat: 43.1186, lon: -83.6944 },
+  'muskegon|MI': { lat: 43.2342, lon: -86.2484 },
   'novi|MI': { lat: 42.4806, lon: -83.4755 },
   'oak park|MI': { lat: 42.4595, lon: -83.1827 },
   'pontiac|MI': { lat: 42.6389, lon: -83.2911 },
