@@ -408,7 +408,9 @@
                 <% var liHasDirectPricing = !liHasSubs && (liDirectTotalCost > 0 || liDirectTotal > 0 || Number(item.quantity) > 0 || Number(item.contractor_cost) > 0 || Number(item.vendor_cost) > 0 || Number(item.unit_cost) > 0); %>
                 <% var liDisplayLineCount = liHasSubs ? liSubCount : (liHasDirectPricing ? 1 : 0); %>
                 <% var liDisplayApprovedCount = liHasSubs ? liApprovedSubs : (liHasDirectPricing && item.approved ? 1 : 0); %>
-                <tr id="rfp-line-<%= item.id %>" class="rfp-li-row bg-recon-deeper/20 hover:bg-recon-cloud/20 border-t-2 border-recon-mist/40" style="cursor:pointer" data-rfp-line-total="<%= (liHasSubs ? liApprovedTotal : liDisplayTotal).toFixed(2) %>" data-rfp-line-approved="<%= liHasSubs ? (liApprovedSubs > 0 ? '1' : '0') : (item.approved ? '1' : '0') %>" data-rfp-line-search="<%= (item.description || '').toLowerCase() %>" onclick="toggleRfpLineEditor('<%= item.id %>');">
+                <% var liChildSearchText = children.map(function(child) { return [child.vendor || '', child.description || ''].join(' '); }).join(' ').toLowerCase(); %>
+                <% var liSearchText = [item.description || '', liChildSearchText].join(' ').toLowerCase(); %>
+                <tr id="rfp-line-<%= item.id %>" class="rfp-li-row bg-recon-deeper/20 hover:bg-recon-cloud/20 border-t-2 border-recon-mist/40" style="cursor:pointer" data-rfp-line-total="<%= (liHasSubs ? liApprovedTotal : liDisplayTotal).toFixed(2) %>" data-rfp-line-approved="<%= liHasSubs ? (liApprovedSubs > 0 ? '1' : '0') : (item.approved ? '1' : '0') %>" data-rfp-child-search="<%= liChildSearchText %>" data-rfp-line-search="<%= liSearchText %>" onclick="toggleRfpLineEditor('<%= item.id %>');">
                   <td class="text-center" onclick="event.stopPropagation();">
                     <input form="rfp-bid-request-form" type="checkbox" name="item_ids" value="<%= item.id %>" class="h-4 w-4" data-rfp-bid-item>
                   </td>
@@ -968,13 +970,20 @@
       if (itemsRow) itemsRow.classList.toggle('hidden', itemsRow.classList.contains('hidden') || !showCategory);
 
       if (!itemsRow) return;
+      var hasMatchingLine = false;
       itemsRow.querySelectorAll('.rfp-li-row').forEach(function(lineRow) {
         var lineSearch = lineRow.getAttribute('data-rfp-line-search') || '';
         var lineApproved = lineRow.getAttribute('data-rfp-line-approved') === '1';
         var searchMatch = !q || categoryName.indexOf(q) !== -1 || lineSearch.indexOf(q) !== -1;
         var lineMatch = (!approvedOnly || lineApproved) && searchMatch;
+        if (lineMatch) hasMatchingLine = true;
         lineRow.classList.toggle('hidden', !lineMatch);
       });
+      if (q && showCategory && hasMatchingLine) {
+        itemsRow.classList.remove('hidden');
+        var categoryIcon = document.getElementById('rfp-chev-' + rfpId);
+        if (categoryIcon) categoryIcon.textContent = '▼';
+      }
     });
 
     document.querySelectorAll('[data-rfp-export-link]').forEach(function(link) {
@@ -1309,7 +1318,8 @@
     if (field === 'description') {
       var parentRow = document.getElementById('rfp-line-' + itemId);
       if (parentRow) {
-        parentRow.setAttribute('data-rfp-line-search', value.toLowerCase());
+        var childSearch = parentRow.getAttribute('data-rfp-child-search') || '';
+        parentRow.setAttribute('data-rfp-line-search', (value + ' ' + childSearch).toLowerCase());
         var categoryRow = parentRow.closest('[data-rfp-items-row]');
         var rfpId = categoryRow && categoryRow.getAttribute('data-rfp-items-row');
         var summaryRow = rfpId && document.querySelector('[data-rfp-category-row][data-rfp-id="' + rfpId + '"]');

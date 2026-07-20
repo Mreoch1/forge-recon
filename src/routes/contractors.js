@@ -243,6 +243,7 @@ router.get('/:id', async (req, res) => {
       `)
       .eq('vendor', contractor.name)
       .not('parent_line_item_id', 'is', null)
+      .eq('approved', true)
       .limit(500);
     if (!scopeError && scopeItems) {
       // Deduplicate by project
@@ -326,6 +327,7 @@ router.get('/:id/handoff/:projectId.pdf', async (req, res) => {
     .eq('vendor', contractor.name)
     .eq('project_rfps.job_id', projectId)
     .not('parent_line_item_id', 'is', null)
+    .eq('approved', true)
     .order('sort_order', { ascending: true })
     .order('id', { ascending: true });
   if (itemsError) throw itemsError;

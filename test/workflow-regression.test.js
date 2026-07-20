@@ -845,7 +845,7 @@ test('RFP line items open a pricing editor instead of dropdown sub rows', () => 
   assert.match(view, /if \(activeSave && activeSave\.value === value\) return activeSave\.promise/);
   assert.match(view, /function autosaveValuesMatchClient\(field, a, b\)/);
   assert.match(view, /autosaveValuesMatchClient\(el\.dataset\.field, data\.currentValue, value\)/);
-  assert.match(view, /parentRow\.setAttribute\('data-rfp-line-search', value\.toLowerCase\(\)\)/);
+  assert.match(view, /parentRow\.setAttribute\('data-rfp-line-search', \(value \+ ' ' \+ childSearch\)\.toLowerCase\(\)\)/);
   assert.match(view, /syncRfpItemField\(el\.dataset\.itemId, el\.dataset\.field, saved, el\)/);
   assert.match(view, /data-rfp-editor-save="<%= item\.id %>" onclick="event\.stopPropagation\(\);window\.saveRfpLineEditor&&window\.saveRfpLineEditor\('<%= item\.id %>'\)">Save line item/);
   assert.match(view, /id="rfp-add-sub-form-<%= item\.id %>"/);
@@ -912,6 +912,11 @@ test('RFP page filters categories and approved-only line items client-side', () 
   assert.match(view, /function applyRfpFilters\(\)/);
   assert.match(view, /approvedMatch = !approvedOnly \|\| approvedCount > 0/);
   assert.match(view, /\(!approvedOnly \|\| lineApproved\) && searchMatch/);
+  assert.match(view, /var liChildSearchText = children\.map\(function\(child\)/);
+  assert.match(view, /data-rfp-child-search="<%= liChildSearchText %>"/);
+  assert.match(view, /data-rfp-line-search="<%= liSearchText %>"/);
+  assert.match(view, /value \+ ' ' \+ childSearch/);
+  assert.match(view, /if \(q && showCategory && hasMatchingLine\)/);
   assert.match(view, /\.rfp-items-table tbody tr\.rfp-li-row\.hidden\s*\{[^}]*display:\s*none !important/s);
   assert.match(view, /data-rfp-export-link/);
   assert.match(view, /url\.searchParams\.set\('approved_only', '1'\)/);
@@ -1645,6 +1650,7 @@ test('contractor scope PDFs show contractor raw unit and total pricing only', ()
   const routes = read('src/routes/contractors.js');
 
   assert.match(routes, /id, description, quantity, unit_cost, total_cost, vendor, sort_order/);
+  assert.ok((routes.match(/\.eq\('approved', true\)/g) || []).length >= 2);
   assert.match(service, /label: 'UNIT PRICE'/);
   assert.match(service, /label: 'TOTAL PRICE'/);
   assert.match(service, /const unitCost = Number\(item\.unit_cost\) \|\| 0/);
