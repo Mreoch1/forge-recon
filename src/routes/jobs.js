@@ -19,6 +19,7 @@ const { sendEmail } = require('../services/email');
 const numbering = require('../services/numbering');
 const storage = require('../services/storage');
 const { writeAudit } = require('../services/audit');
+const filesService = require('../services/files');
 
 const router = express.Router();
 const PAGE_SIZE = 25;
@@ -740,6 +741,7 @@ router.post('/', async (req, res) => {
       }, { onConflict: 'job_id,user_id' });
     if (memberError) throw memberError;
   }
+  await filesService.ensureProjectFolderStructure(newJob.id, req.session.userId || null);
   setFlash(req, 'success', `Project "${data.title}" created.`);
   res.redirect(`/projects/${newJob.id}`);
 });

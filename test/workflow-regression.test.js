@@ -1577,6 +1577,20 @@ test('vendor invoice PDFs are filed with bills and linked across billing views',
   assert.match(workOrderShow, /\/files\/<%= b\.attachment_file_id %>\/view/);
 });
 
+test('new projects receive the standard project file folders from every creation flow', () => {
+  const fileService = read('src/services/files.js');
+  const jobsRoute = read('src/routes/jobs.js');
+  const workOrdersRoute = read('src/routes/work-orders.js');
+
+  for (const folder of ['Invoices', 'Contract Documents', 'Contractor Documents', 'Schedule', 'Drawings', 'Photos']) {
+    assert.match(fileService, new RegExp(`['\"]${folder}['\"]`));
+  }
+  assert.match(fileService, /async function ensureProjectFolderStructure/);
+  assert.match(fileService, /ensureRootFolder\('work_order', projectId, createdByUserId\)/);
+  assert.match(jobsRoute, /ensureProjectFolderStructure\(newJob\.id, req\.session\.userId \|\| null\)/);
+  assert.match(workOrdersRoute, /ensureProjectFolderStructure\(jobId, req\.session\.userId \|\| null\)/);
+});
+
 test('invoice line item totals update with blank labor and zero markup', () => {
   const lineItems = read('public/js/line-items.js');
   const invoiceEdit = read('src/views/invoices/edit.ejs');

@@ -27,6 +27,7 @@ const { sanitizePostgrestSearch } = require('../services/sanitize');
 const { listEntityActivity } = require('../services/activity');
 const { writeAudit } = require('../services/audit');
 const { decorateCustomerPickerOptions, decorateProjectPickerOptions } = require('../services/navigation');
+const filesService = require('../services/files');
 
 // PDF service is optional in some envs — wrap import so test boots don't fail
 let pdf;
@@ -1110,6 +1111,7 @@ router.post('/ai-finalize', async (req, res) => {
     .single();
   if (jErr) throw jErr;
   const jobId = newJob.id;
+  await filesService.ensureProjectFolderStructure(jobId, req.session.userId || null);
 
   // Assignees → primary user_id + comma-joined cache text
   const rawAssignees = asArray(req.body.assignees);

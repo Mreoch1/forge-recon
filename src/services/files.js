@@ -4,6 +4,15 @@
  */
 const supabase = require('../db/supabase');
 
+const PROJECT_DEFAULT_FOLDERS = Object.freeze([
+  'Invoices',
+  'Contract Documents',
+  'Contractor Documents',
+  'Schedule',
+  'Drawings',
+  'Photos',
+]);
+
 function assertFileRead(result, label) {
   if (result?.error) {
     const err = new Error(`${label}: ${result.error.message}`);
@@ -110,6 +119,20 @@ async function ensureFolderPath(rootFolder, names, createdByUserId) {
   return current;
 }
 
+async function ensureProjectFolderStructure(projectId, createdByUserId) {
+  if (!projectId) throw new Error('Project is required.');
+  // Project file workspaces use the established work_order-backed root in Forge.
+  await ensureRootFolder('work_order', projectId, createdByUserId);
+  const root = await getRootFolder('work_order', projectId);
+  if (!root) throw new Error('Could not prepare the project file workspace.');
+
+  const folders = [];
+  for (const name of PROJECT_DEFAULT_FOLDERS) {
+    folders.push(await ensureSubfolder(root, name, createdByUserId));
+  }
+  return { root, folders };
+}
+
 async function getFolderContents(folderId) {
   const [subfoldersResult, filesResult] = await Promise.all([
     supabase.from('folders').select('*').eq('parent_folder_id', folderId).order('name', { ascending: true }),
@@ -145,9 +168,11 @@ async function getEntityList(entityType) {
 }
 
 module.exports = {
+  PROJECT_DEFAULT_FOLDERS,
   ensureRootFolder,
   ensureSubfolder,
   ensureFolderPath,
+  ensureProjectFolderStructure,
   getRootFolder,
   getFolderContents,
   getEntityList,
