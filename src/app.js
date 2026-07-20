@@ -195,6 +195,7 @@ app.use(async (req, res, next) => {
 
 app.locals.DEFAULT_SESSION_MAX_AGE_MS = DEFAULT_SESSION_MAX_AGE_MS;
 app.locals.REMEMBER_SESSION_MAX_AGE_MS = REMEMBER_SESSION_MAX_AGE_MS;
+app.locals.assetVersion = process.env.VERCEL_GIT_COMMIT_SHA || 'dev';
 
 app.use(loadCurrentUser);
 

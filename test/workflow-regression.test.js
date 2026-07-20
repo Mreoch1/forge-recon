@@ -1743,5 +1743,9 @@ test('dark mode uses a neutral black palette with readable text', () => {
 
 test('RFP action toolbar uses a dark surface in dark mode', () => {
   const darkCss = read('public/css/dark.css');
+  const app = read('src/app.js');
+  const header = read('src/views/layouts/header.ejs');
   assert.match(darkCss, /html\.dark \.rfp-action-bar,/);
+  assert.match(app, /app\.locals\.assetVersion = process\.env\.VERCEL_GIT_COMMIT_SHA \|\| 'dev'/);
+  assert.match(header, /\/css\/dark\.css\?v=<%= assetVersion %>/);
 });
