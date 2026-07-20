@@ -1,9 +1,68 @@
 const express = require('express');
 const supabase = require('../db/supabase');
+const { setFlash } = require('../middleware/auth');
 const { sanitizePostgrestSearch } = require('../services/sanitize');
+const { emptyToNullFormattedPhone } = require('../services/phone');
 
 const router = express.Router();
 const PAGE_SIZE = 50;
+const VALID_COMPANY_ROLES = ['vendor', 'contractor', 'both'];
+const VALID_TRADES = ['drywall', 'plumbing', 'electrical', 'HVAC', 'general', 'other'];
+
+function emptyToNull(value) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed || null;
+}
+
+function validateCompany(body = {}) {
+  const errors = {};
+  const name = emptyToNull(body.name);
+  const company_role = VALID_COMPANY_ROLES.includes(body.company_role) ? body.company_role : 'vendor';
+  const trade = emptyToNull(body.trade);
+
+  if (!name) errors.name = 'Company name is required.';
+  if (name && name.length > 200) errors.name = 'Company name is too long (maximum 200 characters).';
+  if (trade && !VALID_TRADES.includes(trade)) errors.trade = 'Select a valid trade.';
+
+  return {
+    errors,
+    data: {
+      company_role,
+      name,
+      email: emptyToNull(body.email),
+      phone: emptyToNullFormattedPhone(body.phone),
+      address: emptyToNull(body.address),
+      city: emptyToNull(body.city),
+      state: emptyToNull(body.state),
+      zip: emptyToNull(body.zip),
+      trade,
+    },
+  };
+}
+
+async function findCompanyProfiles(name) {
+  const [vendorResult, contractorResult] = await Promise.all([
+    supabase.from('vendors').select('id, name, archived').ilike('name', name).order('id', { ascending: true }).limit(1).maybeSingle(),
+    supabase.from('contractors').select('id, name, active').ilike('name', name).order('id', { ascending: true }).limit(1).maybeSingle(),
+  ]);
+  if (vendorResult.error) throw vendorResult.error;
+  if (contractorResult.error) throw contractorResult.error;
+  return { vendor: vendorResult.data || null, contractor: contractorResult.data || null };
+}
+
+async function ensureCompanyFolders(created, userId) {
+  if (!created.length) return;
+  try {
+    const filesSvc = require('../services/files');
+    await Promise.all(created.map(({ role, id }) => (
+      filesSvc.ensureRootFolder(role, id, userId)
+        .catch(error => console.warn(`[files] ensureRootFolder(${role}):`, error.message))
+    )));
+  } catch (error) {
+    console.warn('[companies] file workspace unavailable:', error.message);
+  }
+}
 
 function normalizeName(name) {
   return String(name || '').trim();
@@ -105,6 +164,97 @@ router.get('/', async (req, res) => {
     vendorCount: filteredCompanies.filter(c => c.vendor_id).length,
     combinedCount: filteredCompanies.filter(c => c.contractor_id && c.vendor_id).length,
   });
+});
+
+router.get('/new', (req, res) => {
+  res.render('companies/new', {
+    title: 'Add company',
+    activeNav: 'companies',
+    company: { company_role: 'vendor' },
+    errors: {},
+  });
+});
+
+router.post('/', async (req, res) => {
+  const { errors, data } = validateCompany(req.body);
+  if (Object.keys(errors).length) {
+    return res.status(400).render('companies/new', {
+      title: 'Add company', activeNav: 'companies', company: data, errors,
+    });
+  }
+
+  const wantsVendor = data.company_role === 'vendor' || data.company_role === 'both';
+  const wantsContractor = data.company_role === 'contractor' || data.company_role === 'both';
+  const profiles = await findCompanyProfiles(data.name);
+  const vendorAlreadyActive = wantsVendor && profiles.vendor && profiles.vendor.archived !== true && profiles.vendor.archived !== 1;
+  const contractorAlreadyActive = wantsContractor && profiles.contractor && profiles.contractor.active !== false;
+
+  if ((!wantsVendor || vendorAlreadyActive) && (!wantsContractor || contractorAlreadyActive)) {
+    errors.name = 'A company with this name and role already exists.';
+    return res.status(409).render('companies/new', {
+      title: 'Add company', activeNav: 'companies', company: data, errors,
+    });
+  }
+
+  const contactPayload = {
+    name: data.name,
+    email: data.email,
+    phone: data.phone,
+    address: data.address,
+    city: data.city,
+    state: data.state,
+    zip: data.zip,
+  };
+  const created = [];
+
+  try {
+    if (wantsVendor && !vendorAlreadyActive) {
+      if (profiles.vendor) {
+        const { error } = await supabase.from('vendors')
+          .update({ ...contactPayload, archived: 0, updated_at: new Date().toISOString() })
+          .eq('id', profiles.vendor.id);
+        if (error) throw error;
+      } else {
+        const { data: vendor, error } = await supabase.from('vendors')
+          .insert({ ...contactPayload, archived: 0 })
+          .select('id')
+          .single();
+        if (error) throw error;
+        created.push({ role: 'vendor', id: vendor.id });
+      }
+    }
+
+    if (wantsContractor && !contractorAlreadyActive) {
+      if (profiles.contractor) {
+        const { error } = await supabase.from('contractors')
+          .update({ ...contactPayload, trade: data.trade, active: true, updated_at: new Date().toISOString() })
+          .eq('id', profiles.contractor.id);
+        if (error) throw error;
+      } else {
+        const { data: contractor, error } = await supabase.from('contractors')
+          .insert({
+            ...contactPayload,
+            trade: data.trade,
+            active: true,
+            created_by_user_id: req.session.userId || null,
+          })
+          .select('id')
+          .single();
+        if (error) throw error;
+        created.push({ role: 'contractor', id: contractor.id });
+      }
+    }
+  } catch (error) {
+    // Do not leave half of a newly-created "Both" company behind if the second insert fails.
+    await Promise.all(created.map(({ role, id }) => (
+      supabase.from(role === 'vendor' ? 'vendors' : 'contractors').delete().eq('id', id)
+    )));
+    throw error;
+  }
+
+  await ensureCompanyFolders(created, req.session.userId);
+  setFlash(req, 'success', `Company "${data.name}" added.`);
+  res.redirect('/companies');
 });
 
 module.exports = router;

@@ -1,0 +1,80 @@
+<%- include('../layouts/header', { title: title, currentUser: currentUser, flash: flash, activeNav: activeNav }) %>
+<% var selectedRole = company.company_role || 'vendor'; %>
+<div class="max-w-2xl mx-auto px-4 py-6">
+  <div class="mb-4"><a href="/companies" class="text-sm text-recon-fog hover:text-recon-red">&larr; Companies</a></div>
+  <div class="mb-6">
+    <h1 class="page-h1">Add company</h1>
+    <p class="page-sub">Create a company record for the Forge directory.</p>
+  </div>
+
+  <div class="card p-6">
+    <form action="/companies" method="post" class="space-y-5">
+      <fieldset>
+        <legend class="label">Company type</legend>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2" data-company-role-options>
+          <label class="flex items-start gap-3 border border-recon-mist p-3 cursor-pointer hover:border-recon-fog">
+            <input type="radio" name="company_role" value="vendor" class="mt-1" <%= selectedRole === 'vendor' ? 'checked' : '' %>>
+            <span><span class="block font-semibold">Vendor</span><span class="block text-xs text-recon-fog">Suppliers and bill payees</span></span>
+          </label>
+          <label class="flex items-start gap-3 border border-recon-mist p-3 cursor-pointer hover:border-recon-fog">
+            <input type="radio" name="company_role" value="contractor" class="mt-1" <%= selectedRole === 'contractor' ? 'checked' : '' %>>
+            <span><span class="block font-semibold">Contractor</span><span class="block text-xs text-recon-fog">Trades and field work</span></span>
+          </label>
+          <label class="flex items-start gap-3 border border-recon-mist p-3 cursor-pointer hover:border-recon-fog">
+            <input type="radio" name="company_role" value="both" class="mt-1" <%= selectedRole === 'both' ? 'checked' : '' %>>
+            <span><span class="block font-semibold">Both</span><span class="block text-xs text-recon-fog">Vendor and contractor</span></span>
+          </label>
+        </div>
+      </fieldset>
+
+      <div>
+        <label class="label" for="company-name">Company name <span class="text-recon-red">*</span></label>
+        <input id="company-name" type="text" name="name" value="<%= company.name || '' %>" class="input<%= errors.name ? ' border-red-500' : '' %>" required autofocus autocomplete="organization">
+        <% if (errors.name) { %><p class="text-sm text-red-600 mt-1"><%= errors.name %></p><% } %>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div><label class="label" for="company-email">Email</label><input id="company-email" type="email" name="email" value="<%= company.email || '' %>" class="input" autocomplete="email"></div>
+        <div><label class="label" for="company-phone">Phone</label><input id="company-phone" type="tel" name="phone" value="<%= company.phone || '' %>" class="input" autocomplete="tel"></div>
+      </div>
+
+      <div data-contractor-trade <%= selectedRole === 'vendor' ? 'hidden' : '' %>>
+        <label class="label" for="company-trade">Primary trade</label>
+        <select id="company-trade" name="trade" class="input<%= errors.trade ? ' border-red-500' : '' %>">
+          <option value="">Select a trade</option>
+          <% [['general','General'],['drywall','Drywall'],['plumbing','Plumbing'],['electrical','Electrical'],['HVAC','HVAC'],['other','Other']].forEach(function(option) { %>
+            <option value="<%= option[0] %>" <%= company.trade === option[0] ? 'selected' : '' %>><%= option[1] %></option>
+          <% }); %>
+        </select>
+        <% if (errors.trade) { %><p class="text-sm text-red-600 mt-1"><%= errors.trade %></p><% } %>
+      </div>
+
+      <div><label class="label" for="company-address">Street address</label><input id="company-address" type="text" name="address" value="<%= company.address || '' %>" class="input" autocomplete="street-address"></div>
+      <div class="grid grid-cols-1 sm:grid-cols-6 gap-4">
+        <div class="sm:col-span-3"><label class="label" for="company-city">City</label><input id="company-city" type="text" name="city" value="<%= company.city || '' %>" class="input" autocomplete="address-level2"></div>
+        <div class="sm:col-span-1"><label class="label" for="company-state">State</label><input id="company-state" type="text" name="state" value="<%= company.state || '' %>" class="input uppercase" maxlength="2" autocomplete="address-level1"></div>
+        <div class="sm:col-span-2"><label class="label" for="company-zip">ZIP</label><input id="company-zip" type="text" name="zip" value="<%= company.zip || '' %>" class="input" maxlength="10" autocomplete="postal-code"></div>
+      </div>
+
+      <div class="flex gap-2 pt-4 border-t border-recon-mist">
+        <button type="submit" class="btn btn-primary">Add company</button>
+        <a href="/companies" class="btn btn-ghost">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  var roleInputs = document.querySelectorAll('input[name="company_role"]');
+  var tradeField = document.querySelector('[data-contractor-trade]');
+  function syncTradeField() {
+    var selected = document.querySelector('input[name="company_role"]:checked');
+    if (!tradeField || !selected) return;
+    tradeField.hidden = selected.value === 'vendor';
+  }
+  roleInputs.forEach(function (input) { input.addEventListener('change', syncTradeField); });
+  syncTradeField();
+})();
+</script>
+<%- include('../layouts/footer') %>

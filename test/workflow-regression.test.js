@@ -202,6 +202,8 @@ test('list search and filter forms update live without stealing typing focus', (
 test('managers can manage vendor and contractor records but cannot delete them', () => {
   const app = read('src/app.js');
   const companies = read('src/routes/companies.js');
+  const companiesIndex = read('src/views/companies/index.ejs');
+  const companyForm = read('src/views/companies/new.ejs');
   const vendors = read('src/routes/vendors.js');
   const contractors = read('src/routes/contractors.js');
   const header = read('src/views/layouts/header.ejs');
@@ -214,6 +216,15 @@ test('managers can manage vendor and contractor records but cannot delete them',
   assert.match(companies, /roles\.includes\('Vendor'\)/);
   assert.match(companies, /roles\.includes\('Contractor'\)/);
   assert.match(companies, /res\.render\('companies\/index'/);
+  assert.match(companies, /router\.get\('\/new'/);
+  assert.match(companies, /router\.post\('\/'/);
+  assert.match(companies, /created_by_user_id: req\.session\.userId/);
+  assert.match(companiesIndex, /href="\/companies\/new"/);
+  assert.doesNotMatch(companiesIndex, /href="\/vendor-intake\/start"/);
+  assert.match(companyForm, /name="company_role" value="vendor"/);
+  assert.match(companyForm, /name="company_role" value="contractor"/);
+  assert.match(companyForm, /name="company_role" value="both"/);
+  assert.match(companyForm, /action="\/companies"/);
   assert.match(vendors, /res\.redirect\(302, '\/companies' \+ qs\)/);
   assert.match(contractors, /res\.redirect\(302, '\/companies' \+ qs\)/);
   assert.match(vendors, /router\.post\('\/:id\/delete', requireAdmin,/);
