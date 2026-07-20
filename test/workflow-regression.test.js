@@ -1772,3 +1772,16 @@ test('RFP action toolbar uses a dark surface in dark mode', () => {
   assert.match(app, /app\.locals\.assetVersion = process\.env\.VERCEL_GIT_COMMIT_SHA \|\| 'dev'/);
   assert.match(header, /\/css\/dark\.css\?v=<%= assetVersion %>/);
 });
+
+test('dark mode keeps semantic status panels on dark surfaces', () => {
+  const darkCss = read('public/css/dark.css');
+
+  assert.match(darkCss, /html\.dark \.bg-green-50,/);
+  assert.match(darkCss, /html\.dark \.bg-amber-50,/);
+  assert.match(darkCss, /html\.dark \.bg-blue-50,/);
+  assert.match(darkCss, /html\.dark \.bg-red-50,/);
+  assert.match(darkCss, /html\.dark \.border-green-200/);
+  assert.match(darkCss, /html\.dark \.border-amber-200/);
+  assert.match(darkCss, /html\.dark \.border-blue-200/);
+  assert.match(darkCss, /html\.dark \.border-red-200/);
+});

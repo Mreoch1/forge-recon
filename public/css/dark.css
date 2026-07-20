@@ -666,3 +666,68 @@ html.dark [style*="color:#1a1a1a"],
 html.dark [style*="color: #1a1a1a"] {
   color: var(--dark-text) !important;
 }
+
+/* Semantic alerts and summaries retain meaning without switching back to light panels. */
+html.dark .bg-green-50,
+html.dark .bg-green-100 {
+  background-color: #052e16 !important;
+}
+
+html.dark .border-green-200 {
+  border-color: #166534 !important;
+}
+
+html.dark .text-green-600,
+html.dark .text-green-700,
+html.dark .text-green-800,
+html.dark .text-green-900 {
+  color: #86efac !important;
+}
+
+html.dark .bg-amber-50,
+html.dark .bg-amber-100 {
+  background-color: #2b1d07 !important;
+}
+
+html.dark .border-amber-200 {
+  border-color: #92400e !important;
+}
+
+html.dark .text-amber-600,
+html.dark .text-amber-700,
+html.dark .text-amber-800,
+html.dark .text-amber-900 {
+  color: #fcd34d !important;
+}
+
+html.dark .bg-blue-50,
+html.dark .bg-blue-100 {
+  background-color: #0b1f3a !important;
+}
+
+html.dark .border-blue-200 {
+  border-color: #1d4ed8 !important;
+}
+
+html.dark .text-blue-600,
+html.dark .text-blue-700,
+html.dark .text-blue-800,
+html.dark .text-blue-900 {
+  color: #93c5fd !important;
+}
+
+html.dark .bg-red-50,
+html.dark .bg-red-100 {
+  background-color: #2a0b0e !important;
+}
+
+html.dark .border-red-200 {
+  border-color: #991b1b !important;
+}
+
+html.dark .text-red-600,
+html.dark .text-red-700,
+html.dark .text-red-800,
+html.dark .text-red-900 {
+  color: #fca5a5 !important;
+}
