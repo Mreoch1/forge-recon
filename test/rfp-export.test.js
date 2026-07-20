@@ -71,6 +71,68 @@ test('project RFP CSV export includes all categories and line items', () => {
   assert.doesNotMatch(csv, /parent_id|category_status|markup_pct|approved\r/);
 });
 
+test('approved-only project exports retain only approved parents and sub-lines', () => {
+  const rfps = [
+    { id: 10, contractor_name: 'Plumbing & Fixtures', status: 'pending' },
+    { id: 11, contractor_name: 'Electrical', status: 'awarded' },
+  ];
+  const itemsByRfp = {
+    10: {
+      items: [
+        { id: 100, description: 'Plumbing package', quantity: 1, approved: false },
+        {
+          id: 110,
+          description: 'Approved standalone permit',
+          quantity: 1,
+          unit_cost: 250,
+          total_cost: 250,
+          total_with_markup: 300,
+          final_unit_cost: 300,
+          approved: true,
+        },
+      ],
+      subItemsMap: {
+        100: [
+          {
+            id: 101,
+            parent_line_item_id: 100,
+            vendor: 'Approved Plumbing',
+            description: 'Approved plumbing labor',
+            quantity: 2,
+            unit_cost: 100,
+            markup_pct: 16,
+            general_requirements_pct: 4,
+            approved: true,
+          },
+          {
+            id: 102,
+            parent_line_item_id: 100,
+            vendor: 'Rejected Plumbing',
+            description: 'Unapproved plumbing material',
+            quantity: 2,
+            unit_cost: 80,
+            approved: false,
+          },
+        ],
+      },
+    },
+    11: {
+      items: [{ id: 200, description: 'Unapproved panel', quantity: 1, approved: false }],
+      subItemsMap: {},
+    },
+  };
+
+  const approved = rfpExport.filterApprovedProjectData(rfps, itemsByRfp);
+  const csv = rfpExport.renderProjectCsv({ title: 'Approved Scope' }, approved.rfps, approved.itemsByRfp);
+
+  assert.deepEqual(approved.rfps.map(rfp => rfp.id), [10]);
+  assert.deepEqual(approved.itemsByRfp[10].items.map(item => item.id), [100, 110]);
+  assert.deepEqual(approved.itemsByRfp[10].subItemsMap[100].map(item => item.id), [101]);
+  assert.match(csv, /Approved plumbing labor/);
+  assert.match(csv, /Approved standalone permit/);
+  assert.doesNotMatch(csv, /Unapproved plumbing material|Unapproved panel|Rejected Plumbing|Electrical/);
+});
+
 test('project RFP exports derive parent quantity from approved sub-line quantity', () => {
   const rfps = [{ id: 18, contractor_name: 'Resilient Flooring', status: 'pending' }];
   const itemsByRfp = {

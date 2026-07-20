@@ -899,11 +899,24 @@ test('RFP page filters categories and approved-only line items client-side', () 
   assert.match(view, /data-rfp-line-approved="/);
   assert.match(view, /function approvedRfpCount\(items\)/);
   assert.match(view, /function applyRfpFilters\(\)/);
-  assert.match(view, /rowStatus === 'awarded' && approvedCount > 0/);
+  assert.match(view, /approvedMatch = !approvedOnly \|\| approvedCount > 0/);
   assert.match(view, /\(!approvedOnly \|\| lineApproved\) && searchMatch/);
+  assert.match(view, /data-rfp-export-link/);
+  assert.match(view, /url\.searchParams\.set\('approved_only', '1'\)/);
   assert.match(view, /window\.applyRfpFilters = applyRfpFilters/);
   assert.match(view, /categoryRow\.setAttribute\('data-rfp-status', saved \|\| 'pending'\)/);
   assert.match(view, /categoryRow\.setAttribute\('data-rfp-approved-count', String\(approvedCount\)\)/);
+});
+
+test('project RFP exports honor the approved-only query for PDF, CSV, and XLSX', () => {
+  const routes = read('src/routes/rfp.js');
+
+  assert.match(routes, /function approvedOnlyRequested\(req\)/);
+  assert.equal(
+    (routes.match(/loadProjectExportData\(req\.params\.id, \{ approvedOnly: approvedOnlyRequested\(req\) \}\)/g) || []).length,
+    3
+  );
+  assert.match(routes, /rfpExport\.filterApprovedProjectData\(rows, itemsByRfp\)/);
 });
 
 test('RFP supplier lines sync into project materials', () => {

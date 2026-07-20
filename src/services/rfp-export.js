@@ -306,6 +306,44 @@ function buildExportRows(items, subItemsMap) {
 }
 
 /**
+ * Keep only approved scope for the project-level approved-only view/export.
+ * Parent rows with pricing sub-lines are included when at least one child is
+ * approved; only those approved children are retained. Standalone parent rows
+ * continue to use their own approved flag.
+ */
+function filterApprovedProjectData(rfps, itemsByRfp) {
+  const approvedRfps = [];
+  const approvedItemsByRfp = {};
+
+  (rfps || []).forEach(rfp => {
+    const bucket = (itemsByRfp && itemsByRfp[rfp.id]) || { items: [], subItemsMap: {} };
+    const approvedItems = [];
+    const approvedSubItemsMap = {};
+
+    (bucket.items || []).forEach(item => {
+      const children = (bucket.subItemsMap && bucket.subItemsMap[item.id]) || [];
+      if (children.length) {
+        const approvedChildren = children.filter(child => !!child.approved);
+        if (!approvedChildren.length) return;
+        approvedItems.push(item);
+        approvedSubItemsMap[item.id] = approvedChildren;
+        return;
+      }
+      if (item.approved) approvedItems.push(item);
+    });
+
+    if (!approvedItems.length) return;
+    approvedRfps.push(rfp);
+    approvedItemsByRfp[rfp.id] = {
+      items: approvedItems,
+      subItemsMap: approvedSubItemsMap,
+    };
+  });
+
+  return { rfps: approvedRfps, itemsByRfp: approvedItemsByRfp };
+}
+
+/**
  * Compute grand total of approved items.
  * Uses the same logic as the EJS view: for parent items with children,
  * only approved sub-line totals are summed; standalone items count when approved.
@@ -1401,6 +1439,7 @@ module.exports = {
   renderProjectPdf,
   renderProjectCsv,
   renderProjectXlsx,
+  filterApprovedProjectData,
   renderContractorHandoffPdf,
   renderBidRequestPdf,
   renderSelectedBidRequestPdf,

@@ -22,9 +22,9 @@
     <div class="rfp-action-group">
       <span class="rfp-action-label">Export</span>
       <div class="rfp-action-buttons">
-        <a href="/projects/<%= job.id %>/rfp/export.pdf" class="btn btn-secondary text-sm" target="_blank">PDF</a>
-        <a href="/projects/<%= job.id %>/rfp/export.csv" class="btn btn-secondary text-sm" target="_blank">CSV</a>
-        <a href="/projects/<%= job.id %>/rfp/export.xlsx" class="btn btn-secondary text-sm" target="_blank">XLSX</a>
+        <a href="/projects/<%= job.id %>/rfp/export.pdf" data-rfp-export-link class="btn btn-secondary text-sm" target="_blank">PDF</a>
+        <a href="/projects/<%= job.id %>/rfp/export.csv" data-rfp-export-link class="btn btn-secondary text-sm" target="_blank">CSV</a>
+        <a href="/projects/<%= job.id %>/rfp/export.xlsx" data-rfp-export-link class="btn btn-secondary text-sm" target="_blank">XLSX</a>
       </div>
     </div>
     <form id="rfp-bid-request-form" action="/projects/<%= job.id %>/rfp/bid-request.pdf" method="GET" target="_blank" class="rfp-bid-request-tools">
@@ -959,7 +959,7 @@
       var approvedCount = parseInt(row.getAttribute('data-rfp-approved-count') || '0', 10) || 0;
       var categoryMatch = !q || searchHaystack.indexOf(q) !== -1;
       var statusMatch = !status || rowStatus === status;
-      var approvedMatch = !approvedOnly || (rowStatus === 'awarded' && approvedCount > 0);
+      var approvedMatch = !approvedOnly || approvedCount > 0;
       var showCategory = categoryMatch && statusMatch && approvedMatch;
       row.classList.toggle('hidden', !showCategory);
       if (itemsRow) itemsRow.classList.toggle('hidden', itemsRow.classList.contains('hidden') || !showCategory);
@@ -972,6 +972,13 @@
         var lineMatch = (!approvedOnly || lineApproved) && searchMatch;
         lineRow.classList.toggle('hidden', !lineMatch);
       });
+    });
+
+    document.querySelectorAll('[data-rfp-export-link]').forEach(function(link) {
+      var url = new URL(link.getAttribute('href'), window.location.origin);
+      if (approvedOnly) url.searchParams.set('approved_only', '1');
+      else url.searchParams.delete('approved_only');
+      link.setAttribute('href', url.pathname + url.search);
     });
   }
 

@@ -1070,7 +1070,11 @@ router.post('/projects/rfps/items/:itemId/approve', requireRfpEditAccess, async 
 // ── F-006: RFP export routes (PDF, CSV, XLSX) ──────────────────────────
 const rfpExport = require('../services/rfp-export');
 
-async function loadProjectExportData(jobId) {
+function approvedOnlyRequested(req) {
+  return ['1', 'true', 'on', 'yes'].includes(String(req.query.approved_only || '').toLowerCase());
+}
+
+async function loadProjectExportData(jobId, options = {}) {
   const { data: job, error: jobError } = await supabase
     .from('jobs')
     .select('id, title')
@@ -1112,7 +1116,10 @@ async function loadProjectExportData(jobId) {
     });
   }
 
-  return { job, rfps: rows, itemsByRfp };
+  if (!options.approvedOnly) return { job, rfps: rows, itemsByRfp };
+
+  const approved = rfpExport.filterApprovedProjectData(rows, itemsByRfp);
+  return { job, rfps: approved.rfps, itemsByRfp: approved.itemsByRfp };
 }
 
 function exportFilenameBase(job, fallbackId) {
@@ -1183,7 +1190,7 @@ router.get('/projects/:id/rfp/bid-request.pdf', requireRfpAccess, async (req, re
 });
 
 router.get('/projects/:id/rfp/export.pdf', requireRfpAccess, async (req, res) => {
-  const data = await loadProjectExportData(req.params.id);
+  const data = await loadProjectExportData(req.params.id, { approvedOnly: approvedOnlyRequested(req) });
   if (!data) return res.status(404).send('Project not found');
   const user = res.locals.currentUser;
   const buf = await rfpExport.renderProjectPdf(data.job, data.rfps, data.itemsByRfp, { createdBy: user?.name || '' });
@@ -1193,7 +1200,7 @@ router.get('/projects/:id/rfp/export.pdf', requireRfpAccess, async (req, res) =>
 });
 
 router.get('/projects/:id/rfp/export.csv', requireRfpAccess, async (req, res) => {
-  const data = await loadProjectExportData(req.params.id);
+  const data = await loadProjectExportData(req.params.id, { approvedOnly: approvedOnlyRequested(req) });
   if (!data) return res.status(404).send('Project not found');
   const csv = rfpExport.renderProjectCsv(data.job, data.rfps, data.itemsByRfp);
   res.setHeader('Content-Type', 'text/csv');
@@ -1202,7 +1209,7 @@ router.get('/projects/:id/rfp/export.csv', requireRfpAccess, async (req, res) =>
 });
 
 router.get('/projects/:id/rfp/export.xlsx', requireRfpAccess, async (req, res) => {
-  const data = await loadProjectExportData(req.params.id);
+  const data = await loadProjectExportData(req.params.id, { approvedOnly: approvedOnlyRequested(req) });
   if (!data) return res.status(404).send('Project not found');
   const buf = await rfpExport.renderProjectXlsx(data.job, data.rfps, data.itemsByRfp);
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
