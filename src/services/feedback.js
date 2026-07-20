@@ -6,6 +6,7 @@
  */
 
 const supabase = require('../db/supabase');
+const { assessFeedbackRisk } = require('./feedback-safety');
 
 /**
  * Insert a feedback entry submitted via the floating feedback button.
@@ -117,6 +118,32 @@ async function getInboxFeed(limit = 50, statusFilter) {
       });
     });
   }
+
+  // Resolve the submitter so an admin can verify who requested a change.
+  // Historical anonymous rows remain visible as "Unknown / historical".
+  const userIds = [...new Set(results.map(item => item.userId).filter(Boolean))];
+  const usersById = new Map();
+  if (userIds.length) {
+    const { data: users, error: usersError } = await supabase
+      .from('users')
+      .select('id, name, email, role')
+      .in('id', userIds);
+    if (usersError) {
+      console.warn('[feedback] could not resolve submitters:', usersError.message);
+    } else {
+      (users || []).forEach(user => usersById.set(String(user.id), user));
+    }
+  }
+
+  results.forEach(item => {
+    item.submitter = item.userId ? usersById.get(String(item.userId)) || null : null;
+    if (item.source === 'user_feedback') {
+      Object.assign(item, assessFeedbackRisk(item.title, item.body));
+    } else {
+      item.riskLevel = 'normal';
+      item.riskReasons = [];
+    }
+  });
 
   // Sort newest-first
   results.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));

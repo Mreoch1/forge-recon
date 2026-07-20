@@ -381,7 +381,7 @@ app.use('/', requireAuth, dashboardRoutes);
 // POST /report-error — user-triggered error report
 // D-088: writes to ai_chat_errors table instead of email (keeps the
 // user-facing UX identical — they still see "We've reported this error")
-app.post('/report-error', async (req, res) => {
+app.post('/report-error', requireAuth, lowLimiter, async (req, res) => {
   const { code, message, url, user_email, error_detail, error_ctx } = req.body;
   let ctx = {};
   try { if (error_ctx) ctx = JSON.parse(error_ctx); } catch(e) {}
@@ -408,7 +408,7 @@ app.post('/report-error', async (req, res) => {
 // POST /feedback — support/feedback from the floating button
 // D-088: writes to user_feedback table instead of email
 // Accepts standard form POST and AJAX (JSON) requests.
-app.post('/feedback', async (req, res) => {
+app.post('/feedback', requireAuth, lowLimiter, async (req, res) => {
   const subject = (req.body.subject || '').trim();
   const message = (req.body.message || '').trim();
   const pageUrl = String(req.body.page_url || req.headers.referer || '').trim().slice(0, 2000) || null;
@@ -421,6 +421,9 @@ app.post('/feedback', async (req, res) => {
   };
   if (!subject || !message) {
     return sendJson(400, { error: 'Subject and message are required.' });
+  }
+  if (subject.length > 100 || message.length > 2000) {
+    return sendJson(400, { error: 'Feedback must be 100 characters or fewer for the subject and 2,000 or fewer for the message.' });
   }
   const userId = req.session?.userId || null;
   try {

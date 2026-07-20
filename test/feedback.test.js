@@ -16,7 +16,7 @@ let mockResolve = { data: null, count: 0, error: null };
 // Build a thenable chain — each method records the call and returns this
 function chain(obj) {
   const c = {};
-  const methods = ['from', 'select', 'insert', 'update', 'eq', 'neq', 'order', 'limit', 'range', 'maybeSingle', 'single'];
+  const methods = ['from', 'select', 'insert', 'update', 'eq', 'neq', 'in', 'order', 'limit', 'range', 'maybeSingle', 'single'];
   methods.forEach(m => {
     c[m] = (...args) => {
       lastQuery[m] = args;
@@ -141,6 +141,7 @@ describe('FeedbackService', () => {
         limit: () => obj,
         eq: () => obj,
         neq: () => obj,
+        in: () => obj,
         range: () => obj,
         then: (onFulfilled) => {
           onFulfilled({ data, count, error: null });
@@ -155,6 +156,10 @@ describe('FeedbackService', () => {
       lastQuery.from = [table, callCount];
       if (callCount === 1) return makeThenableQuery(feedbackRows, 2);
       if (callCount === 2) return makeThenableQuery(errorRows, 2);
+      if (callCount === 3) return makeThenableQuery([
+        { id: 1, name: 'Test Admin', email: 'admin@example.com', role: 'admin' },
+        { id: 2, name: 'Test Manager', email: 'manager@example.com', role: 'manager' },
+      ], 2);
       return makeThenableQuery([], 0);
     };
 
@@ -176,6 +181,9 @@ describe('FeedbackService', () => {
     const newError = items.find(i => i.source === 'ai_chat_errors' && i.sourceId === 1);
     assert.ok(newError);
     assert.equal(newError.status, 'new');
+    const attributedFeedback = items.find(i => i.source === 'user_feedback' && i.sourceId === 1);
+    assert.equal(attributedFeedback.submitter.email, 'admin@example.com');
+    assert.equal(attributedFeedback.riskLevel, 'normal');
   });
 
   test('getInboxFeed throws when a source query fails', async () => {
