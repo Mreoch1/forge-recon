@@ -65,15 +65,17 @@ function ff(v) {
                     <% if (c.bills && c.bills.length) { %>
                       <table class="w-full table-fixed text-xs">
                         <colgroup>
-                          <col style="width: 33%;">
-                          <col style="width: 33%;">
-                          <col style="width: 34%;">
+                          <col style="width: 30%;">
+                          <col style="width: 25%;">
+                          <col style="width: 25%;">
+                          <col style="width: 20%;">
                         </colgroup>
                         <thead>
                           <tr class="text-recon-fog">
                             <th class="px-4 py-3 text-left">Bill #</th>
                             <th class="px-4 py-3 text-left">Date</th>
                             <th class="px-4 py-3 text-right">Amount</th>
+                            <th class="px-4 py-3 text-right">Invoice</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -82,6 +84,7 @@ function ff(v) {
                               <td class="px-4 py-3"><a href="/bills/<%= b.id %>" class="text-recon-red hover:underline"><%= b.bill_number || '#' + b.id %></a></td>
                               <td class="px-4 py-3"><%= b.bill_date ? String(b.bill_date).slice(0,10) : '—' %></td>
                               <td class="px-4 py-3 text-right">$<%= ff(b.total) %></td>
+                              <td class="px-4 py-3 text-right"><% if (b.attachment_file_id) { %><a href="/files/<%= b.attachment_file_id %>/view" target="_blank" rel="noopener" class="text-recon-red hover:underline">PDF</a><% } else { %>—<% } %></td>
                             </tr>
                           <% }); %>
                         </tbody>

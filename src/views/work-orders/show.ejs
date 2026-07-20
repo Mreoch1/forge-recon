@@ -488,6 +488,7 @@ function safeJson(value) {
                 <span class="text-recon-fog text-xs"><%= b.bill_number ? '#' + b.bill_number : '' %></span>
                 <span class="ml-auto font-medium">$<%= Number(b.total || 0).toFixed(2) %></span>
                 <% if (b.bill_date) { %><span class="text-recon-fog text-xs"><%= String(b.bill_date).slice(0,10) %></span><% } %>
+                <% if (b.attachment_file_id) { %><a href="/files/<%= b.attachment_file_id %>/view" target="_blank" rel="noopener" class="text-recon-red text-xs hover:underline">Invoice PDF</a><% } %>
                 <a href="/bills/<%= b.id %>" class="text-recon-red text-xs hover:underline">View</a>
               </div>
             <% }); %>

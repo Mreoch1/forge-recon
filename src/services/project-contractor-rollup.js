@@ -72,7 +72,7 @@ async function getProjectContractorRollup(jobId) {
   // source of truth for actual vendor/contractor spend.
   const { data: bills, error: bErr } = await supabase
     .from('bills')
-    .select('id, bill_number, total, status, bill_date, vendor_id, vendors!left(name)')
+    .select('id, bill_number, total, status, bill_date, vendor_id, attachment_file_id, vendors!left(name)')
     .eq('job_id', jobId)
     .in('status', ['draft', 'approved', 'paid']);
   if (bErr) throw bErr;
@@ -89,6 +89,7 @@ async function getProjectContractorRollup(jobId) {
       total: toNum(b.total),
       status: b.status,
       bill_date: b.bill_date,
+      attachment_file_id: b.attachment_file_id || null,
       vendor_name: b.vendors?.name || null,
     };
     if (vId) {

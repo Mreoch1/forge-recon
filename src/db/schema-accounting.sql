@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS bills (
   bill_number TEXT,                    -- vendor-provided number, free-form
   job_id INTEGER REFERENCES jobs(id),  -- optional: tie to a job for cost-tracking
   work_order_id INTEGER REFERENCES work_orders(id),  -- optional
+  attachment_file_id INTEGER,              -- private Forge file containing the vendor invoice PDF
   status TEXT NOT NULL DEFAULT 'approved'
     CHECK(status IN ('draft','approved','paid','void')),
   bill_date TEXT,

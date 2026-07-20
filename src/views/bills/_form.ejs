@@ -19,8 +19,9 @@ function woSearchLabel(w) {
 }
 const selectedWorkOrder = (workOrders || []).find(w => String(w.id) === String(bill.work_order_id));
 const workOrdersJson = JSON.stringify(workOrders || []).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
+const pendingInvoicePdf = bill.pending_invoice_pdf || null;
 %>
-<form action="<%= formAction %>" method="post" class="space-y-6">
+<form id="bill-form" action="<%= formAction %>" method="post" class="space-y-6">
   <div class="card p-5">
     <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog mb-3">Header</h3>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -107,6 +108,28 @@ const workOrdersJson = JSON.stringify(workOrders || []).replace(/</g, '\\u003c')
       <p id="matched-wo-description" class="text-xs text-recon-fog mt-3"><%= selectedWorkOrder ? (selectedWorkOrder.description || '') : '' %></p>
     </div>
     <p class="text-xs text-recon-fog mt-3">Selecting a work order also selects its project and updates the project financials, WO billing list, and linked estimate/invoice costs.</p>
+  </div>
+
+  <div class="card p-5">
+    <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+      <div>
+        <h3 class="text-sm font-semibold uppercase tracking-wide text-recon-fog">Vendor invoice PDF</h3>
+        <p class="text-xs text-recon-fog mt-1">Filed automatically under Project/WO Files &gt; Invoices &gt; Vendor.</p>
+      </div>
+      <% if (bill.attachment) { %>
+        <a href="/files/<%= bill.attachment.id %>/view" target="_blank" rel="noopener" class="btn btn-secondary text-sm">View current PDF</a>
+      <% } %>
+    </div>
+    <div class="mt-4 max-w-2xl">
+      <label class="label" for="invoice-pdf"><%= bill.attachment ? 'Replace invoice PDF' : 'Attach invoice PDF' %></label>
+      <input type="file" id="invoice-pdf" accept=".pdf,application/pdf" class="input">
+      <input type="hidden" name="invoice_pdf_storage_key" id="invoice-pdf-storage-key" value="<%= pendingInvoicePdf?.storageKey || '' %>">
+      <input type="hidden" name="invoice_pdf_original_filename" id="invoice-pdf-original-filename" value="<%= pendingInvoicePdf?.originalFilename || '' %>">
+      <input type="hidden" name="invoice_pdf_mime_type" id="invoice-pdf-mime-type" value="<%= pendingInvoicePdf?.mimeType || '' %>">
+      <input type="hidden" name="invoice_pdf_size_bytes" id="invoice-pdf-size-bytes" value="<%= pendingInvoicePdf?.sizeBytes || '' %>">
+      <p id="invoice-pdf-status" class="text-xs text-recon-fog mt-2"><% if (pendingInvoicePdf) { %><%= pendingInvoicePdf.originalFilename %> is ready to be filed when the bill is saved.<% } else { %>PDF only, up to 25 MB.<% } %></p>
+      <% if (errors.invoice_pdf) { %><p class="text-sm text-red-600 mt-1"><%= errors.invoice_pdf %></p><% } %>
+    </div>
   </div>
 
   <div class="card overflow-hidden">
@@ -317,6 +340,104 @@ const workOrdersJson = JSON.stringify(workOrders || []).replace(/</g, '\\u003c')
   if (hidden.value) {
     renderMatch(workOrders.find(function(w) { return String(w.id) === String(hidden.value); }) || null);
   }
+})();
+
+// Upload the vendor invoice directly to private storage before submitting the
+// bill. The bill route registers it in the normal Forge file hierarchy.
+(function(){
+  var form = document.getElementById('bill-form');
+  var input = document.getElementById('invoice-pdf');
+  var status = document.getElementById('invoice-pdf-status');
+  var storageKey = document.getElementById('invoice-pdf-storage-key');
+  var originalFilename = document.getElementById('invoice-pdf-original-filename');
+  var mimeType = document.getElementById('invoice-pdf-mime-type');
+  var sizeBytes = document.getElementById('invoice-pdf-size-bytes');
+  if (!form || !input) return;
+
+  function clearPendingUpload() {
+    storageKey.value = '';
+    originalFilename.value = '';
+    mimeType.value = '';
+    sizeBytes.value = '';
+  }
+
+  async function readJson(response) {
+    var text = await response.text();
+    var payload;
+    try { payload = text ? JSON.parse(text) : {}; }
+    catch (_) { throw new Error('Forge returned an invalid upload response. Please try again.'); }
+    if (!response.ok) throw new Error(payload.error || 'The invoice PDF could not be prepared.');
+    return payload;
+  }
+
+  async function uploadToSignedUrl(uploadUrl, file) {
+    var rawResponse = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type || 'application/pdf' },
+      body: file,
+    });
+    if (rawResponse.ok) return;
+    var rawText = await rawResponse.text().catch(function(){ return ''; });
+    if (rawResponse.status !== 400) {
+      throw new Error('PDF upload failed: ' + rawResponse.status + (rawText ? ' - ' + rawText : ''));
+    }
+
+    var uploadForm = new FormData();
+    uploadForm.append('cacheControl', '3600');
+    uploadForm.append('', file, file.name);
+    var formResponse = await fetch(uploadUrl, { method: 'PUT', body: uploadForm });
+    if (!formResponse.ok) {
+      var formText = await formResponse.text().catch(function(){ return ''; });
+      throw new Error('PDF upload failed: ' + formResponse.status + (formText ? ' - ' + formText : ''));
+    }
+  }
+
+  input.addEventListener('change', function() {
+    clearPendingUpload();
+    var file = input.files && input.files[0];
+    status.textContent = file ? file.name + ' will upload when this bill is saved.' : 'PDF only, up to 25 MB.';
+  });
+
+  form.addEventListener('submit', async function(event) {
+    var file = input.files && input.files[0];
+    if (!file || storageKey.value) return;
+    event.preventDefault();
+
+    if (!/\.pdf$/i.test(file.name) || (file.type && !['application/pdf', 'application/octet-stream'].includes(file.type))) {
+      status.textContent = 'Choose a PDF invoice.';
+      return;
+    }
+    if (!file.size || file.size > 25 * 1024 * 1024) {
+      status.textContent = 'The invoice PDF must be 25 MB or smaller.';
+      return;
+    }
+
+    var submitButton = form.querySelector('button[type="submit"]');
+    if (submitButton) submitButton.disabled = true;
+    input.disabled = true;
+    try {
+      status.textContent = 'Preparing secure invoice upload...';
+      var params = new URLSearchParams({
+        filename: file.name,
+        size: String(file.size),
+        contentType: file.type || 'application/pdf',
+      });
+      var prepared = await readJson(await fetch('/bills/upload-url?' + params.toString()));
+      status.textContent = 'Uploading ' + file.name + '...';
+      await uploadToSignedUrl(prepared.uploadUrl, file);
+      storageKey.value = prepared.storageKey;
+      originalFilename.value = file.name;
+      mimeType.value = file.type || 'application/pdf';
+      sizeBytes.value = String(file.size);
+      status.textContent = 'Upload complete. Saving and filing the bill...';
+      form.submit();
+    } catch (error) {
+      clearPendingUpload();
+      status.textContent = error.message || 'The invoice PDF could not be uploaded.';
+      input.disabled = false;
+      if (submitButton) submitButton.disabled = false;
+    }
+  });
 })();
 
 // D-144: real-time totals — line $, subtotal, tax, total recompute as the user

@@ -1324,7 +1324,7 @@ router.get('/:id', async (req, res) => {
   try {
     const { data: billData } = await supabase
       .from('bills')
-      .select('id, bill_number, total, status, bill_date, due_date, vendors!left(name)')
+      .select('id, bill_number, total, status, bill_date, due_date, attachment_file_id, vendors!left(name)')
       .eq('work_order_id', wo.id)
       .order('bill_date', { ascending: false });
     bills = (billData || []).map(function(b) {

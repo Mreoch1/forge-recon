@@ -42,7 +42,7 @@ const paidCount = (bills || []).filter(function(b){ return b.status === 'paid'; 
           <tr>
             <th>Bill #</th><th>Vendor</th><th class="text-right">Total</th>
             <th class="text-right">Paid</th><th class="text-right">Balance</th>
-            <th>Date</th><th>Due</th>
+            <th>Date</th><th>Due</th><th>Invoice</th>
           </tr>
         </thead>
         <tbody>
@@ -56,6 +56,7 @@ const paidCount = (bills || []).filter(function(b){ return b.status === 'paid'; 
               <td class="text-right <%= bal > 0 ? 'text-recon-red font-medium' : '' %>">$<%= bal.toFixed(2) %></td>
               <td><%= b.bill_date ? String(b.bill_date).slice(0,10) : '-' %></td>
               <td><%= b.due_date ? String(b.due_date).slice(0,10) : '-' %></td>
+              <td><% if (b.attachment_file_id) { %><a href="/files/<%= b.attachment_file_id %>/view" target="_blank" rel="noopener" class="text-recon-red hover:underline" onclick="event.stopPropagation()">PDF</a><% } else { %>—<% } %></td>
             </tr>
           <% }); %>
         </tbody>

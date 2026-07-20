@@ -55,6 +55,61 @@ async function getRootFolder(entityType, entityId) {
   return findRootFolder(entityType, entityId);
 }
 
+function cleanFolderName(name) {
+  return String(name || '')
+    .replace(/[\\/<>:"|?*\x00-\x1F]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 180);
+}
+
+async function ensureSubfolder(parentFolder, name, createdByUserId) {
+  if (!parentFolder?.id) throw new Error('Parent folder is required.');
+  const safeName = cleanFolderName(name);
+  if (!safeName) throw new Error('Folder name is required.');
+
+  const findExisting = async () => {
+    const { data } = await checkedFileRead(supabase
+      .from('folders')
+      .select('*')
+      .eq('parent_folder_id', parentFolder.id)
+      .eq('name', safeName)
+      .order('id', { ascending: true })
+      .limit(1), 'file subfolder lookup failed');
+    return (data && data[0]) || null;
+  };
+
+  const existing = await findExisting();
+  if (existing) return existing;
+
+  const { data: inserted, error } = await supabase
+    .from('folders')
+    .insert({
+      parent_folder_id: parentFolder.id,
+      name: safeName,
+      entity_type: parentFolder.entity_type,
+      entity_id: String(parentFolder.entity_id),
+      is_root: 0,
+      created_by_user_id: createdByUserId || null,
+    })
+    .select('*')
+    .single();
+  if (!error) return inserted;
+
+  // Another request may have created the same folder while this one was saving.
+  const racedFolder = await findExisting();
+  if (racedFolder) return racedFolder;
+  throw error;
+}
+
+async function ensureFolderPath(rootFolder, names, createdByUserId) {
+  let current = rootFolder;
+  for (const name of names || []) {
+    current = await ensureSubfolder(current, name, createdByUserId);
+  }
+  return current;
+}
+
 async function getFolderContents(folderId) {
   const [subfoldersResult, filesResult] = await Promise.all([
     supabase.from('folders').select('*').eq('parent_folder_id', folderId).order('name', { ascending: true }),
@@ -89,4 +144,11 @@ async function getEntityList(entityType) {
   return [];
 }
 
-module.exports = { ensureRootFolder, getRootFolder, getFolderContents, getEntityList };
+module.exports = {
+  ensureRootFolder,
+  ensureSubfolder,
+  ensureFolderPath,
+  getRootFolder,
+  getFolderContents,
+  getEntityList,
+};

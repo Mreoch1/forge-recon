@@ -1465,7 +1465,7 @@ test('project financials live on a dedicated billing tab', () => {
   assert.doesNotMatch(financials, /include\('_sov_table'/);
   assert.match(financials, /No project bills or contractor\/vendor commitments are linked to this project yet/);
   assert.match(financials, /<table class="w-full table-fixed text-xs">/);
-  assert.match(financials, /<col style="width: 34%;">[\s\S]*<th class="px-4 py-3 text-right">Amount<\/th>/);
+  assert.match(financials, /<col style="width: 30%;">[\s\S]*<th class="px-4 py-3 text-right">Amount<\/th>[\s\S]*<th class="px-4 py-3 text-right">Invoice<\/th>/);
 });
 
 test('project contractor rollup includes bill-only vendors from Forge bills', () => {
@@ -1547,6 +1547,34 @@ test('unpaid bills can be edited or deleted without orphaning accounting or draf
   assert.match(migration, /reversed_by_entry_id is null/);
   assert.match(migration, /delete from public\.journal_entries/);
   assert.match(migration, /revoke execute[\s\S]*from public, anon, authenticated/);
+});
+
+test('vendor invoice PDFs are filed with bills and linked across billing views', () => {
+  const routes = read('src/routes/bills.js');
+  const attachments = read('src/services/bill-attachments.js');
+  const fileService = read('src/services/files.js');
+  const form = read('src/views/bills/_form.ejs');
+  const billIndex = read('src/views/bills/index.ejs');
+  const billShow = read('src/views/bills/show.ejs');
+  const projectFinancials = read('src/views/jobs/financials.ejs');
+  const workOrderShow = read('src/views/work-orders/show.ejs');
+  const migration = read('supabase/migrations/20260720171124_bill_invoice_pdf_attachments.sql');
+
+  assert.match(migration, /add column if not exists attachment_file_id bigint references public\.files\(id\) on delete set null/);
+  assert.match(routes, /router\.get\('\/upload-url'/);
+  assert.match(routes, /billAttachments\.registerBillPdf/);
+  assert.match(routes, /attachment_file_id/);
+  assert.match(attachments, /MAX_BILL_PDF_SIZE = 25 \* 1024 \* 1024/);
+  assert.match(attachments, /ensureFolderPath\(root, \['Invoices', vendorFolderName\]/);
+  assert.match(attachments, /update\(\{ attachment_file_id: fileRow\.id \}\)/);
+  assert.match(fileService, /async function ensureFolderPath/);
+  assert.match(form, /id="invoice-pdf"/);
+  assert.match(form, /fetch\('\/bills\/upload-url\?'/);
+  assert.match(form, /name="invoice_pdf_storage_key"/);
+  assert.match(billIndex, /\/files\/<%= b\.attachment_file_id %>\/view/);
+  assert.match(billShow, /\/files\/<%= bill\.attachment\.id %>\/view/);
+  assert.match(projectFinancials, /\/files\/<%= b\.attachment_file_id %>\/view/);
+  assert.match(workOrderShow, /\/files\/<%= b\.attachment_file_id %>\/view/);
 });
 
 test('invoice line item totals update with blank labor and zero markup', () => {

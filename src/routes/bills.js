@@ -24,6 +24,7 @@ const posting = require('../services/accounting-posting');
 const { writeAudit } = require('../services/audit');
 const { sanitizePostgrestSearch } = require('../services/sanitize');
 const billPaperwork = require('../services/bill-paperwork');
+const billAttachments = require('../services/bill-attachments');
 
 const router = express.Router();
 const PAGE_SIZE = 25;
@@ -148,6 +149,17 @@ async function loadBill(id) {
   delete bill.jobs;
   delete bill.work_orders;
 
+  bill.attachment = null;
+  if (bill.attachment_file_id) {
+    const { data: attachment, error: attachmentError } = await supabase
+      .from('files')
+      .select('id, folder_id, name, original_filename, mime_type, size_bytes, created_at')
+      .eq('id', bill.attachment_file_id)
+      .maybeSingle();
+    if (attachmentError) throw attachmentError;
+    bill.attachment = attachment || null;
+  }
+
   // Created/approved-by names (two FKs into users, can't multiplex via PostgREST cleanly)
   if (bill.created_by_user_id) {
     const { data: uc, error: creatorError } = await supabase.from('users').select('name').eq('id', bill.created_by_user_id).maybeSingle();
@@ -236,8 +248,18 @@ function blankBill() {
   return {
     id: null, vendor_id: null, bill_number: '', bill_date: '', due_date: '',
     job_id: null, work_order_id: null, tax_amount: 0, notes: '',
+    attachment_file_id: null, attachment: null, pending_invoice_pdf: null,
     lines: [], subtotal: 0, total: 0
   };
+}
+
+function parseInvoicePdf(body, userId, errors) {
+  try {
+    return billAttachments.parsePendingBillPdf(body, userId);
+  } catch (error) {
+    errors.invoice_pdf = error.message;
+    return null;
+  }
 }
 
 async function loadVendorsAndAccounts() {
@@ -283,7 +305,7 @@ router.get('/', async (req, res) => {
   let query = supabase
     .from('bills')
     .select(`
-      id, bill_number, status, bill_date, due_date, total, amount_paid, created_at,
+      id, bill_number, status, bill_date, due_date, total, amount_paid, created_at, attachment_file_id,
       vendor_id, vendors!left(id, name)
     `, { count: 'exact', head: false });
 
@@ -439,9 +461,25 @@ router.get('/new', async (req, res) => {
   });
 });
 
+router.get('/upload-url', async (req, res) => {
+  try {
+    const upload = await billAttachments.prepareBillPdfUpload({
+      filename: req.query.filename,
+      size: req.query.size,
+      contentType: req.query.contentType,
+      userId: req.session.userId,
+    });
+    res.json({ ok: true, ...upload, maxFileSize: billAttachments.MAX_BILL_PDF_SIZE });
+  } catch (error) {
+    const status = /25 MB|empty/i.test(error.message) ? 413 : 400;
+    res.status(status).json({ ok: false, error: error.message });
+  }
+});
+
 router.post('/', async (req, res) => {
   const { vendors, expenseAccounts } = await loadVendorsAndAccounts();
   const { errors, data } = await validateBill(req.body);
+  const pendingInvoicePdf = parseInvoicePdf(req.body, req.session.userId, errors);
   if (Object.keys(errors).length) {
     const { projects, workOrders } = await loadProjectsAndWorkOrders({
       projectId: data.job_id,
@@ -449,7 +487,7 @@ router.post('/', async (req, res) => {
     });
     return res.status(400).render('bills/new', {
       title: 'New bill', activeNav: 'bills',
-      bill: { id: null, ...data }, vendors, expenseAccounts, projects, workOrders, errors,
+      bill: { id: null, ...data, pending_invoice_pdf: pendingInvoicePdf }, vendors, expenseAccounts, projects, workOrders, errors,
       vendorName: data.vendor_id ? (vendors.find(v => String(v.id) === String(data.vendor_id))?.name || '') : ''
     });
   }
@@ -488,6 +526,22 @@ router.post('/', async (req, res) => {
       .update({ notes: data.notes })
       .eq('id', newId);
     if (noteErr) throw noteErr;
+  }
+
+  if (pendingInvoicePdf) {
+    try {
+      await billAttachments.registerBillPdf({
+        billId: newId,
+        bill: data,
+        vendorName: vendors.find(v => String(v.id) === String(data.vendor_id))?.name,
+        upload: pendingInvoicePdf,
+        userId: req.session.userId,
+      });
+    } catch (error) {
+      console.error('[bills] invoice PDF filing failed:', error.message);
+      setFlash(req, 'error', `The bill was saved as a draft, but its invoice PDF could not be filed: ${error.message}`);
+      return res.redirect(`/bills/${newId}/edit`);
+    }
   }
 
   try {
@@ -552,6 +606,7 @@ router.post('/:id', async (req, res) => {
   }
   const { vendors, expenseAccounts } = await loadVendorsAndAccounts();
   const { errors, data } = await validateBill(req.body);
+  const pendingInvoicePdf = parseInvoicePdf(req.body, req.session.userId, errors);
   if (Object.keys(errors).length) {
     const { projects, workOrders } = await loadProjectsAndWorkOrders({
       projectId: data.job_id || existing.job_id,
@@ -559,7 +614,7 @@ router.post('/:id', async (req, res) => {
     });
     return res.status(400).render('bills/edit', {
       title: `Edit bill #${existing.id}`, activeNav: 'bills',
-      bill: { ...existing, ...data }, vendors, expenseAccounts, projects, workOrders, errors,
+      bill: { ...existing, ...data, pending_invoice_pdf: pendingInvoicePdf }, vendors, expenseAccounts, projects, workOrders, errors,
       vendorName: data.vendor_id ? (vendors.find(v => String(v.id) === String(data.vendor_id))?.name || '') : ''
     });
   }
@@ -591,6 +646,22 @@ router.post('/:id', async (req, res) => {
     p_user_id: req.currentUser?.id ?? req.session?.userId ?? null,
   });
   if (rpcErr) throw rpcErr;
+
+  if (pendingInvoicePdf) {
+    try {
+      await billAttachments.registerBillPdf({
+        billId: existing.id,
+        bill: data,
+        vendorName: vendors.find(v => String(v.id) === String(data.vendor_id))?.name,
+        upload: pendingInvoicePdf,
+        userId: req.session.userId,
+      });
+    } catch (error) {
+      console.error('[bills] invoice PDF filing failed:', error.message);
+      setFlash(req, 'error', `The bill details were saved, but the replacement invoice PDF could not be filed: ${error.message}`);
+      return res.redirect(`/bills/${existing.id}/edit`);
+    }
+  }
 
   let paperworkSyncFailed = false;
   try {

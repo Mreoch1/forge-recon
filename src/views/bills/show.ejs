@@ -24,6 +24,9 @@ const canDelete = isUnpaid && ['draft', 'approved', 'void'].includes(bill.status
       </p>
     </div>
     <div class="flex flex-wrap gap-2">
+      <% if (bill.attachment) { %>
+        <a href="/files/<%= bill.attachment.id %>/view" target="_blank" rel="noopener" class="btn btn-secondary">Invoice PDF</a>
+      <% } %>
       <% if (canEdit) { %>
         <a href="/bills/<%= bill.id %>/edit" class="btn btn-secondary">Edit bill</a>
       <% } %>
@@ -105,6 +108,7 @@ const canDelete = isUnpaid && ['draft', 'approved', 'void'].includes(bill.status
         <% if (bill.approved_by_name) { %><div><dt class="text-recon-fog text-xs inline">Entered by:</dt> <dd class="inline"><%= bill.approved_by_name %></dd></div><% } %>
         <% if (bill.paid_at) { %><div><dt class="text-recon-fog text-xs inline">Paid at:</dt> <dd class="inline"><%= bill.paid_at %></dd></div><% } %>
         <div><dt class="text-recon-fog text-xs inline">Created:</dt> <dd class="inline"><%= (bill.created_at || '—').slice(0,10) %></dd></div>
+        <% if (bill.attachment) { %><div><dt class="text-recon-fog text-xs inline">Vendor invoice:</dt> <dd class="inline"><a href="/files/<%= bill.attachment.id %>/view" target="_blank" rel="noopener" class="text-recon-red hover:underline"><%= bill.attachment.original_filename || bill.attachment.name %></a></dd></div><% } %>
       </dl>
     </div>
     <% if (bill.paperwork && ((bill.paperwork.estimates || []).length || (bill.paperwork.invoices || []).length)) { %>

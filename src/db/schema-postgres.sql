@@ -493,6 +493,7 @@ CREATE TABLE IF NOT EXISTS bills (
   bill_number TEXT,
   job_id BIGINT REFERENCES jobs(id),
   work_order_id BIGINT REFERENCES work_orders(id),
+  attachment_file_id BIGINT,
   status TEXT NOT NULL DEFAULT 'approved'
     CHECK(status IN ('draft','approved','paid','void')),
   bill_date DATE,
