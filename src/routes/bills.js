@@ -10,11 +10,11 @@
  *   GET   /new[?vendor_id=N]      new manual bill
  *   POST  /                       create approved bill
  *   GET   /:id                    show
- *   GET   /:id/edit               edit legacy draft only
- *   POST  /:id                    update legacy draft only
+ *   GET   /:id/edit               edit unpaid draft or approved bill
+ *   POST  /:id                    update unpaid draft or approved bill
  *   POST  /:id/pay                approved -> paid (full or partial) + post JE (DR AP / CR Cash)
  *   POST  /:id/void               any non-paid -> void (with reversing JE if approved)
- *   POST  /:id/delete             draft or void only
+ *   POST  /:id/delete             permanently delete an unpaid bill
  */
 
 const express = require('express');
@@ -47,6 +47,10 @@ function lineTotal(li) {
   const p = parseFloat(li.unit_price);
   if (!isFinite(q) || !isFinite(p)) return 0;
   return Math.round(q * p * 100) / 100;
+}
+
+function isEditableUnpaidBill(bill) {
+  return ['draft', 'approved'].includes(bill.status) && Number(bill.amount_paid || 0) <= 0;
 }
 
 async function lookupMiscAccountId() {
@@ -523,8 +527,8 @@ router.get('/:id', async (req, res) => {
 router.get('/:id/edit', async (req, res) => {
   const bill = await loadBill(req.params.id);
   if (!bill) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Bill not found.' });
-  if (bill.status !== 'draft') {
-    setFlash(req, 'error', `Bill is "${bill.status}" — cannot edit.`);
+  if (!isEditableUnpaidBill(bill)) {
+    setFlash(req, 'error', 'Paid, partially paid, or void bills cannot be edited.');
     return res.redirect(`/bills/${bill.id}`);
   }
   const { vendors, expenseAccounts } = await loadVendorsAndAccounts();
@@ -542,8 +546,8 @@ router.get('/:id/edit', async (req, res) => {
 router.post('/:id', async (req, res) => {
   const existing = await loadBill(req.params.id);
   if (!existing) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Bill not found.' });
-  if (existing.status !== 'draft') {
-    setFlash(req, 'error', `Bill is "${existing.status}" — cannot edit.`);
+  if (!isEditableUnpaidBill(existing)) {
+    setFlash(req, 'error', 'Paid, partially paid, or void bills cannot be edited.');
     return res.redirect(`/bills/${existing.id}`);
   }
   const { vendors, expenseAccounts } = await loadVendorsAndAccounts();
@@ -569,9 +573,9 @@ router.post('/:id', async (req, res) => {
     line_total: lineTotal(li),
     sort_order: idx,
   }));
-  const { error: rpcErr } = await supabase.rpc('update_bill_with_lines', {
-    bill_id: parseInt(existing.id, 10),
-    bill_data: {
+  const { error: rpcErr } = await supabase.rpc('edit_unpaid_bill_with_lines', {
+    p_bill_id: parseInt(existing.id, 10),
+    p_bill_data: {
       vendor_id: data.vendor_id,
       job_id: data.job_id,
       work_order_id: data.work_order_id,
@@ -583,33 +587,23 @@ router.post('/:id', async (req, res) => {
       bill_date: data.bill_date,
       notes: data.notes,
     },
-    lines: lineRows,
+    p_lines: lineRows,
+    p_user_id: req.currentUser?.id ?? req.session?.userId ?? null,
   });
   if (rpcErr) throw rpcErr;
 
-  // RPC does not audit updates — write a separate audit row.
+  let paperworkSyncFailed = false;
   try {
-    const { error: auditErr } = await supabase.from('audit_logs').insert({
-      entity_type: 'bill',
-      entity_id: existing.id,
-      action: 'update',
-      before_json: { total: existing.total },
-      after_json: { total: data.total },
-      source: 'user',
-      user_id: req.session.userId,
-    });
-    if (auditErr) throw auditErr;
-  } catch (e) { /* best-effort */ }
-
-  if (data.work_order_id) {
-    try {
-      await billPaperwork.ensureDraftPaperworkForBill({ billId: existing.id });
-    } catch (e) {
-      console.warn('[bills] draft estimate/invoice sync failed:', e.message);
-    }
+    await billPaperwork.syncDraftPaperworkForBill({ billId: existing.id });
+  } catch (e) {
+    paperworkSyncFailed = true;
+    console.warn('[bills] draft estimate/invoice sync failed:', e.message);
   }
 
-  setFlash(req, 'success', `Bill updated.`);
+  setFlash(req, 'success', 'Bill updated and accounting totals refreshed.');
+  if (paperworkSyncFailed) {
+    setFlash(req, 'info', 'The bill was saved, but its draft estimate/invoice could not be refreshed. Review the linked paperwork before sending it.');
+  }
   res.redirect(`/bills/${existing.id}`);
 });
 
@@ -695,8 +689,8 @@ router.post('/:id/void', async (req, res) => {
     .maybeSingle();
   if (findErr) throw findErr;
   if (!bill) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Bill not found.' });
-  if (bill.status === 'paid') {
-    setFlash(req, 'error', `Cannot void a paid bill.`);
+  if (bill.status === 'paid' || Number(bill.amount_paid || 0) > 0) {
+    setFlash(req, 'error', 'Cannot void a paid or partially paid bill.');
     return res.redirect(`/bills/${bill.id}`);
   }
 
@@ -736,28 +730,20 @@ router.post('/:id/delete', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const { data: bill, error: findErr } = await supabase
     .from('bills')
-    .select('id, status')
+    .select('id, status, amount_paid')
     .eq('id', id)
     .maybeSingle();
   if (findErr) throw findErr;
   if (!bill) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Bill not found.' });
-  if (!['draft', 'void'].includes(bill.status)) {
-    setFlash(req, 'error', `Cannot delete bill in status "${bill.status}".`);
+  if (bill.status === 'paid' || Number(bill.amount_paid || 0) > 0) {
+    setFlash(req, 'error', 'Paid or partially paid bills cannot be deleted.');
     return res.redirect(`/bills/${id}`);
   }
-  const { error: delLineErr } = await supabase.from('bill_lines').delete().eq('bill_id', id);
-  if (delLineErr) throw delLineErr;
-  const { error: delErr } = await supabase.from('bills').delete().eq('id', id);
-  if (delErr) throw delErr;
-
-  try {
-    await writeAudit({
-      entityType: 'bill', entityId: id, action: 'delete',
-      before: { status: bill.status },
-      after: null,
-      source: 'user', userId: req.session.userId,
-    });
-  } catch (e) { /* best-effort */ }
+  const { error: deleteError } = await supabase.rpc('delete_unpaid_bill', {
+    p_bill_id: id,
+    p_user_id: req.currentUser?.id ?? req.session?.userId ?? null,
+  });
+  if (deleteError) throw deleteError;
 
   setFlash(req, 'success', `Bill deleted.`);
   res.redirect('/bills');

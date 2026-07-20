@@ -294,6 +294,76 @@ async function ensureDraftPaperworkForBill({ billId }) {
   };
 }
 
+async function removeEditablePaperworkLinesForBill({ billId }) {
+  const { data: estimateLinks, error: estimateLinkError } = await supabase
+    .from('estimate_line_items')
+    .select('estimate_id')
+    .eq('source_bill_id', billId);
+  if (estimateLinkError) throw estimateLinkError;
+
+  const estimateIds = [...new Set((estimateLinks || []).map(row => Number(row.estimate_id)).filter(Number.isFinite))];
+  if (estimateIds.length) {
+    const { data: estimates, error: estimateError } = await supabase
+      .from('estimates')
+      .select('id, status, tax_rate')
+      .in('id', estimateIds);
+    if (estimateError) throw estimateError;
+
+    for (const estimate of (estimates || []).filter(row => ['new', 'draft'].includes(row.status))) {
+      const { error: deleteError } = await supabase
+        .from('estimate_line_items')
+        .delete()
+        .eq('estimate_id', estimate.id)
+        .eq('source_bill_id', billId);
+      if (deleteError) throw deleteError;
+
+      const totals = await totalsForEstimate(estimate.id, estimate.tax_rate);
+      const { error: updateError } = await supabase
+        .from('estimates')
+        .update({ ...totals, updated_at: new Date().toISOString() })
+        .eq('id', estimate.id);
+      if (updateError) throw updateError;
+    }
+  }
+
+  const { data: invoiceLinks, error: invoiceLinkError } = await supabase
+    .from('invoice_line_items')
+    .select('invoice_id')
+    .eq('source_bill_id', billId);
+  if (invoiceLinkError) throw invoiceLinkError;
+
+  const invoiceIds = [...new Set((invoiceLinks || []).map(row => Number(row.invoice_id)).filter(Number.isFinite))];
+  if (invoiceIds.length) {
+    const { data: invoices, error: invoiceError } = await supabase
+      .from('invoices')
+      .select('id, status, tax_rate')
+      .in('id', invoiceIds);
+    if (invoiceError) throw invoiceError;
+
+    for (const invoice of (invoices || []).filter(row => row.status === 'draft')) {
+      const { error: deleteError } = await supabase
+        .from('invoice_line_items')
+        .delete()
+        .eq('invoice_id', invoice.id)
+        .eq('source_bill_id', billId);
+      if (deleteError) throw deleteError;
+
+      const totals = await totalsForInvoice(invoice.id, invoice.tax_rate);
+      const { error: updateError } = await supabase
+        .from('invoices')
+        .update({ ...totals, updated_at: new Date().toISOString() })
+        .eq('id', invoice.id);
+      if (updateError) throw updateError;
+    }
+  }
+}
+
+async function syncDraftPaperworkForBill({ billId }) {
+  await removeEditablePaperworkLinesForBill({ billId });
+  return ensureDraftPaperworkForBill({ billId });
+}
+
 module.exports = {
   ensureDraftPaperworkForBill,
+  syncDraftPaperworkForBill,
 };

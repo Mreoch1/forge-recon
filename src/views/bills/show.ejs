@@ -3,6 +3,9 @@
 <%
 function fmt(n) { const num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
 const bal = (Number(bill.total) || 0) - (Number(bill.amount_paid) || 0);
+const isUnpaid = Number(bill.amount_paid || 0) <= 0;
+const canEdit = isUnpaid && ['draft', 'approved'].includes(bill.status);
+const canDelete = isUnpaid && ['draft', 'approved', 'void'].includes(bill.status);
 %>
 
 <div class="document-shell">
@@ -21,8 +24,8 @@ const bal = (Number(bill.total) || 0) - (Number(bill.amount_paid) || 0);
       </p>
     </div>
     <div class="flex flex-wrap gap-2">
-      <% if (bill.status === 'draft') { %>
-        <a href="/bills/<%= bill.id %>/edit" class="btn btn-secondary">Edit</a>
+      <% if (canEdit) { %>
+        <a href="/bills/<%= bill.id %>/edit" class="btn btn-secondary">Edit bill</a>
       <% } %>
     </div>
   </div>
@@ -140,19 +143,20 @@ const bal = (Number(bill.total) || 0) - (Number(bill.amount_paid) || 0);
     <% } %>
   </div>
 
-  <% if (['draft', 'approved', 'void'].includes(bill.status)) { %>
+  <% if (canDelete || (isUnpaid && ['draft', 'approved'].includes(bill.status))) { %>
     <div class="card p-5 border-red-200">
       <h3 class="font-semibold text-recon-red mb-2">Danger zone</h3>
-      <% if (bill.status === 'draft' || bill.status === 'approved') { %>
+      <p class="text-sm text-recon-fog mb-3">Void keeps the bill as a historical record. Delete permanently removes an unpaid bill and its accounts-payable entry.</p>
+      <% if (isUnpaid && (bill.status === 'draft' || bill.status === 'approved')) { %>
         <form action="/bills/<%= bill.id %>/void" method="post" class="mb-3"
               onsubmit="return confirm('Void this bill?');">
           <button class="btn btn-danger" title="Cancel this bill. Keeps the record but removes it from AP totals.">Void bill</button>
         </form>
       <% } %>
-      <% if (bill.status === 'draft' || bill.status === 'void') { %>
+      <% if (canDelete) { %>
         <form action="/bills/<%= bill.id %>/delete" method="post"
-              onsubmit="return confirm('Delete this <%= bill.status %> bill?');" class="m-0">
-          <button type="submit" class="btn btn-danger" title="Permanently delete this bill. Only allowed for draft or void bills.">Delete bill</button>
+              onsubmit="return confirm('Permanently delete this unpaid bill? This cannot be undone.');" class="m-0">
+          <button type="submit" class="btn btn-danger" title="Permanently delete this unpaid bill and remove it from accounts payable.">Delete bill</button>
         </form>
       <% } %>
     </div>

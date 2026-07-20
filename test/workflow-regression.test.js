@@ -1526,6 +1526,29 @@ test('bills are entered without a visible approval status step', () => {
   assert.doesNotMatch(dashboardView, /bills awaiting approval/);
 });
 
+test('unpaid bills can be edited or deleted without orphaning accounting or draft paperwork', () => {
+  const routes = read('src/routes/bills.js');
+  const show = read('src/views/bills/show.ejs');
+  const paperwork = read('src/services/bill-paperwork.js');
+  const migration = read('supabase/migrations/20260720162914_edit_delete_unpaid_bills.sql');
+
+  assert.match(routes, /function isEditableUnpaidBill/);
+  assert.match(routes, /edit_unpaid_bill_with_lines/);
+  assert.match(routes, /delete_unpaid_bill/);
+  assert.match(routes, /syncDraftPaperworkForBill/);
+  assert.match(routes, /Paid or partially paid bills cannot be deleted/);
+  assert.match(show, />Edit bill</);
+  assert.match(show, /const canDelete = isUnpaid/);
+  assert.match(show, /Permanently delete this unpaid bill/);
+  assert.match(paperwork, /async function syncDraftPaperworkForBill/);
+  assert.match(paperwork, /\.eq\('source_bill_id', billId\)/);
+  assert.match(migration, /for update/);
+  assert.match(migration, /v_bill\.status not in \('draft', 'approved'\)/);
+  assert.match(migration, /reversed_by_entry_id is null/);
+  assert.match(migration, /delete from public\.journal_entries/);
+  assert.match(migration, /revoke execute[\s\S]*from public, anon, authenticated/);
+});
+
 test('invoice line item totals update with blank labor and zero markup', () => {
   const lineItems = read('public/js/line-items.js');
   const invoiceEdit = read('src/views/invoices/edit.ejs');
