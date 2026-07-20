@@ -623,7 +623,7 @@ router.get('/', async (req, res) => {
   // added in r36_projects_layer). PostgREST can't resolve plain `users!left(...)`
   // when multiple FKs exist — must use the FK constraint name explicitly.
   let query = supabase.from('jobs').select(
-    'id, title, status, address, city, state, scheduled_date, created_at, customer_id, client, ' +
+    'id, title, status, preconstruction_completed_at, address, city, state, scheduled_date, created_at, customer_id, client, ' +
     'customers!left(name), ' +
     'assigned_to_user_id, ' +
     'users!jobs_assigned_to_user_id_fkey(name)',
@@ -1509,14 +1509,26 @@ router.post('/:id/status', async (req, res) => {
   if (!job) return res.status(404).render('error', { title: 'Not found', code: 404, message: 'Project not found.' });
 
   if (job.status !== nextStatus) {
+    const updateData = {
+      status: nextStatus,
+      updated_at: new Date().toISOString(),
+    };
+    if (job.status === 'pre-construction' && nextStatus === 'in_progress') {
+      updateData.preconstruction_completed_at = new Date().toISOString();
+    }
     const { error: updateError } = await supabase
       .from('jobs')
-      .update({ status: nextStatus, updated_at: new Date().toISOString() })
+      .update(updateData)
       .eq('id', id);
     if (updateError) throw updateError;
     await writeAudit({
       entityType: 'project', entityId: job.id, action: 'status_changed',
-      before: { status: job.status }, after: { status: nextStatus },
+      before: { status: job.status }, after: {
+        status: nextStatus,
+        ...(updateData.preconstruction_completed_at
+          ? { preconstruction_completed_at: updateData.preconstruction_completed_at }
+          : {}),
+      },
       source: 'user', userId: req.session.userId,
     });
   }

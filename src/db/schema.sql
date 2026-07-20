@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   description TEXT,
   status TEXT NOT NULL DEFAULT 'lead'
     CHECK(status IN ('lead','estimating','scheduled','in_progress','complete','cancelled')),
+  preconstruction_completed_at TEXT,
   scheduled_date TEXT,    -- YYYY-MM-DD
   scheduled_time TEXT,    -- HH:MM
   assigned_to_user_id INTEGER REFERENCES users(id),

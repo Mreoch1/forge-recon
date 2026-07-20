@@ -82,7 +82,17 @@ function projectAriaSort(key) {
         <tbody>
           <% jobs.forEach(function(j){ %>
             <tr class="row-link" data-href="/projects/<%= j.id %>">
-              <td class="font-medium"><%= j.title %></td>
+              <td class="font-medium">
+                <span class="inline-flex items-center gap-2 flex-wrap">
+                  <span><%= j.title %></span>
+                  <% if (j.preconstruction_completed_at) { %>
+                    <span class="precon-milestone-badge" title="Pre-construction complete: planning handed off to field operations">
+                      <span class="precon-milestone-mark" aria-hidden="true">PC</span>
+                      <span class="precon-milestone-label">Pre-construction complete</span>
+                    </span>
+                  <% } %>
+                </span>
+              </td>
               <td><%= j.customer_name %></td>
               <td><%= [j.address, j.city, j.state].filter(Boolean).join(', ') || '—' %></td>
               <td><span class="badge badge-<%= j.status %>"><%= j.status.replace('_',' ') %></span></td>

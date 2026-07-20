@@ -210,6 +210,18 @@ html.dark .badge-lead {
   color: var(--dark-text-muted) !important;
 }
 
+html.dark .precon-milestone-badge {
+  background: linear-gradient(135deg, #3c2d0d 0%, #241b09 100%) !important;
+  border-color: #d7ad4b !important;
+  color: #f7dc92 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 1px 3px rgba(0,0,0,.45) !important;
+}
+
+html.dark .precon-milestone-mark {
+  background: #e63946 !important;
+  color: #fff !important;
+}
+
 /* ============================================================
    R33 mobile bits — keep dark-friendly. Mobile panel is already
    recon-steel which is dark, but verify hamburger hover sits.

@@ -416,6 +416,23 @@ test('document status badges save immediately without opening edit forms', () =>
   });
 });
 
+test('projects earn a permanent pre-construction completion badge at field handoff', () => {
+  const jobsRoutes = read('src/routes/jobs.js');
+  const projectHeader = read('src/views/jobs/_project_header.ejs');
+  const projectIndex = read('src/views/jobs/index.ejs');
+  const header = read('src/views/layouts/header.ejs');
+
+  assert.match(jobsRoutes, /job\.status === 'pre-construction' && nextStatus === 'in_progress'/);
+  assert.match(jobsRoutes, /updateData\.preconstruction_completed_at = new Date\(\)\.toISOString\(\)/);
+  assert.match(jobsRoutes, /status, preconstruction_completed_at, address/);
+  [projectHeader, projectIndex].forEach(view => {
+    assert.match(view, /job\.preconstruction_completed_at|j\.preconstruction_completed_at/);
+    assert.match(view, /precon-milestone-badge/);
+    assert.match(view, /Pre-construction complete/);
+  });
+  assert.match(header, /\.precon-milestone-mark/);
+});
+
 test('project files open in a Forge viewer with sibling navigation', () => {
   const fileRoutes = read('src/routes/files.js');
   const folderView = read('src/views/files/folder.ejs');

@@ -15,6 +15,12 @@ var projectStatuses = ['lead', 'estimating', 'scheduled', 'in_progress', 'comple
       <div class="min-w-0">
         <div class="flex items-center gap-3 flex-wrap">
           <h1 class="text-2xl font-bold tracking-tight"><%= job.title %></h1>
+          <% if (job.preconstruction_completed_at) { %>
+            <span class="precon-milestone-badge" title="Pre-construction complete: planning handed off to field operations">
+              <span class="precon-milestone-mark" aria-hidden="true">PC</span>
+              <span class="precon-milestone-label">Pre-construction complete</span>
+            </span>
+          <% } %>
           <% if (headerAccess.canManageMembers) { %>
             <form action="/projects/<%= job.id %>/status" method="post" class="inline-status-form">
               <select name="status" class="badge badge-<%= job.status %> inline-status-select" aria-label="Change project status"
