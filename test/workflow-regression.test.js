@@ -1716,3 +1716,16 @@ test('public legal pages resolve the shared root-level layout includes', () => {
     assert.doesNotMatch(template, /include\('\.\.\/layouts\//);
   }
 });
+
+test('dark mode uses a neutral black palette with readable text', () => {
+  const darkCss = read('public/css/dark.css');
+  const header = read('src/views/layouts/header.ejs');
+
+  assert.match(darkCss, /--dark-bg: #050505/);
+  assert.match(darkCss, /--dark-surface: #111111/);
+  assert.match(darkCss, /--dark-elevated: #181818/);
+  assert.match(darkCss, /--dark-text: #f5f5f5/);
+  assert.match(darkCss, /html\.dark body[\s\S]*background-color: var\(--dark-bg\)/);
+  assert.match(darkCss, /html\.dark input[\s\S]*color: var\(--dark-text\)/);
+  assert.match(header, /const DARK_TINT\s+= '#050505'/);
+});
