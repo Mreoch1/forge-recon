@@ -901,6 +901,7 @@ test('RFP page filters categories and approved-only line items client-side', () 
   assert.match(view, /function applyRfpFilters\(\)/);
   assert.match(view, /approvedMatch = !approvedOnly \|\| approvedCount > 0/);
   assert.match(view, /\(!approvedOnly \|\| lineApproved\) && searchMatch/);
+  assert.match(view, /\.rfp-items-table tbody tr\.rfp-li-row\.hidden\s*\{[^}]*display:\s*none !important/s);
   assert.match(view, /data-rfp-export-link/);
   assert.match(view, /url\.searchParams\.set\('approved_only', '1'\)/);
   assert.match(view, /window\.applyRfpFilters = applyRfpFilters/);
