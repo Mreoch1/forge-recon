@@ -11,6 +11,15 @@ test('ordinary product feedback remains a normal review item', () => {
   assert.deepEqual(result.riskReasons, []);
 });
 
+test('routine accessibility feedback remains eligible for normal implementation', () => {
+  const result = assessFeedbackRisk(
+    'Dark mode accessibility',
+    'It would be nice to have multiple dark mode options and a color blind accessibility button.'
+  );
+  assert.equal(result.riskLevel, 'normal');
+  assert.deepEqual(result.riskReasons, []);
+});
+
 test('mass data deletion request requires owner review', () => {
   const result = assessFeedbackRisk('Start over', 'Erase all data stored and start fresh.');
   assert.equal(result.riskLevel, 'high');
