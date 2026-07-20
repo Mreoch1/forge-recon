@@ -1740,3 +1740,8 @@ test('dark mode uses a neutral black palette with readable text', () => {
   assert.match(darkCss, /html\.dark input[\s\S]*color: var\(--dark-text\)/);
   assert.match(header, /const DARK_TINT\s+= '#050505'/);
 });
+
+test('RFP action toolbar uses a dark surface in dark mode', () => {
+  const darkCss = read('public/css/dark.css');
+  assert.match(darkCss, /html\.dark \.rfp-action-bar,/);
+});
