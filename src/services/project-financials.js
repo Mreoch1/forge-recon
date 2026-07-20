@@ -9,6 +9,7 @@
  */
 
 const supabase = require('../db/supabase');
+const { aggregateApprovedRfpFinancials } = require('./rfp-approved-rollup');
 
 /**
  * Throws if the Supabase response contains an error.
@@ -124,17 +125,13 @@ async function getProjectFinancials(jobId) {
   if (rfpIds.length > 0) {
     const { data: lineItemData, error: liError } = await supabase
       .from('rfp_line_items')
-      .select('total_cost, total_with_markup')
-      .in('rfp_id', rfpIds)
-      .eq('approved', true);
+      .select('id, parent_line_item_id, total_cost, total_with_markup, approved')
+      .in('rfp_id', rfpIds);
     if (liError) throw liError;
 
-    rfp_committed = (lineItemData || []).reduce(
-      (s, r) => s + toNum(r.total_cost), 0
-    );
-    rfp_contract_value = (lineItemData || []).reduce(
-      (s, r) => s + toNum(r.total_with_markup), 0
-    );
+    const approvedRfp = aggregateApprovedRfpFinancials(lineItemData);
+    rfp_committed = approvedRfp.cost;
+    rfp_contract_value = approvedRfp.value;
   }
 
   // ── 6. Vendor bills (from bills table — single source of truth) ──

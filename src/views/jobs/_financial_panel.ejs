@@ -65,7 +65,7 @@ function pct(val) {
           <h4 class="text-xs uppercase tracking-wider text-recon-fog font-semibold mb-3">Income</h4>
           <div class="space-y-2">
             <div class="flex items-center justify-between">
-              <span class="text-sm text-recon-charcoal">Contract value</span>
+              <span class="text-sm text-recon-charcoal"><%= f.manual_contract_value > 0 ? 'Contract value' : 'RFP awarded value' %></span>
               <span class="font-mono tabular-nums text-sm text-recon-charcoal"><%= fmt(f.contract_value) %></span>
             </div>
             <div class="flex items-center justify-between">
@@ -103,7 +103,7 @@ function pct(val) {
           <h4 class="text-xs uppercase tracking-wider text-recon-fog font-semibold mb-3">Costs</h4>
           <div class="space-y-2">
             <div class="flex items-center justify-between">
-              <span class="text-sm text-recon-charcoal">RFP committed</span>
+              <span class="text-sm text-recon-charcoal">RFP approved cost</span>
               <span class="font-mono tabular-nums text-sm text-recon-charcoal"><%= fmt(f.rfp_committed) %></span>
             </div>
             <div class="flex items-center justify-between">

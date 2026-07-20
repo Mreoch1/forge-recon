@@ -1633,9 +1633,17 @@ test('project subcontract agreement PDF terms render full-width after contract s
 
 test('project financials show estimated profit margin and markup percent', () => {
   const service = read('src/services/project-financials.js');
+  const rollup = read('src/services/rfp-approved-rollup.js');
   const panel = read('src/views/jobs/_financial_panel.ejs');
   const overview = read('src/views/jobs/_financial_overview.ejs');
 
+  assert.match(service, /aggregateApprovedRfpFinancials\(lineItemData\)/);
+  assert.match(service, /select\('id, parent_line_item_id, total_cost, total_with_markup, approved'\)/);
+  assert.doesNotMatch(service, /\.in\('rfp_id', rfpIds\)\s*\.eq\('approved', true\)/);
+  assert.match(rollup, /const approvedScope = children\.length/);
+  assert.match(rollup, /children\.filter\(\(child\) => child\.approved === true\)/);
+  assert.match(panel, /RFP awarded value/);
+  assert.match(panel, /RFP approved cost/);
   assert.match(service, /const estimated_profit = revised_contract_value - total_committed/);
   assert.match(service, /const estimated_profit_pct =\s*revised_contract_value > 0 \? \(estimated_profit \/ revised_contract_value\) \* 100 : 0/);
   assert.match(service, /const estimated_markup_pct =\s*total_committed > 0 \? \(estimated_profit \/ total_committed\) \* 100 : 0/);
